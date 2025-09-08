@@ -1,0 +1,33 @@
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f8f9fa;
+}
+
+.btn{
+    min-width: 100px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.btn-mark{
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    background-color: currentColor;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+.actions-group > * {
+    margin-left: 0.25rem;
+}
+
+#install-wizard-content .tab-pane {
+    height: 350px;       /* Set a fixed height for the content area */
+    overflow-y: auto;    /* Add a vertical scrollbar only when content overflows */
+    padding: 10px;       /* Add some internal padding */
+    border: 1px solid #dee2e6;
+    border-top: none;    /* The tabs themselves act as the top border */
+    border-radius: 0 0 0.25rem 0.25rem;
+}

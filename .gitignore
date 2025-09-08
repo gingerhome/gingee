@@ -34,8 +34,6 @@ bower_components
 # node-waf configuration
 .lock-wscript
 
-# Compiled binary addons (https://nodejs.org/api/addons.html)
-build/Release
 
 # Dependency directories
 node_modules/
@@ -137,3 +135,15 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# GingerJS Specific
+build/dist/gingerjs
+docs/api
+dev-docs
+settings/ssl/*
+temp/*
+backups/*
+test/data/*
+web/*
+!web/glade
+!web/glade/**

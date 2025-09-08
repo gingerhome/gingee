@@ -1,0 +1,38 @@
+{
+  "glade": {
+    "granted": [
+      "platform",
+      "fs"
+    ]
+  },
+  "tests": {
+    "granted": [
+      "cache",
+      "db",
+      "fs",
+      "httpclient",
+      "pdf",
+      "zip",
+      "image"
+    ]
+  },
+  "glide": {
+    "granted": [
+      "httpclient",
+      "platform"
+    ]
+  },
+  "lifecycle_app_1756712554187": {
+    "granted": []
+  },
+  "recovery_test_app_1756712560587": {
+    "granted": []
+  },
+  "gintin": {
+    "granted": [
+      "db",
+      "fs",
+      "image"
+    ]
+  }
+}

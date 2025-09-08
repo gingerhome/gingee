@@ -1,0 +1,99 @@
+{
+  "name": "gingerjs",
+  "version": "1.0.0",
+  "description": "GingerJS, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
+  "main": "ginger.js",
+  "scripts": {
+    "start": "node ginger.js",
+    "dev": "nodemon ginger.js",
+    "build": "node ./build/package.js",
+    "build-ai-context": "node ./build/create-ai-context.js",
+    "build-dev-ai-context": "node ./build/create-dev-context.js",
+    "count": "cloc . --exclude-ext=\"json,md,txt\" --exclude-dir=\"node_modules,dev-docs,build,backups,temp,logs,docs\"",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,json,md,html,css}\"",
+    "docs": "jsdoc -c .jsdoc.json && markdown-to-html --source ./docs/concepts.md --output ./docs/api/docs/concepts.html && markdown-to-html --source ./docs/server-config.md --output ./docs/api/docs/server-config.html && markdown-to-html --source ./docs/app-structure.md --output ./docs/api/docs/app-structure.html && markdown-to-html --source ./docs/server-script.md --output ./docs/api/docs/server-script.html && markdown-to-html --source ./docs/features.md --output ./docs/api/docs/features.html && markdown-to-html --source ./docs/roadmap.md --output ./docs/api/docs/roadmap.html && markdown-to-html --source ./docs/CONTRIBUTING.md --output ./docs/api/docs/CONTRIBUTING.html && markdown-to-html --source ./docs/CODE_OF_CONDUCT.md --output ./docs/api/docs/CODE_OF_CONDUCT.html && markdown-to-html --source ./docs/packaging-guide.md --output ./docs/api/docs/packaging-guide.html && markdown-to-html --source ./docs/gingerjs-cli.md --output ./docs/api/docs/gingerjs-cli.html && markdown-to-html --source ./docs/ai-disclaimer.md --output ./docs/api/docs/ai-disclaimer.html && markdown-to-html --source ./docs/app-developer-guide.md --output ./docs/api/docs/app-developer-guide.html && markdown-to-html --source ./docs/glade-admin.md --output ./docs/api/docs/glade-admin.html && markdown-to-html --source ./docs/permissions-guide.md --output ./docs/api/docs/permissions-guide.html && markdown-to-html --source ./docs/gstore-hosting-guide.md --output ./docs/api/docs/gstore-hosting-guide.html",
+    "test": "jest --runInBand",
+    "contribute": "echo \"Thank you for your interest! Please see CONTRIBUTING.md for our unique Human-AI collaborative development guidelines.\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gingerhome/gingerjs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gingerhome/gingerjs/issues"
+  },
+  "homepage": "https://github.com/gingerhome/gingerjs#readme",
+  "keywords": [
+    "genai",
+    "ai-authored",
+    "llm",
+    "collaborative-ai",
+    "web server",
+    "app server",
+    "app platform",
+    "app framework",
+    "framework",
+    "backend",
+    "sandbox",
+    "multi-database",
+    "enterprise"
+  ],
+  "author": "Google Gemini (Developer, Test Writer, Tech Writer), Vignesh Swaminathan (Architect, Tester, Reviewer)",
+  "contributors": [
+    "Google Gemini (GenAI Partner)"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.7.0"
+  },
+  "genai": {
+    "methodology": "Dialog-Driven Development",
+    "partner": "Google Gemini",
+    "workflow": "See ai-disclaimer.md for details on the human-AI collaborative process."
+  },
+  "dependencies": {
+    "app-module-path": "^2.2.0",
+    "archiver": "^7.0.1",
+    "argon2": "^0.43.1",
+    "axios": "^1.11.0",
+    "better-sqlite3": "^12.2.0",
+    "bs58": "^6.0.0",
+    "canvas": "^3.1.2",
+    "chartjs-node-canvas": "^5.0.0",
+    "cheerio": "^1.1.2",
+    "crc-32": "^1.2.2",
+    "extract-zip": "^2.0.1",
+    "fast-glob": "^3.3.3",
+    "form-data": "^4.0.4",
+    "formidable": "^3.5.4",
+    "he": "^1.2.0",
+    "ioredis": "^5.7.0",
+    "js-sha3": "^0.9.3",
+    "jsbarcode": "^3.12.1",
+    "mime-types": "^3.0.1",
+    "mssql": "^11.0.1",
+    "mysql2": "^3.14.3",
+    "oracledb": "^6.9.0",
+    "path-to-regexp": "^8.2.0",
+    "pdfmake": "^0.2.20",
+    "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.34.3",
+    "sucrase": "^3.35.0",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "yauzl": "^3.2.0"
+  },
+  "devDependencies": {
+    "docdash": "^2.0.2",
+    "eslint": "^9.33.0",
+    "fs-extra": "^11.3.1",
+    "jest": "^30.0.5",
+    "jest-html-reporter": "^4.3.0",
+    "jsdoc-to-markdown": "^9.1.2",
+    "markdown-to-html": "^0.0.13",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.6.2"
+  }
+}

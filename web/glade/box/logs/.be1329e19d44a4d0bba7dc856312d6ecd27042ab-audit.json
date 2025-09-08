@@ -1,0 +1,25 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 7
+    },
+    "auditLog": "E:\\projects\\gingerjs\\web\\glade\\box\\logs\\.be1329e19d44a4d0bba7dc856312d6ecd27042ab-audit.json",
+    "files": [
+        {
+            "date": 1756808505856,
+            "name": "E:\\projects\\gingerjs\\web\\glade\\box\\logs\\app-2025-09-02.log",
+            "hash": "49e20ebf492e3aeb4761e6d980381fedf5bf1096c24be50459bb720bb778c06f"
+        },
+        {
+            "date": 1757048696292,
+            "name": "E:\\projects\\gingerjs\\web\\glade\\box\\logs\\app-2025-09-05.log",
+            "hash": "ada5ac24947d68f0c95ee4e3d96059e027f28e109cf5227818d2223af0eeaabe"
+        },
+        {
+            "date": 1757326101863,
+            "name": "E:\\projects\\gingerjs\\web\\glade\\box\\logs\\app-2025-09-08.log",
+            "hash": "41391dc07bec0158d1f06c74beae133096a2cb7343ab12512accc5f9a8f2fcb4"
+        }
+    ],
+    "hashType": "sha256"
+}

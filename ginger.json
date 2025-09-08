@@ -1,0 +1,41 @@
+{
+    "server": {
+        "https": {
+            "enabled": false,
+            "port": 7443,
+            "key_file": "settings/ssl/key.pem",
+            "cert_file": "settings/ssl/cert.pem"
+        },
+        "http": {
+            "enabled": true,
+            "port": 7070
+        }
+    },
+    "content_encoding": {
+        "enabled": true
+    },
+    "box": {
+        "allowed_modules": []
+    },
+    "web_root": "./web",
+    "cache": {
+        "provider": "redis",
+        "redis": {
+            "host": "127.0.0.1",
+            "port": 6379,
+            "password": null
+        }
+    },
+    "default_app": "glade",
+    "privileged_apps": [
+        "glide",
+        "glade"
+    ],
+    "logging": {
+        "level": "info",
+        "rotation": {
+            "period_days": 7,
+            "max_size_mb": 50
+        }
+    }
+}

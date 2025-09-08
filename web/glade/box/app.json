@@ -1,0 +1,13 @@
+{
+  "name": "glade",
+  "version": "1.0.0",
+  "description": "The official administration panel for GingerJS.",
+  "type": "MPA",
+  "default_include": [
+    "auth_middleware.js"
+  ],
+  "env": {
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=65536,t=3,p=4$ULnq1khDFNVv0nIAS8tguA$i3dUdCtp8zz4JcRvMFOlF5JieMvAIxL7ZT231EJPps4"
+  }
+}
