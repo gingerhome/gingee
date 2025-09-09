@@ -1,5 +1,5 @@
 {
-  "name": "gingerjs",
+  "name": "gingerjs-core",
   "version": "1.0.0",
   "description": "GingerJS, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
   "main": "ginger.js",

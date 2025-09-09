@@ -107,14 +107,10 @@ async function buildPackage() {
         fs.copySync(path.join(projectRoot, 'LICENSE'), path.join(packageDest, 'LICENSE'));
         fs.copySync(path.join(projectRoot, 'README.md'), path.join(packageDest, 'README.md'));
 
-        fs.copySync(path.join(projectRoot, 'settings'), path.join(packageDest, 'settings'));
-        const sslKeyPath = path.join(packageDest, 'settings', 'ssl', 'key.pem');
-        const sslCertPath = path.join(packageDest, 'settings', 'ssl', 'cert.pem');
-        // Remove existing SSL certificate files if they exist
-        if (fs.existsSync(sslKeyPath))
-            fs.unlinkSync(sslKeyPath);
-        if (fs.existsSync(sslCertPath))
-            fs.unlinkSync(sslCertPath);
+        fs.copySync(path.join(projectRoot, 'settings', 'fonts'), path.join(packageDest, 'settings', 'fonts'));
+        const sslPath = path.join(packageDest, 'settings', 'ssl');
+        //create ssl directory
+        fs.mkdirSync(sslPath);
 
         const permissionsFilePath = path.join(packageDest, 'settings', 'permissions.json');
         fs.writeJsonSync(permissionsFilePath, {}, { spaces: 2 });
