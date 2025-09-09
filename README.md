@@ -87,6 +87,7 @@ Dive deeper into the architecture and learn how to build powerful applications w
 | **[App Permissions Guide](./docs/permissions-guide.md)**            | GingerJS platform's app permissions ecosystem.                                                                              |
 | **[GStore Hosting Guide](./docs/gstore-hosting-guide.md)**          | GingerJS platform's decentralized app store hosting guide                                                                   |
 | **[Full API Reference](https://gingerhome.github.io/gingerjs-docs/)**                     | The complete JSDoc-generated API documentation for every function in every GingerJS app module.                             |
+|**[API Examples](https://github.com/gingerhome/gingerjs-examples)** | Examples of using GingerJS modules, It can also be installed in a GingerJS server using the .gin package in the dist folder.|
 | **[Roadmap](./docs/roadmap.html)**                                  | The roadmap of core and app features in the pipeline for the GingerJS app platform                                          |
 
 ## **Credits**
