@@ -104,7 +104,7 @@ async function buildPackage() {
 
         fs.copySync(path.join(projectRoot, 'ginger.js'), path.join(packageDest, 'ginger.js'));
         fs.copySync(path.join(projectRoot, 'modules'), path.join(packageDest, 'modules'));
-        fs.copySync(path.join(projectRoot, 'LICENSE.md'), path.join(packageDest, 'LICENSE'));
+        fs.copySync(path.join(projectRoot, 'LICENSE'), path.join(packageDest, 'LICENSE'));
         fs.copySync(path.join(projectRoot, 'README.md'), path.join(packageDest, 'README.md'));
 
         fs.copySync(path.join(projectRoot, 'settings'), path.join(packageDest, 'settings'));

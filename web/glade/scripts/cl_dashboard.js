@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingSpinner = document.getElementById('loading-spinner');
     const errorMessage = document.getElementById('error-message');
     const logoutButton = document.getElementById('logoutButton');
+    const aboutButton = document.getElementById('aboutButton');
 
     // --- Modal Elements ---
     const confirmationModal = new bootstrap.Modal(document.getElementById('confirmationModal'));
@@ -133,6 +134,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners ---
+    aboutButton.addEventListener('click', async () => {
+        window.open('https://gingerhome.github.io/gingerjs-docs/', '_blank');
+    });
+    
     logoutButton.addEventListener('click', async () => {
         await fetch('/glade/logout', { method: 'POST' });
         window.location.href = '/glade/login.html';
