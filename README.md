@@ -29,9 +29,11 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Modern JavaScript:** Use modern ESM syntax (`import`/`from`) directly in your server scripts with zero build steps or configuration.
 
 - **Batteries-Included Backend**
+  - **Multi App Hosting:** Deploy and run multiple apps with clear isolation, individual app lifecycles and hot app reloads.
   - **Multi-Database Support:** Write your code once and deploy against PostgreSQL, SQLite, MySQL, and more, with a consistent API.
   - **Rich Standard Library:** A comprehensive suite of sandboxed modules for common tasks, including `crypto`, `image` processing, `pdf` generation, `db` access, and an `httpclient`.
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
+  - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 
 - **Full Lifecycle & Automation**
   - **Glade Admin UI:** A built-in, secure web panel for managing the entire application lifecycle (install, upgrade, rollback, delete, manage permissions) with no command line needed.
