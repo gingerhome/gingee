@@ -1,11 +1,11 @@
 // This is the secure, sandboxed cache module for application developers.
 // It acts as a facade over the main cache_service.
 const cacheService = require('./cache_service.js');
-const { getContext } = require('./ginger.js');
+const { getContext } = require('./gingee.js');
 
 /**
  * @module cache
- * @description Provides a secure interface for caching data within the GingerJS application context. 
+ * @description Provides a secure interface for caching data within the Gingee application context. 
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
 

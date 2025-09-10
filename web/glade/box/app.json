@@ -1,7 +1,7 @@
 {
   "name": "glade",
   "version": "1.0.0",
-  "description": "The official administration panel for GingerJS.",
+  "description": "The official administration panel for Gingee.",
   "type": "MPA",
   "default_include": [
     "auth_middleware.js"

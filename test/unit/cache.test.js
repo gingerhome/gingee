@@ -1,4 +1,4 @@
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const cache = require('../../modules/cache');
 
 // Mock the service layer that the facade calls

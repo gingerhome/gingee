@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { runInGBox } = require('../../modules/gbox');
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 
 describe('gbox.js - Sandbox Security (Integration Tests)', () => {
     const testAppBoxPath = path.resolve(__dirname, '..', 'fixtures', 'apps', 'test_app', 'box');
@@ -65,7 +65,7 @@ describe('gbox.js - Sandbox Security (Integration Tests)', () => {
                 // Correction: The error is in gRequire, which IS called during execution.
                 // This is getting complex. Let's simplify the script itself.
 
-                // Let's go back to the simple script from before, which doesn't use ginger()
+                // Let's go back to the simple script from before, which doesn't use gingee()
                 fs.writeFileSync(scriptPath, `const platform = require('platform');`);
 
                 runInGBox(scriptPath, mockGBoxConfig);

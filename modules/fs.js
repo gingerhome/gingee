@@ -5,7 +5,7 @@ const { SCOPES, resolveSecurePath } = require('./internal_utils.js');
 
 /**
  * @module fs
- * @description A secure file system module for GingerJS that provides secure sandboxed synchronous and asynchronous file operations.
+ * @description A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
  * <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */

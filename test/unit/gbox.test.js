@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const { runInGBox } = require('../../modules/gbox');
 
 // Mock dependencies
@@ -125,7 +125,7 @@ describe('gbox.js - Sandbox Execution', () => {
         });
     });
 
-    test('gRequire should resolve to GingerJS module for global app modules like image (sandboxed)', () => {
+    test('gRequire should resolve to Gingee module for global app modules like image (sandboxed)', () => {
         als.run(mockAlsStore, () => {
             const scriptContent = `const image = require('image');`;
             const mockScriptPath = '/project/web/test_app/box/script.js';

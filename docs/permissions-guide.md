@@ -1,10 +1,10 @@
-# GingerJS Permissions Guide
+# Gingee Permissions Guide
 
-Security is a core principle of the GingerJS platform. The permissions system is designed to be **secure by default**, following the **Principle of Least Privilege**. This guide explains how permissions are declared by developers and managed by administrators to create a safe and predictable server environment.
+Security is a core principle of the Gingee platform. The permissions system is designed to be **secure by default**, following the **Principle of Least Privilege**. This guide explains how permissions are declared by developers and managed by administrators to create a safe and predictable server environment.
 
 ## The Philosophy: Secure by Default (Whitelist Model)
 
-GingerJS operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
+Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
 
 Access to these protected modules must be explicitly **granted** by a server administrator. If a permission has not been granted, any attempt by an app to `require()` that module will result in a security error, and the script will fail to execute.
 
@@ -17,7 +17,7 @@ When you build an application that you intend to distribute (as a `.gin` file) o
 -   **File Name:** `pmft.json` (Permissions Manifest)
 -   **Location:** `web/<your-app-name>/box/pmft.json`
 
-The `gingerjs-cli` will read this file directly from your `.gin` package during installation to prompt the administrator for consent.
+The `gingee-cli` will read this file directly from your `.gin` package during installation to prompt the administrator for consent.
 
 ### Structure of `pmft.json`
 
@@ -40,7 +40,7 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
   }
 }
 ```
-*In this example, the blog requires database and filesystem access to function. It has an optional feature (perhaps for checking for updates) that requires outbound HTTP calls. This file is the definitive source of truth that the `gingerjs-cli` will use to generate the interactive consent prompts for the administrator during installation.*
+*In this example, the blog requires database and filesystem access to function. It has an optional feature (perhaps for checking for updates) that requires outbound HTTP calls. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
 
 ## For Administrators: Managing Permissions
 
@@ -48,7 +48,7 @@ As a server administrator, you have the final authority on what an application i
 
 ### The Central Permissions File (`settings/permissions.json`)
 
-This file is the single source of truth for all application grants on your GingerJS server.
+This file is the single source of truth for all application grants on your Gingee server.
 
 -   **Location:** `project_root/settings/permissions.json`
 -   **Structure:** A JSON object where each key is an application's name. The value is an object containing a `granted` array.
@@ -80,7 +80,7 @@ Saving your changes in this modal will automatically update the `settings/permis
 
 ## Master Permission List
 
-This is the definitive list of all permission keys available in GingerJS.
+This is the definitive list of all permission keys available in Gingee.
 
 | Permission Key | Description | Security Implication |
 | :--- | :--- | :--- |

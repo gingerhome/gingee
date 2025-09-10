@@ -1,6 +1,6 @@
 const archiver = require('archiver');
 const extract = require('extract-zip');
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const fs = require('../../modules/fs'); // The secure fs wrapper
 const nodeFs = require('fs'); // The native fs
 const zip = require('../../modules/zip');

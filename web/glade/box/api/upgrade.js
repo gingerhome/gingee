@@ -1,9 +1,9 @@
 module.exports = async function() {
-    ginger(async ($g) => {
+    gingee(async ($g) => {
         const platform = require('platform');
 
         try {
-            // The request body is pre-parsed by the ginger() middleware.
+            // The request body is pre-parsed by the gingee() middleware.
             const appName = $g.request.body.appName ? $g.request.body.appName[0] : null;
             const uploadedFile = $g.request.body.files ? $g.request.body.files.package : null;
 

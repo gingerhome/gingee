@@ -1,5 +1,5 @@
 const path = require('path');
-const { getContext } = require('./ginger.js');
+const { getContext } = require('./gingee.js');
 const dbInstances = new Map();
 
 /**

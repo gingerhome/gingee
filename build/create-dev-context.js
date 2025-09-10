@@ -5,15 +5,15 @@ const fg = require('fast-glob');
 /**
  * This script builds a single, comprehensive context-dev.md file.
  * This file contains the full source code and conceptual guides for the entire
- * GingerJS ecosystem, designed to prime a GenAI partner for core development.
+ * Gingee ecosystem, designed to prime a GenAI partner for core development.
  */
 async function createDevContextFile() {
   try {
-    console.log('Starting GingerJS Core Developer Context bundle creation...');
+    console.log('Starting Gingee Core Developer Context bundle creation...');
 
     const projectRoot = path.resolve(__dirname, '..');
     const distPath = path.join(projectRoot, 'build', 'dist');
-    const outputPath = path.join(distPath, 'ai-context-gingerjs-dev.md');
+    const outputPath = path.join(distPath, 'ai-context-gingee-dev.md');
 
     fs.ensureDirSync(distPath);
 
@@ -23,7 +23,7 @@ async function createDevContextFile() {
         title: "Core Conceptual Guides",
         files: [
           'docs/concepts.md',
-          'docs/gingerjs-cli.md',
+          'docs/gingee-cli.md',
           'docs/server-config.md',
           'docs/glade-admin.md',
           'docs/app-structure.md',
@@ -37,12 +37,12 @@ async function createDevContextFile() {
         ]
       },
       {
-        title: "GingerJS package.json",
+        title: "Gingee package.json",
         files: ['package.json']
       },
       {
-        title: "GingerJS Server Engine",
-        files: ['ginger.js']
+        title: "Gingee Server Engine",
+        files: ['gingee.js']
       },
       {
         title: "Engine Modules",
@@ -56,7 +56,7 @@ async function createDevContextFile() {
       },
       {
         title: "Core Admin App: `glade`",
-        description: "The source code for the bundled `glade` admin panel. This serves as a primary example of a privileged, MPA-style GingerJS application.",
+        description: "The source code for the bundled `glade` admin panel. This serves as a primary example of a privileged, MPA-style Gingee application.",
         baseDir: 'web/glade',
         glob: '**/*.{js,html,css,json,gpkg,md}',
         ignore: ['box/logs/**']
@@ -79,8 +79,8 @@ async function createDevContextFile() {
         ]
       },
       {
-        title: "GingerJS Jest Test Suite",
-        description: "The source code for all Jest tests in the GingerJS framework. These tests cover the core functionality and edge cases of the framework.",
+        title: "Gingee Jest Test Suite",
+        description: "The source code for all Jest tests in the Gingee framework. These tests cover the core functionality and edge cases of the framework.",
         baseDir: 'test',
         glob: '**/*.js'
       },
@@ -91,18 +91,18 @@ async function createDevContextFile() {
         glob: '*.js'
       },
       {
-        title: "GingerJS CLI - Core",
-        baseDir: '../gingerjs-cli',
+        title: "Gingee CLI - Core",
+        baseDir: '../gingee-cli',
         files: ['index.js']
       },
       {
-        title: "GingerJS CLI - Commands",
-        baseDir: '../gingerjs-cli/commands',
+        title: "Gingee CLI - Commands",
+        baseDir: '../gingee-cli/commands',
         glob: '**/*.js'
       },
       {
-        title: "GingerJS CLI - Templates",
-        baseDir: '../gingerjs-cli/templates',
+        title: "Gingee CLI - Templates",
+        baseDir: '../gingee-cli/templates',
         glob: '**/*'
       }
     ];
@@ -110,24 +110,24 @@ async function createDevContextFile() {
     let finalContent = [];
 
     // --- 2. Add the Initial Priming Prompt ---
-    finalContent.push("# GingerJS Core Contributor Context");
-    finalContent.push("You are a senior full-stack architect and a core contributor to the GingerJS platform. Your goal is to continue the development of the GingerJS server engine, its modules, and its CLI tooling. This document contains the complete source code and architectural documentation for the entire ecosystem. Analyze it carefully and be prepared to act as a core developer.");
+    finalContent.push("# Gingee Core Contributor Context");
+    finalContent.push("You are a senior full-stack architect and a core contributor to the Gingee platform. Your goal is to continue the development of the Gingee server engine, its modules, and its CLI tooling. This document contains the complete source code and architectural documentation for the entire ecosystem. Analyze it carefully and be prepared to act as a core developer.");
 
     // --- 3. NEW: Add the Project Structure Overview ---
-    finalContent.push('\n---\n\n# GingerJS Project Root: Folder Structure');
+    finalContent.push('\n---\n\n# Gingee Project Root: Folder Structure');
     finalContent.push(`
-    This document describes the source code of the GingerJS monorepo, which contains the 'gingerjs' engine and the 'gingerjs-cli' tool.
+    This document describes the source code of the Gingee monorepo, which contains the 'gingee' engine and the 'gingee-cli' tool.
 
     -   **\`project_root/\`**: The root of the development repository.
-        -   **\`ginger.js\`**: The main entry point for the GingerJS server engine.
+        -   **\`gingee.js\`**: The main entry point for the Gingee server engine.
         -   **\`package.json\`**: The master manifest for the entire project, including all production and development dependencies for the engine.
         -   **\`build/\`**: Contains all build-related scripts and output.
-            -   **\`package.js\`**: The script that builds the distributable \`gingerjs\` NPM package.
+            -   **\`package.js\`**: The script that builds the distributable \`gingee\` NPM package.
             -   **\`create-ai-context.js\`**: A script that generates a AI priming context documentation for app developers.
-            -   **\`create-dev-context.js\`**: This script, which generates this context bundle to prime AI to be a GingerJS project core developer.
+            -   **\`create-dev-context.js\`**: This script, which generates this context bundle to prime AI to be a Gingee project core developer.
             -   **\`dist/\`**: The output directory for all build artifacts.
         -   **\`docs/\`**: Contains all high-level documentation in Markdown format (\`concepts.md\`, \`cli - reference.md\`, etc.).
-        -   **\`modules/\`**: Contains the source code for all of GingerJS's core and app modules (the "standard library").
+        -   **\`modules/\`**: Contains the source code for all of Gingee's core and app modules (the "standard library").
             -   **\`cache_drivers/\`**: Adapters for different caching backends (memory, redis).
             -   **\`dbproviders/\`**: Adapters for different database systems (postgres, sqlite, etc.).
         -   **\`settings/\`**: Contains default configuration assets that are bundled with the engine.
@@ -137,7 +137,7 @@ async function createDevContextFile() {
         -   **\`logs/\`**: (Runtime) The default location for main server log files. Ignored by version control.
         -   **\`temp/\`**: (Runtime) A directory for temporary files created during lifecycle operations. Ignored by version control.
         -   **\`web/\`**: The source directory for core applications that are bundled with the engine, like \`glade\`.
-    -   **\`../gingerjs-cli/\`**: A sibling directory containing the source code for the CLI tool.
+    -   **\`../gingee-cli/\`**: A sibling directory containing the source code for the CLI tool.
     `);
 
     // --- 3. Process and Stitch all Sources ---
@@ -182,7 +182,7 @@ async function createDevContextFile() {
     // --- 4. Write the Final File ---
     fs.writeFileSync(outputPath, finalContent.join('\n'));
 
-    console.log('\n\x1b[32m%s\x1b[0m', `✅ GingerJS Core Developer Context created successfully!`);
+    console.log('\n\x1b[32m%s\x1b[0m', `✅ Gingee Core Developer Context created successfully!`);
     console.log(`   Output: ${outputPath}`);
 
   } catch (err) {

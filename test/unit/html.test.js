@@ -1,4 +1,4 @@
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const html = require('../../modules/html');
 
 // Mock the dependencies of the html module

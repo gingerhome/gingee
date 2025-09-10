@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 7
+    },
+    "auditLog": "E:\\repos\\gingee\\web\\glade\\box\\logs\\.2a3646730bce5c589d64fb3eebe6e9a740ebe2bc-audit.json",
+    "files": [
+        {
+            "date": 1757487896374,
+            "name": "E:\\repos\\gingee\\web\\glade\\box\\logs\\app-2025-09-10.log",
+            "hash": "e35546fb4099ddfc9f3d5f8e686e9e984858e7577a2ce19aee8123a171b319b8"
+        }
+    ],
+    "hashType": "sha256"
+}

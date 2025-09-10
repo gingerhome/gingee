@@ -1,10 +1,10 @@
-# GingerJS Feature Overview
+# Gingee Feature Overview
 
-GingerJS is a comprehensive application server designed to accelerate development by providing a rich set of secure, powerful, and easy-to-use features out of the box. This document provides an overview of the key platform features and the standard library of App Modules.
+Gingee is a comprehensive application server designed to accelerate development by providing a rich set of secure, powerful, and easy-to-use features out of the box. This document provides an overview of the key platform features and the standard library of App Modules.
 
 ## Key Platform Features
 
-These are the core architectural features that define the GingerJS development experience.
+These are the core architectural features that define the Gingee development experience.
 
 *   **Secure Sandbox Execution**
     Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
@@ -13,19 +13,19 @@ These are the core architectural features that define the GingerJS development e
     A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
 
 *   **Flexible Routing Engine**
-    GingerJS features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
+    Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
 
 *   **Multi-Database Abstraction Layer**
-    Write your database logic once and deploy against multiple database systems. GingerJS supports PostgreSQL, MySQL/MariaDB, SQLite, MS SQL Server, and Oracle, automatically transpiling queries for the target database.
+    Write your database logic once and deploy against multiple database systems. Gingee supports PostgreSQL, MySQL/MariaDB, SQLite, MS SQL Server, and Oracle, automatically transpiling queries for the target database.
 
 *   **Modern JavaScript Support (ESM)**
-    Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. GingerJS uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
+    Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
 
 *   **Application Lifecycle Management**
-    A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `ginger.json`. The default GingerJS Glade Admin Tool is one such privileged app.
+    A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
 
 *   **App Store with Interactive Installation**
-    The `gingerjs-cli` provides commands to browse and install applications from any decentralized "GStore" - the GingerJS app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
+    The `gingee-cli` provides commands to browse and install applications from any decentralized "GStore" - the Gingee app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
 
 *   **SPA Hosting & Development Workflow**
     Effortlessly host Single Page Applications (React, Angular, Vue). The server is designed to handle client-side routing and supports a seamless "two-server" development workflow via proxying.
@@ -41,11 +41,11 @@ These are the core architectural features that define the GingerJS development e
 
 ## App Module Library
 
-GingerJS comes "batteries-included" with a rich standard library of modules. These can be required by name (e.g., `require('crypto')`) from any sandboxed server script.
+Gingee comes "batteries-included" with a rich standard library of modules. These can be required by name (e.g., `require('crypto')`) from any sandboxed server script.
 
 ### Core & System
 
-*   **`ginger`**
+*   **`gingee`**
     The core middleware and context provider. It provides the `$g` global object (`$g.request`, `$g.response`, etc.) to all server scripts and handles automatic request body parsing.
 *   **`cache`**
     A secure, multi-tenant facade module for application data caching. It provides a simple API (`get`, `set`, `del`, `clear`) and automatically namespaces all keys to ensure data isolation between apps.

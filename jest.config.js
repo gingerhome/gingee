@@ -17,7 +17,7 @@ module.exports = {
     [
       "./node_modules/jest-html-reporter",
       {
-        "pageTitle": "GingerJS Test Report",
+        "pageTitle": "Gingee Test Report",
         "outputPath": "./test/test-report.html"
       }
     ]

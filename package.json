@@ -1,29 +1,29 @@
 {
-  "name": "gingerjs-core",
+  "name": "gingee",
   "version": "1.0.0",
-  "description": "GingerJS, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
-  "main": "ginger.js",
+  "description": "Gingee, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
+  "main": "gingee.js",
   "scripts": {
-    "start": "node ginger.js",
-    "dev": "nodemon ginger.js",
+    "start": "node gingee.js",
+    "dev": "nodemon gingee.js",
     "build": "node ./build/package.js",
     "build-ai-context": "node ./build/create-ai-context.js",
     "build-dev-ai-context": "node ./build/create-dev-context.js",
     "count": "cloc . --exclude-ext=\"json,md,txt\" --exclude-dir=\"node_modules,dev-docs,build,backups,temp,logs,docs\"",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,json,md,html,css}\"",
-    "docs": "jsdoc -c .jsdoc.json && markdown-to-html --source ./docs/concepts.md --output ./docs/api/docs/concepts.html && markdown-to-html --source ./docs/server-config.md --output ./docs/api/docs/server-config.html && markdown-to-html --source ./docs/app-structure.md --output ./docs/api/docs/app-structure.html && markdown-to-html --source ./docs/server-script.md --output ./docs/api/docs/server-script.html && markdown-to-html --source ./docs/features.md --output ./docs/api/docs/features.html && markdown-to-html --source ./docs/roadmap.md --output ./docs/api/docs/roadmap.html && markdown-to-html --source ./docs/CONTRIBUTING.md --output ./docs/api/docs/CONTRIBUTING.html && markdown-to-html --source ./docs/CODE_OF_CONDUCT.md --output ./docs/api/docs/CODE_OF_CONDUCT.html && markdown-to-html --source ./docs/packaging-guide.md --output ./docs/api/docs/packaging-guide.html && markdown-to-html --source ./docs/gingerjs-cli.md --output ./docs/api/docs/gingerjs-cli.html && markdown-to-html --source ./docs/ai-disclaimer.md --output ./docs/api/docs/ai-disclaimer.html && markdown-to-html --source ./docs/app-developer-guide.md --output ./docs/api/docs/app-developer-guide.html && markdown-to-html --source ./docs/glade-admin.md --output ./docs/api/docs/glade-admin.html && markdown-to-html --source ./docs/permissions-guide.md --output ./docs/api/docs/permissions-guide.html && markdown-to-html --source ./docs/gstore-hosting-guide.md --output ./docs/api/docs/gstore-hosting-guide.html",
+    "docs": "jsdoc -c .jsdoc.json && markdown-to-html --source ./docs/concepts.md --output ./docs/api/docs/concepts.html && markdown-to-html --source ./docs/server-config.md --output ./docs/api/docs/server-config.html && markdown-to-html --source ./docs/app-structure.md --output ./docs/api/docs/app-structure.html && markdown-to-html --source ./docs/server-script.md --output ./docs/api/docs/server-script.html && markdown-to-html --source ./docs/features.md --output ./docs/api/docs/features.html && markdown-to-html --source ./docs/roadmap.md --output ./docs/api/docs/roadmap.html && markdown-to-html --source ./docs/CONTRIBUTING.md --output ./docs/api/docs/CONTRIBUTING.html && markdown-to-html --source ./docs/CODE_OF_CONDUCT.md --output ./docs/api/docs/CODE_OF_CONDUCT.html && markdown-to-html --source ./docs/packaging-guide.md --output ./docs/api/docs/packaging-guide.html && markdown-to-html --source ./docs/gingee-cli.md --output ./docs/api/docs/gingee-cli.html && markdown-to-html --source ./docs/ai-disclaimer.md --output ./docs/api/docs/ai-disclaimer.html && markdown-to-html --source ./docs/app-developer-guide.md --output ./docs/api/docs/app-developer-guide.html && markdown-to-html --source ./docs/glade-admin.md --output ./docs/api/docs/glade-admin.html && markdown-to-html --source ./docs/permissions-guide.md --output ./docs/api/docs/permissions-guide.html && markdown-to-html --source ./docs/gstore-hosting-guide.md --output ./docs/api/docs/gstore-hosting-guide.html",
     "test": "jest --runInBand",
     "contribute": "echo \"Thank you for your interest! Please see CONTRIBUTING.md for our unique Human-AI collaborative development guidelines.\""
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gingerhome/gingerjs.git"
+    "url": "https://github.com/gingerhome/gingee.git"
   },
   "bugs": {
-    "url": "https://github.com/gingerhome/gingerjs/issues"
+    "url": "https://github.com/gingerhome/gingee/issues"
   },
-  "homepage": "https://github.com/gingerhome/gingerjs#readme",
+  "homepage": "https://github.com/gingerhome/gingee#readme",
   "keywords": [
     "genai",
     "ai-authored",

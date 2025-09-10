@@ -1,38 +1,38 @@
-# GingerJS Expert Developer Context
+# Gingee Expert Developer Context
 
-You are an expert developer for a Node.js application server called GingerJS. Your goal is to help users build applications on this platform by exclusively using the following concepts and API reference. Always write server scripts in the required `module.exports = async function() { await ginger(async ($g) => { ... }) }` format.
+You are an expert developer for a Node.js application server called Gingee. Your goal is to help users build applications on this platform by exclusively using the following concepts and API reference. Always write server scripts in the required `module.exports = async function() { await gingee(async ($g) => { ... }) }` format.
 
 ---
 
 
-# GingerJS: Core Concepts
+# Gingee: Core Concepts
 
-# GingerJS: Core Concepts
+# Gingee: Core Concepts
 
-Welcome to GingerJS! This guide will introduce you to the fundamental concepts and the core philosophy behind the platform. Understanding these ideas will help you build powerful, secure, and scalable applications quickly.
+Welcome to Gingee! This guide will introduce you to the fundamental concepts and the core philosophy behind the platform. Understanding these ideas will help you build powerful, secure, and scalable applications quickly.
 
 ## The Philosophy: Instant Time to Joy
 
-GingerJS is designed around a single guiding principle: **drastically reduce the time from an idea to a running, production-ready application.**
+Gingee is designed around a single guiding principle: **drastically reduce the time from an idea to a running, production-ready application.**
 
-Traditional backend development involves dozens of small, time-consuming decisions and setup tasks: choosing a framework, setting up a server, configuring a database pool, managing CORS, structuring your project, and more. GingerJS handles all of this for you. It's a "batteries-included" platform that lets you focus on your unique business logic from day one.
+Traditional backend development involves dozens of small, time-consuming decisions and setup tasks: choosing a framework, setting up a server, configuring a database pool, managing CORS, structuring your project, and more. Gingee handles all of this for you. It's a "batteries-included" platform that lets you focus on your unique business logic from day one.
 
-## 1. The GingerJS Project Structure
+## 1. The Gingee Project Structure
 
-A GingerJS server has a simple, predictable folder structure. The key directories are:
+A Gingee server has a simple, predictable folder structure. The key directories are:
 
 -   **/web/**: This is the **web root**. Every first-level folder inside `web` is considered a distinct **App**.
 -   **/web/my_app/**: The folder for an application named `my_app`.
     -   **/box/**: The **private brain** of your app. All your backend server scripts, private configuration, and private assets live here. Files in this folder are **never** served directly to the web.
     -   **/css/**, **/images/**, **/scripts/**: Publicly accessible folders for your static assets.
--   **/modules/**: The global "standard library" for GingerJS. All the powerful modules like `db`, `crypto`, `fs`, and `image` live here.
--   **/ginger.json**: The main server configuration file.
+-   **/modules/**: The global "standard library" for Gingee. All the powerful modules like `db`, `crypto`, `fs`, and `image` live here.
+-   **/gingee.json**: The main server configuration file.
 
 ## 2. The Flexible Routing Engine
 
-GingerJS features a powerful and flexible routing engine that automatically maps incoming URL requests to your server scripts or static files. It supports two distinct modes to fit your application's needs. The two modes can also be used together.
+Gingee features a powerful and flexible routing engine that automatically maps incoming URL requests to your server scripts or static files. It supports two distinct modes to fit your application's needs. The two modes can also be used together.
 
-**NOTE:** In both modes, the url path should **NOT** have the /box/ explicitly mentioned. GingerJS will handle it as required.
+**NOTE:** In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
 
 ### Mode 1: File-Based Routing (Zero-Config Default)
 
@@ -53,23 +53,23 @@ For building RESTful APIs with clean, dynamic URLs, you can activate a more powe
     -   ...and your script will receive the parameter `{ "userId": "123" }`.
 -   **Explicit Mapping:** The `routes.json` file provides a clear, single source of truth for all of your application's endpoints, mapping them to specific server scripts and HTTP methods. When this file exists, it takes precedence over file-based routing.
 
-**IMPORTANT:** The /box/ folder is never included in the url paths. Eg. a URL /<my-app>/api/my-script is automatically resolved by GingerJS to /<my-app>/**box**/api/my-script . If the script exists, it is executed as a server script, if not GingerJS will attempt to check for a folder of the same name in the path /<my-app>/api/my-script . If such a folder does not exist then a 404 is issued. If <app-name>/box/ appears in the URL a blanket 403 Access Denied is issued.
+**IMPORTANT:** The /box/ folder is never included in the url paths. Eg. a URL /<my-app>/api/my-script is automatically resolved by Gingee to /<my-app>/**box**/api/my-script . If the script exists, it is executed as a server script, if not Gingee will attempt to check for a folder of the same name in the path /<my-app>/api/my-script . If such a folder does not exist then a 404 is issued. If <app-name>/box/ appears in the URL a blanket 403 Access Denied is issued.
 
 ## 3. The Sandbox (`gbox`) & Secure Execution
 
-**Security is not an afterthought in GingerJS; it is the default.** Every server script you write is executed inside a secure sandbox called the "gbox".
+**Security is not an afterthought in Gingee; it is the default.** Every server script you write is executed inside a secure sandbox called the "gbox".
 
 -   **Isolation:** The sandbox prevents a script from accessing the server's global scope, filesystem, or sensitive process variables.
 -   **Controlled Environment:** Instead of having dangerous access, your script is given a single, secure global object (`$g`) to interact with the world.
 -   **ESM Support:** The sandbox automatically transpiles modern ES Module syntax (`import`/`from`) on the fly, so you can write modern JavaScript without any build steps.
 
-## 4. The `ginger()` Middleware & the `$g` Global
+## 4. The `gingee()` Middleware & the `$g` Global
 
-This is the heart of the GingerJS development experience. Every server script is wrapped in a call to the `ginger()` middleware, which prepares the environment and provides a powerful, simplified API.
+This is the heart of the Gingee development experience. Every server script is wrapped in a call to the `gingee()` middleware, which prepares the environment and provides a powerful, simplified API.
 
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         // Your code goes here
         $g.response.send("Hello, World!");
     });
@@ -80,10 +80,10 @@ The `$g` object is your secure gateway to everything you need for a request, inc
 
 ## 5. The Module Ecosystem
 
-GingerJS provides a rich standard library of "app modules" to handle common tasks securely and efficiently. These are required by name (e.g., `require('db')`) from any server script.
+Gingee provides a rich standard library of "app modules" to handle common tasks securely and efficiently. These are required by name (e.g., `require('db')`) from any server script.
 
 -   **`auth`**: Provides authentication-related functions, including JWT creation and verification
--   **`cache`**: Provides a secure interface for caching data within the GingerJS application context.
+-   **`cache`**: Provides a secure interface for caching data within the Gingee application context.
 -   **`chart`**: Provides functionality to create and manipulate server-side charts
 -   **`crypto`**: Provides an essential cryptographic toolkit.
 -   **`dashboard`**: Provides functionality to create and manage a dashboard layout with multiple charts.
@@ -99,15 +99,15 @@ GingerJS provides a rich standard library of "app modules" to handle common task
 -   **`uuid`**: Provides functions to generate and validate UUIDs (Universally Unique Identifiers).
 -   **`zip`**: Provides functions to zip and unzip files and directories securely.
 
--   **`platform`**: Provides special GingerJS platform level functions. To be used by only platform-level apps which are configured at server level (in ginger.json) as 'privileged apps'
+-   **`platform`**: Provides special Gingee platform level functions. To be used by only platform-level apps which are configured at server level (in gingee.json) as 'privileged apps'
 
-**IMPORTANT**: All GingerJS modules are required by name (eg. 'fs'). Some of these names intentionally are similar to NodeJS built-in modules for developer familiarity only. GingerJS by default locks out access for all NodeJS built-in modules and third party modules with the exception of 'querystring', 'url' and 'mime-types'. A whitelist of built-in and third party modules can be configured in ginger.json but it is not recommended to do so to preserve the sandboxed nature of GingerJS apps.
+**IMPORTANT**: All Gingee modules are required by name (eg. 'fs'). Some of these names intentionally are similar to NodeJS built-in modules for developer familiarity only. Gingee by default locks out access for all NodeJS built-in modules and third party modules with the exception of 'querystring', 'url' and 'mime-types'. A whitelist of built-in and third party modules can be configured in gingee.json but it is not recommended to do so to preserve the sandboxed nature of Gingee apps.
 
-## 6. Configuration (`ginger.json`, `app.json`, etc.)
+## 6. Configuration (`gingee.json`, `app.json`, etc.)
 
-Configuration in GingerJS is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
+Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`ginger.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), and logging policies.
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), and logging policies.
 -   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, startup scripts, and middleware.
 -   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
@@ -116,45 +116,45 @@ For a full breakdown, see the **[Server Config](./server-config.md)** and **[App
 
 ## 7. The Command Line Interface (CLI)
 
-The `gingerjs-cli` is an essential, all-in-one tool for the entire application lifecycle. It is used for both local development and production server management. Its key capabilities include:
+The `gingee-cli` is an essential, all-in-one tool for the entire application lifecycle. It is used for both local development and production server management. Its key capabilities include:
 
--   **Project Initialization:** Scaffolding a complete, new GingerJS project with `gingerjs-cli init`.
+-   **Project Initialization:** Scaffolding a complete, new Gingee project with `gingee-cli init`.
 -   **Local Scaffolding:** Quickly creating new apps and server scripts with `add-app` and `add-script`.
 -   **Application Lifecycle:** Interactively installing (`install-app`), upgrading (`upgrade-app`), rolling back (`rollback-app`), and deleting applications on a remote server.
 -   **App Store:** Discovering and installing apps from a decentralized store with `list-store-apps` and `install-store-app`.
 
-For detailed usage of all commands, see the **CLI Command Reference** [MD](./gingerjs-cli.md) / [HTML](./gingerjs-cli.html).
+For detailed usage of all commands, see the **CLI Command Reference** [MD](./gingee-cli.md) / [HTML](./gingee-cli.html).
 
 ## 8. A GenAI-Native Platform
 
-GingerJS is unique in its origin and development philosophy. It was co-authored by a human architect and a Generative AI partner, embracing a workflow we call "Dialog-Driven Development." High-level goals are discussed and refined in a collaborative dialogue, and the AI generates the implementation, which is then tested and validated.
+Gingee is unique in its origin and development philosophy. It was co-authored by a human architect and a Generative AI partner, embracing a workflow we call "Dialog-Driven Development." High-level goals are discussed and refined in a collaborative dialogue, and the AI generates the implementation, which is then tested and validated.
 
 You are encouraged to adopt this same powerful workflow. The key is to provide the AI with a "knowledge bundle" of the platform's architecture.
 
 **How to Start an AI-Assisted App Development Session:**
 
 1.  **Get the Context:** Locate the `ai-context.md` file in the project's `docs/ai-context` directory.
-2.  **Prime the AI:** Begin a new session with a capable AI (like Google Gemini) by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called GingerJS. Analyze the following documentation and API reference and be prepared to help me build an application."
-3.  **Give it a Task:** Once the AI has processed the context, you can give it high-level, goal-oriented tasks, and it will generate high-quality, idiomatic GingerJS code.
+2.  **Prime the AI:** Begin a new session with a capable AI (like Google Gemini) by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called Gingee. Analyze the following documentation and API reference and be prepared to help me build an application."
+3.  **Give it a Task:** Once the AI has processed the context, you can give it high-level, goal-oriented tasks, and it will generate high-quality, idiomatic Gingee code.
 
 
 ---
 
 
-# GingerJS CLI: Command Reference
+# Gingee CLI: Command Reference
 
-# GingerJS CLI: Command Reference
+# Gingee CLI: Command Reference
 
-The `gingerjs-cli` is the official, all-in-one command-line interface for the GingerJS platform. It is a powerful tool for both developers and system administrators, designed to streamline every phase of the application lifecycle, from initial project creation to ongoing production management.
+The `gingee-cli` is the official, all-in-one command-line interface for the Gingee platform. It is a powerful tool for both developers and system administrators, designed to streamline every phase of the application lifecycle, from initial project creation to ongoing production management.
 
 ## Installation
 
-The `gingerjs-cli` is designed to be installed globally on your machine, making it available everywhere.
+The `gingee-cli` is designed to be installed globally on your machine, making it available everywhere.
 
 ```bash
-npm install -g gingerjs-cli
+npm install -g gingee-cli
 ```
-After installation, you will have access to the `gingerjs-cli` command in your terminal.
+After installation, you will have access to the `gingee-cli` command in your terminal.
 
 ---
 
@@ -162,15 +162,15 @@ After installation, you will have access to the `gingerjs-cli` command in your t
 
 ### Project Initialization
 
-This is the main entry point for starting a new GingerJS project.
+This is the main entry point for starting a new Gingee project.
 
 #### `init <project-name>`
 
-Scaffolds a complete, new GingerJS project in a new directory. It launches an interactive wizard to guide you through the setup.
+Scaffolds a complete, new Gingee project in a new directory. It launches an interactive wizard to guide you through the setup.
 
 **Usage:**
 ```bash
-gingerjs-cli init my-awesome-project
+gingee-cli init my-awesome-project
 ```
 
 **Wizard Prompts:**
@@ -182,7 +182,7 @@ gingerjs-cli init my-awesome-project
 
 ### Local Scaffolding
 
-These commands should be run from the root directory of an existing GingerJS project.
+These commands should be run from the root directory of an existing Gingee project.
 
 #### `add-app <app-name>`
 
@@ -190,7 +190,7 @@ Scaffolds a new, working "hello world" application inside your project's `web` d
 
 **Usage:**
 ```bash
-gingerjs-cli add-app my-blog
+gingee-cli add-app my-blog
 ```
 
 **Wizard Prompts:**
@@ -200,11 +200,11 @@ gingerjs-cli add-app my-blog
 
 #### `add-script <app-name> <script-path>`
 
-Quickly creates a new server script file, pre-populated with the standard GingerJS boilerplate.
+Quickly creates a new server script file, pre-populated with the standard Gingee boilerplate.
 
 **Usage:**
 ```bash
-gingerjs-cli add-script my-blog api/posts
+gingee-cli add-script my-blog api/posts
 ```
 Creates ./web/my-blog/box/api/posts.js
 
@@ -221,16 +221,16 @@ Authenticates the CLI with a Glade admin panel and saves the session for subsequ
 **Usage:**
 -  Login to a local server
 ```bash
-gingerjs-cli login
+gingee-cli login
 ```
 
 -  Login to a remote server
 ```bash
-gingerjs-cli login -s http://remote-ginger:7070
+gingee-cli login -s http://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --serverUrl <server-url>`: The target GingerJS server URL. Defaults to `http://localhost:7070`.
+-   `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`.
 -   `-u, --username <username>`: Provide the username non-interactively. Defaults to `admin`.
 -   `-p, --password <password>`: Provide the password non-interactively. If this option is omitted, you will be securely prompted to enter a password.
 
@@ -240,11 +240,11 @@ Logs out of a specific Glade session by deleting the stored credentials.
 
 **Usage:**
 ```bash
-gingerjs-cli logout -s http://remote-ginger:7070
+gingee-cli logout -s http://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --serverUrl <server-url>`: The target GingerJS server URL. Defaults to `http://localhost:7070`
+-   `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`
 
 #### `list-apps`
 
@@ -252,11 +252,11 @@ Lists all applications installed on the target server.
 
 **Usage:**
 ```bash
-gingerjs-cli list-apps -s https://remote-ginger:7070
+gingee-cli list-apps -s https://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --server <url>` (Optional): The base URL of the target GingerJS server. Defaults to `http://localhost:7070`.
+-   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`.
 
 ---
 
@@ -270,11 +270,11 @@ Fetches the manifest from a store URL and displays a list of available applicati
 
 **Usage:**
 ```bash
-gingerjs-cli list-store-apps -g https://my-store.example.com
+gingee-cli list-store-apps -g https://my-store.example.com
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Ginger JS App Store url
+-   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
 
 #### `install-store-app <app-name>`
 
@@ -283,16 +283,16 @@ Initiates an interactive installation of an application from a store. The CLI wi
 2.  Read the app's required permissions from its internal `pmft.json` manifest.
 3.  Prompt you for consent to grant these permissions.
 4.  Prompt you to configure any requirements (like database connections).
-5.  Repackage the app with your configuration and securely install it on your target GingerJS server.
+5.  Repackage the app with your configuration and securely install it on your target Gingee server.
 
 **Usage:**
 ```bash
-gingerjs-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-ginger>
+gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-gingee>
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Ginger JS App Store url
--   `-s, --server <url>` (Optional): The base URL of the target GingerJS server. Defaults to `http://localhost:7070`
+-   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+-   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
 
 #### `upgrade-store-app <app-name>`
 
@@ -302,16 +302,16 @@ Initiates an interactive installation of an application from a store. The CLI wi
 3.  Create the new set of permissions that are requested. (auto assigns previous version grants)
 4.  Prompt you for consent to grant these permissions.
 5.  Prompt you to configure any requirements (like database connections).
-6.  Repackage the app with your configuration and securely install it on your target GingerJS server.
+6.  Repackage the app with your configuration and securely install it on your target Gingee server.
 
 **Usage:**
 ```bash
-gingerjs-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-ginger>
+gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-gingee>
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Ginger JS App Store url
--   `-s, --server <url>` (Optional): The base URL of the target GingerJS server. Defaults to `http://localhost:7070`
+-   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+-   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
 
 ---
 
@@ -335,7 +335,7 @@ These powerful commands allow for remote deployment and management of your appli
 **Example Usage:**
 ```bash
 # Upgrade the 'my-blog' app on a production server
-gingerjs-cli upgrade-app --appName my-blog --ginPath ./builds/my-blog-v2.gin --server https://prod.server
+gingee-cli upgrade-app --appName my-blog --ginPath ./builds/my-blog-v2.gin --server https://prod.server
 ```
 
 ---
@@ -400,13 +400,13 @@ For sensitive values like passwords, you can use environment variable placeholde
 ```bash
 # The server URL and app name are still passed as arguments for safety
 export DB_PASSWORD_PROD="a-very-secret-password"
-gingerjs-cli upgrade-app --appName my-blog-app --serverUrl https://prod.server --file ./deploy.json
+gingee-cli upgrade-app --appName my-blog-app --serverUrl https://prod.server --file ./deploy.json
 ```
 ---
 
 ### Service Management
 
-Commands for running GingerJS as a native background service. These commands must be run from a project's root directory and typically require `sudo` or Administrator privileges.
+Commands for running Gingee as a native background service. These commands must be run from a project's root directory and typically require `sudo` or Administrator privileges.
 
 -   **`service install`**: Installs and starts the server as a background service.
 -   **`service uninstall`**: Stops and removes the background service.
@@ -424,11 +424,11 @@ Commands for running GingerJS as a native background service. These commands mus
 ---
 
 
-# Server Configuration Reference - The ginger.json File
+# Server Configuration Reference - The gingee.json File
 
-# Server Configuration Reference - The ginger.json File
+# Server Configuration Reference - The gingee.json File
 
-The `ginger.json` file is the master configuration file for the entire GingerJS server instance. It resides in the root of your project and controls server behavior, caching policies, logging, and security settings that apply to all applications running on the platform.
+The `gingee.json` file is the master configuration file for the entire Gingee server instance. It resides in the root of your project and controls server behavior, caching policies, logging, and security settings that apply to all applications running on the platform.
 
 Here is a comprehensive breakdown of all available properties.
 
@@ -447,7 +447,7 @@ Here is a comprehensive breakdown of all available properties.
   "default_app": "glade",
   "cache": {
     "provider": "memory",
-    "prefix": "gingerjs:",
+    "prefix": "gingee:",
     "redis": {
       "host": "127.0.0.1",
       "port": 6379,
@@ -483,15 +483,15 @@ An object that configures the HTTP and HTTPS servers.
   - **`port`** (number): The port number for the HTTPS server to listen on. Default: 7443. 
   - **`key_file`** (string): The path to the SSL private key file (e.g., `key.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/key.pem"`.
   - **`cert_file`** (string): The path to the SSL certificate file (e.g., `cert.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/cert.pem"`
-  - **NOTE:** See `Enabling HTTPS` section below to configure and run a HTTPS enabled GingerJS
+  - **NOTE:** See `Enabling HTTPS` section below to configure and run a HTTPS enabled Gingee
 
 ### web_root
 
 - **Type:** `string`
 - **Default:** `"./web"`
-- **Description:** The path to the directory containing all your application folders. This can be a relative path (from the project root) or an absolute path. GingerJS will fail to start if this directory does not exist.
+- **Description:** The path to the directory containing all your application folders. This can be a relative path (from the project root) or an absolute path. Gingee will fail to start if this directory does not exist.
 - **Example (relative):** `"web_root": "./public"`
-- **Example (absolute):** `"web_root": "/var/www/gingerjs_apps"`
+- **Example (absolute):** `"web_root": "/var/www/gingee_apps"`
 
 ### cache
 
@@ -509,7 +509,7 @@ An object that configures the HTTP and HTTPS servers.
 - **`cache.prefix`** (string, optional):
 
   - **Description:** A global prefix that will be prepended to all cache keys. This is highly recommended when using a shared Redis instance to prevent key collisions with other applications.
-  - **Example:** `"prefix": "my-prod-gingerjs:"`
+  - **Example:** `"prefix": "my-prod-gingee:"`
 
 - **`cache.redis`** (object, optional):
   - **Description:** Contains the connection details, used only when `provider` is set to `"redis"`.
@@ -525,7 +525,7 @@ An object that configures the HTTP and HTTPS servers.
 
 - **Type:** `object`
 - **Description:** Configures Gzip compression for responses.
-- **`enabled`** (boolean): If `true`, GingerJS will compress applicable responses (like HTML, CSS, JS, and JSON) if the client's browser indicates support for it via the `Accept-Encoding` header. This significantly reduces bandwidth usage.
+- **`enabled`** (boolean): If `true`, Gingee will compress applicable responses (like HTML, CSS, JS, and JSON) if the client's browser indicates support for it via the `Accept-Encoding` header. This significantly reduces bandwidth usage.
 
 ### logging
 
@@ -554,14 +554,14 @@ An object that configures the server's logger.
 
 - **Type:** `array of strings`
 - **Description:** A list of `<app-name>`s (the folder names in your `web_root`) that are granted special privileges.
-- **Privilege:** Only applications listed here are allowed to `require('platform')`, the powerful module used for application lifecycle management (creating, deleting, packaging apps, etc.). This is a critical security boundary. They can also access any Node JS built in module or third party NodeJS modules that are default included in by GingerJS (see package.json). **Ideally you will never need to set this property**
+- **Privilege:** Only applications listed here are allowed to `require('platform')`, the powerful module used for application lifecycle management (creating, deleting, packaging apps, etc.). This is a critical security boundary. They can also access any Node JS built in module or third party NodeJS modules that are default included in by Gingee (see package.json). **Ideally you will never need to set this property**
 - **Example:** `["admin"]`
 
 ---
 
 ## Enabling HTTPS for Local Development
 
-To run and test your GingerJS server with a valid SSL certificate on `localhost` (i.e., get the green padlock in your browser), you cannot use a simple self-signed certificate, as browsers do not trust them. The correct method is to create your own local Certificate Authority (CA) and use it to sign a certificate for `localhost`.
+To run and test your Gingee server with a valid SSL certificate on `localhost` (i.e., get the green padlock in your browser), you cannot use a simple self-signed certificate, as browsers do not trust them. The correct method is to create your own local Certificate Authority (CA) and use it to sign a certificate for `localhost`.
 
 **Prerequisites:**
 You must have the `openssl` command-line tool installed. It is available by default on Linux and macOS. For Windows, it is included with Git Bash.
@@ -604,7 +604,7 @@ This is the critical step where you tell your operating system to trust your new
 
 **Step 3: Create and Sign the Server Certificate**
 
-Now, create the `key.pem` and `cert.pem` files that GingerJS will use, and sign them with your trusted local CA.
+Now, create the `key.pem` and `cert.pem` files that Gingee will use, and sign them with your trusted local CA.
 
 1.  Generate the server's private key:
     ```bash
@@ -619,7 +619,7 @@ Now, create the `key.pem` and `cert.pem` files that GingerJS will use, and sign 
     openssl x509 -req -in ./settings/ssl/server.csr -CA ./settings/ssl/localCA.pem -CAkey ./settings/ssl/localCA.key -CAcreateserial -out ./settings/ssl/cert.pem -days 500 -sha256
     ```
 
-**Step 4: Update `ginger.json` and Run**
+**Step 4: Update `gingee.json` and Run**
 
 Enable the HTTPS server in your configuration. Since we used the default file paths, you don't need to add the `key_file` or `cert_file` properties.
 
@@ -641,15 +641,15 @@ Now, start your server (`npm start`). You can navigate to `https://localhost:744
 # 
 
 
-# Glade: The GingerJS Admin Panel
+# Glade: The Gingee Admin Panel
 
-Glade is the official, web-based administration panel that is bundled with every GingerJS server. It provides a simple, secure, and powerful user interface for managing the entire lifecycle of all applications running on your server instance.
+Glade is the official, web-based administration panel that is bundled with every Gingee server. It provides a simple, secure, and powerful user interface for managing the entire lifecycle of all applications running on your server instance.
 
-Glade is itself a GingerJS application, built to showcase the platform's capabilities. It is a **privileged app**, meaning it has special permission to use the powerful `platform` module to perform its administrative tasks.
+Glade is itself a Gingee application, built to showcase the platform's capabilities. It is a **privileged app**, meaning it has special permission to use the powerful `platform` module to perform its administrative tasks.
 
 ## First-Time Access & Login
 
-When you create a new GingerJS project using the `gingerjs-cli init` command, the Glade application is automatically installed and configured for you.
+When you create a new Gingee project using the `gingee-cli init` command, the Glade application is automatically installed and configured for you.
 
 1.  **Initial Credentials:** During the `init` wizard, you are prompted for an administrator username and password. The CLI securely hashes the password using Argon2 and stores these credentials inside Glade's configuration file.
 
@@ -666,7 +666,7 @@ When you create a new GingerJS project using the `gingerjs-cli init` command, th
     }
     ```
 
-3.  **Accessing Glade:** By default, GingerJS is configured to make Glade the `default_app`. To access it, simply navigate your browser to the root URL of your running server (e.g., `http://localhost:7070`). You will be automatically directed to the Glade login page.
+3.  **Accessing Glade:** By default, Gingee is configured to make Glade the `default_app`. To access it, simply navigate your browser to the root URL of your running server (e.g., `http://localhost:7070`). You will be automatically directed to the Glade login page.
 
 ## The Dashboard View
 
@@ -681,7 +681,7 @@ After a successful login, you are taken to the main Glade dashboard. This is you
 The dashboard consists of two main components:
 
 1.  **The Header:** Contains the Glade title and a **Logout** button to securely end your session.
-2.  **The Application List:** A table that displays every application currently installed and running on the GingerJS server.
+2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
     -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
     -   **Version:** The version number, as specified in the app's own `app.json` file.
     -   **Actions:** A set of buttons for performing lifecycle operations on each application.
@@ -719,7 +719,7 @@ This is for deploying a new application from a package file. Glade provides an i
 Security is managed at the application level. You can review and change the permissions for any installed app at any time.
 
 1.  In the application list, find the app you wish to configure and click its gray **Permissions** button.
-2.  A modal dialog will appear, listing all available permissions in the GingerJS platform.
+2.  A modal dialog will appear, listing all available permissions in the Gingee platform.
 3.  Checkboxes will indicate the permissions currently granted to the app.
 4.  You can grant or revoke permissions by toggling the checkboxes.
 5.  Click **Save**. Glade will securely update the server's central permissions file and then automatically trigger a safe reload of the application to ensure the new rules are applied immediately.
@@ -753,7 +753,7 @@ This allows you to create a distributable `.gin` package from a live, running ap
 
 1.  In the application list, find the app you want to package.
 2.  Click its **Download** button.
-3.  Your browser will immediately begin downloading a `<app-name>.gin` file. This file can be used to install the application on another GingerJS server or for backup purposes.
+3.  Your browser will immediately begin downloading a `<app-name>.gin` file. This file can be used to install the application on another Gingee server or for backup purposes.
 
 ### Rolling Back an Application
 
@@ -785,27 +785,27 @@ To securely end your administrative session, simply click the **Logout** button 
 
 ### Resetting the Admin Password
 
-If you forget your Glade password, you cannot recover it. However, if you have command-line access to the server where GingerJS is running, you can securely reset it.
+If you forget your Glade password, you cannot recover it. However, if you have command-line access to the server where Gingee is running, you can securely reset it.
 
-1.  Navigate to the root of your GingerJS project directory in the terminal.
-2.  Run the following command from the `gingerjs-cli`:
+1.  Navigate to the root of your Gingee project directory in the terminal.
+2.  Run the following command from the `gingee-cli`:
     ```bash
-    gingerjs-cli reset-pwd
+    gingee-cli reset-pwd
     ```
 3.  The tool will prompt you to enter and confirm a new password.
 4.  It will then generate a new, secure password hash.
 5.  Copy this entire hash and paste it into your `web/glade/box/app.json` file, replacing the old value for the `ADMIN_PASSWORD_HASH` key.
-6.  Restart your GingerJS server. You will now be able to log in with your new password.
+6.  Restart your Gingee server. You will now be able to log in with your new password.
 
 
 ---
 
 
-# Anatomy of a GingerJS App
+# Anatomy of a Gingee App
 
-# Anatomy of a GingerJS App
+# Anatomy of a Gingee App
 
-Every application built on GingerJS follows a simple and consistent structure. This guide breaks down that structure, explains the critical role of the `box` folder, and provides a comprehensive reference for all the settings available in the `app.json` and `routes.json` configuration file.
+Every application built on Gingee follows a simple and consistent structure. This guide breaks down that structure, explains the critical role of the `box` folder, and provides a comprehensive reference for all the settings available in the `app.json` and `routes.json` configuration file.
 
 ## App Folder Structure
 
@@ -823,7 +823,7 @@ web/
 
 - **`my_app/`**: The root folder for the application. The name of this folder becomes the app's unique ID and the first segment of its URL (e.g., `http://localhost/my_app/...`).
 
-- **`css/`, `images/`, `scripts/`, etc.:** These are **public** directories. Any file placed here can be accessed directly by its URL. GingerJS's static file server will serve these assets. For example, a file at `web/my_app/css/style.css` is available at `/my_app/css/style.css`.
+- **`css/`, `images/`, `scripts/`, etc.:** These are **public** directories. Any file placed here can be accessed directly by its URL. Gingee's static file server will serve these assets. For example, a file at `web/my_app/css/style.css` is available at `/my_app/css/style.css`.
 
 - **`index.html`**: If a user navigates to the app's root URL (`/my_app`), this file will be served by default (if the app is not an SPA).
 
@@ -831,7 +831,7 @@ web/
 
 The `box` folder is the **private, secure core** of your application. It contains all your backend logic, configuration, and private data.
 
-- **Security:** The `box` folder is **always protected**. No file inside the `box` can ever be accessed directly from a URL. A request to `/my_app/box/app.json`, for example, will be blocked with a `403 Access Denied` error. This is a fundamental security guarantee of the GingerJS platform.
+- **Security:** The `box` folder is **always protected**. No file inside the `box` can ever be accessed directly from a URL. A request to `/my_app/box/app.json`, for example, will be blocked with a `403 Access Denied` error. This is a fundamental security guarantee of the Gingee platform.
 
 - **Server Scripts:** All your backend API endpoints are JavaScript files that live inside the `box`. A request to `/my_app/api/users` is mapped to the file at `web/my_app/box/api/users.js`.
 
@@ -843,7 +843,7 @@ The `box` folder is the **private, secure core** of your application. It contain
 
 ## The `app.json` File:
 
-The `app.json` file, located at `web/my_app/box/app.json`, is the central configuration file for your application. It tells the GingerJS server how to handle the app, what resources it needs, and how it should behave.
+The `app.json` file, located at `web/my_app/box/app.json`, is the central configuration file for your application. It tells the Gingee server how to handle the app, what resources it needs, and how it should behave.
 
 Here is a comprehensive breakdown of all available properties.
 
@@ -922,12 +922,12 @@ Here is a comprehensive breakdown of all available properties.
 
 ### The `pmft.json` File (Permissions Manifest)
 
-If you plan to distribute your application as a `.gin` package, you must declare the permissions it requires in a `pmft.json` file. This manifest is read by the `gingerjs-cli` during the installation process to request consent from the server administrator.
+If you plan to distribute your application as a `.gin` package, you must declare the permissions it requires in a `pmft.json` file. This manifest is read by the `gingee-cli` during the installation process to request consent from the server administrator.
 
 -   **Location:** `web/<your-app-name>/box/pmft.json`
 -   **Purpose:** To declare your app's required (`mandatory`) and optional (`optional`) permissions.
 
-For a complete guide on the permissions system and the structure of this file, please see the **GingerJS Permissions Guide [MD](./permissions-guide.md) [HTML](./permissions-guide.html)**.
+For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide [MD](./permissions-guide.md) [HTML](./permissions-guide.html)**.
 
 ---
 
@@ -990,7 +990,7 @@ Each object in the `routes` array defines a single endpoint and has the followin
 
 #### Accessing Path Parameters
 
-When a route with dynamic parameters is matched, GingerJS automatically parses the values from the URL and makes them available in your server script via the **`$g.request.params`** object.
+When a route with dynamic parameters is matched, Gingee automatically parses the values from the URL and makes them available in your server script via the **`$g.request.params`** object.
 
 **Example:**
 
@@ -1002,7 +1002,7 @@ When a route with dynamic parameters is matched, GingerJS automatically parses t
 -   **Server Script (`box/reviews/get.js`):**
     ```javascript
     module.exports = async function() {
-        await ginger(async ($g) => {
+        await gingee(async ($g) => {
             const productId = $g.request.params.productId; // "abc-123"
             const reviewId = $g.request.params.reviewId;   // "42"
             
@@ -1017,22 +1017,22 @@ When a route with dynamic parameters is matched, GingerJS automatically parses t
 ---
 
 
-# Understanding GingerJS Scripts
+# Understanding Gingee Scripts
 
-# Understanding GingerJS Scripts
+# Understanding Gingee Scripts
 
-GingerJS executes your backend logic using JavaScript files that live inside your app's secure `box` folder. For consistency and ease of use, all executable scripts—whether they are handling a live API request, acting as middleware, or performing a one-time setup task—share the same fundamental structure. This guide explains the three types of scripts and the powerful `$g` object that connects them.
+Gingee executes your backend logic using JavaScript files that live inside your app's secure `box` folder. For consistency and ease of use, all executable scripts—whether they are handling a live API request, acting as middleware, or performing a one-time setup task—share the same fundamental structure. This guide explains the three types of scripts and the powerful `$g` object that connects them.
 
 ## The Consistent Script Pattern
 
-All GingerJS scripts, regardless of their purpose, follow this simple and mandatory pattern:
+All Gingee scripts, regardless of their purpose, follow this simple and mandatory pattern:
 
 ```javascript
 // A script must export a single asynchronous function.
 module.exports = async function() {
 
-    // The entire logic is wrapped in a call to the global 'ginger()' function.
-    await ginger(async function($g) {
+    // The entire logic is wrapped in a call to the global 'gingee()' function.
+    await gingee(async function($g) {
 
         // Your application code goes here.
         // You use the '$g' object to interact with the world.
@@ -1042,7 +1042,7 @@ module.exports = async function() {
 ```
 This unified structure ensures that every piece of executable code runs within the same secure, sandboxed environment and receives a properly configured context object (`$g`).
 
-## Types of Scripts in GingerJS
+## Types of Scripts in Gingee
 
 While the structure is the same, the purpose of a script and the context it runs in can differ. There are three types of scripts you can create.
 
@@ -1051,7 +1051,7 @@ While the structure is the same, the purpose of a script and the context it runs
 This is the most common type of script. It runs in direct response to an incoming HTTP request from a browser or client.
 
 -   **Purpose:** To handle API requests (e.g., fetching data, creating a user, processing a form).
--   **Execution:** Triggered by the GingerJS routing engine when a URL matches either a file path or a route defined in `routes.json`.
+-   **Execution:** Triggered by the Gingee routing engine when a URL matches either a file path or a route defined in `routes.json`.
 -   **`$g` Context:** Has access to the **full** `$g` object, including:
     *   `$g.request`: To get headers, query parameters, and the request body.
     *   `$g.response`: To send a response back to the client.
@@ -1060,7 +1060,7 @@ This is the most common type of script. It runs in direct response to an incomin
 **Example (`box/api/users/get.js`):**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const userId = $g.request.query.id;
         // ... logic to fetch user from database ...
         $g.response.send({ id: userId, name: 'Alex' });
@@ -1079,7 +1079,7 @@ These scripts run *before* every Server Script in your application. They act as 
 **Example (`box/auth_middleware.js`):**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const token = $g.request.headers['x-auth-token'];
         if (!isValid(token)) {
             // This ends the request immediately.
@@ -1095,16 +1095,16 @@ module.exports = async function() {
 These scripts run **once** when your application is loaded by the server. They are not tied to any HTTP request.
 
 -   **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
--   **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the GingerJS server starts, when an app is newly installed, or after an app is upgraded or rolled back.
+-   **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
 -   **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
     *   **Available:** `$g.log`, `$g.app`.
     *   **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
-    *   **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire GingerJS server will shut down to prevent it from running in an unstable state.
+    *   **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
 
 **Example (`box/setup/create_schema.js`):**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const db = require('db');
         $g.log.info('Checking for Users table...');
         
@@ -1165,7 +1165,7 @@ An object containing all the details of the incoming HTTP request.
 
 -   **`$g.request.body`**
     -   **Type:** `object` | `string` | `null`
-    -   **Description:** The pre-parsed body of the request. The `ginger()` middleware automatically parses the body based on the `Content-Type` header.
+    -   **Description:** The pre-parsed body of the request. The `gingee()` middleware automatically parses the body based on the `Content-Type` header.
         -   For `application/json`: An object.
         -   For `application/x-www-form-urlencoded`: An object.
         -   For `multipart/form-data`: An object containing text fields and a `files` object. Each file in `files` includes its `name`, `type`, `size`, and its content as a `Buffer` in the `data` property.
@@ -1231,21 +1231,21 @@ An object containing safe, read-only configuration data for the current applicat
 ---
 
 
-# GingerJS: The App Developer's Guide
+# Gingee: The App Developer's Guide
 
-# GingerJS: The App Developer's Guide
+# Gingee: The App Developer's Guide
 
-Welcome to GingerJS! This guide is your starting point for building powerful, secure, and modern applications on the GingerJS platform. We'll take you from a simple "Hello World" to a complete, database-backed RESTful API.
+Welcome to Gingee! This guide is your starting point for building powerful, secure, and modern applications on the Gingee platform. We'll take you from a simple "Hello World" to a complete, database-backed RESTful API.
 
 If you haven't already, please read the Core Concepts [MD](./concepts.md) [HTML](./concepts.html) guide for a high-level overview of the platform's architecture.
 
 ## Chapter 1: Your First App - Hello World
 
-The fastest way to get started is with the `gingerjs-cli`. After you've created your first project with `gingerjs-cli init my-project`, you can create your first application.
+The fastest way to get started is with the `gingee-cli`. After you've created your first project with `gingee-cli init my-project`, you can create your first application.
 
 ```bash
 cd my-project
-gingerjs-cli add-app first-app
+gingee-cli add-app first-app
 ```
 
 The CLI will scaffold a new, working application in the `web/first-app/` directory. Let's look at the three most important files it created:
@@ -1254,19 +1254,19 @@ The CLI will scaffold a new, working application in the `web/first-app/` directo
 2.  **`web/first-app/scripts/cl_app.js`**: The client-side JavaScript for the `index.html` page.
 3.  **`web/first-app/box/hello.js`**: A server-side script.
 
-Run your server with `npm run dev` and navigate to `http://localhost:7070/first-app`. You'll see the page and an interactive "Say Hello" button. This works because of GingerJS's **File-Based Routing**:
+Run your server with `npm run dev` and navigate to `http://localhost:7070/first-app`. You'll see the page and an interactive "Say Hello" button. This works because of Gingee's **File-Based Routing**:
 
 -   The request for the page (`/first-app`) serves the static `index.html`.
 -   The button's click handler in `cl_app.js` makes a `fetch` call to `/first-app/hello`.
--   Because this URL has no file extension, GingerJS automatically executes the server script at `web/first-app/box/hello.js`.
+-   Because this URL has no file extension, Gingee automatically executes the server script at `web/first-app/box/hello.js`.
 
 ## Chapter 2: The Server Script & the `$g` Global
 
-Let's look inside `web/first-app/box/hello.js`. All GingerJS server scripts follow this simple structure:
+Let's look inside `web/first-app/box/hello.js`. All Gingee server scripts follow this simple structure:
 
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         // Your application logic lives here!
         $g.response.send({ message: 'Hello from the first-app server script!' });
     });
@@ -1274,20 +1274,20 @@ module.exports = async function() {
 ```
 
 -   **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
--   **`await ginger(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
+-   **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
 -   **`$g`**: The single, powerful "global" object passed to your handler. It's your secure gateway to everything you need.
 
 Let's modify the script to take a query parameter:
 
 ```javascript
 // in web/first-app/box/hello.js
-await ginger(async ($g) => {
+await gingee(async ($g) => {
     const name = $g.request.query.name || 'World';
     $g.response.send({ message: `Hello, ${name}!` });
 });
 ```
 
-Now, navigate to `/first-app/hello?name=Ginger` and you'll see the personalized response. All query parameters are automatically parsed for you in `$g.request.query`.
+Now, navigate to `/first-app/hello?name=Gingee` and you'll see the personalized response. All query parameters are automatically parsed for you in `$g.request.query`.
 
 *For a full breakdown of all properties on `$g`, see the Server Script & $g Object Reference [MD](./server-script.md) [HTML](./server-script.html)*
 
@@ -1323,7 +1323,7 @@ In your script, you can access the dynamic `:postId` parameter via `$g.request.p
 **`web/first-app/box/api/posts/get.js`**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const postId = $g.request.params.postId; // "abc-123"
         
         // ... logic to fetch post from database ...
@@ -1335,15 +1335,15 @@ module.exports = async function() {
 
 ## Chapter 4: Connecting to the Database
 
-GingerJS makes database interaction simple and secure.
+Gingee makes database interaction simple and secure.
 
-1.  **Configure:** First, run `gingerjs-cli add-app my-blog` and follow the wizard to configure your database. This will populate the `db` section of your `web/my-blog/box/app.json`.
+1.  **Configure:** First, run `gingee-cli add-app my-blog` and follow the wizard to configure your database. This will populate the `db` section of your `web/my-blog/box/app.json`.
 2.  **Query:** Use the powerful, sandboxed `db` module in your scripts.
 
 **`web/my-blog/box/api/posts/get.js` (with DB logic)**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const db = require('db');
         const postId = $g.request.params.postId;
         const DB_NAME = 'main_db'; // The 'name' from your app.json
@@ -1377,7 +1377,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
 1.  **Create an Auth Middleware:** Create `web/my-blog/box/auth_middleware.js`.
     ```javascript
     module.exports = async function() {
-        await ginger(async ($g) => {
+        await gingee(async ($g) => {
             const auth = require('auth');
             const token = $g.request.headers.authorization?.split(' ')[1];
             const payload = auth.jwt.verify(token);
@@ -1397,7 +1397,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
     module.exports = async function() {
-        await ginger(async ($g) => {
+        await gingee(async ($g) => {
             const { validate } = require('utils');
             const { title, content } = $g.request.body;
 
@@ -1411,17 +1411,17 @@ Let's secure our `POST /posts` endpoint and validate its input.
 
 ## Chapter 6: A New Paradigm - Building with a GenAI Partner
 
-GingerJS was co-authored with a Generative AI, and you can leverage this same powerful workflow to build your own applications. The key is to provide the AI with a "knowledge bundle" of the platform's architecture. We've created this for you.
+Gingee was co-authored with a Generative AI, and you can leverage this same powerful workflow to build your own applications. The key is to provide the AI with a "knowledge bundle" of the platform's architecture. We've created this for you.
 
 **How to Start a Development Session with an AI:**
 
-1.  **Get the Context File:** Locate the pre-built `docs/ai-context.md` file in the GingerJS repo. This file contains all the core concepts and API references of GingerJS that an AI needs.
+1.  **Get the Context File:** Locate the pre-built `docs/ai-context.md` file in the Gingee repo. This file contains all the core concepts and API references of Gingee that an AI needs.
 
 2.  **Start a New Chat:** Open a new session with a capable coding AI partner (like Google Gemini).
 
 3.  **Use the Priming Prompt:** Your very first message should be to upload or paste the **entire contents** of the `ai-context.md` file, preceded by this simple instruction:
 
-    > **You are an expert developer for a Node.js application server called GingerJS. Your goal is to help me build a new application on this platform by exclusively using the following context, documentation, and API reference. Analyze it carefully and confirm when you are ready to begin.**
+    > **You are an expert developer for a Node.js application server called Gingee. Your goal is to help me build a new application on this platform by exclusively using the following context, documentation, and API reference. Analyze it carefully and confirm when you are ready to begin.**
     >
     > `[PASTE THE ENTIRE CONTENTS OF ai-context.md HERE]`
 
@@ -1429,19 +1429,19 @@ GingerJS was co-authored with a Generative AI, and you can leverage this same po
 
     > **Example Follow-up Prompt:**
     >
-    > "Great. Now, using GingerJS, let's build the `create.js` script for our blog. It should handle a `POST` request to `/posts`, take a JSON body with `title` and `content`, validate that `title` is not empty and has a max length of 100 characters, insert the new post into our `main_db` PostgreSQL database, and return the newly created post with its ID."
+    > "Great. Now, using Gingee, let's build the `create.js` script for our blog. It should handle a `POST` request to `/posts`, take a JSON body with `title` and `content`, validate that `title` is not empty and has a max length of 100 characters, insert the new post into our `main_db` PostgreSQL database, and return the newly created post with its ID."
 
-The AI now has all the context it needs to generate high-quality, secure, and idiomatic GingerJS code, dramatically accelerating your development process.
+The AI now has all the context it needs to generate high-quality, secure, and idiomatic Gingee code, dramatically accelerating your development process.
 
 ## Chapter 7: Distributing Your Application
 
-Once you have built and tested your application, GingerJS makes it easy to package it for distribution, either publicly or within your organization. A properly packaged app is a self-contained `.gin` file that includes all necessary code, assets, and security manifests.
+Once you have built and tested your application, Gingee makes it easy to package it for distribution, either publicly or within your organization. A properly packaged app is a self-contained `.gin` file that includes all necessary code, assets, and security manifests.
 
 There are three key steps to preparing your app for distribution.
 
 **1. Declare Your Permissions (`pmft.json`)**
 
-This is the most important step for security and user trust. You must declare what protected GingerJS modules your app needs.
+This is the most important step for security and user trust. You must declare what protected Gingee modules your app needs.
 
 *   Create a file at `web/my-app/box/pmft.json`.
 *   Define the `mandatory` and `optional` permissions.
@@ -1481,44 +1481,44 @@ Create a `.gpkg` manifest in your `box` folder to exclude any development-only f
 
 **3. Create the Package (`.gin`)**
 
-With the manifests in place, you can now create the final distributable package using the `gingerjs-cli`. This command connects to your running local server to create the package.
+With the manifests in place, you can now create the final distributable package using the `gingee-cli`. This command connects to your running local server to create the package.
 
 ```bash
-# Make sure your local GingerJS server is running
+# Make sure your local Gingee server is running
 npm start
 
 # Package the 'my-app' application
-gingerjs-cli package-app --appName my-app
+gingee-cli package-app --appName my-app
 ```
 
-This will generate a versioned `.gin` file (e.g., `my-app-v1.2.0.gin`) in your current directory. This single file is all anyone needs to install your application on their own GingerJS server using the `gingerjs-cli install-app` command.
+This will generate a versioned `.gin` file (e.g., `my-app-v1.2.0.gin`) in your current directory. This single file is all anyone needs to install your application on their own Gingee server using the `gingee-cli install-app` command.
 
 
 ---
 
 
-# GingerJS App Packaging Guide (`.gin` & `.gpkg`)
+# Gingee App Packaging Guide (`.gin` & `.gpkg`)
 
-# GingerJS App Packaging Guide (`.gin` & `.gpkg`)
+# Gingee App Packaging Guide (`.gin` & `.gpkg`)
 
-A core feature of the GingerJS platform is its standardized application packaging format. This guide explains what a `.gin` file is, why it's used, and how you can control its contents using the `.gpkg` manifest file.
+A core feature of the Gingee platform is its standardized application packaging format. This guide explains what a `.gin` file is, why it's used, and how you can control its contents using the `.gpkg` manifest file.
 
 ## What is a `.gin` file?
 
-A `.gin` file (short for **Gin**ger **in**stallable) is the official package format for a GingerJS application.
+A `.gin` file (short for **Gin**ger **in**stallable) is the official package format for a Gingee application.
 
-At its core, a `.gin` file is simply a **standard ZIP archive** that contains all the necessary code, assets, and configuration for a single application to run on any GingerJS server. This single-file format makes distributing, deploying, and versioning your applications simple and reliable.
+At its core, a `.gin` file is simply a **standard ZIP archive** that contains all the necessary code, assets, and configuration for a single application to run on any Gingee server. This single-file format makes distributing, deploying, and versioning your applications simple and reliable.
 
-You can create a `.gin` package for your application using the `glide` admin panel or by running the `gingerjs-cli package-app` command.
+You can create a `.gin` package for your application using the `glide` admin panel or by running the `gingee-cli package-app` command.
 
 ## The Purpose of Packaging
 
 Creating a `.gin` package is the standard way to move an application between environments. The typical workflow is:
 
 1.  **Develop:** Build and test your application in your local development environment.
-2.  **Package:** Once ready, use `gingerjs-cli package-app` to create a versioned package (e.g., `my-blog-v1.2.0.gin`).
+2.  **Package:** Once ready, use `gingee-cli package-app` to create a versioned package (e.g., `my-blog-v1.2.0.gin`).
 3.  **Deploy:** Upload this single `.gin` file to your staging or production server.
-4.  **Install/Upgrade:** Use the `glade` admin panel or `gingerjs-cli install-app` / `upgrade-app` to deploy the package to the live server.
+4.  **Install/Upgrade:** Use the `glade` admin panel or `gingee-cli install-app` / `upgrade-app` to deploy the package to the live server.
 
 This workflow ensures that deployments are atomic, repeatable, and less error-prone than manually copying files.
 
@@ -1543,7 +1543,7 @@ The manifest contains `include` and `exclude` rules that use standard **glob pat
 ```json
 {
   "version": 1,
-  "packager": "gingerjs-packager",
+  "packager": "gingee-packager",
   "include": [
     "**/*"
   ],
@@ -1583,25 +1583,25 @@ For full control over your application's distributable package, creating a `.gpk
 While `.gpkg` controls *what files* are included in your package, the `pmft.json` manifest declares the *security permissions* your application requires to function.
 
 -   **Location:** The `pmft.json` file must be placed in your application's `box` folder (e.g., `web/my-app/box/pmft.json`).
--   **Purpose:** To declare which protected GingerJS modules (like `db` or `fs`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
+-   **Purpose:** To declare which protected Gingee modules (like `db` or `fs`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
 
-When an administrator installs your `.gin` package using the `gingerjs-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
+When an administrator installs your `.gin` package using the `gingee-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
 
-For a complete guide on the permissions system and the structure of this file, please see the **GingerJS Permissions Guide**[MD](./permissions-guide.md) [HTML](./permissions-guide.html).
+For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide**[MD](./permissions-guide.md) [HTML](./permissions-guide.html).
 
 
 ---
 
 
-# GingerJS Permissions Guide
+# Gingee Permissions Guide
 
-# GingerJS Permissions Guide
+# Gingee Permissions Guide
 
-Security is a core principle of the GingerJS platform. The permissions system is designed to be **secure by default**, following the **Principle of Least Privilege**. This guide explains how permissions are declared by developers and managed by administrators to create a safe and predictable server environment.
+Security is a core principle of the Gingee platform. The permissions system is designed to be **secure by default**, following the **Principle of Least Privilege**. This guide explains how permissions are declared by developers and managed by administrators to create a safe and predictable server environment.
 
 ## The Philosophy: Secure by Default (Whitelist Model)
 
-GingerJS operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
+Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
 
 Access to these protected modules must be explicitly **granted** by a server administrator. If a permission has not been granted, any attempt by an app to `require()` that module will result in a security error, and the script will fail to execute.
 
@@ -1614,7 +1614,7 @@ When you build an application that you intend to distribute (as a `.gin` file) o
 -   **File Name:** `pmft.json` (Permissions Manifest)
 -   **Location:** `web/<your-app-name>/box/pmft.json`
 
-The `gingerjs-cli` will read this file directly from your `.gin` package during installation to prompt the administrator for consent.
+The `gingee-cli` will read this file directly from your `.gin` package during installation to prompt the administrator for consent.
 
 ### Structure of `pmft.json`
 
@@ -1637,7 +1637,7 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
   }
 }
 ```
-*In this example, the blog requires database and filesystem access to function. It has an optional feature (perhaps for checking for updates) that requires outbound HTTP calls. This file is the definitive source of truth that the `gingerjs-cli` will use to generate the interactive consent prompts for the administrator during installation.*
+*In this example, the blog requires database and filesystem access to function. It has an optional feature (perhaps for checking for updates) that requires outbound HTTP calls. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
 
 ## For Administrators: Managing Permissions
 
@@ -1645,7 +1645,7 @@ As a server administrator, you have the final authority on what an application i
 
 ### The Central Permissions File (`settings/permissions.json`)
 
-This file is the single source of truth for all application grants on your GingerJS server.
+This file is the single source of truth for all application grants on your Gingee server.
 
 -   **Location:** `project_root/settings/permissions.json`
 -   **Structure:** A JSON object where each key is an application's name. The value is an object containing a `granted` array.
@@ -1677,7 +1677,7 @@ Saving your changes in this modal will automatically update the `settings/permis
 
 ## Master Permission List
 
-This is the definitive list of all permission keys available in GingerJS.
+This is the definitive list of all permission keys available in Gingee.
 
 | Permission Key | Description | Security Implication |
 | :--- | :--- | :--- |
@@ -1695,11 +1695,11 @@ This is the definitive list of all permission keys available in GingerJS.
 ---
 
 
-# GStore - Hosting a GingerJS App Store
+# GStore - Hosting a Gingee App Store
 
-# GStore - Hosting a GingerJS App Store
+# GStore - Hosting a Gingee App Store
 
-The GingerJS ecosystem is designed to be decentralized. There is no single, official "App Store." Instead, anyone can create and host their own store. A "gstore" is simply a publicly accessible URL that serves a manifest file (`gstore.json`) and the application packages (`.gin` files) it references.
+The Gingee ecosystem is designed to be decentralized. There is no single, official "App Store." Instead, anyone can create and host their own store. A "gstore" is simply a publicly accessible URL that serves a manifest file (`gstore.json`) and the application packages (`.gin` files) it references.
 
 This guide will walk you through the process of creating and hosting your own app store, either for public distribution or for private use within your organization.
 
@@ -1708,7 +1708,7 @@ This guide will walk you through the process of creating and hosting your own ap
 The structure of a store is incredibly simple. It's a directory of static files. You can organize it however you like, but we recommend the following structure for clarity:
 
 ```
-my-gingerjs-store/
+my-gingee-store/
 ├── apps/
 │   ├── my-blog-app-v1.0.0.gin
 │   └── my-crm-app-v1.2.0.gin
@@ -1720,14 +1720,14 @@ my-gingerjs-store/
 
 ## 2. Creating the `gstore.json` Manifest
 
-The `gstore.json` file is the heart of your store. It's a simple JSON file that the `gingerjs-cli` reads to get the list of available apps.
+The `gstore.json` file is the heart of your store. It's a simple JSON file that the `gingee-cli` reads to get the list of available apps.
 
 Here is a complete example with two applications:
 
 **`gstore.json`**
 ```json
 {
-  "storeName": "My Awesome GingerJS App Collection",
+  "storeName": "My Awesome Gingee App Collection",
   "storeVersion": "1.0.0",
   "apps": [
     {
@@ -1744,7 +1744,7 @@ Here is a complete example with two applications:
       "name": "my-crm-app",
       "version": "1.2.0",
       "description": "A lightweight CRM for managing customer contacts.",
-      "download_url": "https://cdn.example.com/gingerjs/my-crm-app-v1.2.0.gin",
+      "download_url": "https://cdn.example.com/gingee/my-crm-app-v1.2.0.gin",
       "publisher": {
         "name": "My Company Inc."
       }
@@ -1770,14 +1770,14 @@ Here is a complete example with two applications:
 For each application you want to list in your store, you need to create its `.gin` package file.
 
 1.  **Ensure a `pmft.json` exists:** Your application's `box` folder **must** contain a `pmft.json` manifest declaring its required permissions. This is critical for the CLI's secure installation process.
-2.  **Create the Package:** Use the `gingerjs-cli` to package your live application.
+2.  **Create the Package:** Use the `gingee-cli` to package your live application.
 
     ```bash
     # Connect to the server where your app is running
-    gingerjs-cli login https://my-dev-server.com
+    gingee-cli login https://my-dev-server.com
 
     # Package the app
-    gingerjs-cli package-app --appName my-blog-app
+    gingee-cli package-app --appName my-blog-app
     ```
 3.  **Place the `.gin` file:** Move the generated package file (e.g., `my-blog-app-v1.0.0.gin`) into your store's `apps/` directory.
 
@@ -1789,51 +1789,51 @@ You can host your store on any platform that can serve static files over HTTP/S.
 
 GitHub Pages is a free and easy way to host a public app store.
 
-1.  Create a new public GitHub repository (e.g., `my-gingerjs-store`).
+1.  Create a new public GitHub repository (e.g., `my-gingee-store`).
 2.  Push your store directory structure (with `gstore.json` and the `apps/` folder) to the repository.
 3.  In the repository's settings, go to the "Pages" section.
 4.  Configure it to deploy from your `main` branch and the `/` (root) directory.
-5.  GitHub will provide you with a public URL, such as `https://<your-username>.github.io/my-gingerjs-store/`.
+5.  GitHub will provide you with a public URL, such as `https://<your-username>.github.io/my-gingee-store/`.
 
-Your store is now live! The URL for your manifest is `https://<your-username>.github.io/my-gingerjs-store/gstore.json`.
+Your store is now live! The URL for your manifest is `https://<your-username>.github.io/my-gingee-store/gstore.json`.
 
 ### Option B: Using a Static Web Server
 
 You can use any static web server, such as Nginx, Apache, or even a simple Node.js server like `serve`.
 
 1.  Install a simple server: `npm install -g serve`
-2.  Navigate to your store's root directory: `cd my-gingerjs-store`
+2.  Navigate to your store's root directory: `cd my-gingee-store`
 3.  Start the server: `serve`
 
 The server will give you a local URL (e.g., `http://localhost:3000`). You can then configure your production server to host these static files.
 
-**Important:** Make sure your web server is configured with the correct CORS headers (`Access-Control-Allow-Origin: *`) to allow the `gingerjs-cli` to fetch the manifest from any machine.
+**Important:** Make sure your web server is configured with the correct CORS headers (`Access-Control-Allow-Origin: *`) to allow the `gingee-cli` to fetch the manifest from any machine.
 
 ## 5. Using Your Store
 
-Once your store is hosted, anyone can use it with the `gingerjs-cli` commands:
+Once your store is hosted, anyone can use it with the `gingee-cli` commands:
 
 ```bash
 # List all apps in your store
-gingerjs-cli list-store-apps -g "https://<your-username>.github.io/my-gingerjs-store/"
+gingee-cli list-store-apps -g "https://<your-username>.github.io/my-gingee-store/"
 
 # Interactively install an app from your store
-gingerjs-cli install-store-app my-blog-app -g "https://<your-username>.github.io/my-gingerjs-store/" -s "https://<target-ginger-server.com>"
+gingee-cli install-store-app my-blog-app -g "https://<your-username>.github.io/my-gingee-store/" -s "https://<target-gingee-server.com>"
 ```
 
 
 ---
 
 
-# GingerJS Feature Overview
+# Gingee Feature Overview
 
-# GingerJS Feature Overview
+# Gingee Feature Overview
 
-GingerJS is a comprehensive application server designed to accelerate development by providing a rich set of secure, powerful, and easy-to-use features out of the box. This document provides an overview of the key platform features and the standard library of App Modules.
+Gingee is a comprehensive application server designed to accelerate development by providing a rich set of secure, powerful, and easy-to-use features out of the box. This document provides an overview of the key platform features and the standard library of App Modules.
 
 ## Key Platform Features
 
-These are the core architectural features that define the GingerJS development experience.
+These are the core architectural features that define the Gingee development experience.
 
 *   **Secure Sandbox Execution**
     Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
@@ -1842,19 +1842,19 @@ These are the core architectural features that define the GingerJS development e
     A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
 
 *   **Flexible Routing Engine**
-    GingerJS features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
+    Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
 
 *   **Multi-Database Abstraction Layer**
-    Write your database logic once and deploy against multiple database systems. GingerJS supports PostgreSQL, MySQL/MariaDB, SQLite, MS SQL Server, and Oracle, automatically transpiling queries for the target database.
+    Write your database logic once and deploy against multiple database systems. Gingee supports PostgreSQL, MySQL/MariaDB, SQLite, MS SQL Server, and Oracle, automatically transpiling queries for the target database.
 
 *   **Modern JavaScript Support (ESM)**
-    Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. GingerJS uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
+    Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
 
 *   **Application Lifecycle Management**
-    A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `ginger.json`. The default GingerJS Glade Admin Tool is one such privileged app.
+    A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
 
 *   **App Store with Interactive Installation**
-    The `gingerjs-cli` provides commands to browse and install applications from any decentralized "GStore" - the GingerJS app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
+    The `gingee-cli` provides commands to browse and install applications from any decentralized "GStore" - the Gingee app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
 
 *   **SPA Hosting & Development Workflow**
     Effortlessly host Single Page Applications (React, Angular, Vue). The server is designed to handle client-side routing and supports a seamless "two-server" development workflow via proxying.
@@ -1870,11 +1870,11 @@ These are the core architectural features that define the GingerJS development e
 
 ## App Module Library
 
-GingerJS comes "batteries-included" with a rich standard library of modules. These can be required by name (e.g., `require('crypto')`) from any sandboxed server script.
+Gingee comes "batteries-included" with a rich standard library of modules. These can be required by name (e.g., `require('crypto')`) from any sandboxed server script.
 
 ### Core & System
 
-*   **`ginger`**
+*   **`gingee`**
     The core middleware and context provider. It provides the `$g` global object (`$g.request`, `$g.response`, etc.) to all server scripts and handles automatic request body parsing.
 *   **`cache`**
     A secure, multi-tenant facade module for application data caching. It provides a simple API (`get`, `set`, `del`, `clear`) and automatically namespaces all keys to ensure data isolation between apps.
@@ -1938,7 +1938,7 @@ GingerJS comes "batteries-included" with a rich standard library of modules. The
 <dd><p>Provides authentication-related functions, including JWT creation and verification.</p>
 </dd>
 <dt><a href="#module_cache">cache</a></dt>
-<dd><p>Provides a secure interface for caching data within the GingerJS application context. 
+<dd><p>Provides a secure interface for caching data within the Gingee application context. 
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_chart">chart</a></dt>
@@ -1974,20 +1974,20 @@ It is particularly useful for uploading files and sending complex data structure
 It abstracts the complexities of constructing multipart requests, making it easier to work with file uploads and form submissions.</p>
 </dd>
 <dt><a href="#module_fs">fs</a></dt>
-<dd><p>A secure file system module for GingerJS that provides secure sandboxed synchronous and asynchronous file operations.
+<dd><p>A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
 <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_html">html</a></dt>
 <dd><p>A module for parsing and manipulating HTML using <a href="https://cheerio.js.org/">Cheerio</a>.
 It provides functions to load HTML from strings, files, and URLs, allowing for easy querying and manipulation of HTML documents.
-This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in GingerJS applications.
+This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in Gingee applications.
 It abstracts the complexities of working with raw HTML, providing a simple and consistent API for developers.
 It leverages the Cheerio library to provide a jQuery-like syntax for traversing and manipulating the HTML structure.
 It supports both synchronous and asynchronous operations, making it flexible for various use cases.</p>
 </dd>
 <dt><a href="#module_httpclient">httpclient</a></dt>
-<dd><p>A module for making HTTP requests in GingerJS applications.
+<dd><p>A module for making HTTP requests in Gingee applications.
 This module provides functions to perform GET and POST requests, supporting various content types.
 It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
 It supports both text and binary responses, automatically determining the response type based on the content-type header.
@@ -2009,8 +2009,8 @@ It is designed to be used in a secure environment, ensuring that only allowed fo
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_platform">platform</a></dt>
-<dd><p>A module for GingerJS platform-specific utilities and functions. Ideally used by only platform-level apps. 
-To use this module the app needs to be declared in the <code>privilegedApps</code> list in the ginger.json server config.
+<dd><p>A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps. 
+To use this module the app needs to be declared in the <code>privilegedApps</code> list in the gingee.json server config.
 <b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_qrcode">qrcode</a></dt>
@@ -2028,7 +2028,7 @@ It is particularly useful for tasks that require randomization, validation, or s
 <dt><a href="#module_zip">zip</a></dt>
 <dd><p>Provides functions to zip and unzip files and directories securely.
 This module allows you to create zip archives from files or directories, and extract zip files to specified locations.
-It ensures that all file operations are performed within the secure boundaries defined by the GingerJS framework.
+It ensures that all file operations are performed within the secure boundaries defined by the Gingee framework.
 <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
@@ -2092,7 +2092,7 @@ const payload = auth.jwt.verify(token);if (payload) {    console.log("Token is
 <a name="module_cache"></a>
 
 ## cache
-Provides a secure interface for caching data within the GingerJS application context. <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+Provides a secure interface for caching data within the Gingee application context. <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [cache](#module_cache)
@@ -2949,12 +2949,12 @@ Creates a new FormData instance.This function initializes a FormData object tha
 **Returns**: <code>FormData</code> - A new FormData instance.  
 **Example**  
 ```js
-const form = formdata.create();form.append('name', 'GingerJS App Server');form.append('description', 'This is the GingerJS mascot.');form.append('image', fs.readFileSync(fs.BOX, './images/ginger.png'), 'ginger.png');const headers = form.getHeaders();
+const form = formdata.create();form.append('name', 'Gingee App Server');form.append('description', 'This is the Gingee mascot.');form.append('image', fs.readFileSync(fs.BOX, './images/gingee.png'), 'gingee.png');const headers = form.getHeaders();
 ```
 <a name="module_fs"></a>
 
 ## fs
-A secure file system module for GingerJS that provides secure sandboxed synchronous and asynchronous file operations.<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [fs](#module_fs)
@@ -3524,7 +3524,7 @@ fs.copyDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(() => {  console.
 <a name="module_html"></a>
 
 ## html
-A module for parsing and manipulating HTML using [Cheerio](https://cheerio.js.org/).It provides functions to load HTML from strings, files, and URLs, allowing for easy querying and manipulation of HTML documents.This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in GingerJS applications.It abstracts the complexities of working with raw HTML, providing a simple and consistent API for developers.It leverages the Cheerio library to provide a jQuery-like syntax for traversing and manipulating the HTML structure.It supports both synchronous and asynchronous operations, making it flexible for various use cases.
+A module for parsing and manipulating HTML using [Cheerio](https://cheerio.js.org/).It provides functions to load HTML from strings, files, and URLs, allowing for easy querying and manipulation of HTML documents.This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in Gingee applications.It abstracts the complexities of working with raw HTML, providing a simple and consistent API for developers.It leverages the Cheerio library to provide a jQuery-like syntax for traversing and manipulating the HTML structure.It supports both synchronous and asynchronous operations, making it flexible for various use cases.
 
 
 * [html](#module_html)
@@ -3556,7 +3556,7 @@ const $ = html.fromString('<div class="test">Hello, World!</div>');console.log(
 <a name="module_html.fromFile"></a>
 
 ### html.fromFile(scope, filePath) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
-Reads and parses an HTML file from the secure filesystem.This function allows you to load HTML content from a file, ensuring that the file is read securely within the GingerJS environment.It uses the secure file system module to read the file content and then parses it into a Cheerio instance.This is particularly useful for applications that need to manipulate or query HTML files stored in the GingerJS filesystem.It abstracts the file reading process, providing a simple interface to work with HTML files.
+Reads and parses an HTML file from the secure filesystem.This function allows you to load HTML content from a file, ensuring that the file is read securely within the Gingee environment.It uses the secure file system module to read the file content and then parses it into a Cheerio instance.This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem.It abstracts the file reading process, providing a simple interface to work with HTML files.
 
 **Kind**: static method of [<code>html</code>](#module_html)  
 **Returns**: <code>Promise.&lt;cheerio.CheerioAPI&gt;</code> - A Promise that resolves to the Cheerio instance.  
@@ -3577,7 +3577,7 @@ const $ = await html.fromFile(fs.BOX, 'data/myfile.html');console.log($('.test'
 <a name="module_html.fromFileSync"></a>
 
 ### html.fromFileSync(scope, filePath) ⇒ <code>cheerio.CheerioAPI</code>
-Synchronously reads and parses an HTML file from the secure filesystem.This function allows you to load HTML content from a file in a synchronous manner, ensuring that the file is read securely within the GingerJS environment.It uses the secure file system module to read the file content and then parses it into a Cheerio instance.This is particularly useful for applications that need to manipulate or query HTML files stored in the GingerJS filesystem in a synchronous context.It abstracts the file reading process, providing a simple interface to work with HTML files.
+Synchronously reads and parses an HTML file from the secure filesystem.This function allows you to load HTML content from a file in a synchronous manner, ensuring that the file is read securely within the Gingee environment.It uses the secure file system module to read the file content and then parses it into a Cheerio instance.This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem in a synchronous context.It abstracts the file reading process, providing a simple interface to work with HTML files.
 
 **Kind**: static method of [<code>html</code>](#module_html)  
 **Returns**: <code>cheerio.CheerioAPI</code> - The Cheerio instance for querying.  
@@ -3619,7 +3619,7 @@ const $ = await html.fromUrl('https://example.com');console.log($('.test').text
 <a name="module_httpclient"></a>
 
 ## httpclient
-A module for making HTTP requests in GingerJS applications.This module provides functions to perform GET and POST requests, supporting various content types.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.It supports both text and binary responses, automatically determining the response type based on the content-type header.It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.It allows for flexible data submission, making it suitable for APIs that require different content types.It provides constants for common POST data types, ensuring that the correct headers are set for the request.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+A module for making HTTP requests in Gingee applications.This module provides functions to perform GET and POST requests, supporting various content types.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.It supports both text and binary responses, automatically determining the response type based on the content-type header.It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.It allows for flexible data submission, making it suitable for APIs that require different content types.It provides constants for common POST data types, ensuring that the correct headers are set for the request.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [httpclient](#module_httpclient)
@@ -3746,7 +3746,7 @@ Loads an image from a Buffer or a file path.This function initializes an ImageP
 
 **Example**  
 ```js
-const image = require('image');const processor = image.load(fs.BOX, './images/ginger.png');processor.resize({ width: 200, height: 200 }).greyscale().toFile(fs.WEB, 'output/processed_image.webp');
+const image = require('image');const processor = image.load(fs.BOX, './images/gingee.png');processor.resize({ width: 200, height: 200 }).greyscale().toFile(fs.WEB, 'output/processed_image.webp');
 ```
 <a name="module_image.loadFromBuffer"></a>
 
@@ -3815,7 +3815,7 @@ Resizes the image to the specified dimensions.
 
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.resize({ width: 200, height: 200, fit: 'contain', background: '#FFFFFF' });
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.resize({ width: 200, height: 200, fit: 'contain', background: '#FFFFFF' });
 ```
 <a name="module_image..ImageProcessor+rotate"></a>
 
@@ -3831,7 +3831,7 @@ Rotates the image by the specified angle.
 
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.rotate(90);
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.rotate(90);
 ```
 <a name="module_image..ImageProcessor+flip"></a>
 
@@ -3842,7 +3842,7 @@ Flips the image horizontally.
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.flip();
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.flip();
 ```
 <a name="module_image..ImageProcessor+flop"></a>
 
@@ -3853,7 +3853,7 @@ Flips the image vertically.
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.flop();
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.flop();
 ```
 <a name="module_image..ImageProcessor+greyscale"></a>
 
@@ -3864,7 +3864,7 @@ Converts the image to greyscale.
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.greyscale();
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.greyscale();
 ```
 <a name="module_image..ImageProcessor+blur"></a>
 
@@ -3880,7 +3880,7 @@ Applies a blur effect to the image.
 
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.blur(5);
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.blur(5);
 ```
 <a name="module_image..ImageProcessor+sharpen"></a>
 
@@ -3891,7 +3891,7 @@ Sharpens the image.
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.sharpen();
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.sharpen();
 ```
 <a name="module_image..ImageProcessor+composite"></a>
 
@@ -3911,7 +3911,7 @@ Composites another image onto this one.
 
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.composite(watermarkBuffer, { left: 10, top: 10, opacity: 0.5 });
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.composite(watermarkBuffer, { left: 10, top: 10, opacity: 0.5 });
 ```
 <a name="module_image..ImageProcessor+format"></a>
 
@@ -3928,7 +3928,7 @@ Converts the image to a specific format.
 
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.format('jpeg', { quality: 80 });
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.format('jpeg', { quality: 80 });
 ```
 <a name="module_image..ImageProcessor+toBuffer"></a>
 
@@ -3938,7 +3938,7 @@ Processes the image and returns the final data as a Buffer.
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Example**  
 ```js
-const processor = image.load(fs.BOX, '/images/ginger.png');processor.resize({ width: 200, height: 200 });const buffer = await processor.toBuffer();
+const processor = image.load(fs.BOX, '/images/gingee.png');processor.resize({ width: 200, height: 200 });const buffer = await processor.toBuffer();
 ```
 <a name="module_image..ImageProcessor+toFile"></a>
 
@@ -3954,7 +3954,7 @@ Processes the image and saves it to a file using our secure fs module.
 
 **Example**  
 ```js
-// path with leading slash indicates path from scope root, // path without leading slash indicates path relative to the executing script// here image is loaded from <project>/<app_name>/<box>/images/ginger.png// image is and saved to <project>/<app_name>/output/processed_image.webpconst processor = image.load(fs.BOX, '/images/ginger.png');processor.resize({ width: 200, height: 200 });await processor.toFile(fs.WEB, '/output/processed_image.webp');
+// path with leading slash indicates path from scope root, // path without leading slash indicates path relative to the executing script// here image is loaded from <project>/<app_name>/<box>/images/gingee.png// image is and saved to <project>/<app_name>/output/processed_image.webpconst processor = image.load(fs.BOX, '/images/gingee.png');processor.resize({ width: 200, height: 200 });await processor.toFile(fs.WEB, '/output/processed_image.webp');
 ```
 <a name="module_pdf"></a>
 
@@ -3979,12 +3979,12 @@ Creates a PDF document from a document definition object.
 
 **Example**  
 ```js
-const pdf = require('pdf');const docDefinition = {    pageSize: 'LETTER',    pageMargins: [40, 60, 40, 60],    header: { text: 'GingerJS Weekly Report', alignment: 'center', margin: [0, 20, 0, 0] },    content: [        { text: 'Hello, World!', fontSize: 15 }    ]};const pdfBuffer = await pdf.create(docDefinition);const fileName = `report-${Date.now()}.pdf`;$g.response.headers['Content-Disposition'] = `attachment; filename="${fileName}"`;$g.response.send(pdfBuffer, 200, 'application/pdf');
+const pdf = require('pdf');const docDefinition = {    pageSize: 'LETTER',    pageMargins: [40, 60, 40, 60],    header: { text: 'Gingee Weekly Report', alignment: 'center', margin: [0, 20, 0, 0] },    content: [        { text: 'Hello, World!', fontSize: 15 }    ]};const pdfBuffer = await pdf.create(docDefinition);const fileName = `report-${Date.now()}.pdf`;$g.response.headers['Content-Disposition'] = `attachment; filename="${fileName}"`;$g.response.send(pdfBuffer, 200, 'application/pdf');
 ```
 <a name="module_platform"></a>
 
 ## platform
-A module for GingerJS platform-specific utilities and functions. Ideally used by only platform-level apps. To use this module the app needs to be declared in the `privilegedApps` list in the ginger.json server config.<b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
+A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps. To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.<b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [platform](#module_platform)
@@ -4881,7 +4881,7 @@ const uuid = require('uuid');const isValid = uuid.validate('a1b2c3d4-e5f6-4a7b-
 <a name="module_zip"></a>
 
 ## zip
-Provides functions to zip and unzip files and directories securely.This module allows you to create zip archives from files or directories, and extract zip files to specified locations.It ensures that all file operations are performed within the secure boundaries defined by the GingerJS framework.<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+Provides functions to zip and unzip files and directories securely.This module allows you to create zip archives from files or directories, and extract zip files to specified locations.It ensures that all file operations are performed within the secure boundaries defined by the Gingee framework.<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [zip](#module_zip)
@@ -4935,7 +4935,7 @@ Zips a file or directory to a destination zip file.
 
 **Example**  
 ```js
-const fs = require('fs'); // GingerJS secure fs moduleconst zip = require('zip');await zip.zipToFile(fs.BOX, '/path/to/source', fs.BOX, '/path/to/destination.zip');if(fs.existsSync(fs.BOX, '/path/to/destination.zip')) {    console.log("Zip file created successfully.");}
+const fs = require('fs'); // Gingee secure fs moduleconst zip = require('zip');await zip.zipToFile(fs.BOX, '/path/to/source', fs.BOX, '/path/to/destination.zip');if(fs.existsSync(fs.BOX, '/path/to/destination.zip')) {    console.log("Zip file created successfully.");}
 ```
 <a name="module_zip.unzip"></a>
 
@@ -4958,13 +4958,13 @@ Unzips a source zip file to a destination folder.
 
 **Example**  
 ```js
-const fs = require('fs'); // GingerJS secure fs moduleconst zip = require('zip');await zip.unzip(fs.BOX, '/path/to/source.zip', fs.BOX, '/path/to/destination');if(fs.existsSync(fs.BOX, '/path/to/destination')) {    console.log("Unzip operation completed successfully.");}
+const fs = require('fs'); // Gingee secure fs moduleconst zip = require('zip');await zip.unzip(fs.BOX, '/path/to/source.zip', fs.BOX, '/path/to/destination');if(fs.existsSync(fs.BOX, '/path/to/destination')) {    console.log("Unzip operation completed successfully.");}
 ```
 
 
 ## Important points to remember
-- GingerJS is sandboxed and does not allow usage of any NodeJS builtin modules or other external libraries.
-- Some GingerJS modules such as 'fs' sound similar to the NodeJS builtin modules but are not the same. Always refer the API reference to use these modules.
+- Gingee is sandboxed and does not allow usage of any NodeJS builtin modules or other external libraries.
+- Some Gingee modules such as 'fs' sound similar to the NodeJS builtin modules but are not the same. Always refer the API reference to use these modules.
 - Always follow the security and permission guidelines outlined in the documentation.
 - File paths with leading slashes are relative to the scope root (BOX or WEB) as applicable.
 - File paths without leading slashes are relative to the working directory of the executing script.

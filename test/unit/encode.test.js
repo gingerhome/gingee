@@ -3,8 +3,8 @@ const { base64, uri, hex, html } = require('../../modules/encode');
 describe('encode.js - Utility Tests', () => {
 
     describe('base64', () => {
-        const simpleOriginal = 'Hello GingerJS!';
-        const simpleEncoded = 'SGVsbG8gR2luZ2VySlMh';
+        const simpleOriginal = 'Hello Gingee!';
+        const simpleEncoded = 'SGVsbG8gR2luZ2VlIQ==';
 
         const urlUnsafeOriginal = 'a+b/c==?';
         const urlUnsafeEncoded_Std = 'YStiL2M9PT8='; // Standard base64

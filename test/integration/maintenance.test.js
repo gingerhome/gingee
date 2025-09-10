@@ -1,6 +1,6 @@
-const { requestHandler } = require('../../ginger'); // Import the newly exported handler
+const { requestHandler } = require('../../gingee'); // Import the newly exported handler
 const platform = require('../../modules/platform');
-//const { als } = require('../../modules/ginger');
+//const { als } = require('../../modules/gingee');
 const { Writable } = require('stream');
 
 // Mock all deep dependencies
@@ -83,7 +83,7 @@ describe('Maintenance Mode Integration Test', () => {
             return true;
         });
 
-        const { als } = require('../../modules/ginger');
+        const { als } = require('../../modules/gingee');
 
         // Start the upgrade process but don't await it. It will pause on our gatekeeper.
         const upgradePromise = als.run(mockAlsStore, () => {

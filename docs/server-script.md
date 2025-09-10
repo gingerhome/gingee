@@ -1,17 +1,17 @@
-# Understanding GingerJS Scripts
+# Understanding Gingee Scripts
 
-GingerJS executes your backend logic using JavaScript files that live inside your app's secure `box` folder. For consistency and ease of use, all executable scripts—whether they are handling a live API request, acting as middleware, or performing a one-time setup task—share the same fundamental structure. This guide explains the three types of scripts and the powerful `$g` object that connects them.
+Gingee executes your backend logic using JavaScript files that live inside your app's secure `box` folder. For consistency and ease of use, all executable scripts—whether they are handling a live API request, acting as middleware, or performing a one-time setup task—share the same fundamental structure. This guide explains the three types of scripts and the powerful `$g` object that connects them.
 
 ## The Consistent Script Pattern
 
-All GingerJS scripts, regardless of their purpose, follow this simple and mandatory pattern:
+All Gingee scripts, regardless of their purpose, follow this simple and mandatory pattern:
 
 ```javascript
 // A script must export a single asynchronous function.
 module.exports = async function() {
 
-    // The entire logic is wrapped in a call to the global 'ginger()' function.
-    await ginger(async function($g) {
+    // The entire logic is wrapped in a call to the global 'gingee()' function.
+    await gingee(async function($g) {
 
         // Your application code goes here.
         // You use the '$g' object to interact with the world.
@@ -21,7 +21,7 @@ module.exports = async function() {
 ```
 This unified structure ensures that every piece of executable code runs within the same secure, sandboxed environment and receives a properly configured context object (`$g`).
 
-## Types of Scripts in GingerJS
+## Types of Scripts in Gingee
 
 While the structure is the same, the purpose of a script and the context it runs in can differ. There are three types of scripts you can create.
 
@@ -30,7 +30,7 @@ While the structure is the same, the purpose of a script and the context it runs
 This is the most common type of script. It runs in direct response to an incoming HTTP request from a browser or client.
 
 -   **Purpose:** To handle API requests (e.g., fetching data, creating a user, processing a form).
--   **Execution:** Triggered by the GingerJS routing engine when a URL matches either a file path or a route defined in `routes.json`.
+-   **Execution:** Triggered by the Gingee routing engine when a URL matches either a file path or a route defined in `routes.json`.
 -   **`$g` Context:** Has access to the **full** `$g` object, including:
     *   `$g.request`: To get headers, query parameters, and the request body.
     *   `$g.response`: To send a response back to the client.
@@ -39,7 +39,7 @@ This is the most common type of script. It runs in direct response to an incomin
 **Example (`box/api/users/get.js`):**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const userId = $g.request.query.id;
         // ... logic to fetch user from database ...
         $g.response.send({ id: userId, name: 'Alex' });
@@ -58,7 +58,7 @@ These scripts run *before* every Server Script in your application. They act as 
 **Example (`box/auth_middleware.js`):**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const token = $g.request.headers['x-auth-token'];
         if (!isValid(token)) {
             // This ends the request immediately.
@@ -74,16 +74,16 @@ module.exports = async function() {
 These scripts run **once** when your application is loaded by the server. They are not tied to any HTTP request.
 
 -   **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
--   **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the GingerJS server starts, when an app is newly installed, or after an app is upgraded or rolled back.
+-   **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
 -   **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
     *   **Available:** `$g.log`, `$g.app`.
     *   **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
-    *   **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire GingerJS server will shut down to prevent it from running in an unstable state.
+    *   **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
 
 **Example (`box/setup/create_schema.js`):**
 ```javascript
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const db = require('db');
         $g.log.info('Checking for Users table...');
         
@@ -144,7 +144,7 @@ An object containing all the details of the incoming HTTP request.
 
 -   **`$g.request.body`**
     -   **Type:** `object` | `string` | `null`
-    -   **Description:** The pre-parsed body of the request. The `ginger()` middleware automatically parses the body based on the `Content-Type` header.
+    -   **Description:** The pre-parsed body of the request. The `gingee()` middleware automatically parses the body based on the `Content-Type` header.
         -   For `application/json`: An object.
         -   For `application/x-www-form-urlencoded`: An object.
         -   For `multipart/form-data`: An object containing text fields and a `files` object. Each file in `files` includes its `name`, `type`, `size`, and its content as a `Buffer` in the `data` property.

@@ -22,7 +22,7 @@ const globallyAllowedModules = [
 ];
 
 const restrictedGlobalModules = [
-  'ginger', 
+  'gingee', 
   'gbox', 
   'gapp-start',
   'cache_service',
@@ -30,7 +30,7 @@ const restrictedGlobalModules = [
   'platform'
 ];
 
-const ginger = require('./ginger.js');
+const gingee = require('./gingee.js');
 const transpileCache = new Map();
 
 // The list of safe modules is now a parameter.
@@ -47,7 +47,7 @@ function createGRequire(callingScriptPath, gBoxConfig) {
     
     //Check if the module is a restricted module
     if (restrictedGlobalModules.includes(moduleName)) {
-      const { appName } = ginger.getContext(); // Get the app that is making the call.
+      const { appName } = gingee.getContext(); // Get the app that is making the call.
       // Check if the current app's ID is in the privileged list.
       if (gBoxConfig.privilegedApps && gBoxConfig.privilegedApps.includes(appName)) {
         // If it is, allow the require to proceed.
@@ -148,7 +148,7 @@ function runInGBox(scriptPath, gBoxConfig) {
 
   const gbox = {
     module: { exports: {} },
-    ginger: ginger.ginger,
+    gingee: gingee.gingee,
     console: console,
     // Pass the list down to create the safe require function.
     require: createGRequire(scriptPath, gBoxConfig)
@@ -157,7 +157,7 @@ function runInGBox(scriptPath, gBoxConfig) {
   const scriptWrapper = new Function(
     'module',
     'exports',
-    'ginger',
+    'gingee',
     'console',
     'require',
     scriptCode
@@ -166,7 +166,7 @@ function runInGBox(scriptPath, gBoxConfig) {
   scriptWrapper(
     gbox.module,
     gbox.module.exports,
-    gbox.ginger,
+    gbox.gingee,
     gbox.console,
     gbox.require
   );

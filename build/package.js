@@ -77,16 +77,16 @@ async function createGinPackage(appName, projectRoot) {
 
 
 /**
- * This script builds the distributable 'gingerjs' package from the source.
+ * This script builds the distributable 'gingee' package from the source.
  * It copies the necessary engine files and generates a clean, production-ready package.json.
  */
 async function buildPackage() {
     try {
-        console.log('Starting GingerJS package build...');
+        console.log('Starting Gingee package build...');
 
         // Define Paths based on the new project structure
         const projectRoot = path.resolve(__dirname, '..');
-        const packageDest = path.join(projectRoot, 'build', 'dist', 'gingerjs');
+        const packageDest = path.join(projectRoot, 'build', 'dist', 'gingee');
 
         // Clean the destination directory
         console.log(`Cleaning destination: ${packageDest}`);
@@ -102,7 +102,7 @@ async function buildPackage() {
         fs.mkdirSync(templatesDest);
         fs.writeFileSync(path.join(templatesDest, 'glade.gin'), gladePackageBuffer);
 
-        fs.copySync(path.join(projectRoot, 'ginger.js'), path.join(packageDest, 'ginger.js'));
+        fs.copySync(path.join(projectRoot, 'gingee.js'), path.join(packageDest, 'gingee.js'));
         fs.copySync(path.join(projectRoot, 'modules'), path.join(packageDest, 'modules'));
         fs.copySync(path.join(projectRoot, 'LICENSE'), path.join(packageDest, 'LICENSE'));
         fs.copySync(path.join(projectRoot, 'README.md'), path.join(packageDest, 'README.md'));
@@ -137,7 +137,7 @@ async function buildPackage() {
             // CRITICAL: Only include production dependencies
             dependencies: sourcePackageJson.dependencies,
             exports: {
-                ".": "./ginger.js",
+                ".": "./gingee.js",
                 "./templates/glade.gin": "./templates/glade.gin"
             }
         };
@@ -147,7 +147,7 @@ async function buildPackage() {
             JSON.stringify(distPackageJson, null, 2)
         );
 
-        console.log('\n\x1b[32m%s\x1b[0m', `✅ GingerJS engine package created successfully!`);
+        console.log('\n\x1b[32m%s\x1b[0m', `✅ Gingee engine package created successfully!`);
         console.log(`   Output location: ${packageDest}`);
 
     } catch (err) {

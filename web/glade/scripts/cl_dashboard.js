@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     aboutButton.addEventListener('click', async () => {
-        window.open('https://gingerhome.github.io/gingerjs-docs/', '_blank');
+        window.open('https://gingerhome.github.io/gingee-docs/', '_blank');
     });
     
     logoutButton.addEventListener('click', async () => {

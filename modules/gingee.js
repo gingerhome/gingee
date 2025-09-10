@@ -62,10 +62,10 @@ module.exports = {
         }
         return store;
     },
-    ginger: async (handler) => {
+    gingee: async (handler) => {
         const store = als.getStore();
         if (!store) {
-            throw new Error("ginger must be called within a request's asynchronous execution context only.");
+            throw new Error("gingee must be called within a request's asynchronous execution context only.");
         }
 
         const isHttpContext = store.req && store.res;
@@ -498,9 +498,9 @@ module.exports = {
             }
         } catch (err) {
             if (store && store.logger) {
-                store.logger.error(`Error in ginger middleware: ${err.message} in app ${store.appName} found in script ${path.basename(store.scriptPath)}`, { stack: err.stack });
+                store.logger.error(`Error in gingee middleware: ${err.message} in app ${store.appName} found in script ${path.basename(store.scriptPath)}`, { stack: err.stack });
             } else {
-                console.error(`Error in ginger middleware: ${err.message} in app ${store.appName} found in script ${path.basename(store.scriptPath)}`, { stack: err.stack });
+                console.error(`Error in gingee middleware: ${err.message} in app ${store.appName} found in script ${path.basename(store.scriptPath)}`, { stack: err.stack });
             }
             if (isHttpContext && store.$g && !store.$g.isCompleted) {
                 store.res.writeHead(500, { 'Content-Type': 'text/plain' });

@@ -21,9 +21,9 @@ const FormData = require('form-data');
  * @returns {FormData} A new FormData instance.
  * @example
  * const form = formdata.create();
- * form.append('name', 'GingerJS App Server');
- * form.append('description', 'This is the GingerJS mascot.');
- * form.append('image', fs.readFileSync(fs.BOX, './images/ginger.png'), 'ginger.png');
+ * form.append('name', 'Gingee App Server');
+ * form.append('description', 'This is the Gingee mascot.');
+ * form.append('image', fs.readFileSync(fs.BOX, './images/gingee.png'), 'gingee.png');
  * const headers = form.getHeaders();
  */
 function create() {

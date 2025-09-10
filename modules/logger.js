@@ -32,7 +32,7 @@ class ForwardingTransport extends winston.Transport {
  * Creates a dedicated logger for a specific application.
  * @param {string} appName - The name of the application.
  * @param {string} appBoxPath - The absolute path to the app's box folder.
- * @param {object} loggingConfig - The logging level config from ginger.json
+ * @param {object} loggingConfig - The logging level config from gingee.json
  * @returns {winston.Logger} A new logger instance for the app.
  * @private
  */

@@ -1,23 +1,23 @@
-# GingerJS App Packaging Guide (`.gin` & `.gpkg`)
+# Gingee App Packaging Guide (`.gin` & `.gpkg`)
 
-A core feature of the GingerJS platform is its standardized application packaging format. This guide explains what a `.gin` file is, why it's used, and how you can control its contents using the `.gpkg` manifest file.
+A core feature of the Gingee platform is its standardized application packaging format. This guide explains what a `.gin` file is, why it's used, and how you can control its contents using the `.gpkg` manifest file.
 
 ## What is a `.gin` file?
 
-A `.gin` file (short for **Gin**ger **in**stallable) is the official package format for a GingerJS application.
+A `.gin` file (short for **Gin**ger **in**stallable) is the official package format for a Gingee application.
 
-At its core, a `.gin` file is simply a **standard ZIP archive** that contains all the necessary code, assets, and configuration for a single application to run on any GingerJS server. This single-file format makes distributing, deploying, and versioning your applications simple and reliable.
+At its core, a `.gin` file is simply a **standard ZIP archive** that contains all the necessary code, assets, and configuration for a single application to run on any Gingee server. This single-file format makes distributing, deploying, and versioning your applications simple and reliable.
 
-You can create a `.gin` package for your application using the `glide` admin panel or by running the `gingerjs-cli package-app` command.
+You can create a `.gin` package for your application using the `glide` admin panel or by running the `gingee-cli package-app` command.
 
 ## The Purpose of Packaging
 
 Creating a `.gin` package is the standard way to move an application between environments. The typical workflow is:
 
 1.  **Develop:** Build and test your application in your local development environment.
-2.  **Package:** Once ready, use `gingerjs-cli package-app` to create a versioned package (e.g., `my-blog-v1.2.0.gin`).
+2.  **Package:** Once ready, use `gingee-cli package-app` to create a versioned package (e.g., `my-blog-v1.2.0.gin`).
 3.  **Deploy:** Upload this single `.gin` file to your staging or production server.
-4.  **Install/Upgrade:** Use the `glade` admin panel or `gingerjs-cli install-app` / `upgrade-app` to deploy the package to the live server.
+4.  **Install/Upgrade:** Use the `glade` admin panel or `gingee-cli install-app` / `upgrade-app` to deploy the package to the live server.
 
 This workflow ensures that deployments are atomic, repeatable, and less error-prone than manually copying files.
 
@@ -42,7 +42,7 @@ The manifest contains `include` and `exclude` rules that use standard **glob pat
 ```json
 {
   "version": 1,
-  "packager": "gingerjs-packager",
+  "packager": "gingee-packager",
   "include": [
     "**/*"
   ],
@@ -82,8 +82,8 @@ For full control over your application's distributable package, creating a `.gpk
 While `.gpkg` controls *what files* are included in your package, the `pmft.json` manifest declares the *security permissions* your application requires to function.
 
 -   **Location:** The `pmft.json` file must be placed in your application's `box` folder (e.g., `web/my-app/box/pmft.json`).
--   **Purpose:** To declare which protected GingerJS modules (like `db` or `fs`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
+-   **Purpose:** To declare which protected Gingee modules (like `db` or `fs`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
 
-When an administrator installs your `.gin` package using the `gingerjs-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
+When an administrator installs your `.gin` package using the `gingee-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
 
-For a complete guide on the permissions system and the structure of this file, please see the **GingerJS Permissions Guide**[MD](./permissions-guide.md) [HTML](./permissions-guide.html).
+For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide**[MD](./permissions-guide.md) [HTML](./permissions-guide.html).

@@ -1,5 +1,5 @@
 module.exports = async function() {
-    ginger(async ($g) => {
+    gingee(async ($g) => {
         const crypto = require('crypto');
         const cacheService = require('cache_service');
 

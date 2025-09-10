@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { als, getContext } = require('./ginger.js');
+const { als, getContext } = require('./gingee.js');
 const { runInGBox } = require('./gbox.js');
 const engineRoot = path.resolve(__dirname, '..');
 

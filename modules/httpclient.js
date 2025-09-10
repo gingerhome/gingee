@@ -4,7 +4,7 @@ const FormData = require('form-data');
 
 /**
  * @module httpclient
- * @description A module for making HTTP requests in GingerJS applications.
+ * @description A module for making HTTP requests in Gingee applications.
  * This module provides functions to perform GET and POST requests, supporting various content types.
  * It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
  * It supports both text and binary responses, automatically determining the response type based on the content-type header.

@@ -1,5 +1,5 @@
 const path = require('path');
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const { resolveSecurePath, SCOPES } = require('../../modules/internal_utils');
 
 describe('internal_utils.js - resolveSecurePath', () => {

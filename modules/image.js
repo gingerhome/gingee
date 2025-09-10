@@ -36,7 +36,7 @@ class ImageProcessor {
      * @param {number} options.height - The new height of the image.
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.resize({ width: 200, height: 200, fit: 'contain', background: '#FFFFFF' });
      */
     resize(options) {
@@ -49,7 +49,7 @@ class ImageProcessor {
      * @param {number} angle - The angle to rotate the image (in degrees).
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.rotate(90);
      */
     rotate(angle = 0) {
@@ -61,7 +61,7 @@ class ImageProcessor {
      * @description Flips the image horizontally.
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.flip();
      */
     flip() {
@@ -73,7 +73,7 @@ class ImageProcessor {
      * @description Flips the image vertically.
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.flop();
      */
     flop() {
@@ -87,7 +87,7 @@ class ImageProcessor {
      * @description Converts the image to greyscale.
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.greyscale();
      */
     greyscale() {
@@ -100,7 +100,7 @@ class ImageProcessor {
      * @param {number} sigma - The blur amount (higher values = more blur).
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.blur(5);
      */
     blur(sigma) {
@@ -112,7 +112,7 @@ class ImageProcessor {
      * @description Sharpens the image.
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.sharpen();
      */
     sharpen() {
@@ -131,7 +131,7 @@ class ImageProcessor {
      *  @param {number} [options.opacity=1] - The opacity of the watermark
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.composite(watermarkBuffer, { left: 10, top: 10, opacity: 0.5 });
      */
     composite(watermarkBuffer, options) {
@@ -150,7 +150,7 @@ class ImageProcessor {
      * @param {object} [options] - Options for the format conversion (see sharp documentation).
      * @returns {ImageProcessor} The ImageProcessor instance for chaining.
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.format('jpeg', { quality: 80 });
      */
     format(format, options) {
@@ -165,7 +165,7 @@ class ImageProcessor {
      * @description Processes the image and returns the final data as a Buffer.
      * @returns {Promise<Buffer>}
      * @example
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.resize({ width: 200, height: 200 });
      * const buffer = await processor.toBuffer();
      */
@@ -181,9 +181,9 @@ class ImageProcessor {
      * @example
      * // path with leading slash indicates path from scope root, 
      * // path without leading slash indicates path relative to the executing script
-     * // here image is loaded from <project>/<app_name>/<box>/images/ginger.png
+     * // here image is loaded from <project>/<app_name>/<box>/images/gingee.png
      * // image is and saved to <project>/<app_name>/output/processed_image.webp
-     * const processor = image.load(fs.BOX, '/images/ginger.png');
+     * const processor = image.load(fs.BOX, '/images/gingee.png');
      * processor.resize({ width: 200, height: 200 });
      * await processor.toFile(fs.WEB, '/output/processed_image.webp');
      */
@@ -207,7 +207,7 @@ class ImageProcessor {
  * @returns {ImageProcessor} A new instance of our ImageProcessor for chaining operations.
  * @example
  * const image = require('image');
- * const processor = image.load(fs.BOX, './images/ginger.png');
+ * const processor = image.load(fs.BOX, './images/gingee.png');
  * processor.resize({ width: 200, height: 200 }).greyscale().toFile(fs.WEB, 'output/processed_image.webp');
  * @throws {Error} If the input is not a Buffer or a valid file path.
  */

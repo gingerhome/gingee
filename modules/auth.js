@@ -1,6 +1,6 @@
 const crypto = require('./crypto.js');
 const base64 = require('./encode.js').base64;
-const ginger = require('./ginger.js');
+const gingee = require('./gingee.js');
 
 /**
  * @private
@@ -10,7 +10,7 @@ const ginger = require('./ginger.js');
  * @returns {string} The JWT string.
  */
 function createJWTToken(payload, expiresIn = '1h') {
-    const ctx = ginger.getContext();
+    const ctx = gingee.getContext();
     const jwtSecret = ctx.app.config.jwt_secret;
 
     if (!jwtSecret) {
@@ -59,7 +59,7 @@ function verifyJWTToken(token) {
             return null; // Invalid structure
         }
 
-        const ctx = ginger.getContext();
+        const ctx = gingee.getContext();
         const jwtSecret = ctx.app.config.jwt_secret;
 
         // 1. Verify the signature

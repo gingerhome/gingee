@@ -7,7 +7,7 @@ const yauzl = require('yauzl');
 const archiver = require('archiver');
 const fg = require('fast-glob');
 const zip = require('./zip.js');
-const { als, getContext } = require('./ginger.js');
+const { als, getContext } = require('./gingee.js');
 const db = require('./db.js');
 const appLogger = require('./logger.js');
 
@@ -27,8 +27,8 @@ const ALL_PERMISSIONS = {
 
 /**
  * @module platform
- * @description A module for GingerJS platform-specific utilities and functions. Ideally used by only platform-level apps. 
- * To use this module the app needs to be declared in the `privilegedApps` list in the ginger.json server config.
+ * @description A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps. 
+ * To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.
  * <b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
  */
 
@@ -75,7 +75,7 @@ function _loadAndCacheAppConfig(appConfigPath) {
     if (nodeFs.existsSync(appConfigPath)) {
         const userAppConfig = require(appConfigPath);
         const defaultAppConfig = {
-            name: "Untitled GingerJS App",
+            name: "Untitled Gingee App",
             description: "",
             version: "1.0.0",
             type: "MPA",

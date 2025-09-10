@@ -1,6 +1,6 @@
-# Anatomy of a GingerJS App
+# Anatomy of a Gingee App
 
-Every application built on GingerJS follows a simple and consistent structure. This guide breaks down that structure, explains the critical role of the `box` folder, and provides a comprehensive reference for all the settings available in the `app.json` and `routes.json` configuration file.
+Every application built on Gingee follows a simple and consistent structure. This guide breaks down that structure, explains the critical role of the `box` folder, and provides a comprehensive reference for all the settings available in the `app.json` and `routes.json` configuration file.
 
 ## App Folder Structure
 
@@ -18,7 +18,7 @@ web/
 
 - **`my_app/`**: The root folder for the application. The name of this folder becomes the app's unique ID and the first segment of its URL (e.g., `http://localhost/my_app/...`).
 
-- **`css/`, `images/`, `scripts/`, etc.:** These are **public** directories. Any file placed here can be accessed directly by its URL. GingerJS's static file server will serve these assets. For example, a file at `web/my_app/css/style.css` is available at `/my_app/css/style.css`.
+- **`css/`, `images/`, `scripts/`, etc.:** These are **public** directories. Any file placed here can be accessed directly by its URL. Gingee's static file server will serve these assets. For example, a file at `web/my_app/css/style.css` is available at `/my_app/css/style.css`.
 
 - **`index.html`**: If a user navigates to the app's root URL (`/my_app`), this file will be served by default (if the app is not an SPA).
 
@@ -26,7 +26,7 @@ web/
 
 The `box` folder is the **private, secure core** of your application. It contains all your backend logic, configuration, and private data.
 
-- **Security:** The `box` folder is **always protected**. No file inside the `box` can ever be accessed directly from a URL. A request to `/my_app/box/app.json`, for example, will be blocked with a `403 Access Denied` error. This is a fundamental security guarantee of the GingerJS platform.
+- **Security:** The `box` folder is **always protected**. No file inside the `box` can ever be accessed directly from a URL. A request to `/my_app/box/app.json`, for example, will be blocked with a `403 Access Denied` error. This is a fundamental security guarantee of the Gingee platform.
 
 - **Server Scripts:** All your backend API endpoints are JavaScript files that live inside the `box`. A request to `/my_app/api/users` is mapped to the file at `web/my_app/box/api/users.js`.
 
@@ -38,7 +38,7 @@ The `box` folder is the **private, secure core** of your application. It contain
 
 ## The `app.json` File:
 
-The `app.json` file, located at `web/my_app/box/app.json`, is the central configuration file for your application. It tells the GingerJS server how to handle the app, what resources it needs, and how it should behave.
+The `app.json` file, located at `web/my_app/box/app.json`, is the central configuration file for your application. It tells the Gingee server how to handle the app, what resources it needs, and how it should behave.
 
 Here is a comprehensive breakdown of all available properties.
 
@@ -117,12 +117,12 @@ Here is a comprehensive breakdown of all available properties.
 
 ### The `pmft.json` File (Permissions Manifest)
 
-If you plan to distribute your application as a `.gin` package, you must declare the permissions it requires in a `pmft.json` file. This manifest is read by the `gingerjs-cli` during the installation process to request consent from the server administrator.
+If you plan to distribute your application as a `.gin` package, you must declare the permissions it requires in a `pmft.json` file. This manifest is read by the `gingee-cli` during the installation process to request consent from the server administrator.
 
 -   **Location:** `web/<your-app-name>/box/pmft.json`
 -   **Purpose:** To declare your app's required (`mandatory`) and optional (`optional`) permissions.
 
-For a complete guide on the permissions system and the structure of this file, please see the **GingerJS Permissions Guide [MD](./permissions-guide.md) [HTML](./permissions-guide.html)**.
+For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide [MD](./permissions-guide.md) [HTML](./permissions-guide.html)**.
 
 ---
 
@@ -185,7 +185,7 @@ Each object in the `routes` array defines a single endpoint and has the followin
 
 #### Accessing Path Parameters
 
-When a route with dynamic parameters is matched, GingerJS automatically parses the values from the URL and makes them available in your server script via the **`$g.request.params`** object.
+When a route with dynamic parameters is matched, Gingee automatically parses the values from the URL and makes them available in your server script via the **`$g.request.params`** object.
 
 **Example:**
 
@@ -197,7 +197,7 @@ When a route with dynamic parameters is matched, GingerJS automatically parses t
 -   **Server Script (`box/reviews/get.js`):**
     ```javascript
     module.exports = async function() {
-        await ginger(async ($g) => {
+        await gingee(async ($g) => {
             const productId = $g.request.params.productId; // "abc-123"
             const reviewId = $g.request.params.reviewId;   // "42"
             

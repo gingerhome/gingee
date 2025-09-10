@@ -1,7 +1,7 @@
 const { EventEmitter } = require('events');
-const { als, ginger } = require('../../modules/ginger');
+const { als, gingee } = require('../../modules/gingee');
 
-describe('ginger.js - Middleware Logic', () => {
+describe('gingee.js - Middleware Logic', () => {
 
     let mockStore;
     let mockReq;
@@ -46,7 +46,7 @@ describe('ginger.js - Middleware Logic', () => {
 
     test('should create the $g object and call the handler for a GET request', async () => {
         await als.run(mockStore, async () => {
-            await ginger(handler);
+            await gingee(handler);
         });
 
         expect(handler).toHaveBeenCalledTimes(1);
@@ -70,14 +70,14 @@ describe('ginger.js - Middleware Logic', () => {
 
         await als.run(mockStore, async () => {
             // This promise will resolve only after the handler has been called.
-            const gingerPromise = ginger(handler);
+            const gingeePromise = gingee(handler);
 
             // In parallel, we simulate the stream events.
             mockStore.req.emit('data', Buffer.from(data));
             mockStore.req.emit('end');
 
             // Await the completion of the middleware's logic.
-            await gingerPromise;
+            await gingeePromise;
         });
 
         // Now that the whole process is complete, we can make our assertions.
@@ -102,7 +102,7 @@ describe('ginger.js - Middleware Logic', () => {
             mockStore.$g.response.send("Redirecting...", 302);
 
             // --- Now, simulate the main script run ---
-            await ginger(handler);
+            await gingee(handler);
         });
 
         // Verify the main handler was NEVER called
@@ -115,7 +115,7 @@ describe('ginger.js - Middleware Logic', () => {
         mockReq.headers['content-length'] = '0'; // No body
 
         await als.run(mockStore, async () => {
-            await ginger(handler);
+            await gingee(handler);
         });
 
         // The test passes if it completes without timing out

@@ -9,7 +9,7 @@ const { resolveSecurePath } = require('./internal_utils.js');
  * @module zip
  * @description Provides functions to zip and unzip files and directories securely.
  * This module allows you to create zip archives from files or directories, and extract zip files to specified locations.
- * It ensures that all file operations are performed within the secure boundaries defined by the GingerJS framework.
+ * It ensures that all file operations are performed within the secure boundaries defined by the Gingee framework.
  * <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 */
@@ -68,7 +68,7 @@ async function zip(scope, sourcePath, options = {}) {
  * @returns {Promise<void>} A promise that resolves when the zip file is created.
  * @throws {Error} If the source file or directory does not exist, or if the path traversal is detected, or if zipping between scopes is attempted without the allowCrossOrigin option.
  * @example
- * const fs = require('fs'); // GingerJS secure fs module
+ * const fs = require('fs'); // Gingee secure fs module
  * const zip = require('zip');
  * await zip.zipToFile(fs.BOX, '/path/to/source', fs.BOX, '/path/to/destination.zip');
  * if(fs.existsSync(fs.BOX, '/path/to/destination.zip')) {
@@ -120,7 +120,7 @@ async function zipToFile(sourceScope, sourcePath, destScope, destPath, options =
  * @returns {Promise<void>} A promise that resolves when the unzip operation is complete.
  * @throws {Error} If the source zip file does not exist, or if the path traversal is detected, or if unzipping between scopes is attempted without the allowCrossOrigin option.
  * @example
- * const fs = require('fs'); // GingerJS secure fs module
+ * const fs = require('fs'); // Gingee secure fs module
  * const zip = require('zip');
  * await zip.unzip(fs.BOX, '/path/to/source.zip', fs.BOX, '/path/to/destination');
  * if(fs.existsSync(fs.BOX, '/path/to/destination')) {

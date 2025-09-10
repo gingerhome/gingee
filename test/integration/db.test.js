@@ -1,4 +1,4 @@
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const db = require('../../modules/db');
 const appLogger = require('../../modules/logger');
 const winston = require('winston');

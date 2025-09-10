@@ -1,6 +1,6 @@
-# Server Configuration Reference - The ginger.json File
+# Server Configuration Reference - The gingee.json File
 
-The `ginger.json` file is the master configuration file for the entire GingerJS server instance. It resides in the root of your project and controls server behavior, caching policies, logging, and security settings that apply to all applications running on the platform.
+The `gingee.json` file is the master configuration file for the entire Gingee server instance. It resides in the root of your project and controls server behavior, caching policies, logging, and security settings that apply to all applications running on the platform.
 
 Here is a comprehensive breakdown of all available properties.
 
@@ -19,7 +19,7 @@ Here is a comprehensive breakdown of all available properties.
   "default_app": "glade",
   "cache": {
     "provider": "memory",
-    "prefix": "gingerjs:",
+    "prefix": "gingee:",
     "redis": {
       "host": "127.0.0.1",
       "port": 6379,
@@ -55,15 +55,15 @@ An object that configures the HTTP and HTTPS servers.
   - **`port`** (number): The port number for the HTTPS server to listen on. Default: 7443. 
   - **`key_file`** (string): The path to the SSL private key file (e.g., `key.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/key.pem"`.
   - **`cert_file`** (string): The path to the SSL certificate file (e.g., `cert.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/cert.pem"`
-  - **NOTE:** See `Enabling HTTPS` section below to configure and run a HTTPS enabled GingerJS
+  - **NOTE:** See `Enabling HTTPS` section below to configure and run a HTTPS enabled Gingee
 
 ### web_root
 
 - **Type:** `string`
 - **Default:** `"./web"`
-- **Description:** The path to the directory containing all your application folders. This can be a relative path (from the project root) or an absolute path. GingerJS will fail to start if this directory does not exist.
+- **Description:** The path to the directory containing all your application folders. This can be a relative path (from the project root) or an absolute path. Gingee will fail to start if this directory does not exist.
 - **Example (relative):** `"web_root": "./public"`
-- **Example (absolute):** `"web_root": "/var/www/gingerjs_apps"`
+- **Example (absolute):** `"web_root": "/var/www/gingee_apps"`
 
 ### cache
 
@@ -81,7 +81,7 @@ An object that configures the HTTP and HTTPS servers.
 - **`cache.prefix`** (string, optional):
 
   - **Description:** A global prefix that will be prepended to all cache keys. This is highly recommended when using a shared Redis instance to prevent key collisions with other applications.
-  - **Example:** `"prefix": "my-prod-gingerjs:"`
+  - **Example:** `"prefix": "my-prod-gingee:"`
 
 - **`cache.redis`** (object, optional):
   - **Description:** Contains the connection details, used only when `provider` is set to `"redis"`.
@@ -97,7 +97,7 @@ An object that configures the HTTP and HTTPS servers.
 
 - **Type:** `object`
 - **Description:** Configures Gzip compression for responses.
-- **`enabled`** (boolean): If `true`, GingerJS will compress applicable responses (like HTML, CSS, JS, and JSON) if the client's browser indicates support for it via the `Accept-Encoding` header. This significantly reduces bandwidth usage.
+- **`enabled`** (boolean): If `true`, Gingee will compress applicable responses (like HTML, CSS, JS, and JSON) if the client's browser indicates support for it via the `Accept-Encoding` header. This significantly reduces bandwidth usage.
 
 ### logging
 
@@ -126,14 +126,14 @@ An object that configures the server's logger.
 
 - **Type:** `array of strings`
 - **Description:** A list of `<app-name>`s (the folder names in your `web_root`) that are granted special privileges.
-- **Privilege:** Only applications listed here are allowed to `require('platform')`, the powerful module used for application lifecycle management (creating, deleting, packaging apps, etc.). This is a critical security boundary. They can also access any Node JS built in module or third party NodeJS modules that are default included in by GingerJS (see package.json). **Ideally you will never need to set this property**
+- **Privilege:** Only applications listed here are allowed to `require('platform')`, the powerful module used for application lifecycle management (creating, deleting, packaging apps, etc.). This is a critical security boundary. They can also access any Node JS built in module or third party NodeJS modules that are default included in by Gingee (see package.json). **Ideally you will never need to set this property**
 - **Example:** `["admin"]`
 
 ---
 
 ## Enabling HTTPS for Local Development
 
-To run and test your GingerJS server with a valid SSL certificate on `localhost` (i.e., get the green padlock in your browser), you cannot use a simple self-signed certificate, as browsers do not trust them. The correct method is to create your own local Certificate Authority (CA) and use it to sign a certificate for `localhost`.
+To run and test your Gingee server with a valid SSL certificate on `localhost` (i.e., get the green padlock in your browser), you cannot use a simple self-signed certificate, as browsers do not trust them. The correct method is to create your own local Certificate Authority (CA) and use it to sign a certificate for `localhost`.
 
 **Prerequisites:**
 You must have the `openssl` command-line tool installed. It is available by default on Linux and macOS. For Windows, it is included with Git Bash.
@@ -176,7 +176,7 @@ This is the critical step where you tell your operating system to trust your new
 
 **Step 3: Create and Sign the Server Certificate**
 
-Now, create the `key.pem` and `cert.pem` files that GingerJS will use, and sign them with your trusted local CA.
+Now, create the `key.pem` and `cert.pem` files that Gingee will use, and sign them with your trusted local CA.
 
 1.  Generate the server's private key:
     ```bash
@@ -191,7 +191,7 @@ Now, create the `key.pem` and `cert.pem` files that GingerJS will use, and sign 
     openssl x509 -req -in ./settings/ssl/server.csr -CA ./settings/ssl/localCA.pem -CAkey ./settings/ssl/localCA.key -CAcreateserial -out ./settings/ssl/cert.pem -days 500 -sha256
     ```
 
-**Step 4: Update `ginger.json` and Run**
+**Step 4: Update `gingee.json` and Run**
 
 Enable the HTTPS server in your configuration. Since we used the default file paths, you don't need to add the `key_file` or `cert_file` properties.
 

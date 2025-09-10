@@ -1,5 +1,5 @@
 const path = require('path');
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const { resolveSecurePath } = require('../../modules/internal_utils');
 const fsModule = require('../../modules/fs'); // The module we are testing
 

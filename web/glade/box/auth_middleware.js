@@ -1,7 +1,7 @@
 module.exports = async function() {
     // IMPORTANT: if the include script is a middleware and requires sequential execution prior to further scripts, 
-    // it should await on the ginger function as done below
-    await ginger(async ($g) => {
+    // it should await on the gingee function as done below
+    await gingee(async ($g) => {
         const cacheService = require('cache_service');
         const { request, response, log } = $g;
 

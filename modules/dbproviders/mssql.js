@@ -8,7 +8,7 @@ class MssqlAdapter {
     /**
      * @description Initializes the MssqlAdapter with the given configuration.
      * @param {Object} dbConfig - The database configuration object.
-     * @param {Object} app - The GingerJS application instance.
+     * @param {Object} app - The Gingee application instance.
      * @param {Object} logger - The logger instance.
      */
     constructor(dbConfig, app, logger) {

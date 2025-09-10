@@ -1,5 +1,5 @@
 module.exports = async function () {
-    ginger(async ($g) => {
+    gingee(async ($g) => {
         const platform = require('platform');
 
         try {

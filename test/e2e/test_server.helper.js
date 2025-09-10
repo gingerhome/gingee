@@ -5,7 +5,7 @@ const axios = require('axios');
 let serverProcess;
 
 async function startServer() {
-  const serverPath = path.resolve(__dirname, '..', '..', 'ginger.js');
+  const serverPath = path.resolve(__dirname, '..', '..', 'gingee.js');
   serverProcess = fork(serverPath, [], { silent: true }); // silent prevents logs from cluttering test output
   
   // Wait for the server to be ready by polling an endpoint

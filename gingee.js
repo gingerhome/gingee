@@ -20,8 +20,8 @@ require('app-module-path').addPath(path.join(engineRoot, 'modules'));
 
 const mimeTypes = require('mime-types');
 const { createGRequire, runInGBox, transpileCache } = require('./modules/gbox.js');
-const userConfig = require(path.join(projectRoot, 'ginger.json'));
-const { als } = require('./modules/ginger.js');
+const userConfig = require(path.join(projectRoot, 'gingee.json'));
+const { als } = require('./modules/gingee.js');
 const { runStartupScripts, loadPermissionsForApp } = require('./modules/gapp_start.js');
 const db = require('./modules/db.js');
 const { log } = require('console');
@@ -102,7 +102,7 @@ async function initializeApps(config, logger, webPath) {
 
         const userAppConfig = require(appConfigPath);
         const defaultAppConfig = {
-          name: "Untitled GingerJS App",
+          name: "Untitled Gingee App",
           description: "",
           version: "1.0.0",
           type: "MPA",
@@ -491,7 +491,7 @@ async function requestHandler(req, res, apps, config, logger) {
     ),
     transports: [
       new winston.transports.DailyRotateFile({
-        filename: 'logs/gingerjs-%DATE%.log',
+        filename: 'logs/gingee-%DATE%.log',
         datePattern: 'YYYY-MM-DD',
         zippedArchive: true,
         maxSize: `${config.logging.rotation.max_size_mb}m`,
@@ -514,7 +514,7 @@ async function requestHandler(req, res, apps, config, logger) {
   if (!fs.existsSync(webPath)) {
     // If the path does not exist, log a fatal error and exit.
     console.error(`FATAL: The configured web directory does not exist at: ${webPath}`);
-    console.error("Please create the directory or correct the 'web' path in your ginger.json file.");
+    console.error("Please create the directory or correct the 'web' path in your gingee.json file.");
     process.exit(1); // Exit with a failure code
   }
   logger.info(`Serving from Web root folder: ${webPath}`);
@@ -525,7 +525,7 @@ async function requestHandler(req, res, apps, config, logger) {
   // --- Server Creation ---
   function handleServerError(error, port, protocol = 'HTTP') {
     if (error.code === 'EADDRINUSE') {
-      const message = `FATAL: Port ${port} is already in use. \r\nPlease stop the other process or configure a different port in your ginger.json file.`;
+      const message = `FATAL: Port ${port} is already in use. \r\nPlease stop the other process or configure a different port in your gingee.json file.`;
       logger.error(message);
       console.error(message);
     } else {
@@ -548,7 +548,7 @@ async function requestHandler(req, res, apps, config, logger) {
       });
 
       httpServer.listen(config.server.http.port, () => {
-        const message = `GingerJS HTTP server running on port ${config.server.http.port}`;
+        const message = `Gingee HTTP server running on port ${config.server.http.port}`;
         logger.info(message);
         console.log(message);
       });
@@ -579,7 +579,7 @@ async function requestHandler(req, res, apps, config, logger) {
       });
 
       httpsServer.listen(config.server.https.port, () => {
-        const message = `GingerJS HTTPS server running on port ${config.server.https.port}`;
+        const message = `Gingee HTTPS server running on port ${config.server.https.port}`;
         logger.info(message);
         console.log(message);
       });
@@ -589,7 +589,7 @@ async function requestHandler(req, res, apps, config, logger) {
     }
   }
 })().catch(err => {
-  console.error('\nFATAL: An unhandled error occurred during GingerJS startup.');
+  console.error('\nFATAL: An unhandled error occurred during Gingee startup.');
   console.error(err.stack || err.message);
   process.exit(1);
 });

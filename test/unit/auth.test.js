@@ -1,4 +1,4 @@
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const auth = require('../../modules/auth');
 
 // We mock the dependencies of the auth module

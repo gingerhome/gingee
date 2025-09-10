@@ -1,8 +1,8 @@
 const crypto = require('../../modules/crypto');
-const ginger = require('../../modules/ginger'); // Needed for context mocks
+const gingee = require('../../modules/gingee'); // Needed for context mocks
 
 // Mock the context for the decrypt error logging
-jest.mock('../../modules/ginger');
+jest.mock('../../modules/gingee');
 
 describe('crypto.js - Cryptography Utilities', () => {
 

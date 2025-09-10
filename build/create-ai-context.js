@@ -5,11 +5,11 @@ const jsdoc2md = require('jsdoc-to-markdown');
 /**
  * This script builds a single, comprehensive context.md file.
  * This file is designed to be provided to a Generative AI to make it an
- * expert on the GingerJS platform.
+ * expert on the Gingee platform.
  */
 async function createContextFile() {
   try {
-    console.log('Starting GingerJS AI context bundle creation...');
+    console.log('Starting Gingee AI context bundle creation...');
 
     const projectRoot = path.resolve(__dirname, '..');
     const distPath = path.join(projectRoot, 'docs', 'ai-context');
@@ -24,7 +24,7 @@ async function createContextFile() {
     // The human-written conceptual guides
     const docFiles = [
       'docs/concepts.md',
-      'docs/gingerjs-cli.md',
+      'docs/gingee-cli.md',
       'docs/server-config.md',
       'docs/glade-admin.md',
       'docs/app-structure.md',
@@ -78,8 +78,8 @@ async function createContextFile() {
     let finalContent = [];
 
     // Add the intro/primer
-    finalContent.push("# GingerJS Expert Developer Context");
-    finalContent.push("You are an expert developer for a Node.js application server called GingerJS. Your goal is to help users build applications on this platform by exclusively using the following concepts and API reference. Always write server scripts in the required `module.exports = async function() { await ginger(async ($g) => { ... }) }` format.");
+    finalContent.push("# Gingee Expert Developer Context");
+    finalContent.push("You are an expert developer for a Node.js application server called Gingee. Your goal is to help users build applications on this platform by exclusively using the following concepts and API reference. Always write server scripts in the required `module.exports = async function() { await gingee(async ($g) => { ... }) }` format.");
     
     // Add the core documentation
     docFiles.forEach(docPath => {
@@ -95,7 +95,7 @@ async function createContextFile() {
     finalContent.push('# App Module API Reference');
     finalContent.push(apiReferenceMd);
 
-    finalContent.push("## Important points to remember\n- GingerJS is sandboxed and does not allow usage of any NodeJS builtin modules or other external libraries.\n- Some GingerJS modules such as 'fs' sound similar to the NodeJS builtin modules but are not the same. Always refer the API reference to use these modules.\n- Always follow the security and permission guidelines outlined in the documentation.\n- File paths with leading slashes are relative to the scope root (BOX or WEB) as applicable.\n- File paths without leading slashes are relative to the working directory of the executing script.\n- Server script URLs do not end with '.js' or any other extension, when you are trying to access them e.g. via the Browser 'fetch' function");
+    finalContent.push("## Important points to remember\n- Gingee is sandboxed and does not allow usage of any NodeJS builtin modules or other external libraries.\n- Some Gingee modules such as 'fs' sound similar to the NodeJS builtin modules but are not the same. Always refer the API reference to use these modules.\n- Always follow the security and permission guidelines outlined in the documentation.\n- File paths with leading slashes are relative to the scope root (BOX or WEB) as applicable.\n- File paths without leading slashes are relative to the working directory of the executing script.\n- Server script URLs do not end with '.js' or any other extension, when you are trying to access them e.g. via the Browser 'fetch' function");
 
     // --- 4. Write the final file ---
     fs.writeFileSync(outputPath, finalContent.join('\n\n'));
@@ -103,7 +103,7 @@ async function createContextFile() {
     // --- 5. Cleanup ---
     fs.removeSync(tempPath);
 
-    console.log('\n\x1b[32m%s\x1b[0m', `✅ GingerJS AI context bundle created successfully!`);
+    console.log('\n\x1b[32m%s\x1b[0m', `✅ Gingee AI context bundle created successfully!`);
     console.log(`   Output: ${outputPath}`);
 
   } catch (err) {

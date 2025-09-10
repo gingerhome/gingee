@@ -1,5 +1,5 @@
 module.exports = async function() {
-    await ginger(async ($g) => {
+    await gingee(async ($g) => {
         const platform = require('platform');
         try {
             const appName = $g.request.query.app;

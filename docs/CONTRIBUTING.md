@@ -1,8 +1,8 @@
-# Contributing to GingerJS
+# Contributing to Gingee
 
-First off, thank you for your interest in GingerJS! We're thrilled that you're considering contributing to a project that's exploring the future of software development.
+First off, thank you for your interest in Gingee! We're thrilled that you're considering contributing to a project that's exploring the future of software development.
 
-GingerJS is a pioneering project, deeply co-authored by a human architect and a Generative AI partner. This unique origin shapes our development philosophy. We value not just the final code, but the creative process of dialogue, refinement, and testing that produces it.
+Gingee is a pioneering project, deeply co-authored by a human architect and a Generative AI partner. This unique origin shapes our development philosophy. We value not just the final code, but the creative process of dialogue, refinement, and testing that produces it.
 
 This guide provides a set of conventions for contributing to the project, ensuring that we can grow the platform in a consistent, secure, and collaborative way.
 
@@ -12,13 +12,13 @@ This project and everyone participating in it is governed by our Code of Conduct
 
 ## How Can I Contribute?
 
-There are many ways to contribute to GingerJS, and all are valuable.
+There are many ways to contribute to Gingee, and all are valuable.
 
 *   **Reporting Bugs:** If you find a bug, please open an issue on our GitHub repository. Provide a clear title, a detailed description of the bug, steps to reproduce it, and what you expected to happen versus what actually happened.
-*   **Suggesting Enhancements:** Have an idea for a new module or a feature enhancement? We'd love to hear it! Open an issue with a clear title and a detailed proposal explaining the feature and why it would be a valuable addition to GingerJS.
+*   **Suggesting Enhancements:** Have an idea for a new module or a feature enhancement? We'd love to hear it! Open an issue with a clear title and a detailed proposal explaining the feature and why it would be a valuable addition to Gingee.
 *   **Improving Documentation:** Great documentation is the key to a great project. If you find a typo, a confusing explanation, or feel a section is missing, please don't hesitate to open an issue or a Pull Request.
 
-## Submitting a Pull Request (The GingerJS Way)
+## Submitting a Pull Request (The Gingee Way)
 
 We have a unique development process called **Dialog-Driven Development**, which embraces collaboration with AI. While you are free to write code entirely by hand, we encourage and have a process for contributions made with a GenAI partner.
 
@@ -53,7 +53,7 @@ Here's the workflow for submitting a code contribution:
         -   `fix: Correctly handle cache clearing in platform.deleteApp`
         -   `docs: Update reference guide for the 'db' module`
 
-6.  **Submit the Pull Request:** Push your branch to your fork and open a Pull Request against the `main` branch of the GingerJS repository.
+6.  **Submit the Pull Request:** Push your branch to your fork and open a Pull Request against the `main` branch of the Gingee repository.
     *   In your PR description, link to the issue it resolves (e.g., "Closes #42").
     *   If you included a `PROMPT.md`, please mention it.
 
@@ -70,4 +70,4 @@ Here's the workflow for submitting a code contribution:
     npm start
     ```
 
-Thank you again for your interest in making GingerJS better. We look forward to your contributions
+Thank you again for your interest in making Gingee better. We look forward to your contributions

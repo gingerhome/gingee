@@ -7,7 +7,7 @@ const httpclient = require('./httpclient.js'); //httpclient wrapper for making H
  * @module html
  * @description A module for parsing and manipulating HTML using [Cheerio]{@link https://cheerio.js.org/}.
  * It provides functions to load HTML from strings, files, and URLs, allowing for easy querying and manipulation of HTML documents.
- * This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in GingerJS applications.
+ * This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in Gingee applications.
  * It abstracts the complexities of working with raw HTML, providing a simple and consistent API for developers.
  * It leverages the Cheerio library to provide a jQuery-like syntax for traversing and manipulating the HTML structure.
  * It supports both synchronous and asynchronous operations, making it flexible for various use cases.
@@ -47,9 +47,9 @@ function fromString(htmlString) {
  * @function fromFile
  * @memberof module:html
  * @description Reads and parses an HTML file from the secure filesystem.
- * This function allows you to load HTML content from a file, ensuring that the file is read securely within the GingerJS environment.
+ * This function allows you to load HTML content from a file, ensuring that the file is read securely within the Gingee environment.
  * It uses the secure file system module to read the file content and then parses it into a Cheerio instance.
- * This is particularly useful for applications that need to manipulate or query HTML files stored in the GingerJS filesystem.
+ * This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem.
  * It abstracts the file reading process, providing a simple interface to work with HTML files.
  * @param {string} scope - The scope to operate in (fs.BOX or fs.WEB).
  * @param {string} filePath - The path to the HTML file.
@@ -69,9 +69,9 @@ async function fromFile(scope, filePath) {
  * @function fromFileSync
  * @memberof module:html
  * @description Synchronously reads and parses an HTML file from the secure filesystem.
- * This function allows you to load HTML content from a file in a synchronous manner, ensuring that the file is read securely within the GingerJS environment.
+ * This function allows you to load HTML content from a file in a synchronous manner, ensuring that the file is read securely within the Gingee environment.
  * It uses the secure file system module to read the file content and then parses it into a Cheerio instance.
- * This is particularly useful for applications that need to manipulate or query HTML files stored in the GingerJS filesystem in a synchronous context.
+ * This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem in a synchronous context.
  * It abstracts the file reading process, providing a simple interface to work with HTML files.
  * @param {string} scope - The scope to operate in (fs.BOX or fs.WEB).
  * @param {string} filePath - The path to the HTML file.

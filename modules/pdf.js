@@ -1,7 +1,7 @@
 const PdfPrinter = require('pdfmake');
 const path = require('path');
 const fs = require('./fs.js');
-const { getContext } = require('./ginger.js');
+const { getContext } = require('./gingee.js');
 const { resolveSecurePath } = require('./internal_utils.js');
 
 /**
@@ -17,7 +17,7 @@ let defaultPrinter;
 
 /**
  * Initializes the PDF module with default fonts.
- * Called once by ginger.js at server startup.
+ * Called once by gingee.js at server startup.
  * @private
  */
 function init() {
@@ -50,7 +50,7 @@ function init() {
  * const docDefinition = {
  *     pageSize: 'LETTER',
  *     pageMargins: [40, 60, 40, 60],
- *     header: { text: 'GingerJS Weekly Report', alignment: 'center', margin: [0, 20, 0, 0] },
+ *     header: { text: 'Gingee Weekly Report', alignment: 'center', margin: [0, 20, 0, 0] },
  *     content: [
  *         { text: 'Hello, World!', fontSize: 15 }
  *     ]

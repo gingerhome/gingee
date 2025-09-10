@@ -1,6 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
-const { als } = require('../../modules/ginger');
+const { als } = require('../../modules/gingee');
 const platform = require('../../modules/platform');
 const appLogger = require('../../modules/logger');
 const { transpileCache } = require('../../modules/gbox');
