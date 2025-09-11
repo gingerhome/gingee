@@ -46,7 +46,7 @@ const defaultConfig = {
   content_encoding: {
     enabled: true
   },
-  max_body_size: "10mb",
+  max_body_size: "25mb",
   logging: {
     level: "error",
     rotation: {
