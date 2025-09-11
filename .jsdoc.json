@@ -1,7 +1,7 @@
     {
       "opts": {
         "template": "./node_modules/docdash",
-        "destination": "./docs/api",
+        "destination": "../gingee-docs",
         "readme": "./docs/jsdoc-README.md",
         "recurse": true
       },

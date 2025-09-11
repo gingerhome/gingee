@@ -14,6 +14,29 @@ The objective of the project is to validate the feasibility of GenAI in platform
 
 Gingee is a secure, batteries-included Node.js application server designed to dramatically accelerate web app development. Co-authored by a human architect and a GenAI partner, it provides a full featured platform that allows developers to focus on business logic instead of boilerplate. It achieves this through a secure sandbox, a powerful module ecosystem, and a comprehensive application lifecycle management system.
 
+## **🚀 Quick Start**
+
+Get a new, fully configured Gingee server running in under a minute.
+
+```bash
+# 1. Install the Gingee CLI
+npm install -g gingee-cli
+
+# 2. Create a new Gingee project
+gingee-cli init my-gingee-project
+
+# 3. Navigate into your new project
+cd my-gingee-project
+
+# 4. Start the server!
+npm start
+
+# 5. Browse to http://localhost:7070
+```
+
+That's it! You should now see Glade - the Gingee admin panel in your web browser.
+
+
 ## **Key Features**
 
 Gingee is a comprehensive platform designed to provide a secure, efficient, and enjoyable development experience.
@@ -49,28 +72,6 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - Co-authored by a human architect and a Generative AI partner, Gingee is a testament to a new, highly efficient "Dialog-Driven Development" workflow. The project includes a pre-built knowledge bundle (`ai-context.md`) to empower you to build your own apps with an AI partner.
 
 
-## **🚀 Quick Start**
-
-Get a new, fully configured Gingee server running in under a minute.
-
-```bash
-# 1. Install the Gingee CLI
-npm install -g gingee-cli
-
-# 2. Create a new Gingee project
-gingee-cli init my-gingee-project
-
-# 3. Navigate into your new project
-cd my-gingee-project
-
-# 4. Start the server!
-npm start
-
-# 5. Browse to http://localhost:7070
-```
-
-That's it! You should now see Glade - the Gingee admin panel in your web browser.
-
 ## **Documentation**
 
 Dive deeper into the architecture and learn how to build powerful applications with Gingee.
@@ -92,22 +93,12 @@ Dive deeper into the architecture and learn how to build powerful applications w
 |**[API Examples](https://github.com/gingerhome/gingee-examples)** | Examples of using Gingee modules, It can also be installed in a Gingee server using the .gin package in the dist folder.|
 | **[Roadmap](./docs/roadmap.html)**                                  | The roadmap of core and app features in the pipeline for the Gingee app platform                                          |
 
-## **Credits**
-
-| Role            | Contributor                                                  |
-| :-------------- | :----------------------------------------------------------- |
-| **Ideation**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
-| **Author**      | [Google Gemini](https://deepmind.google/models/gemini/pro/)  |
-| **Co-Author**   | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
-| **Tester**      | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
-| **Tech Writer** | [Google Gemini](https://deepmind.google/models/gemini/pro/)  |
-| **Reviewer**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
 
 ## **Project Details**
 | **Project Phase** | **Status**  | **Current Token Count**|
 | :--- | :--- | :--- |
 | **Phase 1**       | Completed   | 1,038,862 / 1,048,576 **(1M tokens used out of a 1M token context window)** |
-| **Phase 2**       | In Progress | 699,646 / 1,048,576 **(700K tokens used out of a 1M token context window)** |
+| **Phase 2**       | Completed | 702,180 / 1,048,576 **(700K tokens used out of a 1M token context window)** |
 
 ## **Tooling**
 Google AI Studio, VS Code, NodeJS, NPM, JSDoc
@@ -119,3 +110,14 @@ Please see our [`CONTRIBUTING`](./docs/CONTRIBUTING.md) guide for more details o
 ## **License**
 
 Gingee is licensed under the **MIT License**. See the `LICENSE` file for details.
+
+## **Credits**
+
+| Role            | Contributor                                                  |
+| :-------------- | :----------------------------------------------------------- |
+| **Ideation**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
+| **Author**      | [Google Gemini](https://deepmind.google/models/gemini/pro/)  |
+| **Co-Author**   | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
+| **Tester**      | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
+| **Tech Writer** | [Google Gemini](https://deepmind.google/models/gemini/pro/)  |
+| **Reviewer**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |

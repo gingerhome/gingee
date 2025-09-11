@@ -4,11 +4,11 @@ Gingee has a strong, stable, and feature-rich foundation. Our core focus on secu
 
 This is a living document and is subject to change based on community feedback and evolving technological landscapes. We welcome discussion and contributions on all of these items!
 
-## Phase 1: Solidify the Core & Developer Experience (Near-Term)
+## Phase 1 & 2: Solidify the Core & Developer Experience (Near-Term)
 
 This phase is focused on polishing the existing platform and delivering on our "instant time to joy" promise by building out the tools that make Gingee incredibly easy to adopt and use. [COMPLETED]
 
-## Phase 2: Expand Platform Capabilities (Mid-Term)
+## Phase 3: Expand Platform Capabilities (Mid-Term)
 
 This phase is focused on adding major new modules that unlock entirely new categories of applications that can be built on Gingee. [INPROGRESS]
 
@@ -38,7 +38,7 @@ This phase is focused on adding major new modules that unlock entirely new categ
     -   **Goal:** Complete the `auth` module by adding support for "Login with Google/Microsoft/GitHub," etc.
     -   **Implementation:** Integrate **Passport.js** and its rich ecosystem of strategies into the `auth` module, with configuration managed cleanly in `app.json`.
 
-## Phase 3: Production at Scale (Long-Term)
+## Phase 4: Production at Scale (Long-Term)
 
 This phase is focused on adding features essential for running massive, high-traffic, enterprise-grade applications.
 

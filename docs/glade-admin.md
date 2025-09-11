@@ -13,10 +13,8 @@ When you create a new Gingee project using the `gingee-cli init` command, the Gl
 
 2.  **Configuration File:** The credentials are saved in `web/glade/box/app.json`:
     ```json
-    // web/glade/box/app.json
     {
       "name": "glade",
-      // ...
       "env": {
         "ADMIN_USERNAME": "admin",
         "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=..." 
