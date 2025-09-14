@@ -4,7 +4,10 @@ Welcome to Gingee! This guide is your starting point for building powerful, secu
 
 If you haven't already, please read the Core Concepts [MD](./concepts.md) [HTML](./concepts.html) guide for a high-level overview of the platform's architecture.
 
-## Chapter 1: Your First App - Hello World
+**NOTE:**
+This guide focuses on creating a Gingee backend with the classic Multi-Page App (MPA) workflow. For a complete tutorial on building modern SPAs with frameworks like React, Vue, or Angular, please see our dedicated Gingee SPA Developer's Guide [MD](./app-spadev-guide.md) [HTML](./app-spadev-guide.html)
+
+## Chapter 1: Your First App - Hello World (MPA)
 
 The fastest way to get started is with the `gingee-cli`. After you've created your first project with `gingee-cli init my-project`, you can create your first application.
 

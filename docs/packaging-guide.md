@@ -48,6 +48,7 @@ The manifest contains `include` and `exclude` rules that use standard **glob pat
   ],
   "exclude": [
     "box/data/**",
+    "box/logs",
     "dev_src/**",
     "**/*.tmp",
     ".gpkg"
@@ -68,6 +69,32 @@ The manifest contains `include` and `exclude` rules that use standard **glob pat
         -   `"**/*.tmp"`: Excludes all temporary files.
         -   `".gpkg"`: It is a best practice for the manifest to exclude itself from the package.
 
+### Example `.gpkg` for a Single Page Application (SPA)
+
+When packaging a modern SPA (like one built with React or Vue), it is critical to **include the compiled `dist` folder** and **exclude all frontend source code** and development dependencies. This creates a small, optimized, and secure production package.
+
+```json
+{
+  "include": [
+    "box/**/*",
+    "dist/**/*"
+  ],
+  "exclude": [
+    "box/data",
+    "box/logs",
+    "src",
+    "node_modules",
+    ".gitignore",
+    "vite.config.js",
+    "tailwind.config.js",
+    "postcss.config.js",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json"
+  ]
+}
+```
+
 ### Default Behavior (No `.gpkg` file)
 
 If your application does **not** have a `.gpkg` file in its `box` folder, the `package-app` command will use a set of safe defaults. It will include all files in your app's directory except for common development artifacts like:
@@ -86,4 +113,4 @@ While `.gpkg` controls *what files* are included in your package, the `pmft.json
 
 When an administrator installs your `.gin` package using the `gingee-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
 
-For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide**[MD](./permissions-guide.md) [HTML](./permissions-guide.html).
+For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide** [MD](./permissions-guide.md) [HTML](./permissions-guide.html).

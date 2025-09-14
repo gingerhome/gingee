@@ -12,11 +12,6 @@ This phase is focused on polishing the existing platform and delivering on our "
 
 This phase is focused on adding major new modules that unlock entirely new categories of applications that can be built on Gingee. [INPROGRESS]
 
--   **Complete SPA hosting support**
-    -   **Goal:** Add first-class support for SPA based applications.
-    -   **Use Cases:** Modern JS framework based applications such as React, Vue, Angular etc.
-    -   **Implementation:** TBD.
-
 -   **Real-Time Communication (`websockets` Module)**
     -   **Goal:** Add first-class support for real-time, bidirectional communication.
     -   **Use Cases:** Live chat applications, real-time notifications, collaborative editing tools, and live data dashboards.

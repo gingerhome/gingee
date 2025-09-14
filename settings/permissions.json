@@ -34,5 +34,12 @@
       "fs",
       "image"
     ]
+  },
+  "gindoo": {
+    "granted": [
+      "db",
+      "fs",
+      "image"
+    ]
   }
 }

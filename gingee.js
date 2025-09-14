@@ -2,10 +2,12 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const { URL } = require('url');
 
-const { Pool } = require('pg');
 const zlib = require('zlib');
-const { pathToRegexp, match } = require('path-to-regexp');
+const { match } = require('path-to-regexp');
 
 const winston = require('winston');
 require('winston-daily-rotate-file');
@@ -28,6 +30,7 @@ const { log } = require('console');
 const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
 const pdf = require('./modules/pdf.js');
+const { env } = require('process');
 
 const defaultConfig = {
   server: {
@@ -40,7 +43,8 @@ const defaultConfig = {
       port: 7443,
       key_file: './settings/ssl/key.pem',
       cert_file: './settings/ssl/cert.pem'
-    }
+    },
+    environment: "production" // "development" or "production"
   },
   web_root: "./web",
   content_encoding: {
@@ -117,7 +121,8 @@ async function initializeApps(config, logger, webPath) {
           logging: {
             level: "error"
           },
-          in_maintenance: false
+          in_maintenance: false,
+          mode: "production"
         };
 
         const appConfig = {
@@ -128,6 +133,7 @@ async function initializeApps(config, logger, webPath) {
           cache: { ...defaultAppConfig.cache, ...(userAppConfig.cache || {}) },
           logging: { ...defaultAppConfig.logging, ...(userAppConfig.logging || {}) }
         };
+        const isDevelopment = appConfig.mode === 'development';
 
         const app = { name: appName, config: appConfig, appWebPath, appBoxPath, logger: dedicatedLogger };
 
@@ -152,6 +158,35 @@ async function initializeApps(config, logger, webPath) {
         }
 
         apps[appName] = app;
+
+        if (appConfig.type === 'SPA' && isDevelopment) {
+          if (appConfig.spa && appConfig.spa.dev_server_proxy) {
+            logger.info(`[SPA] Starting dev server for '${appName}'...`);
+
+            // Use spawn for long-running processes
+            const devServer = spawn('npm', ['run', 'dev'], {
+              cwd: app.appWebPath, // Run 'npm run dev' inside the app's folder
+              stdio: 'pipe', // Pipe stdout/stderr to the main process
+              shell: true // Important for running npm commands reliably across platforms
+            });
+
+            app.devServerProcess = devServer; // Store the process handle
+
+            devServer.stdout.on('data', (data) => {
+              logger.info(`[${appName}-dev]: ${data.toString().trim()}`);
+            });
+
+            devServer.stderr.on('data', (data) => {
+              logger.error(`[${appName}-dev]: ${data.toString().trim()}`);
+            });
+
+            devServer.on('close', (code) => {
+              logger.warn(`[SPA] Dev server for '${appName}' exited with code ${code}.`);
+            });
+          } else {
+            logger.warn(`[SPA] App '${appName}' is type SPA but has no 'dev_server_proxy' configured in app.json.`);
+          }
+        }
 
         if (appConfig.db && Array.isArray(appConfig.db)) {
           appConfig.db.forEach(dbConfig => {
@@ -203,8 +238,30 @@ async function requestHandler(req, res, apps, config, logger) {
 
     const urlWithoutQuery = req.url.split('?')[0];
     const urlParts = urlWithoutQuery.split('/').filter(Boolean);
-    const appName = urlParts[0];
-    const app = apps[appName];
+    let appName = urlParts[0];
+    let app = apps[appName];
+
+    if (!app && req.headers.referer) { // Attempt SPA context inference from Referer header
+      try {
+        const refererUrl = new URL(req.headers.referer);
+        const refererPathParts = refererUrl.pathname.split('/').filter(Boolean);
+        const contextualAppName = refererPathParts[0];
+        const contextualApp = apps[contextualAppName];
+
+        if (contextualApp && contextualApp.config.type === 'SPA') {
+          // We've found a valid SPA context from the referer.
+          // Let's re-assign 'app' and 'appName' so the rest of the logic can proceed.
+          app = contextualApp;
+          appName = contextualAppName;
+          logger.info(`[SPA Context] Inferred app '${appName}' from Referer header for request: ${req.url}`);
+        }
+      } catch (e) {
+        // Ignore parsing errors for invalid Referer headers
+        logger.warn(`Could not parse Referer header: ${req.headers.referer}`);
+      }
+    }
+
+    const isDevelopment = app.config.mode === 'development';
 
     if (app && app.in_maintenance) {
       logger.warn(`Request to '${req.url}' blocked because app '${appName}' is in maintenance mode.`);
@@ -240,7 +297,7 @@ async function requestHandler(req, res, apps, config, logger) {
     let targetScriptPath = null;
     const requestPath = urlWithoutQuery.substring(appName.length + 1); // Get path relative to the app
 
-    if (app.compiledRoutes) {
+    if (app && app.compiledRoutes) {
       // Manifest-Based Routing
       for (const route of app.compiledRoutes) {
         if (req.method === route.method || route.method === 'ALL') {
@@ -275,7 +332,7 @@ async function requestHandler(req, res, apps, config, logger) {
       const acceptEncoding = req.headers['accept-encoding'] || '';
       const canCompress = config.content_encoding.enabled && acceptEncoding.includes('gzip');
 
-      const filePath = path.join(webPath, ...urlParts);
+      let filePath = path.join(webPath, ...urlParts);
 
       const defaultCacheConfig = {
         client: { enabled: false, no_cache_regex: [] },
@@ -286,6 +343,44 @@ async function requestHandler(req, res, apps, config, logger) {
       // Ensure nested objects exist to prevent errors
       cacheConfig.client = cacheConfig.client || defaultCacheConfig.client;
       cacheConfig.server = cacheConfig.server || defaultCacheConfig.server;
+
+      if (!targetScriptPath && app.config.type === 'SPA' && app.config.spa && app.config.spa.enabled) {
+        if (isDevelopment) {
+          // --- Development: Proxy to Vite/Angular CLI ---
+          if (app.config.spa.dev_server_proxy) {
+            const proxy = createProxyMiddleware({
+              target: app.config.spa.dev_server_proxy,
+              changeOrigin: true,
+              logLevel: 'silent', // Keeps the console clean
+              
+            });
+
+            return proxy(req, res); // Hand off the request to the proxy
+          } else {
+            logger.warn(`[SPA] App '${appName}' has no 'dev_server_proxy' configured in app.json.`);
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('INTERNAL SERVER ERROR - SPA app misconfigured. No dev_server_proxy set.');
+            return;
+          }
+        } else {
+          // --- Production: Serve static assets or fallback to index.html ---
+          const buildPath = path.resolve(app.appWebPath, app.config.spa.build_path || './dist');
+          const assetPath = path.join(buildPath, ...urlParts.slice(1));
+          
+          if (fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
+            // It's a direct request for a static asset (e.g., a JS or CSS file)
+            filePath = assetPath; // Reuse static file logic below
+          } else {
+            // It's a client-side route, so serve the fallback path (index.html)
+            const fallbackPath = path.resolve(buildPath, app.config.spa.fallback_path || 'index.html');
+            if (fs.existsSync(fallbackPath)) {
+              res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
+              fs.createReadStream(fallbackPath).pipe(res);
+              return;
+            }
+          }
+        }
+      }
 
       //if targetScriptPath then go to script execution
       if (!targetScriptPath && path.extname(filePath)) {
@@ -446,8 +541,10 @@ async function requestHandler(req, res, apps, config, logger) {
             }
           } catch (e) {
             logger.error(`Error executing script: ${scriptPath} in app ${appName}`, e);
-            res.writeHead(500, { 'Content-Type': 'text/plain' });
-            res.end(`INTERNAL_SERVER_ERROR - ${e.message}`);
+            if(!res.headersSent){
+              res.writeHead(500, { 'Content-Type': 'text/plain' });
+              res.end(`INTERNAL_SERVER_ERROR - ${e.message}`);
+            }
           }
         } else if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
           const indexPath = path.join(filePath, 'index.html');
@@ -466,8 +563,10 @@ async function requestHandler(req, res, apps, config, logger) {
     });
   } catch (err) {
     logger.error(`Error handling request for ${req.url}`, err);
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    res.end(`INTERNAL_SERVER_ERROR - ${err.message}`);
+    if(!res.headersSent){
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end(`INTERNAL_SERVER_ERROR - ${err.message}`);
+    }
   }
 };
 
@@ -570,7 +669,7 @@ async function requestHandler(req, res, apps, config, logger) {
         key: fs.readFileSync(keyPath),
         cert: fs.readFileSync(certPath)
       };
-      
+
       const reqHandler = (req, res) => requestHandler(req, res, apps, config, logger);
       const httpsServer = https.createServer(options, reqHandler);
 
@@ -588,6 +687,17 @@ async function requestHandler(req, res, apps, config, logger) {
       handleServerError(err, config.server.https.port, 'HTTPS');
     }
   }
+
+  process.on('exit', () => {
+    for (const appName in apps) {
+      if (apps[appName].devServerProcess) {
+        apps[appName].devServerProcess.kill();
+      }
+    }
+  });
+  process.on('SIGINT', () => process.exit());
+  process.on('SIGTERM', () => process.exit());
+
 })().catch(err => {
   console.error('\nFATAL: An unhandled error occurred during Gingee startup.');
   console.error(err.stack || err.message);

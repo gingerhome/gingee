@@ -211,6 +211,18 @@ module.exports = {
                     return;
                 }
 
+                if (store.req.bodyResolved) {
+                    store.$g.request.body = store.req.body;
+                    store.$g.log.info(`Body already processed, skipping for ${path.basename(store.scriptPath)}`);
+                    await handler(store.$g);
+                    return;
+                }
+
+                let bodyResolve = null;
+                const reqPromise = new Promise((resolve, reject) => {
+                    bodyResolve = resolve;
+                });
+
                 let maxBodySize = _parseSize(store.maxBodySize);
                 if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
                     const bodyChunks = [];
@@ -236,6 +248,7 @@ module.exports = {
                     req.on('end', async () => {
                         if (store.$g && store.$g.isCompleted) {
                             store.logger.info(`Handler skipped for script '${path.basename(store.scriptPath)}' because response was already sent.`);
+                            bodyResolve();
                             return;
                         }
 
@@ -247,24 +260,32 @@ module.exports = {
 
                                 if (store.$g.request.body) {
                                     store.$g.log.info(`Body already processed, skipping for ${path.basename(store.scriptPath)}`);
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                     return;
                                 }
 
                                 if (!bodyChunks || bodyChunks.length === 0) {
                                     store.$g.request.body = null;
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                     return;
                                 }
 
                                 const requestBody = Buffer.concat(bodyChunks).toString();
                                 try {
                                     store.$g.request.body = querystring.parse(requestBody);
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                 } catch (err) {
                                     store.$g.log.error(`Error parsing request body: ${err.message} for ${store.$g.request.path}`);
                                     store.$g.request.body = requestBody; // Fallback to raw string if parsing fails
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                 }
                             } catch (err) {
                                 if (store && store.logger) {
@@ -277,6 +298,7 @@ module.exports = {
                                     store.res.end(`INTERNAL SERVER ERROR - ${err.message} - check logs for more details`);
                                     store.$g.isCompleted = true;
                                 }
+                                bodyResolve();
                             }
                         });
                     });
@@ -304,6 +326,7 @@ module.exports = {
                     req.on('end', async () => {
                         if (store.$g && store.$g.isCompleted) {
                             store.logger.info(`Handler skipped for script '${path.basename(store.scriptPath)}' because response was already sent.`);
+                            bodyResolve();
                             return;
                         }
 
@@ -315,13 +338,16 @@ module.exports = {
 
                                 if (store.$g.request.body) {
                                     store.$g.log.info(`Body already processed, skipping for ${path.basename(store.scriptPath)}`);
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                     return;
                                 }
 
                                 if (!bodyChunks || bodyChunks.length === 0) {
                                     store.$g.request.body = null;
                                     await handler(store.$g);
+                                    bodyResolve();
                                     return;
                                 }
 
@@ -330,10 +356,14 @@ module.exports = {
                                 try {
                                     store.$g.request.body = JSON.parse(requestBody);
                                     await handler(store.$g);
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
+                                    bodyResolve();
                                 } catch (jsonErr) {
                                     store.$g.log.error(`Error parsing request body: ${jsonErr.message} for ${store.$g.request.path}`);
                                     store.$g.request.body = requestBody; // Fallback to raw string if JSON parsing fails
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                 }
                             } catch (err) {
                                 if (store && store.logger) {
@@ -346,6 +376,7 @@ module.exports = {
                                     store.res.writeHead(500, { 'Content-Type': 'text/plain' });
                                     store.res.end(`INTERNAL SERVER ERROR - ${err.message} - check logs for more details`);
                                 }
+                                bodyResolve();
                             }
                         });
                     });
@@ -362,6 +393,7 @@ module.exports = {
                     form.parse(req, async (err, fields, uploadedFiles) => {
                         if (store.$g && store.$g.isCompleted) {
                             store.logger.info(`Handler skipped for script '${path.basename(store.scriptPath)}' because response was already sent.`);
+                            bodyResolve();
                             return;
                         }
 
@@ -371,7 +403,9 @@ module.exports = {
                                     store.$g.log.error(`Error parsing multipart/form-data: ${err.message} for ${store.$g.request.path}`);
                                     if ((err.code === 1009)) {
                                         store.$g.request.body = { error: "Payload limit exceeded" };
+                                        store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                         await handler(store.$g);
+                                        bodyResolve();
                                         return;
                                     } else {
                                         store.$g.log.info(`Error parsing multipart/form-data: ${err.message} for ${store.$g.request.path}`);
@@ -380,7 +414,9 @@ module.exports = {
 
                                 if (store.$g.request.body) {
                                     store.$g.log.info(`Body already processed, skipping for ${path.basename(store.scriptPath)}`);
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                     return;
                                 }
 
@@ -401,7 +437,9 @@ module.exports = {
                                     }
                                 });
                                 store.$g.request.body = { ...fields, files };
+                                store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                 await handler(store.$g);
+                                bodyResolve();
                             } catch (err) {
                                 if (store && store.logger) {
                                     store.logger.error(`Error processing multipart/form-data: ${err.message} for ${store.$g.request.path}`, { stack: err.stack });
@@ -413,6 +451,7 @@ module.exports = {
                                     store.res.writeHead(500, { 'Content-Type': 'text/plain' });
                                     store.res.end(`INTERNAL SERVER ERROR - ${err.message} - check logs for more details`);
                                 }
+                                bodyResolve();
                             }
                         });
                     });
@@ -441,9 +480,10 @@ module.exports = {
                         req.on('end', async () => {
                             if (store.$g && store.$g.isCompleted) {
                                 store.logger.info(`Handler skipped for script '${path.basename(store.scriptPath)}' because response was already sent.`);
+                                bodyResolve();
                                 return;
                             }
-                            
+
                             als.run(store, async () => {
                                 try {
                                     if (payloadExceeded) {
@@ -452,19 +492,24 @@ module.exports = {
 
                                     if (store.$g.request.body) {
                                         store.$g.log.info(`Body already processed, skipping for ${path.basename(store.scriptPath)}`);
+                                        store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                         await handler(store.$g);
+                                        bodyResolve();
                                         return;
                                     }
 
                                     if (!bodyChunks || bodyChunks.length === 0) {
                                         store.$g.request.body = null;
                                         await handler(store.$g);
+                                        bodyResolve();
                                         return;
                                     }
 
                                     const requestBody = Buffer.concat(bodyChunks).toString();
                                     store.$g.request.body = requestBody; // Fallback to raw string if parsing fails
+                                    store.req.body = store.$g.request.body; // So that it is available to downstream middleware/handlers
                                     await handler(store.$g);
+                                    bodyResolve();
                                 } catch (err) {
                                     if (store && store.logger) {
                                         store.logger.error(`Error processing request body: ${err.message} for ${store.$g.request.path}`, { stack: err.stack });
@@ -476,6 +521,7 @@ module.exports = {
                                         store.res.end(`INTERNAL SERVER ERROR - ${err.message} - check logs for more details`);
                                         store.$g.isCompleted = true;
                                     }
+                                    bodyResolve();
                                 }
                             });
                         });
@@ -490,8 +536,15 @@ module.exports = {
                             store.res.end(`INTERNAL SERVER ERROR - ${err.message} - check logs for more details`);
                             store.$g.isCompleted = true;
                         }
+                        bodyResolve();
                     }
                 }
+
+                await reqPromise; // Wait until the 'end' event processing is done
+                if (!store.req.bodyResolved){
+                    store.req.bodyResolved = true;
+                }
+                return;
             } else {
                 // Non-HTTP context, e.g. startup scripts: just call the handler
                 await handler(store.$g);
@@ -507,6 +560,8 @@ module.exports = {
                 store.res.end(`INTERNAL SERVER ERROR - ${err.message} - check logs for more details`);
                 store.$g.isCompleted = true;
             }
+            if(bodyResolve)
+                bodyResolve();
         }
     }
 };

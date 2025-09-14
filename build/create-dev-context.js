@@ -31,6 +31,7 @@ async function createDevContextFile() {
           'docs/app-developer-guide.md',
           'docs/packaging-guide.md',
           'docs/permissions-guide.md',
+          'docs/app-spadev-guide.md',
           'docs/gstore-hosting-guide.md',
           'docs/features.md',
           'docs/roadmap.md'

@@ -23,7 +23,10 @@ A Gingee server has a simple, predictable folder structure. The key directories 
 
 Gingee features a powerful and flexible routing engine that automatically maps incoming URL requests to your server scripts or static files. It supports two distinct modes to fit your application's needs. The two modes can also be used together.
 
-**NOTE:** In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
+**NOTE:** 
+- In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
+- For Single Page Applications (SPA), the engine is also configured to serve your app's `index.html` for any request that doesn't match a specific API route or static file. This enables client-side routing libraries like React Router to function seamlessly.
+
 
 ### Mode 1: File-Based Routing (Zero-Config Default)
 

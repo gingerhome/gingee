@@ -48,6 +48,13 @@ Here is a comprehensive breakdown of all available properties.
   "description": "This is a demonstration of all app.json settings.",
   "version": "1.2.0",
   "type": "MPA",
+  "mode": "production",
+  "spa": {
+    "enabled": false,
+    "dev_server_proxy": "http://localhost:5173",
+    "build_path": "./dist",
+    "fallback_path": "index.html"
+  },
   "db": [],
   "startup_scripts": [],
   "default_include": [],
@@ -72,11 +79,23 @@ Here is a comprehensive breakdown of all available properties.
 - **`description`** (string, optional)
 - **`version`** (string, optional)
 
-### Application Type
+### Application Type & Mode
 
 - **`type`** (string, optional)
   - **`"MPA"`** (Multi-Page Application): The default.
   - **`"SPA"`** (Single Page Application - NOT IMPLEMENTED YET): Activates "SPA Fallback" for client-side routing.
+
+- **`mode`** (string, optional)
+  - **`"production"`** (Default): The standard mode for live servers. For SPAs, this serves the compiled static assets from the `build_path`.
+  - **`"development"`** : Activates development-only features. For SPAs, this enables the seamless dev server proxy.
+
+### SPA Configuration (`spa` object)
+This object is only used when app is of `"type": "SPA"`.
+
+- **`spa.enabled`** (boolean, required): Must be `true` to activate SPA features.
+- **`spa.dev_server_proxy`** (string, optional): **(Development only)** The full URL of your frontend's hot-reloading development server (e.g., Vite, Angular CLI). Gingee will proxy all non-API requests to this URL when the app's `mode` is `"development"`.
+- **`spa.build_path`** (string, required): **(Production only)** The path to the directory containing your compiled frontend assets, relative to the app's root folder (e.g., `./dist`).
+- **`spa.fallback_path`** (string, required): **(Production only)** The path to the SPA's entrypoint file (usually `index.html`) within the `build_path`. Gingee serves this file for any request that doesn't match an API route or a static asset, enabling client-side routing.
 
 ### Database Connections
 

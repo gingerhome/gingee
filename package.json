@@ -1,6 +1,6 @@
 {
   "name": "gingee",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Gingee, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
   "main": "gingee.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "count": "cloc . --exclude-ext=\"json,md,txt\" --exclude-dir=\"node_modules,dev-docs,build,backups,temp,logs,docs\"",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,json,md,html,css}\"",
-    "docs": "jsdoc -c .jsdoc.json && markdown-to-html --source ./docs/concepts.md --output ../gingee-docs/docs/concepts.html && markdown-to-html --source ./docs/server-config.md --output ../gingee-docs/docs/server-config.html && markdown-to-html --source ./docs/app-structure.md --output ../gingee-docs/docs/app-structure.html && markdown-to-html --source ./docs/server-script.md --output ../gingee-docs/docs/server-script.html && markdown-to-html --source ./docs/features.md --output ../gingee-docs/docs/features.html && markdown-to-html --source ./docs/roadmap.md --output ../gingee-docs/docs/roadmap.html && markdown-to-html --source ./docs/CONTRIBUTING.md --output ../gingee-docs/docs/CONTRIBUTING.html && markdown-to-html --source ./docs/CODE_OF_CONDUCT.md --output ../gingee-docs/docs/CODE_OF_CONDUCT.html && markdown-to-html --source ./docs/packaging-guide.md --output ../gingee-docs/docs/packaging-guide.html && markdown-to-html --source ./docs/gingee-cli.md --output ../gingee-docs/docs/gingee-cli.html && markdown-to-html --source ./docs/ai-disclaimer.md --output ../gingee-docs/docs/ai-disclaimer.html && markdown-to-html --source ./docs/app-developer-guide.md --output ../gingee-docs/docs/app-developer-guide.html && markdown-to-html --source ./docs/glade-admin.md --output ../gingee-docs/docs/glade-admin.html && markdown-to-html --source ./docs/permissions-guide.md --output ../gingee-docs/docs/permissions-guide.html && markdown-to-html --source ./docs/gstore-hosting-guide.md --output ../gingee-docs/docs/gstore-hosting-guide.html",
+    "docs": "jsdoc -c .jsdoc.json && markdown-to-html --source ./docs/concepts.md --output ../gingee-docs/docs/concepts.html && markdown-to-html --source ./docs/server-config.md --output ../gingee-docs/docs/server-config.html && markdown-to-html --source ./docs/app-structure.md --output ../gingee-docs/docs/app-structure.html && markdown-to-html --source ./docs/server-script.md --output ../gingee-docs/docs/server-script.html && markdown-to-html --source ./docs/features.md --output ../gingee-docs/docs/features.html && markdown-to-html --source ./docs/roadmap.md --output ../gingee-docs/docs/roadmap.html && markdown-to-html --source ./docs/CONTRIBUTING.md --output ../gingee-docs/docs/CONTRIBUTING.html && markdown-to-html --source ./docs/CODE_OF_CONDUCT.md --output ../gingee-docs/docs/CODE_OF_CONDUCT.html && markdown-to-html --source ./docs/packaging-guide.md --output ../gingee-docs/docs/packaging-guide.html && markdown-to-html --source ./docs/gingee-cli.md --output ../gingee-docs/docs/gingee-cli.html && markdown-to-html --source ./docs/ai-disclaimer.md --output ../gingee-docs/docs/ai-disclaimer.html && markdown-to-html --source ./docs/app-developer-guide.md --output ../gingee-docs/docs/app-developer-guide.html && markdown-to-html --source ./docs/glade-admin.md --output ../gingee-docs/docs/glade-admin.html && markdown-to-html --source ./docs/permissions-guide.md --output ../gingee-docs/docs/permissions-guide.html && markdown-to-html --source ./docs/gstore-hosting-guide.md --output ../gingee-docs/docs/gstore-hosting-guide.html && markdown-to-html --source ./docs/app-spadev-guide.md --output ../gingee-docs/docs/app-spadev-guide.html",
     "test": "jest --runInBand",
     "contribute": "echo \"Thank you for your interest! Please see CONTRIBUTING.md for our unique Human-AI collaborative development guidelines.\""
   },
@@ -68,6 +68,7 @@
     "form-data": "^4.0.4",
     "formidable": "^3.5.4",
     "he": "^1.2.0",
+    "http-proxy-middleware": "^3.0.5",
     "ioredis": "^5.7.0",
     "js-sha3": "^0.9.3",
     "jsbarcode": "^3.12.1",

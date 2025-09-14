@@ -50,6 +50,8 @@ gingee-cli add-app my-blog
 
 **Wizard Prompts:**
 -   `What type of app is this?` Choose between `MPA` (Multi-Page App, default) or `SPA` (Single Page Application, for React/Vue/Angular).
+-   If `MPA` is chosen, it scaffolds a complete "hello world" application with HTML, CSS, and JS.
+-   If `SPA` is chosen, it scaffolds a minimal backend structure (`box/`, `app.json`) and provides clear instructions for you to initialize your chosen frontend framework inside the app's directory.
 -   `Would you like to configure a database connection?` If yes, it will guide you through setting up the `db` block in the new app's `app.json`.
 -   `Generate a JWT secret for this app?` If yes, it will automatically generate a secure secret and add it to `app.json`.
 

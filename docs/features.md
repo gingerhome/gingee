@@ -21,6 +21,9 @@ These are the core architectural features that define the Gingee development exp
 *   **Modern JavaScript Support (ESM)**
     Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
 
+*   **SPA Hosting & Development Workflow**
+    Gingee provides a seamless experience for modern Single Page Applications (React, Vue, Angular). In development, it automatically proxies requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves your compiled static assets and provides the necessary fallback routing for client-side routers to work out of the box.
+
 *   **Application Lifecycle Management**
     A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
 

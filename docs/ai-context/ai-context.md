@@ -32,7 +32,10 @@ A Gingee server has a simple, predictable folder structure. The key directories 
 
 Gingee features a powerful and flexible routing engine that automatically maps incoming URL requests to your server scripts or static files. It supports two distinct modes to fit your application's needs. The two modes can also be used together.
 
-**NOTE:** In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
+**NOTE:** 
+- In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
+- For Single Page Applications (SPA), the engine is also configured to serve your app's `index.html` for any request that doesn't match a specific API route or static file. This enables client-side routing libraries like React Router to function seamlessly.
+
 
 ### Mode 1: File-Based Routing (Zero-Config Default)
 
@@ -195,6 +198,8 @@ gingee-cli add-app my-blog
 
 **Wizard Prompts:**
 -   `What type of app is this?` Choose between `MPA` (Multi-Page App, default) or `SPA` (Single Page Application, for React/Vue/Angular).
+-   If `MPA` is chosen, it scaffolds a complete "hello world" application with HTML, CSS, and JS.
+-   If `SPA` is chosen, it scaffolds a minimal backend structure (`box/`, `app.json`) and provides clear instructions for you to initialize your chosen frontend framework inside the app's directory.
 -   `Would you like to configure a database connection?` If yes, it will guide you through setting up the `db` block in the new app's `app.json`.
 -   `Generate a JWT secret for this app?` If yes, it will automatically generate a secure secret and add it to `app.json`.
 
@@ -851,6 +856,13 @@ Here is a comprehensive breakdown of all available properties.
   "description": "This is a demonstration of all app.json settings.",
   "version": "1.2.0",
   "type": "MPA",
+  "mode": "production",
+  "spa": {
+    "enabled": false,
+    "dev_server_proxy": "http://localhost:5173",
+    "build_path": "./dist",
+    "fallback_path": "index.html"
+  },
   "db": [],
   "startup_scripts": [],
   "default_include": [],
@@ -875,11 +887,23 @@ Here is a comprehensive breakdown of all available properties.
 - **`description`** (string, optional)
 - **`version`** (string, optional)
 
-### Application Type
+### Application Type & Mode
 
 - **`type`** (string, optional)
   - **`"MPA"`** (Multi-Page Application): The default.
   - **`"SPA"`** (Single Page Application - NOT IMPLEMENTED YET): Activates "SPA Fallback" for client-side routing.
+
+- **`mode`** (string, optional)
+  - **`"production"`** (Default): The standard mode for live servers. For SPAs, this serves the compiled static assets from the `build_path`.
+  - **`"development"`** : Activates development-only features. For SPAs, this enables the seamless dev server proxy.
+
+### SPA Configuration (`spa` object)
+This object is only used when app is of `"type": "SPA"`.
+
+- **`spa.enabled`** (boolean, required): Must be `true` to activate SPA features.
+- **`spa.dev_server_proxy`** (string, optional): **(Development only)** The full URL of your frontend's hot-reloading development server (e.g., Vite, Angular CLI). Gingee will proxy all non-API requests to this URL when the app's `mode` is `"development"`.
+- **`spa.build_path`** (string, required): **(Production only)** The path to the directory containing your compiled frontend assets, relative to the app's root folder (e.g., `./dist`).
+- **`spa.fallback_path`** (string, required): **(Production only)** The path to the SPA's entrypoint file (usually `index.html`) within the `build_path`. Gingee serves this file for any request that doesn't match an API route or a static asset, enabling client-side routing.
 
 ### Database Connections
 
@@ -1237,7 +1261,10 @@ Welcome to Gingee! This guide is your starting point for building powerful, secu
 
 If you haven't already, please read the Core Concepts [MD](./concepts.md) [HTML](./concepts.html) guide for a high-level overview of the platform's architecture.
 
-## Chapter 1: Your First App - Hello World
+**NOTE:**
+This guide focuses on creating a Gingee backend with the classic Multi-Page App (MPA) workflow. For a complete tutorial on building modern SPAs with frameworks like React, Vue, or Angular, please see our dedicated Gingee SPA Developer's Guide [MD](./app-spadev-guide.md) [HTML](./app-spadev-guide.html)
+
+## Chapter 1: Your First App - Hello World (MPA)
 
 The fastest way to get started is with the `gingee-cli`. After you've created your first project with `gingee-cli init my-project`, you can create your first application.
 
@@ -1547,6 +1574,7 @@ The manifest contains `include` and `exclude` rules that use standard **glob pat
   ],
   "exclude": [
     "box/data/**",
+    "box/logs",
     "dev_src/**",
     "**/*.tmp",
     ".gpkg"
@@ -1567,6 +1595,32 @@ The manifest contains `include` and `exclude` rules that use standard **glob pat
         -   `"**/*.tmp"`: Excludes all temporary files.
         -   `".gpkg"`: It is a best practice for the manifest to exclude itself from the package.
 
+### Example `.gpkg` for a Single Page Application (SPA)
+
+When packaging a modern SPA (like one built with React or Vue), it is critical to **include the compiled `dist` folder** and **exclude all frontend source code** and development dependencies. This creates a small, optimized, and secure production package.
+
+```json
+{
+  "include": [
+    "box/**/*",
+    "dist/**/*"
+  ],
+  "exclude": [
+    "box/data",
+    "box/logs",
+    "src",
+    "node_modules",
+    ".gitignore",
+    "vite.config.js",
+    "tailwind.config.js",
+    "postcss.config.js",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json"
+  ]
+}
+```
+
 ### Default Behavior (No `.gpkg` file)
 
 If your application does **not** have a `.gpkg` file in its `box` folder, the `package-app` command will use a set of safe defaults. It will include all files in your app's directory except for common development artifacts like:
@@ -1585,7 +1639,7 @@ While `.gpkg` controls *what files* are included in your package, the `pmft.json
 
 When an administrator installs your `.gin` package using the `gingee-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
 
-For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide**[MD](./permissions-guide.md) [HTML](./permissions-guide.html).
+For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide** [MD](./permissions-guide.md) [HTML](./permissions-guide.html).
 
 
 ---
@@ -1688,6 +1742,196 @@ This is the definitive list of all permission keys available in Gingee.
 | **zip** | Allows the app to create and extract ZIP archives. | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **image** | Allows the app to manipulate image files. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
 
+
+
+---
+
+
+# Gingee: The Modern SPA Developer's Guide
+
+# Gingee: The Modern SPA Developer's Guide
+
+Welcome! This guide provides a complete walkthrough for developing, testing, building, and distributing a modern Single Page Application (SPA) using frameworks like React, Vue, or Angular on the Gingee platform.
+
+We will follow Gingee's "Instant Time to Joy" philosophy by creating a seamless development environment that combines the power of a secure Gingee backend with the rich tooling of the modern frontend ecosystem.
+
+### Chapter 1: Core Concepts for SPA Hosting
+
+Gingee achieves first-class SPA support through two core mechanisms:
+
+1.  **Development Server Proxy:** In development mode, the Gingee server acts as the single point of entry. It intelligently serves your backend API from the `box` folder while automatically proxying all other requests (for your UI, assets, etc.) to your frontend's native hot-reloading dev server (like Vite or the Angular CLI). This creates a unified, CORS-free environment with a single command.
+
+2.  **Production Fallback Routing:** In production mode, the proxy is disabled. Gingee serves your compiled frontend assets from a build directory (e.g., `dist/`). Any request that does not match a backend API route or a specific static asset is automatically "forwarded" to serve your SPA's main `index.html` file. This allows client-side routing libraries like React Router to take control of the URL and render the correct view.
+
+### Chapter 2: Scaffolding Your SPA Backend
+
+The first step is to create a Gingee application that is pre-configured for SPA hosting.
+
+**1. Run the `add-app` Command**
+
+From the root of your Gingee project, run the following command:
+
+```bash
+gingee-cli add-app my-spa
+```
+
+**2. Select the SPA Type**
+
+In the interactive wizard, choose the `SPA` option:
+
+```
+? What type of app is this? (Use arrow keys)
+  MPA (Multi-Page App, classic Gingee for static sites or server-side logic)
+❯ SPA (Single Page App, for modern frontends like React, Vue, Angular)
+```
+
+The CLI will create a minimal backend structure at `web/my-spa/`, which includes the secure `box` folder, a sample API endpoint, and, most importantly, a pre-configured `app.json`.
+
+**3. Understand the `app.json` Configuration**
+
+The generated `web/my-spa/box/app.json` is the key to enabling SPA mode:
+
+```json
+{
+  "name": "my-spa",
+  "version": "1.0.0",
+  "type": "SPA",
+  "mode": "development",
+  "spa": {
+    "enabled": true,
+    "dev_server_proxy": "http://localhost:5173",
+    "build_path": "./dist",
+    "fallback_path": "index.html"
+  },
+  "db": []
+}
+```
+
+*   `"type": "SPA"`: Tells the Gingee engine to use the SPA routing logic.
+*   `"mode": "development"`: **Crucial for development.** This activates the dev server proxy. Switch this to `"production"` when you are ready to build and deploy.
+*   `"spa.dev_server_proxy"`: The URL of your frontend's dev server. You may need to change the port to match your tooling (e.g., `http://localhost:4200` for Angular).
+*   `"spa.build_path"`: The path to your compiled frontend assets, relative to the app's root (`web/my-spa/`). **`./dist`** is a common default.
+*   `"spa.fallback_path"`: The entry point file for your SPA, located inside the `build_path`.
+
+### Chapter 3: Setting Up Your Frontend
+
+Gingee is framework-agnostic. You can now use the official CLI for your chosen framework to initialize your project *inside* the `web/my-spa/` directory.
+
+**Example using Vite + React + TypeScript:**
+
+1.  **Navigate into your app's directory:**
+    ```bash
+    cd web/my-spa
+    ```
+
+2.  **Initialize the Vite project in the current folder:**
+    ```bash
+    # The '.' tells Vite to use the current directory
+    npm create vite@latest
+    ```
+
+3.  **Install frontend dependencies:**
+    ```bash
+    npm install
+    ```
+
+4.  **Configure the `base` Path (CRITICAL STEP)**
+    You **must** tell your frontend build tool that the application will be served from a subpath. For Vite, you do this by editing `vite.config.js`.
+
+    ```javascript
+    // File: web/my-spa/vite.config.js
+    import { defineConfig } from 'vite'
+    import react from '@vitejs/plugin-react'
+
+    export default defineConfig({
+      plugins: [react()],
+      // This ensures all asset paths are correctly prefixed with /my-spa/
+      base: '/my-spa/', 
+    })
+    ```
+
+### Chapter 4: The Unified Development Experience
+
+With the backend and frontend now in place, you can start both with a single command.
+
+1.  **Navigate back to the Gingee project root:**
+    ```bash
+    cd ../..
+    ```
+2.  **Start the server:**
+    ```bash
+    npm run dev
+    ```
+
+Gingee will start, automatically launch your Vite dev server, and begin proxying requests. You can now navigate to `http://localhost:7070/my-spa`, and your React application will load with full hot-reloading capabilities.
+
+Any `fetch` call from your React app to a relative path like `/my-spa/api/hello` will be seamlessly handled by the Gingee backend, with no CORS errors.
+
+### Chapter 5: Building for Production
+
+When you are ready to deploy, you need to create an optimized production build of your frontend.
+
+1.  **Navigate into your app's directory:**
+    ```bash
+    cd web/my-spa
+    ```
+2.  **Run your build script:**
+    ```bash
+    npm run build
+    ```
+    This will create the `dist` folder containing your compiled assets.
+
+### Chapter 6: Preparing for Distribution
+
+Before packaging, create two manifest files in your app's `box` folder.
+
+**1. Permissions Manifest (`pmft.json`)**
+Declare all the Gingee modules your backend API needs. See Permissions Guide [MD](./permissions-guide.md) [HTML](./permissions-guide.html)
+
+```json
+// File: web/my-spa/box/pmft.json
+{
+  "permissions": {
+    "mandatory": [ "db"],
+    "optional": []
+  }
+}
+```
+
+**2. Package Contents Manifest (`.gpkg`)**
+Specify which files to include in the final `.gin` package. **Crucially, you must include the `dist` folder and exclude development source files.**
+
+```json
+// File: web/my-spa/box/.gpkg
+{
+  "include": [
+    "box/**/*",
+    "dist/**/*"
+  ],
+  "exclude": [
+    "src",
+    "node_modules",
+    ".gitignore",
+    "vite.config.js",
+    "*.lock",
+    "tsconfig.json",
+    "tsconfig.node.json"
+  ]
+}
+```
+
+### Chapter 7: Packaging and Deployment
+
+With the frontend built and manifests in place, you are ready to create your distributable Gingee application package.
+
+1.  **Set `app.json` to Production Mode:** Change `"mode": "development"` to `"mode": "production"` in your `app.json`.
+2.  **Package the App:** From your Gingee project root, run:
+    ```bash
+    gingee-cli package-app --appName my-spa
+    ```
+3.  **Deploy:** This will create a `my-spa-v1.0.0.gin` file. You can now deploy this single file to any production Gingee server using the `gingee-cli install-app` or `upgrade-app` commands.
+
+Congratulations! You have successfully built and packaged a modern Single Page Application on the Gingee platform
 
 
 ---
@@ -1847,6 +2091,9 @@ These are the core architectural features that define the Gingee development exp
 
 *   **Modern JavaScript Support (ESM)**
     Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
+
+*   **SPA Hosting & Development Workflow**
+    Gingee provides a seamless experience for modern Single Page Applications (React, Vue, Angular). In development, it automatically proxies requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves your compiled static assets and provides the necessary fallback routing for client-side routers to work out of the box.
 
 *   **Application Lifecycle Management**
     A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
