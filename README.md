@@ -79,33 +79,33 @@ Dive deeper into the architecture and learn how to build powerful applications w
 ### **Concepts**
 | Document | Description |
 | :--- | :--- |
-| **[Core Concepts](./docs/concepts.html)** | A high-level overview of the Gingee philosophy, project structure, the sandbox, and the module ecosystem. |
-| **[Features](./docs/features.html)** | The list of features supported by Gingee |
-| **[Roadmap](./docs/roadmap.html)** | The roadmap of core and app features in the pipeline for the Gingee app platform |
+| **[Core Concepts](./docs/concepts.md)** | A high-level overview of the Gingee philosophy, project structure, the sandbox, and the module ecosystem. |
+| **[Features](./docs/features.md)** | The list of features supported by Gingee |
+| **[Roadmap](./docs/roadmap.md)** | The roadmap of core and app features in the pipeline for the Gingee app platform |
 
 ### **Configuration & Setup**
 | Document | Description |
 | :--- | :--- |
-| **[Gingee CLI](./docs/gingee-cli.html)** | The all-in-one command-line interface for the Gingee platform |
-| **[Server Configuration (`gingee.json`)](./docs/server-config.html)** | A full reference guide for the server-wide `gingee.json` file, controlling settings like ports, caching, and security. |
-| **[Glade Admin Panel](./docs/glade-admin.html)** | Glade is the official, web-based administration panel for Gingee |
+| **[Gingee CLI](./docs/gingee-cli.md)** | The all-in-one command-line interface for the Gingee platform |
+| **[Server Configuration (`gingee.json`)](./docs/server-config.md)** | A full reference guide for the server-wide `gingee.json` file, controlling settings like ports, caching, and security. |
+| **[Glade Admin Panel](./docs/glade-admin.md)** | Glade is the official, web-based administration panel for Gingee |
 
 
 ### **Developer Docs**
 | Document | Description |
 | :--- | :--- |
-| **[App Structure & `app.json`](./docs/app-structure.html)** | A detailed breakdown of the app folder structure and a comprehensive reference for all `app.json` configuration options. |
-| **[Server Script Guide](./docs/server-script.html)** | Learn the anatomy of a server script and get a full API reference for the powerful `$g` global object. |
-| **[App Developer Guide](./docs/app-developer-guide.html)** | A guide to creating your apps on the Gingee platform |
-| **[App Packaging Guide](./docs/packaging-guide.html)** | Gingee platform's standardized application packaging process |
-| **[App Permissions Guide](./docs/permissions-guide.html)** | Gingee platform's app permissions ecosystem. |
-| **[SPA App Dev Guide](./docs/app-spadev-guide.html)** | A guide to creating modern SPA with frameworks on the Gingee platform |
-| **[GStore Hosting Guide](./docs/gstore-hosting-guide.html)** | Gingee platform's decentralized app store hosting guide |
+| **[App Structure & `app.json`](./docs/app-structure.md)** | A detailed breakdown of the app folder structure and a comprehensive reference for all `app.json` configuration options. |
+| **[Server Script Guide](./docs/server-script.md)** | Learn the anatomy of a server script and get a full API reference for the powerful `$g` global object. |
+| **[App Developer Guide](./docs/app-developer-guide.md)** | A guide to creating your apps on the Gingee platform |
+| **[App Packaging Guide](./docs/packaging-guide.md)** | Gingee platform's standardized application packaging process |
+| **[App Permissions Guide](./docs/permissions-guide.md)** | Gingee platform's app permissions ecosystem. |
+| **[SPA App Dev Guide](./docs/app-spadev-guide.md)** | A guide to creating modern SPA with frameworks on the Gingee platform |
+| **[GStore Hosting Guide](./docs/gstore-hosting-guide.md)** | Gingee platform's decentralized app store hosting guide |
 
 ### **Refrence**
 | Document | Description |
 | :--- | :--- |
-| **[Full API Reference](./index.html)** | The complete JSDoc-generated API documentation for every function in every Gingee app module. |
+| **[Full API Reference](https://gingerhome.github.io/gingee-docs/)** | The complete JSDoc-generated API documentation for every function in every Gingee app module. |
 |**[API Examples](https://github.com/gingerhome/gingee-examples)** | Examples of using Gingee modules, It can also be installed in a Gingee server using the .gin package in the dist folder.|                                     |
 
 
