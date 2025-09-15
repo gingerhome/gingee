@@ -13,6 +13,7 @@ const appLogger = require('./logger.js');
 
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
+const gdev = require('./gdev.js');
 
 const ALL_PERMISSIONS = {
     "cache": "Allows the app to use the caching service for storing and retrieving data.",
@@ -484,17 +485,20 @@ async function reloadApp(appName) {
         app.in_maintenance = true;
         logger.info(`App '${appName}' is now in maintenance mode.`);
 
-        // 1. Reload app.json
+        // Stop any running dev server for this app
+        gdev.stopDevServer(app);
+
+        // Reload app.json
         const appWebPath = path.join(webPath, appName);
         const appBoxPath = path.join(appWebPath, 'box');
         const appConfigPath = path.join(appBoxPath, 'app.json');
         app.config = _loadAndCacheAppConfig(appConfigPath);
         app.logger = appLogger.createAppLogger(appName, app.appBoxPath, app.config.logging);
 
-        // 2. Load permissions for the app
+        // Load permissions for the app
         loadPermissionsForApp(app);
 
-        // 3. Clear local script cache associated with this app
+        // Clear local script cache associated with this app
         const appPathPrefix = app.appBoxPath;
         for (const key of transpileCache.keys()) {
             if (key.startsWith(appPathPrefix)) {
@@ -502,17 +506,22 @@ async function reloadApp(appName) {
             }
         }
 
-        // 4. clear static file cache associated with this app
+        // clear static file cache associated with this app
         const staticCachePrefix = `static:${app.appWebPath}`;
         await staticFileCache.clear(staticCachePrefix);
 
-        // 5. Reload routes for this app
+        // Reload routes for this app
         _reloadRoutes(appName);
 
-        // 6. Re-initialize the DB for this app
+        // Restart dev server if applicable
+        if (app.config.type === 'SPA' && app.config.mode === 'development') {
+            gdev.startDevServer(app);
+        }
+
+        // Re-initialize the DB for this app
         await db.reinitApp(appName, app, logger);
 
-        // 7. Run startup scripts for this app
+        // Run startup scripts for this app
         await als.run({ app, logger, globalConfig }, async () => {
             await runStartupScripts(app);
         });
@@ -551,6 +560,8 @@ async function deleteApp(appName) {
     try{
         app.in_maintenance = true;
         logger.info(`App '${appName}' is now in maintenance mode.`);
+
+        gdev.stopDevServer(app);
 
         logger.info(`Shutting down logger for app '${appName}' before deletion.`);
         await appLogger.shutdownApp(appName);

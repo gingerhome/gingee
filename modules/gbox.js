@@ -23,7 +23,8 @@ const globallyAllowedModules = [
 
 const restrictedGlobalModules = [
   'gingee', 
-  'gbox', 
+  'gbox',
+  'gdev', 
   'gapp-start',
   'cache_service',
   'internal_utils',

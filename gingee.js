@@ -31,6 +31,7 @@ const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
 const pdf = require('./modules/pdf.js');
 const { env } = require('process');
+const gdev = require('./modules/gdev.js');
 
 const defaultConfig = {
   server: {
@@ -160,32 +161,7 @@ async function initializeApps(config, logger, webPath) {
         apps[appName] = app;
 
         if (appConfig.type === 'SPA' && isDevelopment) {
-          if (appConfig.spa && appConfig.spa.dev_server_proxy) {
-            logger.info(`[SPA] Starting dev server for '${appName}'...`);
-
-            // Use spawn for long-running processes
-            const devServer = spawn('npm', ['run', 'dev'], {
-              cwd: app.appWebPath, // Run 'npm run dev' inside the app's folder
-              stdio: 'pipe', // Pipe stdout/stderr to the main process
-              shell: true // Important for running npm commands reliably across platforms
-            });
-
-            app.devServerProcess = devServer; // Store the process handle
-
-            devServer.stdout.on('data', (data) => {
-              logger.info(`[${appName}-dev]: ${data.toString().trim()}`);
-            });
-
-            devServer.stderr.on('data', (data) => {
-              logger.error(`[${appName}-dev]: ${data.toString().trim()}`);
-            });
-
-            devServer.on('close', (code) => {
-              logger.warn(`[SPA] Dev server for '${appName}' exited with code ${code}.`);
-            });
-          } else {
-            logger.warn(`[SPA] App '${appName}' is type SPA but has no 'dev_server_proxy' configured in app.json.`);
-          }
+          await als.run({ logger }, () => gdev.startDevServer(app)); // Start the dev server using the gdev module
         }
 
         if (appConfig.db && Array.isArray(appConfig.db)) {
@@ -352,7 +328,7 @@ async function requestHandler(req, res, apps, config, logger) {
               target: app.config.spa.dev_server_proxy,
               changeOrigin: true,
               logLevel: 'silent', // Keeps the console clean
-              
+
             });
 
             return proxy(req, res); // Hand off the request to the proxy
@@ -366,7 +342,7 @@ async function requestHandler(req, res, apps, config, logger) {
           // --- Production: Serve static assets or fallback to index.html ---
           const buildPath = path.resolve(app.appWebPath, app.config.spa.build_path || './dist');
           const assetPath = path.join(buildPath, ...urlParts.slice(1));
-          
+
           if (fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
             // It's a direct request for a static asset (e.g., a JS or CSS file)
             filePath = assetPath; // Reuse static file logic below
@@ -541,7 +517,7 @@ async function requestHandler(req, res, apps, config, logger) {
             }
           } catch (e) {
             logger.error(`Error executing script: ${scriptPath} in app ${appName}`, e);
-            if(!res.headersSent){
+            if (!res.headersSent) {
               res.writeHead(500, { 'Content-Type': 'text/plain' });
               res.end(`INTERNAL_SERVER_ERROR - ${e.message}`);
             }
@@ -563,7 +539,7 @@ async function requestHandler(req, res, apps, config, logger) {
     });
   } catch (err) {
     logger.error(`Error handling request for ${req.url}`, err);
-    if(!res.headersSent){
+    if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end(`INTERNAL_SERVER_ERROR - ${err.message}`);
     }
@@ -689,11 +665,11 @@ async function requestHandler(req, res, apps, config, logger) {
   }
 
   process.on('exit', () => {
-    for (const appName in apps) {
-      if (apps[appName].devServerProcess) {
-        apps[appName].devServerProcess.kill();
+    als.run({ logger }, () => { // Ensure context is available for logger
+      for (const appName in apps) {
+        gdev.stopDevServer(apps[appName]);
       }
-    }
+    });
   });
   process.on('SIGINT', () => process.exit());
   process.on('SIGTERM', () => process.exit());

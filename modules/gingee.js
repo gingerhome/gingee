@@ -75,6 +75,7 @@ module.exports = {
             return;
         }
 
+        let bodyResolve = null;
         try {
             if (!store.$g)
                 store.$g = {};
@@ -218,7 +219,6 @@ module.exports = {
                     return;
                 }
 
-                let bodyResolve = null;
                 const reqPromise = new Promise((resolve, reject) => {
                     bodyResolve = resolve;
                 });
