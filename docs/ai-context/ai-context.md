@@ -153,11 +153,53 @@ The `gingee-cli` is the official, all-in-one command-line interface for the Ging
 ## Installation
 
 The `gingee-cli` is designed to be installed globally on your machine, making it available everywhere.
+NOTE: You might need to install pre-requistes based on your setup.
 
 ```bash
 npm install -g gingee-cli
 ```
 After installation, you will have access to the `gingee-cli` command in your terminal.
+
+## Verifying the Installation
+
+After the installation is complete, you can verify that it was successful by running the version command:
+```bash
+gingee-cli --version
+```
+This should print the installed version number of the CLI.
+
+## Platform Specific Requirements
+
+### **Windows**
+For most Windows users, no additional setup is required. The standard Node.js installer from [nodejs.org](https://nodejs.org/) includes everything you need.
+
+For advanced users or those who encounter issues, it's recommended to install the Node.js build tools by running the following command in an **Administrator PowerShell**:
+
+```code
+npm install --global windows-build-tools
+```
+
+### **macOS**
+macOS users need the **Xcode Command Line Tools**. Most developer-focused setups will already have this. You can install them by running:
+
+```bash
+xcode-select --install
+```
+If you already have them, this command will report an error, which you can safely ignore.
+
+### **Linux (Debian/Ubuntu)**
+Linux systems require a C++ compiler toolchain to build some of the CLI's dependencies. You can install the necessary packages by running:
+
+```bash
+sudo apt-get update && sudo apt-get install -y build-essential python
+```
+
+### **Linux (RHEL/Fedora/CentOS)**
+For Red Hat-based distributions, you can install the necessary build tools with:
+
+```bash
+sudo yum groupinstall "Development Tools" && sudo yum install python3
+```
 
 ---
 

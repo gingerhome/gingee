@@ -1,6 +1,6 @@
 {
   "name": "gingee",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Gingee, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
   "main": "gingee.js",
   "scripts": {
