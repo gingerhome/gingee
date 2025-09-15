@@ -32,7 +32,7 @@ module.exports = async function() {
             await cacheService.set(`session:${sessionId}`, sessionData, 28800);
             
             // 4. Set the session cookie
-            $g.response.cookies.sessionId = `${sessionId}; HttpOnly; Secure; SameSite=Strict; Path=/glade`;
+            $g.response.cookies.sessionId = `${sessionId}; HttpOnly; SameSite=Strict; Path=/glade`;
 
             $g.response.send({ code: 200, status: 'success' });
 
