@@ -5,17 +5,6 @@
       "fs"
     ]
   },
-  "tests": {
-    "granted": [
-      "cache",
-      "db",
-      "fs",
-      "httpclient",
-      "pdf",
-      "zip",
-      "image"
-    ]
-  },
   "glide": {
     "granted": [
       "httpclient",

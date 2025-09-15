@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Main Function to Fetch and Render Apps ---
     async function fetchAndRenderApps() {
         try {
-            const response = await fetch('/glade/api/apps');
+            const response = await fetch('/glade/api/apps', { credentials: 'include' });
 
             if (response.status === 401) {
                 // Session expired or invalid, redirect to login
@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     logoutButton.addEventListener('click', async () => {
-        await fetch('/glade/logout', { method: 'POST' });
+        await fetch('/glade/logout', { method: 'POST', credentials: 'include' });
         window.location.href = '/glade/login.html';
     });
 
@@ -288,7 +288,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Step 5: Send the final, configured package to the server.
             const response = await fetch(url, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -332,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const mode = installModeInput.value;
             const url = mode === 'install' ? '/glade/api/install' : '/glade/api/upgrade';
 
-            const response = await fetch(url, { method: 'POST', body: formData });
+            const response = await fetch(url, { method: 'POST', body: formData, credentials: 'include' });
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.message || 'An unknown server error occurred.');
@@ -423,8 +424,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Step 1 & 2: Fetch both backup analysis and current permissions concurrently
             const [analysisRes, currentPermsRes] = await Promise.all([
-                fetch(`/glade/api/analyze-backup?app=${appName}`),
-                fetch(`/glade/api/get-permissions?app=${appName}`)
+                fetch(`/glade/api/analyze-backup?app=${appName}`, { credentials: 'include' }),
+                fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' })
             ]);
 
             if (!analysisRes.ok || !currentPermsRes.ok) {
@@ -483,7 +484,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     appName: appName,
                     permissions: finalPermissions
-                })
+                }),
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -513,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         permissionsModal.show();
 
         try {
-            const response = await fetch(`/glade/api/get-permissions?app=${appName}`);
+            const response = await fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' });
             if (!response.ok) throw new Error('Failed to load permissions data.');
 
             const data = await response.json();
@@ -561,7 +563,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     appName: currentPermissionsAppName,
                     permissions: newPermissions
-                })
+                }),
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -597,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function reloadApp(appName) {
         setConfirmButtonLoading(true);
         try {
-            const response = await fetch(`/glade/api/reload-app?app=${appName}`, { method: 'POST' });
+            const response = await fetch(`/glade/api/reload-app?app=${appName}`, { method: 'POST', credentials: 'include' });
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.message || 'Reload failed on the server.');
@@ -618,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- API Call Functions ---
     async function deleteAapp(appName) {
         try {
-            const response = await fetch(`/glade/api/delete?app=${appName}`, { method: 'DELETE' });
+            const response = await fetch(`/glade/api/delete?app=${appName}`, { method: 'DELETE', credentials: 'include' });
             if (!response.ok) throw new Error('Failed to delete application.');
             fetchAndRenderApps(); // Refresh the list
         } catch (error) {

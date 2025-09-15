@@ -237,8 +237,6 @@ async function requestHandler(req, res, apps, config, logger) {
       }
     }
 
-    const isDevelopment = app.config.mode === 'development';
-
     if (app && app.in_maintenance) {
       logger.warn(`Request to '${req.url}' blocked because app '${appName}' is in maintenance mode.`);
       res.writeHead(503, { 'Content-Type': 'text/html' });
@@ -320,6 +318,7 @@ async function requestHandler(req, res, apps, config, logger) {
       cacheConfig.client = cacheConfig.client || defaultCacheConfig.client;
       cacheConfig.server = cacheConfig.server || defaultCacheConfig.server;
 
+      const isDevelopment = app.config.mode === 'development';
       if (!targetScriptPath && app.config.type === 'SPA' && app.config.spa && app.config.spa.enabled) {
         if (isDevelopment) {
           // --- Development: Proxy to Vite/Angular CLI ---
