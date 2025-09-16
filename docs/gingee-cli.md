@@ -25,19 +25,8 @@ This should print the installed version number of the CLI.
 ### **Windows**
 For most Windows users, no additional setup is required. The standard Node.js installer from [nodejs.org](https://nodejs.org/) includes everything you need.
 
-For advanced users or those who encounter issues, it's recommended to install the Node.js build tools by running the following command in an **Administrator PowerShell**:
-
-```code
-npm install --global windows-build-tools
-```
-
 ### **macOS**
-macOS users need the **Xcode Command Line Tools**. Most developer-focused setups will already have this. You can install them by running:
-
-```bash
-xcode-select --install
-```
-If you already have them, this command will report an error, which you can safely ignore.
+macOS users need the **Xcode Command Line Tools**. Most developer-focused setups will already have this.
 
 ### **Linux (Debian/Ubuntu)**
 Linux systems require a C++ compiler toolchain to build some of the CLI's dependencies. You can install the necessary packages by running:
