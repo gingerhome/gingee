@@ -20,7 +20,7 @@ Gingee is a secure, batteries-included Node.js application server designed to dr
 Get a new, fully configured Gingee server running in under a minute.
 
 ```bash
-# 1. Install the Gingee CLI
+# 1. Install the Gingee CLI (may take a few moments to complete)
 npm install -g gingee-cli
 
 # 2. Create a new Gingee project
@@ -35,7 +35,7 @@ npm start
 # 5. Browse to http://localhost:7070
 ```
 
-That's it! You should now see Glade - the Gingee admin panel in your web browser.
+That's it! You should now see Glade - the Gingee admin panel in your web browser. You can install applications for the Gingee platform from the [Gingee App Store](https://gingerhome.github.io/ginstore/).
 
 ## **Key Features**
 
@@ -106,6 +106,7 @@ Dive deeper into the architecture and learn how to build powerful applications w
 | :--- | :--- |
 | **[Full API Reference](./index.html)** | The complete JSDoc-generated API documentation for every function in every Gingee app module. |
 |**[API Examples](https://github.com/gingerhome/gingee-examples)** | Examples of using Gingee modules, It can also be installed in a Gingee server using the .gin package in the dist folder.|
+|**[Gingee App Store](https://gingerhome.github.io/ginstore/)**| The official Gingee app store|
 
 ## **Project Details**
 | **Project Phase** | **Status**  | **Current Token Count**|
