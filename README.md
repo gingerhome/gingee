@@ -127,7 +127,7 @@ Please see our [`CONTRIBUTING`](./docs/CONTRIBUTING.md) guide for more details o
 Gingee is licensed under the **MIT License**. See the `LICENSE` file for details.
 
 ## **Sponsors**
-<img src="./docs/sponsors/pilotapps-white-bg.png" alt="Gingee" width="300"/>
+[<img src="./docs/sponsors/pilotapps-white-bg.png" alt="Gingee" width="300"/>](https://pilotapps.ai)
 
 ## **Credits**
 
