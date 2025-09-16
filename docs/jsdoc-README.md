@@ -17,7 +17,7 @@ Gingee is a secure, batteries-included Node.js application server designed to dr
 
 ## **🚀 Quick Start**
 
-Get a new, fully configured Gingee server running in under a minute.
+Get a new, fully configured Gingee server running in under a minute.  See [video](https://www.youtube.com/watch?v=Ob85kM234hU)
 
 ```bash
 # 1. Install the Gingee CLI (may take a few moments to complete)
