@@ -87,6 +87,7 @@ async function buildPackage() {
         // Define Paths based on the new project structure
         const projectRoot = path.resolve(__dirname, '..');
         const packageDest = path.join(projectRoot, 'build', 'dist', 'gingee');
+        const cliTemplatesPath = path.resolve(projectRoot, '../gingee-cli/templates');
 
         // Clean the destination directory
         console.log(`Cleaning destination: ${packageDest}`);
@@ -95,6 +96,10 @@ async function buildPackage() {
         // Create the glade.gin package using our new safe function
         console.log('Building core `glade` application package...');
         const gladePackageBuffer = await createGinPackage('glade', projectRoot);
+
+        console.log(`Copying 'glade.gin' to the gingee-cli package...`);
+        fs.ensureDirSync(cliTemplatesPath);
+        fs.writeFileSync(path.join(cliTemplatesPath, 'glade.gin'), gladePackageBuffer);
 
         // Copy essential source files and directories
         console.log('Copying engine source files...');
