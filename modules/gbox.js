@@ -1,6 +1,7 @@
 const nodeFs = require('fs');
 const path = require('path');
 const sucrase = require('sucrase');
+const { isPathInside } = require('./internal_utils.js');
 
 // List of app modules that require a permission check
 const PROTECTED_MODULES = [
@@ -71,7 +72,9 @@ function createGRequire(callingScriptPath, gBoxConfig) {
 
       // --- SECURITY CHECK ---
       // Ensure the resolved path is still inside the app's secure 'box' folder.
-      if (!targetPath.startsWith(gBoxConfig.appBoxPath)) {
+      // Use isPathInside (not String.startsWith) to reject sibling prefix escapes
+      // e.g. box path ".../app1/box" must not allow ".../app10/box/...".
+      if (!isPathInside(targetPath, gBoxConfig.appBoxPath)) {
         throw new Error(`Path traversal detected. Access to '${moduleName}' is forbidden.`);
       }
 
@@ -100,8 +103,8 @@ function createGRequire(callingScriptPath, gBoxConfig) {
     // but are not global modules. We treat them as relative to the app's box root.
     const appBoxRelativePath = path.resolve(gBoxConfig.appBoxPath, moduleName);
     if (nodeFs.existsSync(appBoxRelativePath)) {
-      // We still must verify it's inside the boundary, although it's very likely.
-      if (!appBoxRelativePath.startsWith(gBoxConfig.appBoxPath)) {
+      // We still must verify it's inside the boundary (reject path traversal / prefix tricks).
+      if (!isPathInside(appBoxRelativePath, gBoxConfig.appBoxPath)) {
         throw new Error(`Path traversal detected. Access to '${moduleName}' is forbidden.`);
       }
       return runInGBox(appBoxRelativePath, gBoxConfig);

@@ -25,7 +25,7 @@ Gingee features a powerful and flexible routing engine that automatically maps i
 
 **NOTE:** 
 - In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
-- For Single Page Applications (SPA), the engine is also configured to serve your app's `index.html` for any request that doesn't match a specific API route or static file. This enables client-side routing libraries like React Router to function seamlessly.
+- For Single Page Applications (`"type": "SPA"` with `spa.enabled`), Gingee provides first-class SPA hosting: in production it serves assets from `spa.build_path` and falls back to `spa.fallback_path` (usually `index.html`) for client-side routes; in development it can proxy non-API traffic to your frontend hot-reload server. Backend APIs still run from `box/`. See the [SPA Developer's Guide](./app-spadev-guide.md).
 
 
 ### Mode 1: File-Based Routing (Zero-Config Default)

@@ -22,16 +22,13 @@ These are the core architectural features that define the Gingee development exp
     Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
 
 *   **SPA Hosting & Development Workflow**
-    Gingee provides a seamless experience for modern Single Page Applications (React, Vue, Angular). In development, it automatically proxies requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves your compiled static assets and provides the necessary fallback routing for client-side routers to work out of the box.
+    Gingee provides first-class support for modern Single Page Applications (React, Vue, Angular). In development (`type: "SPA"`, `mode: "development"`), it proxies non-API requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves compiled assets from `spa.build_path` and falls back to `spa.fallback_path` (e.g. `index.html`) for client-side routers. Backend APIs continue to run from the secure `box/` folder. See the [SPA Developer's Guide](./app-spadev-guide.md).
 
 *   **Application Lifecycle Management**
     A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
 
 *   **App Store with Interactive Installation**
     The `gingee-cli` provides commands to browse and install applications from any decentralized "GStore" - the Gingee app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
-
-*   **SPA Hosting & Development Workflow**
-    Effortlessly host Single Page Applications (React, Angular, Vue). The server is designed to handle client-side routing and supports a seamless "two-server" development workflow via proxying.
 
 *   **Hierarchical & Context-Aware Logging**
     Each app writes to its own structured JSON log file within its private `box` directory, while logs are also forwarded to a central, timestamped server log for a complete system overview.

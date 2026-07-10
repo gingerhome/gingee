@@ -14,6 +14,7 @@ const appLogger = require('./logger.js');
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
 const gdev = require('./gdev.js');
+const { isPathInside } = require('./internal_utils.js');
 
 const ALL_PERMISSIONS = {
     "cache": "Allows the app to use the caching service for storing and retrieving data.",
@@ -141,7 +142,8 @@ function _resolveSecureAppPath(appName, filePath) {
     const targetPath = path.join(appBasePath, finalFilePath);
 
     const resolvedPath = path.resolve(targetPath);
-    if (!resolvedPath.startsWith(appBasePath)) {
+    // isPathInside rejects sibling prefix escapes (app1 vs app10), unlike String.startsWith.
+    if (!isPathInside(resolvedPath, appBasePath)) {
         logger.error(`Path Traversal Error: Attempted access to '${filePath}' is outside of app '${appName}' directory.`);
         throw new Error(`Path Traversal Error: Access is forbidden.`);
     }
@@ -171,7 +173,7 @@ async function _unzipBufferToPath(zipBuffer, destAbsolutePath) {
             const finalDestPath = path.join(destAbsolutePath, entry.fileName);
             const resolvedPath = path.resolve(finalDestPath);
 
-            if (!resolvedPath.startsWith(destAbsolutePath)) {
+            if (!isPathInside(resolvedPath, destAbsolutePath)) {
                 return reject(new Error(`Security Error: Zip file contains path traversal ('${entry.fileName}').`));
             }
 
@@ -501,7 +503,7 @@ async function reloadApp(appName) {
         // Clear local script cache associated with this app
         const appPathPrefix = app.appBoxPath;
         for (const key of transpileCache.keys()) {
-            if (key.startsWith(appPathPrefix)) {
+            if (isPathInside(key, appPathPrefix)) {
                 transpileCache.delete(key);
             }
         }
@@ -576,7 +578,7 @@ async function deleteApp(appName) {
         const appConfigPath = path.join(app.appBoxPath, 'app.json');
 
         // Final safety check to ensure we're not deleting something outside the web root
-        if (!path.resolve(appBasePath).startsWith(path.resolve(webPath))) {
+        if (!isPathInside(appBasePath, webPath)) {
             throw new Error(`Security Error: Cannot delete directory outside of the web root.`);
         }
 
@@ -596,7 +598,7 @@ async function deleteApp(appName) {
 
         // 1. Clear transpilation cache for all files within the app's box folder.
         for (const key of transpileCache.keys()) {
-            if (key.startsWith(app.appBoxPath)) {
+            if (isPathInside(key, app.appBoxPath)) {
                 transpileCache.delete(key);
             }
         }
@@ -658,7 +660,7 @@ async function unzipToApp(appName, relativePath, zipBuffer) {
             const resolvedPath = path.resolve(finalDestPath);
 
             // Verify that the final resolved path is still INSIDE our secure destination directory.
-            if (!resolvedPath.startsWith(destAbsolutePath)) {
+            if (!isPathInside(resolvedPath, destAbsolutePath)) {
                 const securityError = new Error(`Security Error: Zip file contains a path traversal attempt ('${entry.fileName}').`);
                 return reject(securityError);
             }

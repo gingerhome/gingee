@@ -34,7 +34,7 @@ Gingee features a powerful and flexible routing engine that automatically maps i
 
 **NOTE:** 
 - In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
-- For Single Page Applications (SPA), the engine is also configured to serve your app's `index.html` for any request that doesn't match a specific API route or static file. This enables client-side routing libraries like React Router to function seamlessly.
+- For Single Page Applications (`"type": "SPA"` with `spa.enabled`), Gingee provides first-class SPA hosting: in production it serves assets from `spa.build_path` and falls back to `spa.fallback_path` (usually `index.html`) for client-side routes; in development it can proxy non-API traffic to your frontend hot-reload server. Backend APIs still run from `box/`. See the [SPA Developer's Guide](./app-spadev-guide.md).
 
 
 ### Mode 1: File-Based Routing (Zero-Config Default)
@@ -921,20 +921,24 @@ Here is a comprehensive breakdown of all available properties.
 ### Application Type & Mode
 
 - **`type`** (string, optional)
-  - **`"MPA"`** (Multi-Page Application): The default.
-  - **`"SPA"`** (Single Page Application - NOT IMPLEMENTED YET): Activates "SPA Fallback" for client-side routing.
+  - **`"MPA"`** (Multi-Page Application): The default. Serves classic multi-page sites and file-based or manifest-based server scripts under `box/`.
+  - **`"SPA"`** (Single Page Application): Enables first-class SPA hosting for frameworks such as React, Vue, and Angular. Combined with `spa.enabled`, Gingee:
+    - In **`development`** mode, proxies non-API requests to your frontend hot-reload server (`spa.dev_server_proxy`).
+    - In **`production`** mode, serves compiled assets from `spa.build_path` and falls back to `spa.fallback_path` (typically `index.html`) for client-side routes.
+    - Continues to execute backend scripts under `box/` (file-based or `routes.json`) for API endpoints.
+    - See the [SPA Developer's Guide](./app-spadev-guide.md) for a full walkthrough.
 
 - **`mode`** (string, optional)
-  - **`"production"`** (Default): The standard mode for live servers. For SPAs, this serves the compiled static assets from the `build_path`.
+  - **`"production"`** (Default): The standard mode for live servers. For SPAs, this serves the compiled static assets from the `build_path` and applies SPA fallback routing.
   - **`"development"`** : Activates development-only features. For SPAs, this enables the seamless dev server proxy.
 
 ### SPA Configuration (`spa` object)
-This object is only used when app is of `"type": "SPA"`.
+This object is used when the app is of `"type": "SPA"`. SPA behavior is active when both `"type": "SPA"` and `"spa.enabled": true` are set.
 
-- **`spa.enabled`** (boolean, required): Must be `true` to activate SPA features.
-- **`spa.dev_server_proxy`** (string, optional): **(Development only)** The full URL of your frontend's hot-reloading development server (e.g., Vite, Angular CLI). Gingee will proxy all non-API requests to this URL when the app's `mode` is `"development"`.
-- **`spa.build_path`** (string, required): **(Production only)** The path to the directory containing your compiled frontend assets, relative to the app's root folder (e.g., `./dist`).
-- **`spa.fallback_path`** (string, required): **(Production only)** The path to the SPA's entrypoint file (usually `index.html`) within the `build_path`. Gingee serves this file for any request that doesn't match an API route or a static asset, enabling client-side routing.
+- **`spa.enabled`** (boolean, required for SPA mode): Must be `true` to activate SPA features (dev proxy and production fallback).
+- **`spa.dev_server_proxy`** (string, optional): **(Development only)** The full URL of your frontend's hot-reloading development server (e.g., Vite, Angular CLI). Gingee will proxy all non-API requests to this URL when the app's `mode` is `"development"`. Required in development; missing configuration yields a `500` with a clear misconfiguration message.
+- **`spa.build_path`** (string, optional): **(Production)** The path to the directory containing your compiled frontend assets, relative to the app's root folder. Defaults to `./dist` if omitted.
+- **`spa.fallback_path`** (string, optional): **(Production)** The path to the SPA's entrypoint file within the `build_path`. Defaults to `index.html`. Gingee serves this file for any request that doesn't match an API route or a static asset, enabling client-side routing.
 
 ### Database Connections
 
@@ -2124,16 +2128,13 @@ These are the core architectural features that define the Gingee development exp
     Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
 
 *   **SPA Hosting & Development Workflow**
-    Gingee provides a seamless experience for modern Single Page Applications (React, Vue, Angular). In development, it automatically proxies requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves your compiled static assets and provides the necessary fallback routing for client-side routers to work out of the box.
+    Gingee provides first-class support for modern Single Page Applications (React, Vue, Angular). In development (`type: "SPA"`, `mode: "development"`), it proxies non-API requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves compiled assets from `spa.build_path` and falls back to `spa.fallback_path` (e.g. `index.html`) for client-side routers. Backend APIs continue to run from the secure `box/` folder. See the [SPA Developer's Guide](./app-spadev-guide.md).
 
 *   **Application Lifecycle Management**
     A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
 
 *   **App Store with Interactive Installation**
     The `gingee-cli` provides commands to browse and install applications from any decentralized "GStore" - the Gingee app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
-
-*   **SPA Hosting & Development Workflow**
-    Effortlessly host Single Page Applications (React, Angular, Vue). The server is designed to handle client-side routing and supports a seamless "two-server" development workflow via proxying.
 
 *   **Hierarchical & Context-Aware Logging**
     Each app writes to its own structured JSON log file within its private `box` directory, while logs are also forwarded to a central, timestamped server log for a complete system overview.

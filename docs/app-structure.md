@@ -82,20 +82,24 @@ Here is a comprehensive breakdown of all available properties.
 ### Application Type & Mode
 
 - **`type`** (string, optional)
-  - **`"MPA"`** (Multi-Page Application): The default.
-  - **`"SPA"`** (Single Page Application - NOT IMPLEMENTED YET): Activates "SPA Fallback" for client-side routing.
+  - **`"MPA"`** (Multi-Page Application): The default. Serves classic multi-page sites and file-based or manifest-based server scripts under `box/`.
+  - **`"SPA"`** (Single Page Application): Enables first-class SPA hosting for frameworks such as React, Vue, and Angular. Combined with `spa.enabled`, Gingee:
+    - In **`development`** mode, proxies non-API requests to your frontend hot-reload server (`spa.dev_server_proxy`).
+    - In **`production`** mode, serves compiled assets from `spa.build_path` and falls back to `spa.fallback_path` (typically `index.html`) for client-side routes.
+    - Continues to execute backend scripts under `box/` (file-based or `routes.json`) for API endpoints.
+    - See the [SPA Developer's Guide](./app-spadev-guide.md) for a full walkthrough.
 
 - **`mode`** (string, optional)
-  - **`"production"`** (Default): The standard mode for live servers. For SPAs, this serves the compiled static assets from the `build_path`.
+  - **`"production"`** (Default): The standard mode for live servers. For SPAs, this serves the compiled static assets from the `build_path` and applies SPA fallback routing.
   - **`"development"`** : Activates development-only features. For SPAs, this enables the seamless dev server proxy.
 
 ### SPA Configuration (`spa` object)
-This object is only used when app is of `"type": "SPA"`.
+This object is used when the app is of `"type": "SPA"`. SPA behavior is active when both `"type": "SPA"` and `"spa.enabled": true` are set.
 
-- **`spa.enabled`** (boolean, required): Must be `true` to activate SPA features.
-- **`spa.dev_server_proxy`** (string, optional): **(Development only)** The full URL of your frontend's hot-reloading development server (e.g., Vite, Angular CLI). Gingee will proxy all non-API requests to this URL when the app's `mode` is `"development"`.
-- **`spa.build_path`** (string, required): **(Production only)** The path to the directory containing your compiled frontend assets, relative to the app's root folder (e.g., `./dist`).
-- **`spa.fallback_path`** (string, required): **(Production only)** The path to the SPA's entrypoint file (usually `index.html`) within the `build_path`. Gingee serves this file for any request that doesn't match an API route or a static asset, enabling client-side routing.
+- **`spa.enabled`** (boolean, required for SPA mode): Must be `true` to activate SPA features (dev proxy and production fallback).
+- **`spa.dev_server_proxy`** (string, optional): **(Development only)** The full URL of your frontend's hot-reloading development server (e.g., Vite, Angular CLI). Gingee will proxy all non-API requests to this URL when the app's `mode` is `"development"`. Required in development; missing configuration yields a `500` with a clear misconfiguration message.
+- **`spa.build_path`** (string, optional): **(Production)** The path to the directory containing your compiled frontend assets, relative to the app's root folder. Defaults to `./dist` if omitted.
+- **`spa.fallback_path`** (string, optional): **(Production)** The path to the SPA's entrypoint file within the `build_path`. Defaults to `index.html`. Gingee serves this file for any request that doesn't match an API route or a static asset, enabling client-side routing.
 
 ### Database Connections
 
