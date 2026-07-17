@@ -37,5 +37,9 @@
             "period_days": 7,
             "max_size_mb": 50
         }
+    },
+    "scheduler": {
+        "enabled": true,
+        "timezone": "UTC"
     }
 }
