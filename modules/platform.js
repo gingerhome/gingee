@@ -11,6 +11,7 @@ const { als, getContext } = require('./gingee.js');
 const db = require('./db.js');
 const email = require('./email.js');
 const ai = require('./ai.js');
+const scheduler = require('./scheduler.js');
 const appLogger = require('./logger.js');
 
 const { match } = require('path-to-regexp');
@@ -23,6 +24,7 @@ const ALL_PERMISSIONS = {
     "db": "Allows the app to connect to and query the database(s) you configure for it.",
     "email": "Allows the app to send transactional email via the configured provider (e.g. SendGrid) or a runtime config override.",
     "ai": "Allows the app to call generative AI providers (chat, multimodal, document parsing, content safety) via the ai module.",
+    "scheduler": "Allows the app to register CRON schedules declared in app.json (script or URL targets). URL targets also need httpclient.",
     "fs": "Grants full read/write access within the app's own secure directories (`box` and `web`).",
     "httpclient": "Permits the app to make outbound network requests to any external API or website.",
     "platform": "PRIVILEGED: Allows managing the lifecycle of other applications on the server. Grant with extreme caution.",
@@ -462,6 +464,8 @@ async function registerNewApp(appName, permissionsArray) {
         await als.run({ app, logger, globalConfig }, async () => {
             await runStartupScripts(app);
         });
+
+        scheduler.reinitApp(appName, app);
     } catch (error) {
         logger.error(`Error initializing app '${appName}': ${error.message}`);
         return false;
@@ -535,6 +539,9 @@ async function reloadApp(appName) {
         await als.run({ app, logger, globalConfig }, async () => {
             await runStartupScripts(app);
         });
+
+        // Re-register CRON schedules for this app (if server scheduler is enabled)
+        scheduler.reinitApp(appName, app);
     } catch (error) {
         logger.error(`Error reloading app '${appName}': ${error.message}`);
         return false;
@@ -584,6 +591,9 @@ async function deleteApp(appName) {
 
         logger.info(`Shutting down AI for app '${appName}' before deletion.`);
         await ai.shutdownApp(appName, logger);
+
+        logger.info(`Unregistering scheduled jobs for app '${appName}' before deletion.`);
+        scheduler.unregisterApp(appName);
 
         logger.info(`Revoking permissions for '${appName}'...`);
         removeAppPermissions(appName);

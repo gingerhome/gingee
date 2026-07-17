@@ -28,6 +28,7 @@ const { runStartupScripts, loadPermissionsForApp } = require('./modules/gapp_sta
 const db = require('./modules/db.js');
 const email = require('./modules/email.js');
 const ai = require('./modules/ai.js');
+const scheduler = require('./modules/scheduler.js');
 const { log } = require('console');
 const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
@@ -64,6 +65,11 @@ const defaultConfig = {
   box: {
     allowed_modules: []
   },
+  // Scheduler is off by default. Enable on at most one node in multi-server deployments.
+  scheduler: {
+    enabled: false,
+    timezone: "UTC"
+  },
   default_app: "glade", //set default app as the glade admin panel
   privileged_apps: ['glade'] //set glade as a priviledged app by default
 };
@@ -79,7 +85,8 @@ const config = {
     ...userConfig.logging,
     rotation: { ...defaultConfig.logging.rotation, ...(userConfig.logging && userConfig.logging.rotation) }
   },
-  box: { ...defaultConfig.box, ...userConfig.box }
+  box: { ...defaultConfig.box, ...userConfig.box },
+  scheduler: { ...defaultConfig.scheduler, ...(userConfig.scheduler || {}) }
 };
 
 let webPath;
@@ -201,6 +208,13 @@ async function initializeApps(config, logger, webPath) {
           await als.run({ app, logger, globalConfig: config }, async () => {
             await runStartupScripts(app);
           });
+        }
+
+        // Register CRON schedules after permissions are loaded (no-op if scheduler disabled).
+        try {
+          scheduler.registerApp(apps[appName]);
+        } catch (err) {
+          logger.error(`Failed to register schedules for app '${appName}': ${err.message}`);
         }
       }
     }
@@ -599,6 +613,9 @@ async function requestHandler(req, res, apps, config, logger) {
 
   // Server-level AI defaults (optional); per-app AI is initialized in initializeApps
   ai.initServer(config.ai, logger);
+
+  // Scheduler (default disabled). Apps' app.json schedules register during initializeApps.
+  scheduler.initServer(config.scheduler, logger, config);
 
   const pdfStatus = pdf.init(); // Initialize the PDF module
   if (pdfStatus.error) {

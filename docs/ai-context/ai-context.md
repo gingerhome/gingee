@@ -112,9 +112,9 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, and optional server-wide defaults for `email` and `ai`.
--   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, startup scripts, and middleware.
--   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, and whether the **scheduler** is enabled on this node (default off).
+-   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), startup scripts, and middleware.
+-   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.
@@ -498,6 +498,10 @@ Here is a comprehensive breakdown of all available properties.
   "ai": {
     "type": "mock"
   },
+  "scheduler": {
+    "enabled": false,
+    "timezone": "UTC"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -579,6 +583,19 @@ An object that configures the HTTP and HTTPS servers.
 - **`default_model`**, **`default_vision_model`** (string, optional)
 - **`safety`** (object, optional): content safety defaults.
 - **Streaming:** apps use `ai.chatStream(...)` (async iterator).
+
+### scheduler
+
+- **Type:** `object` (optional)
+- **Description:** Controls the in-process **CRON scheduler** for this Gingee node. App jobs are declared in each app’s `app.json` → `schedules` (see [App Structure](./app-structure.md)).
+- **`enabled`** (boolean):
+  - **Default:** `false`
+  - When `false`, this node does **not** register or fire any schedules (safe default for multi-server load-balanced fleets).
+  - When `true`, this node registers schedules for all installed apps that have the `scheduler` permission and valid `schedules` entries.
+  - **Multi-server:** enable on **at most one** node so jobs do not run in duplicate.
+- **`timezone`** (string, optional):
+  - **Default:** `"UTC"`
+  - Default IANA timezone for jobs that omit `timezone` in `app.json`.
 
 ### max_body_size
 - **Type:** `string`
@@ -931,6 +948,7 @@ Here is a comprehensive breakdown of all available properties.
     "type": "mock",
     "default_model": "mock-model"
   },
+  "schedules": [],
   "startup_scripts": [],
   "default_include": [],
   "env": {},
@@ -1001,6 +1019,70 @@ Single generative AI configuration for the app. App config overrides optional se
   "api_key": "AIza…",
   "default_model": "gemini-2.5-pro"
 }
+```
+
+### Schedules (`schedules` array, optional)
+
+Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**.
+
+Each entry:
+
+| Field | Required | Description |
+| :--- | :--- | :--- |
+| `name` | yes | Unique job id within the app (`a-zA-Z0-9._-`) |
+| `cron` | yes | CRON expression (standard 5-field; seconds supported by engine dialect) |
+| `timezone` | no | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`) |
+| `enabled` | no | Default `true`. Set `false` to keep the definition without registering |
+| `timeout_ms` | no | Default `300000` (script) / `60000` (url) |
+| `overlap` | no | Only `"skip"` in v1 (skip if previous run still active) |
+| `payload` | no | Passed as `$g.request.body` for **script** targets |
+| `target` | yes | See below |
+
+**`target` for scripts** (path is relative to the app’s `box/` folder only):
+
+```json
+"target": { "type": "script", "path": "jobs/nightly_cleanup.js" }
+```
+
+Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual `gingee(async ($g) => { … })` form. There is no HTTP connection: `$g.request.method` is `"SCHEDULE"`, `$g.schedule` holds `{ name, cron, timezone, runId, scheduledAt, … }`, and `$g.response.send(...)` records a result in logs (it does not open a network response). Streaming is not supported in schedule context.
+
+**`fs` paths in scheduled scripts:** Same rules as all Gingee scripts. A path **with a leading `/`** is relative to the scope root (`box/` or `web/`). A path **without** a leading slash is relative to the **executing script’s directory**. Example: from `box/jobs/cleanup.js`, `fs.writeFile(fs.BOX, 'data/out.json', …)` writes `box/jobs/data/out.json`, while `fs.writeFile(fs.BOX, '/data/out.json', …)` writes `box/data/out.json`. Prefer leading-`/` paths when another HTTP script (with a different working directory) must read the same file.
+
+**`target` for external URLs:**
+
+```json
+"target": {
+  "type": "url",
+  "url": "https://partner.example.com/hooks/tick",
+  "method": "POST",
+  "headers": { "Authorization": "Bearer …" },
+  "body": { "source": "gingee" }
+}
+```
+
+`url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`).
+
+**Example:**
+
+```json
+"schedules": [
+  {
+    "name": "nightly_cleanup",
+    "cron": "0 2 * * *",
+    "timezone": "UTC",
+    "payload": { "mode": "full" },
+    "target": { "type": "script", "path": "jobs/cleanup.js" }
+  },
+  {
+    "name": "partner_ping",
+    "cron": "*/15 * * * *",
+    "target": {
+      "type": "url",
+      "url": "https://partner.example.com/hooks/gingee",
+      "method": "POST"
+    }
+  }
+]
 ```
 
 ### Email (`email` object, optional)
@@ -1342,6 +1424,17 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
     -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
 
+#### Scheduled job context
+
+When a script is invoked by the **CRON scheduler** (see `app.json` → `schedules`), there is no HTTP request. The `gingee()` middleware still provides `$g`, with:
+
+-   **`$g.request.method`:** `"SCHEDULE"`
+-   **`$g.request.body`:** the job’s optional `payload` from `app.json`
+-   **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
+-   **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
+-   **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
+-   **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
+
 #### Streaming responses (SSE and chunked output)
 
 For long-running or progressive output (for example, `require('ai').chatStream(...)`), use the streaming helpers on `$g.response` instead of a single `send()`. These write to the underlying HTTP response without exposing Node's raw `res` object to the sandbox.
@@ -1662,6 +1755,50 @@ Providers: `mock` (offline), `gemini` (Google); `xai` (Grok) is reserved for a f
 
 Full config field reference: [App Structure](./app-structure.md) and [Server Config](./server-config.md).
 
+## Chapter 5c: Scheduled Jobs (CRON)
+
+For recurring background work, declare jobs in `app.json` → `schedules` instead of inventing timers inside request handlers.
+
+1. Set `"scheduler": { "enabled": true }` in **`gingee.json`** on the node that should run jobs (default is `false`; use **one** node only under load balancing).
+2. Grant the app the **`scheduler`** permission (and **`httpclient`** if any job uses a URL target).
+3. Add schedules and implement scripts under `box/`:
+
+```json
+"schedules": [
+  {
+    "name": "nightly_cleanup",
+    "cron": "0 2 * * *",
+    "timezone": "UTC",
+    "payload": { "mode": "full" },
+    "target": { "type": "script", "path": "jobs/cleanup.js" }
+  }
+]
+```
+
+```javascript
+// box/jobs/cleanup.js
+module.exports = async function () {
+    await gingee(async ($g) => {
+        // $g.request.method === 'SCHEDULE'
+        // $g.schedule.name, $g.schedule.runId, $g.request.body ← payload
+        const fs = require('fs');
+        const db = require('db');
+        // Prefer a leading "/" so the path is relative to box/ (not to jobs/)
+        await fs.writeFile(fs.BOX, '/data/last-run.json', JSON.stringify({
+            at: new Date().toISOString(),
+            runId: $g.schedule.runId
+        }), 'utf8');
+        $g.response.send({ ok: true }); // logged; not an HTTP response
+    });
+};
+```
+
+Without a leading `/`, `fs` paths are relative to the **script folder** (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`). Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`.
+
+External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`.
+
+See [App Structure](./app-structure.md) for the full field list and [Server Config](./server-config.md) for the server gate.
+
 ## Chapter 6: A New Paradigm - Building with a GenAI Partner
 
 Gingee was co-authored with a Generative AI, and you can leverage this same powerful workflow to build your own applications. The key is to provide the AI with a "knowledge bundle" of the platform's architecture. We've created this for you.
@@ -1881,7 +2018,7 @@ Security is a core principle of the Gingee platform. The permissions system is d
 
 ## The Philosophy: Secure by Default (Whitelist Model)
 
-Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`).
+Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), generative AI (`ai`), or the CRON **scheduler**.
 
 Access to these protected modules must be explicitly **granted** by a server administrator. If a permission has not been granted, any attempt by an app to `require()` that module will result in a security error, and the script will fail to execute.
 
@@ -1914,7 +2051,8 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
     "optional": [
       "httpclient",
       "email",
-      "ai"
+      "ai",
+      "scheduler"
     ]
   }
 }
@@ -1968,7 +2106,8 @@ This is the definitive list of all permission keys available in Gingee.
 | **db** | Allows the app to connect to and query the database(s) configured for it in `app.json`. | **High.** Grants access to the application's primary data store. |
 | **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
 | **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
-| **httpclient** | Permits the app to make outbound HTTP/HTTPS network requests to any external API or website. | **High.** The app can send data to or receive data from any server on the internet. |
+| **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/` or outbound URL). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json`. | **High.** The app can wake itself on a timer to run privileged sandbox code or (with `httpclient`) call external URLs unattended. |
+| **httpclient** | Permits the app to make outbound HTTP/HTTPS network requests to any external API or website. Also required for scheduler **URL** targets. | **High.** The app can send data to or receive data from any server on the internet. |
 | **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
 | **zip** | Allows the app to create and extract ZIP archives. | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
@@ -2347,6 +2486,9 @@ These are the core architectural features that define the Gingee development exp
 
 *   **Streamed HTTP Responses**
     Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
+
+*   **CRON Scheduler**
+    Apps declare recurring jobs in `app.json` → `schedules` (script path under `box/` or absolute external URL). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`); enable it on **one** node in multi-server deployments. Requires the `scheduler` permission (and `httpclient` for URL targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

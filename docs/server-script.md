@@ -186,6 +186,17 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
     -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
 
+#### Scheduled job context
+
+When a script is invoked by the **CRON scheduler** (see `app.json` → `schedules`), there is no HTTP request. The `gingee()` middleware still provides `$g`, with:
+
+-   **`$g.request.method`:** `"SCHEDULE"`
+-   **`$g.request.body`:** the job’s optional `payload` from `app.json`
+-   **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
+-   **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
+-   **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
+-   **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
+
 #### Streaming responses (SSE and chunked output)
 
 For long-running or progressive output (for example, `require('ai').chatStream(...)`), use the streaming helpers on `$g.response` instead of a single `send()`. These write to the underlying HTTP response without exposing Node's raw `res` object to the sandbox.

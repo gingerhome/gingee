@@ -65,6 +65,7 @@ Here is a comprehensive breakdown of all available properties.
     "type": "mock",
     "default_model": "mock-model"
   },
+  "schedules": [],
   "startup_scripts": [],
   "default_include": [],
   "env": {},
@@ -135,6 +136,70 @@ Single generative AI configuration for the app. App config overrides optional se
   "api_key": "AIza…",
   "default_model": "gemini-2.5-pro"
 }
+```
+
+### Schedules (`schedules` array, optional)
+
+Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**.
+
+Each entry:
+
+| Field | Required | Description |
+| :--- | :--- | :--- |
+| `name` | yes | Unique job id within the app (`a-zA-Z0-9._-`) |
+| `cron` | yes | CRON expression (standard 5-field; seconds supported by engine dialect) |
+| `timezone` | no | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`) |
+| `enabled` | no | Default `true`. Set `false` to keep the definition without registering |
+| `timeout_ms` | no | Default `300000` (script) / `60000` (url) |
+| `overlap` | no | Only `"skip"` in v1 (skip if previous run still active) |
+| `payload` | no | Passed as `$g.request.body` for **script** targets |
+| `target` | yes | See below |
+
+**`target` for scripts** (path is relative to the app’s `box/` folder only):
+
+```json
+"target": { "type": "script", "path": "jobs/nightly_cleanup.js" }
+```
+
+Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual `gingee(async ($g) => { … })` form. There is no HTTP connection: `$g.request.method` is `"SCHEDULE"`, `$g.schedule` holds `{ name, cron, timezone, runId, scheduledAt, … }`, and `$g.response.send(...)` records a result in logs (it does not open a network response). Streaming is not supported in schedule context.
+
+**`fs` paths in scheduled scripts:** Same rules as all Gingee scripts. A path **with a leading `/`** is relative to the scope root (`box/` or `web/`). A path **without** a leading slash is relative to the **executing script’s directory**. Example: from `box/jobs/cleanup.js`, `fs.writeFile(fs.BOX, 'data/out.json', …)` writes `box/jobs/data/out.json`, while `fs.writeFile(fs.BOX, '/data/out.json', …)` writes `box/data/out.json`. Prefer leading-`/` paths when another HTTP script (with a different working directory) must read the same file.
+
+**`target` for external URLs:**
+
+```json
+"target": {
+  "type": "url",
+  "url": "https://partner.example.com/hooks/tick",
+  "method": "POST",
+  "headers": { "Authorization": "Bearer …" },
+  "body": { "source": "gingee" }
+}
+```
+
+`url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`).
+
+**Example:**
+
+```json
+"schedules": [
+  {
+    "name": "nightly_cleanup",
+    "cron": "0 2 * * *",
+    "timezone": "UTC",
+    "payload": { "mode": "full" },
+    "target": { "type": "script", "path": "jobs/cleanup.js" }
+  },
+  {
+    "name": "partner_ping",
+    "cron": "*/15 * * * *",
+    "target": {
+      "type": "url",
+      "url": "https://partner.example.com/hooks/gingee",
+      "method": "POST"
+    }
+  }
+]
 ```
 
 ### Email (`email` object, optional)

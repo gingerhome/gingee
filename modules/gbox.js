@@ -15,6 +15,8 @@ const PROTECTED_MODULES = [
   'pdf',
   'zip',
   'image'
+  // Note: 'scheduler' is engine-internal (restricted). Apps declare jobs in app.json;
+  // they do not require('scheduler') in v1. The "scheduler" permission gates registration.
 ];
 
 // A whitelist of globally-allowed, safe UTILITY modules (both built-in and third-party).
@@ -25,13 +27,14 @@ const globallyAllowedModules = [
 ];
 
 const restrictedGlobalModules = [
-  'gingee', 
+  'gingee',
   'gbox',
-  'gdev', 
+  'gdev',
   'gapp-start',
   'cache_service',
   'internal_utils',
-  'platform'
+  'platform',
+  'scheduler'
 ];
 
 const gingee = require('./gingee.js');

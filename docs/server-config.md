@@ -32,6 +32,10 @@ Here is a comprehensive breakdown of all available properties.
   "ai": {
     "type": "mock"
   },
+  "scheduler": {
+    "enabled": false,
+    "timezone": "UTC"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -113,6 +117,19 @@ An object that configures the HTTP and HTTPS servers.
 - **`default_model`**, **`default_vision_model`** (string, optional)
 - **`safety`** (object, optional): content safety defaults.
 - **Streaming:** apps use `ai.chatStream(...)` (async iterator).
+
+### scheduler
+
+- **Type:** `object` (optional)
+- **Description:** Controls the in-process **CRON scheduler** for this Gingee node. App jobs are declared in each app’s `app.json` → `schedules` (see [App Structure](./app-structure.md)).
+- **`enabled`** (boolean):
+  - **Default:** `false`
+  - When `false`, this node does **not** register or fire any schedules (safe default for multi-server load-balanced fleets).
+  - When `true`, this node registers schedules for all installed apps that have the `scheduler` permission and valid `schedules` entries.
+  - **Multi-server:** enable on **at most one** node so jobs do not run in duplicate.
+- **`timezone`** (string, optional):
+  - **Default:** `"UTC"`
+  - Default IANA timezone for jobs that omit `timezone` in `app.json`.
 
 ### max_body_size
 - **Type:** `string`

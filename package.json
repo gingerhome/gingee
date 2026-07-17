@@ -65,6 +65,7 @@
     "chartjs-node-canvas": "^5.0.0",
     "cheerio": "^1.2.0",
     "crc-32": "^1.2.2",
+    "croner": "^10.0.1",
     "extract-zip": "^2.0.1",
     "fast-glob": "^3.3.3",
     "form-data": "^4.0.6",

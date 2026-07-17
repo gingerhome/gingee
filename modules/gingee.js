@@ -89,10 +89,71 @@ module.exports = {
             };
             store.$g.request = null;
             store.$g.response = null;
+            store.$g.schedule = null;
 
             if (store.isPrivileged) {
                 store.$g.appNames = store.appNames;
                 store.$g.apps = store.allApps;
+            }
+
+            // Scheduled job context (no HTTP req/res): synthetic request/response + schedule meta.
+            if (store.isSchedule && !isHttpContext) {
+                const scheduleMeta = store.scheduleMeta || {};
+                store.$g.schedule = {
+                    name: scheduleMeta.name || null,
+                    cron: scheduleMeta.cron || null,
+                    timezone: scheduleMeta.timezone || null,
+                    runId: scheduleMeta.runId || null,
+                    scheduledAt: scheduleMeta.scheduledAt || null,
+                    attempt: scheduleMeta.attempt || 1,
+                    targetType: scheduleMeta.targetType || null,
+                    path: scheduleMeta.path || null
+                };
+                store.$g.request = {
+                    protocol: 'schedule',
+                    hostname: null,
+                    method: 'SCHEDULE',
+                    path: scheduleMeta.path || `/schedule/${scheduleMeta.name || 'job'}`,
+                    url: null,
+                    headers: {},
+                    cookies: {},
+                    query: {},
+                    params: {},
+                    body: store.schedulePayload !== undefined ? store.schedulePayload : null
+                };
+                store.$g.response = {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/plain' },
+                    cookies: {},
+                    body: null,
+                    startStream: () => {
+                        store.logger.warn('response.startStream() is not supported in schedule context.');
+                    },
+                    write: () => {},
+                    writeSSE: () => {},
+                    endStream: () => {
+                        store.$g.isCompleted = true;
+                        store.$g.isStreaming = false;
+                    },
+                    send: (data, status, contentType) => {
+                        if (store.$g && store.$g.isCompleted) {
+                            store.logger.warn(
+                                `response.send() called multiple times in schedule context from '${path.basename(store.scriptPath)}' — ignored.`
+                            );
+                            return;
+                        }
+                        store.$g.isCompleted = true;
+                        store.$g.completedBy = path.basename(store.scriptPath);
+                        store.$g.scheduleResult = {
+                            data,
+                            status: status || 200,
+                            contentType: contentType || null
+                        };
+                        store.logger.info(
+                            `Schedule job response recorded by: ${store.$g.completedBy}`
+                        );
+                    }
+                };
             }
 
             if (isHttpContext) {

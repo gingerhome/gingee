@@ -17,6 +17,9 @@ This phase is focused on adding major new modules that unlock entirely new categ
     -   **Use Cases:** Live chat applications, real-time notifications, collaborative editing tools, and live data dashboards.
     -   **Implementation:** A new module, likely wrapping a robust library like `ws`, that integrates securely with the Gingee routing model.
 
+-   **CRON Scheduler** *(v1 shipped: declarative `app.json` schedules; server gate `scheduler.enabled` default off)*
+    -   **Next:** Redis leader election for multi-node, runtime API / “Run now” in Glade, optional handoff to `queue`.
+
 -   **Job Queues & Background Processing (`queue` Module)**
     -   **Goal:** Enable applications to offload long-running or deferrable tasks to a background worker process.
     -   **Use Cases:** Sending welcome emails, processing video uploads, generating complex reports, or calling slow third-party APIs without blocking the main request.

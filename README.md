@@ -42,7 +42,7 @@ That's it! You should now see Glade - the Gingee admin panel in your web browser
 Gingee is a comprehensive platform designed to provide a secure, efficient, and enjoyable development experience.
 
 - **Secure by Default**
-  - **Whitelist Permissions System:** Applications have no access to the filesystem, database, network, email, or generative AI by default. Administrators grant explicit permissions for a "secure by default" posture.
+  - **Whitelist Permissions System:** Applications have no access to the filesystem, database, network, email, generative AI, or CRON scheduler by default. Administrators grant explicit permissions for a "secure by default" posture.
   - **Sandboxed Execution:** Every server script runs in a secure `gbox` sandbox, isolated from the host system and other applications.
 
 - **Instant Time to Joy**
@@ -56,6 +56,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Multi-Database Support:** Write your code once and deploy against PostgreSQL, SQLite, MySQL, and more, with a consistent API.
   - **Rich Standard Library:** A comprehensive suite of sandboxed modules for common tasks, including `crypto`, `image` processing, `pdf` generation, `db` access, `httpclient`, transactional `email` (SendGrid / console), and generative `ai` (Gemini / mock, streaming chat, multimodal, document parse, moderation).
   - **Streamed Responses:** Progressive output (e.g. SSE for AI tokens) via `$g.response.startStream` / `writeSSE` / `endStream`.
+  - **CRON Scheduler:** App-declared schedules in `app.json` (sandbox script or external URL); server gate `scheduler.enabled` (default off; enable on one node when load balancing).
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 

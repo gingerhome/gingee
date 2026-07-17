@@ -243,6 +243,50 @@ Providers: `mock` (offline), `gemini` (Google); `xai` (Grok) is reserved for a f
 
 Full config field reference: [App Structure](./app-structure.md) and [Server Config](./server-config.md).
 
+## Chapter 5c: Scheduled Jobs (CRON)
+
+For recurring background work, declare jobs in `app.json` → `schedules` instead of inventing timers inside request handlers.
+
+1. Set `"scheduler": { "enabled": true }` in **`gingee.json`** on the node that should run jobs (default is `false`; use **one** node only under load balancing).
+2. Grant the app the **`scheduler`** permission (and **`httpclient`** if any job uses a URL target).
+3. Add schedules and implement scripts under `box/`:
+
+```json
+"schedules": [
+  {
+    "name": "nightly_cleanup",
+    "cron": "0 2 * * *",
+    "timezone": "UTC",
+    "payload": { "mode": "full" },
+    "target": { "type": "script", "path": "jobs/cleanup.js" }
+  }
+]
+```
+
+```javascript
+// box/jobs/cleanup.js
+module.exports = async function () {
+    await gingee(async ($g) => {
+        // $g.request.method === 'SCHEDULE'
+        // $g.schedule.name, $g.schedule.runId, $g.request.body ← payload
+        const fs = require('fs');
+        const db = require('db');
+        // Prefer a leading "/" so the path is relative to box/ (not to jobs/)
+        await fs.writeFile(fs.BOX, '/data/last-run.json', JSON.stringify({
+            at: new Date().toISOString(),
+            runId: $g.schedule.runId
+        }), 'utf8');
+        $g.response.send({ ok: true }); // logged; not an HTTP response
+    });
+};
+```
+
+Without a leading `/`, `fs` paths are relative to the **script folder** (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`). Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`.
+
+External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`.
+
+See [App Structure](./app-structure.md) for the full field list and [Server Config](./server-config.md) for the server gate.
+
 ## Chapter 6: A New Paradigm - Building with a GenAI Partner
 
 Gingee was co-authored with a Generative AI, and you can leverage this same powerful workflow to build your own applications. The key is to provide the AI with a "knowledge bundle" of the platform's architecture. We've created this for you.
