@@ -39,7 +39,7 @@
         }
     },
     "scheduler": {
-        "enabled": true,
+        "enabled": false,
         "timezone": "UTC"
     }
 }
