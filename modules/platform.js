@@ -9,6 +9,8 @@ const fg = require('fast-glob');
 const zip = require('./zip.js');
 const { als, getContext } = require('./gingee.js');
 const db = require('./db.js');
+const email = require('./email.js');
+const ai = require('./ai.js');
 const appLogger = require('./logger.js');
 
 const { match } = require('path-to-regexp');
@@ -19,6 +21,8 @@ const { isPathInside } = require('./internal_utils.js');
 const ALL_PERMISSIONS = {
     "cache": "Allows the app to use the caching service for storing and retrieving data.",
     "db": "Allows the app to connect to and query the database(s) you configure for it.",
+    "email": "Allows the app to send transactional email via the configured provider (e.g. SendGrid) or a runtime config override.",
+    "ai": "Allows the app to call generative AI providers (chat, multimodal, document parsing, content safety) via the ai module.",
     "fs": "Grants full read/write access within the app's own secure directories (`box` and `web`).",
     "httpclient": "Permits the app to make outbound network requests to any external API or website.",
     "platform": "PRIVILEGED: Allows managing the lifecycle of other applications on the server. Grant with extreme caution.",
@@ -452,6 +456,8 @@ async function registerNewApp(appName, permissionsArray) {
         _reloadRoutes(appName);
 
         await db.reinitApp(appName, app, logger);
+        await email.reinitApp(appName, app, logger);
+        await ai.reinitApp(appName, app, logger);
 
         await als.run({ app, logger, globalConfig }, async () => {
             await runStartupScripts(app);
@@ -520,8 +526,10 @@ async function reloadApp(appName) {
             gdev.startDevServer(app);
         }
 
-        // Re-initialize the DB for this app
+        // Re-initialize the DB, email, and AI for this app
         await db.reinitApp(appName, app, logger);
+        await email.reinitApp(appName, app, logger);
+        await ai.reinitApp(appName, app, logger);
 
         // Run startup scripts for this app
         await als.run({ app, logger, globalConfig }, async () => {
@@ -570,6 +578,12 @@ async function deleteApp(appName) {
 
         logger.info(`Shutting down database connections for app '${appName}' before deletion.`);
         await db.shutdownApp(appName, logger);
+
+        logger.info(`Shutting down email for app '${appName}' before deletion.`);
+        await email.shutdownApp(appName, logger);
+
+        logger.info(`Shutting down AI for app '${appName}' before deletion.`);
+        await ai.shutdownApp(appName, logger);
 
         logger.info(`Revoking permissions for '${appName}'...`);
         removeAppPermissions(appName);

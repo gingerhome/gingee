@@ -14,6 +14,21 @@ jest.mock('../../modules/db', () => ({
 }));
 const db = require('../../modules/db');
 
+jest.mock('../../modules/email', () => ({
+    reinitApp: jest.fn().mockResolvedValue(true),
+    shutdownApp: jest.fn().mockResolvedValue(true),
+    initApp: jest.fn(),
+    initServer: jest.fn(),
+}));
+const email = require('../../modules/email');
+
+jest.mock('../../modules/ai', () => ({
+    reinitApp: jest.fn().mockResolvedValue(true),
+    shutdownApp: jest.fn().mockResolvedValue(true),
+    initApp: jest.fn(),
+    initServer: jest.fn(),
+}));
+
 jest.mock('../../modules/logger');
 
 describe('platform.js - App Lifecycle Integration', () => {

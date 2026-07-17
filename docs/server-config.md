@@ -26,6 +26,12 @@ Here is a comprehensive breakdown of all available properties.
       "password": null
     }
   },
+  "email": {
+    "type": "console"
+  },
+  "ai": {
+    "type": "mock"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -88,6 +94,25 @@ An object that configures the HTTP and HTTPS servers.
   - **`host`** (string): The hostname or IP address of your Redis server.
   - **`port`** (number): The port of your Redis server.
   - **`password`** (string | null): The password for your Redis server, or `null` if none is set.
+
+### email
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the transactional `email` module. Each app may override this with `app.json` → `email`. There is a single config object (no named profiles). Apps still need the `email` permission to call `require('email')`.
+- **`type`** (string): Provider id. Supported in v1: `"console"` (log only, for local dev) or `"sendgrid"`.
+- **`api_key`** (string, optional): SendGrid API key when using `"sendgrid"`.
+- **`from`** / **`from_name`** (string, optional): Default sender identity.
+- **Runtime override:** App scripts may call `email.sendWithConfig(config, message)` to override server + app config for a single send.
+
+### ai
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the generative `ai` module. Apps override with `app.json` → `ai`. Requires the `ai` permission.
+- **`type`** (string): `"mock"` | `"gemini"` | `"xai"` (`xai` / Grok is P1 stub).
+- **`api_key`** (string): Cloud provider key.
+- **`default_model`**, **`default_vision_model`** (string, optional)
+- **`safety`** (object, optional): content safety defaults.
+- **Streaming:** apps use `ai.chatStream(...)` (async iterator).
 
 ### max_body_size
 - **Type:** `string`

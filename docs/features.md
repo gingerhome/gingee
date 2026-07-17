@@ -10,7 +10,7 @@ These are the core architectural features that define the Gingee development exp
     Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
 
 *   **Whitelist-Based Permissions System**
-    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
+    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`).
 
 *   **Flexible Routing Engine**
     Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
@@ -36,6 +36,15 @@ These are the core architectural features that define the Gingee development exp
 *   **Resilient Distributed Caching**
     The server provides a centralized, pluggable caching service. Use a dependency-free in-memory cache for local development, or switch to a Redis backend for horizontally scaled production deployments by changing a single line of config.
 
+*   **Transactional Email (`email` Module)**
+    Send mail through a provider adapter (SendGrid in v1, plus a `console` logger for local dev). Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `email.send(message)` or `email.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `email` permission.
+
+*   **Generative AI (`ai` Module)**
+    Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
+
+*   **Streamed HTTP Responses**
+    Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
@@ -54,6 +63,10 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 
 *   **`db`**
     The unified database interface. Provides a consistent API (`query`, `execute`, `transaction`) for interacting with any configured database.
+*   **`email`**
+    Transactional email via provider adapters (`sendgrid`, `console`). Config from `gingee.json` / `app.json`, plus `sendWithConfig` for per-transaction overrides. Permission-protected.
+*   **`ai`**
+    Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 *   **`fs`**
     A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
 *   **`httpclient`**

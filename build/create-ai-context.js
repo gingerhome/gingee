@@ -39,12 +39,14 @@ async function createContextFile() {
     
     // The explicit list of PUBLIC app modules to include in the API reference
     const publicModuleFiles = [
+      'modules/ai.js',
       'modules/auth.js',
       'modules/cache.js',
       'modules/chart.js',
       'modules/crypto.js',
       'modules/dashboard.js',
       'modules/db.js',
+      'modules/email.js',
       'modules/encode.js',
       'modules/formdata.js',
       'modules/fs.js',

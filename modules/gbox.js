@@ -5,10 +5,12 @@ const { isPathInside } = require('./internal_utils.js');
 
 // List of app modules that require a permission check
 const PROTECTED_MODULES = [
+  'ai',
   'cache',
-  'db', 
-  'fs', 
-  'httpclient', 
+  'db',
+  'email',
+  'fs',
+  'httpclient',
   'platform',
   'pdf',
   'zip',

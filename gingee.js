@@ -26,6 +26,8 @@ const userConfig = require(path.join(projectRoot, 'gingee.json'));
 const { als } = require('./modules/gingee.js');
 const { runStartupScripts, loadPermissionsForApp } = require('./modules/gapp_start.js');
 const db = require('./modules/db.js');
+const email = require('./modules/email.js');
+const ai = require('./modules/ai.js');
 const { log } = require('console');
 const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
@@ -177,6 +179,18 @@ async function initializeApps(config, logger, webPath) {
               }
             }
           });
+        }
+
+        try {
+          email.initApp(apps[appName], dedicatedLogger);
+        } catch (err) {
+          logger.error(`Failed to initialize email for app '${appName}': ${err.message}`);
+        }
+
+        try {
+          ai.initApp(apps[appName], dedicatedLogger);
+        } catch (err) {
+          logger.error(`Failed to initialize AI for app '${appName}': ${err.message}`);
         }
 
         await als.run({ app, logger, projectRoot }, async () => {
@@ -579,6 +593,12 @@ async function requestHandler(req, res, apps, config, logger) {
 
   // Initialize the cache service as configured, else fall back to in-memory cache
   await cache.init(config.cache, logger);
+
+  // Server-level email defaults (optional); per-app email is initialized in initializeApps
+  email.initServer(config.email, logger);
+
+  // Server-level AI defaults (optional); per-app AI is initialized in initializeApps
+  ai.initServer(config.ai, logger);
 
   const pdfStatus = pdf.init(); // Initialize the PDF module
   if (pdfStatus.error) {

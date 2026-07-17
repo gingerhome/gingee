@@ -56,6 +56,15 @@ Here is a comprehensive breakdown of all available properties.
     "fallback_path": "index.html"
   },
   "db": [],
+  "email": {
+    "type": "console",
+    "from": "noreply@example.com",
+    "from_name": "My App"
+  },
+  "ai": {
+    "type": "mock",
+    "default_model": "mock-model"
+  },
   "startup_scripts": [],
   "default_include": [],
   "env": {},
@@ -106,6 +115,48 @@ This object is used when the app is of `"type": "SPA"`. SPA behavior is active w
 - **`db`** (array, optional)
   - An array of database connection objects.
   - **Properties:** `type`, `name`, `host`, `user`, `password`, `database`, etc.
+
+### AI (`ai` object, optional)
+
+Single generative AI configuration for the app. App config overrides optional server defaults in `gingee.json` → `ai`. Requires the `ai` permission.
+
+- **`type`** (string): Provider — `mock` (local/dev), `gemini` (Google), `xai` (Grok — P1).
+- **`api_key`** (string): Provider API key (not required for `mock`).
+- **`default_model`** / **`default_vision_model`** (string, optional)
+- **`max_output_tokens`**, **`timeout_ms`**, **`temperature`** (optional)
+- **`safety`** (object, optional): `{ "enabled": false, "fail_closed": true, "moderate_input": false }`
+
+**API (sandbox):** `require('ai')` → `chat`, `chatStream` (async generator), `complete`, `parseDocument`, `moderate`. Pass `{ config: { … } }` as the second argument to override server/app config for one call.
+
+**Example:**
+```json
+"ai": {
+  "type": "gemini",
+  "api_key": "AIza…",
+  "default_model": "gemini-2.5-pro"
+}
+```
+
+### Email (`email` object, optional)
+
+Single outbound email configuration for the app (no named profiles). App config overrides optional server defaults in `gingee.json` → `email`. Requires the `email` permission.
+
+- **`type`** (string, required when using email): Provider id — `sendgrid` or `console` (dev: logs only, no network).
+- **`api_key`** (string): SendGrid API key when `type` is `sendgrid`.
+- **`from`** (string): Default From address.
+- **`from_name`** (string, optional): Default From display name.
+
+**Runtime override:** from a server script you can call `email.sendWithConfig(config, message)` so a one-off send uses config that overrides both `gingee.json` and `app.json` for that transaction only (does not change the app default).
+
+**Example `app.json`:**
+```json
+"email": {
+  "type": "sendgrid",
+  "api_key": "SG.xxxxx",
+  "from": "noreply@example.com",
+  "from_name": "My App"
+}
+```
 
 ### Script Execution Configuration
 

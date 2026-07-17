@@ -4,7 +4,7 @@ Security is a core principle of the Gingee platform. The permissions system is d
 
 ## The Philosophy: Secure by Default (Whitelist Model)
 
-Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
+Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`).
 
 Access to these protected modules must be explicitly **granted** by a server administrator. If a permission has not been granted, any attempt by an app to `require()` that module will result in a security error, and the script will fail to execute.
 
@@ -35,12 +35,14 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
       "fs"
     ],
     "optional": [
-      "httpclient"
+      "httpclient",
+      "email",
+      "ai"
     ]
   }
 }
 ```
-*In this example, the blog requires database and filesystem access to function. It has an optional feature (perhaps for checking for updates) that requires outbound HTTP calls. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
+*In this example, the blog requires database and filesystem access to function. Optional features (outbound HTTP, transactional email, generative AI) are listed separately so an administrator can grant only what they approve. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
 
 ## For Administrators: Managing Permissions
 
@@ -87,6 +89,8 @@ This is the definitive list of all permission keys available in Gingee.
 | **platform** | **PRIVILEGED.** Allows the app to use the `platform` module to manage the lifecycle (install, delete, upgrade, etc.) of other applications on the server. | **Critical.** This is the highest level of privilege. Only grant this to a fully trusted administration application like `glade`. |
 | **cache** | Allows the app to use the caching service for storing and retrieving data. | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data. |
 | **db** | Allows the app to connect to and query the database(s) configured for it in `app.json`. | **High.** Grants access to the application's primary data store. |
+| **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
+| **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS network requests to any external API or website. | **High.** The app can send data to or receive data from any server on the internet. |
 | **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |

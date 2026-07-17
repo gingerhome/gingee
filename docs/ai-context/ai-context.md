@@ -79,18 +79,20 @@ module.exports = async function() {
 };
 ```
 
-The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`).
+The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`). For progressive output (for example AI token streaming), `$g.response` also supports `startStream`, `write` / `writeSSE`, and `endStream` — see the [Server Script Guide](./server-script.md).
 
 ## 5. The Module Ecosystem
 
 Gingee provides a rich standard library of "app modules" to handle common tasks securely and efficiently. These are required by name (e.g., `require('db')`) from any server script.
 
+-   **`ai`**: Generative AI (chat/stream, multimodal, document parsing, moderation) via provider adapters (`gemini`, `mock`; `xai` planned)
 -   **`auth`**: Provides authentication-related functions, including JWT creation and verification
 -   **`cache`**: Provides a secure interface for caching data within the Gingee application context.
 -   **`chart`**: Provides functionality to create and manipulate server-side charts
 -   **`crypto`**: Provides an essential cryptographic toolkit.
 -   **`dashboard`**: Provides functionality to create and manage a dashboard layout with multiple charts.
 -   **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
+-   **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
 -   **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
 -   **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations.
 -   **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
@@ -110,9 +112,9 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), and logging policies.
--   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, startup scripts, and middleware.
--   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, and optional server-wide defaults for `email` and `ai`.
+-   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, startup scripts, and middleware.
+-   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.
@@ -490,6 +492,12 @@ Here is a comprehensive breakdown of all available properties.
       "password": null
     }
   },
+  "email": {
+    "type": "console"
+  },
+  "ai": {
+    "type": "mock"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -552,6 +560,25 @@ An object that configures the HTTP and HTTPS servers.
   - **`host`** (string): The hostname or IP address of your Redis server.
   - **`port`** (number): The port of your Redis server.
   - **`password`** (string | null): The password for your Redis server, or `null` if none is set.
+
+### email
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the transactional `email` module. Each app may override this with `app.json` → `email`. There is a single config object (no named profiles). Apps still need the `email` permission to call `require('email')`.
+- **`type`** (string): Provider id. Supported in v1: `"console"` (log only, for local dev) or `"sendgrid"`.
+- **`api_key`** (string, optional): SendGrid API key when using `"sendgrid"`.
+- **`from`** / **`from_name`** (string, optional): Default sender identity.
+- **Runtime override:** App scripts may call `email.sendWithConfig(config, message)` to override server + app config for a single send.
+
+### ai
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the generative `ai` module. Apps override with `app.json` → `ai`. Requires the `ai` permission.
+- **`type`** (string): `"mock"` | `"gemini"` | `"xai"` (`xai` / Grok is P1 stub).
+- **`api_key`** (string): Cloud provider key.
+- **`default_model`**, **`default_vision_model`** (string, optional)
+- **`safety`** (object, optional): content safety defaults.
+- **Streaming:** apps use `ai.chatStream(...)` (async iterator).
 
 ### max_body_size
 - **Type:** `string`
@@ -895,6 +922,15 @@ Here is a comprehensive breakdown of all available properties.
     "fallback_path": "index.html"
   },
   "db": [],
+  "email": {
+    "type": "console",
+    "from": "noreply@example.com",
+    "from_name": "My App"
+  },
+  "ai": {
+    "type": "mock",
+    "default_model": "mock-model"
+  },
   "startup_scripts": [],
   "default_include": [],
   "env": {},
@@ -945,6 +981,48 @@ This object is used when the app is of `"type": "SPA"`. SPA behavior is active w
 - **`db`** (array, optional)
   - An array of database connection objects.
   - **Properties:** `type`, `name`, `host`, `user`, `password`, `database`, etc.
+
+### AI (`ai` object, optional)
+
+Single generative AI configuration for the app. App config overrides optional server defaults in `gingee.json` → `ai`. Requires the `ai` permission.
+
+- **`type`** (string): Provider — `mock` (local/dev), `gemini` (Google), `xai` (Grok — P1).
+- **`api_key`** (string): Provider API key (not required for `mock`).
+- **`default_model`** / **`default_vision_model`** (string, optional)
+- **`max_output_tokens`**, **`timeout_ms`**, **`temperature`** (optional)
+- **`safety`** (object, optional): `{ "enabled": false, "fail_closed": true, "moderate_input": false }`
+
+**API (sandbox):** `require('ai')` → `chat`, `chatStream` (async generator), `complete`, `parseDocument`, `moderate`. Pass `{ config: { … } }` as the second argument to override server/app config for one call.
+
+**Example:**
+```json
+"ai": {
+  "type": "gemini",
+  "api_key": "AIza…",
+  "default_model": "gemini-2.5-pro"
+}
+```
+
+### Email (`email` object, optional)
+
+Single outbound email configuration for the app (no named profiles). App config overrides optional server defaults in `gingee.json` → `email`. Requires the `email` permission.
+
+- **`type`** (string, required when using email): Provider id — `sendgrid` or `console` (dev: logs only, no network).
+- **`api_key`** (string): SendGrid API key when `type` is `sendgrid`.
+- **`from`** (string): Default From address.
+- **`from_name`** (string, optional): Default From display name.
+
+**Runtime override:** from a server script you can call `email.sendWithConfig(config, message)` so a one-off send uses config that overrides both `gingee.json` and `app.json` for that transaction only (does not change the app default).
+
+**Example `app.json`:**
+```json
+"email": {
+  "type": "sendgrid",
+  "api_key": "SG.xxxxx",
+  "from": "noreply@example.com",
+  "from_name": "My App"
+}
+```
 
 ### Script Execution Configuration
 
@@ -1254,7 +1332,7 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **Description:** A property to hold the response body before sending. It's often more direct to just pass the data to the `send()` method.
 
 -   **`$g.response.send(data, [status], [contentType])`**
-    -   **Description:** The final method you call to send the response. It intelligently handles different data types.
+    -   **Description:** The final method you call to send a **complete** (non-streaming) response. It intelligently handles different data types.
     -   **`data`**: The content to send.
         -   If `string` or `Buffer`, it's sent as-is.
         -   If `object` or `Array`, it is automatically `JSON.stringify()`-ed, and the `Content-Type` is set to `application/json`.
@@ -1262,6 +1340,55 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **`contentType` (optional):** A `string` to set the `Content-Type` header, overriding `$g.response.headers['Content-Type']`.
     -   **Example (JSON):** `$g.response.send({ user: 'test' });`
     -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
+    -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
+
+#### Streaming responses (SSE and chunked output)
+
+For long-running or progressive output (for example, `require('ai').chatStream(...)`), use the streaming helpers on `$g.response` instead of a single `send()`. These write to the underlying HTTP response without exposing Node's raw `res` object to the sandbox.
+
+-   **`$g.response.startStream([status], [contentType], [extraHeaders])`**
+    -   Opens a streamed response. Default `Content-Type` is `text/event-stream; charset=utf-8` (Server-Sent Events).
+    -   Also sets `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no` for proxy-friendly streaming.
+    -   Optional `extraHeaders` is an object of additional headers to set before the body starts.
+-   **`$g.response.write(chunk)`**
+    -   Writes a raw string or `Buffer` chunk to the open stream.
+-   **`$g.response.writeSSE(payload)`**
+    -   Writes one SSE event line. If `payload` is an object, it is `JSON.stringify`-ed. Format: `data: …\n\n`.
+-   **`$g.response.endStream()`**
+    -   Ends the streamed response and marks the request complete (same completion semantics as `send()` for request lifecycle).
+
+**Example (AI streaming via SSE):**
+```javascript
+module.exports = async function () {
+    await gingee(async ($g) => {
+        const ai = require('ai');
+        const messages = $g.request.body.messages;
+
+        $g.response.startStream(200, 'text/event-stream; charset=utf-8');
+        try {
+            for await (const chunk of ai.chatStream({ messages })) {
+                if (chunk.done) {
+                    $g.response.writeSSE({
+                        type: 'done',
+                        text: chunk.text,
+                        model: chunk.model,
+                        provider: chunk.provider,
+                        usage: chunk.usage || null
+                    });
+                } else if (chunk.textDelta) {
+                    $g.response.writeSSE({ type: 'delta', textDelta: chunk.textDelta });
+                }
+            }
+        } catch (err) {
+            $g.response.writeSSE({ type: 'error', error: err.message });
+        } finally {
+            $g.response.endStream();
+        }
+    });
+};
+```
+
+Clients typically consume this with `fetch()` + `ReadableStream` (POST bodies are not supported by browser `EventSource`).
 
 ### `$g.log`
 
@@ -1469,13 +1596,79 @@ Let's secure our `POST /posts` endpoint and validate its input.
     };
     ```
 
+## Chapter 5b: Email and Generative AI Modules
+
+Two permission-protected integration modules follow the same adapter pattern as `db` and `cache`.
+
+### Transactional email (`require('email')`)
+
+1. Configure a single email object in `app.json` (optional server defaults in `gingee.json`).
+2. Declare `"email"` in `pmft.json` / grant it in Glade.
+3. Send mail from a server script:
+
+```javascript
+module.exports = async function () {
+    await gingee(async ($g) => {
+        const email = require('email');
+        const result = await email.send({
+            to: $g.request.body.to,
+            subject: 'Welcome',
+            text: 'Thanks for joining.',
+            html: '<p>Thanks for joining.</p>'
+        });
+        // result: { messageId, provider, status }
+        $g.response.send(result);
+    });
+};
+```
+
+Use `email.sendWithConfig(configOverride, message)` when a single send must use different credentials or `from` than `app.json` / `gingee.json` (override applies to that call only).
+
+Providers: `console` (logs only; great for local dev), `sendgrid` (`api_key`, `from`, optional `from_name`).
+
+### Generative AI (`require('ai')`)
+
+1. Configure a single `ai` object in `app.json` (optional server defaults in `gingee.json`).
+2. Grant the `"ai"` permission.
+3. Call the unified API:
+
+```javascript
+module.exports = async function () {
+    await gingee(async ($g) => {
+        const ai = require('ai');
+
+        // Non-streaming
+        const reply = await ai.chat({
+            messages: [{ role: 'user', content: $g.request.body.prompt }],
+            model: 'gemini-2.5-pro',      // optional per-call model
+            temperature: 0.4,             // optional
+            maxTokens: 2048               // optional
+        });
+        // reply.text, reply.model, reply.provider, reply.usage { inputTokens, outputTokens }
+
+        $g.response.send({
+            text: reply.text,
+            usage: reply.usage
+        });
+    });
+};
+```
+
+**Streaming** uses `ai.chatStream` with `$g.response.startStream` / `writeSSE` / `endStream` (see [Server Script Guide](./server-script.md)).
+
+Other methods: `ai.complete`, `ai.parseDocument`, `ai.moderate`. Per-call provider override: second argument `{ config: { type, api_key, … } }`.
+
+Providers: `mock` (offline), `gemini` (Google); `xai` (Grok) is reserved for a future release.
+
+Full config field reference: [App Structure](./app-structure.md) and [Server Config](./server-config.md).
+
 ## Chapter 6: A New Paradigm - Building with a GenAI Partner
 
 Gingee was co-authored with a Generative AI, and you can leverage this same powerful workflow to build your own applications. The key is to provide the AI with a "knowledge bundle" of the platform's architecture. We've created this for you.
 
 **How to Start a Development Session with an AI:**
 
-1.  **Get the Context File:** Locate the pre-built `docs/ai-context.md` file in the Gingee repo. This file contains all the core concepts and API references of Gingee that an AI needs.
+1.  **Get the Context File:** Locate the pre-built `docs/ai-context/ai-context.md` file in the Gingee repo. This file contains all the core concepts and API references of Gingee that an AI needs.
 
 2.  **Start a New Chat:** Open a new session with a capable coding AI partner (like Google Gemini).
 
@@ -1670,7 +1863,7 @@ For full control over your application's distributable package, creating a `.gpk
 While `.gpkg` controls *what files* are included in your package, the `pmft.json` manifest declares the *security permissions* your application requires to function.
 
 -   **Location:** The `pmft.json` file must be placed in your application's `box` folder (e.g., `web/my-app/box/pmft.json`).
--   **Purpose:** To declare which protected Gingee modules (like `db` or `fs`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
+-   **Purpose:** To declare which protected Gingee modules (like `db`, `fs`, `email`, or `ai`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
 
 When an administrator installs your `.gin` package using the `gingee-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
 
@@ -1688,7 +1881,7 @@ Security is a core principle of the Gingee platform. The permissions system is d
 
 ## The Philosophy: Secure by Default (Whitelist Model)
 
-Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
+Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`).
 
 Access to these protected modules must be explicitly **granted** by a server administrator. If a permission has not been granted, any attempt by an app to `require()` that module will result in a security error, and the script will fail to execute.
 
@@ -1719,12 +1912,14 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
       "fs"
     ],
     "optional": [
-      "httpclient"
+      "httpclient",
+      "email",
+      "ai"
     ]
   }
 }
 ```
-*In this example, the blog requires database and filesystem access to function. It has an optional feature (perhaps for checking for updates) that requires outbound HTTP calls. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
+*In this example, the blog requires database and filesystem access to function. Optional features (outbound HTTP, transactional email, generative AI) are listed separately so an administrator can grant only what they approve. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
 
 ## For Administrators: Managing Permissions
 
@@ -1771,6 +1966,8 @@ This is the definitive list of all permission keys available in Gingee.
 | **platform** | **PRIVILEGED.** Allows the app to use the `platform` module to manage the lifecycle (install, delete, upgrade, etc.) of other applications on the server. | **Critical.** This is the highest level of privilege. Only grant this to a fully trusted administration application like `glade`. |
 | **cache** | Allows the app to use the caching service for storing and retrieving data. | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data. |
 | **db** | Allows the app to connect to and query the database(s) configured for it in `app.json`. | **High.** Grants access to the application's primary data store. |
+| **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
+| **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS network requests to any external API or website. | **High.** The app can send data to or receive data from any server on the internet. |
 | **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
@@ -2116,7 +2313,7 @@ These are the core architectural features that define the Gingee development exp
     Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
 
 *   **Whitelist-Based Permissions System**
-    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
+    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`).
 
 *   **Flexible Routing Engine**
     Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
@@ -2142,6 +2339,15 @@ These are the core architectural features that define the Gingee development exp
 *   **Resilient Distributed Caching**
     The server provides a centralized, pluggable caching service. Use a dependency-free in-memory cache for local development, or switch to a Redis backend for horizontally scaled production deployments by changing a single line of config.
 
+*   **Transactional Email (`email` Module)**
+    Send mail through a provider adapter (SendGrid in v1, plus a `console` logger for local dev). Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `email.send(message)` or `email.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `email` permission.
+
+*   **Generative AI (`ai` Module)**
+    Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
+
+*   **Streamed HTTP Responses**
+    Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
@@ -2160,6 +2366,10 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 
 *   **`db`**
     The unified database interface. Provides a consistent API (`query`, `execute`, `transaction`) for interacting with any configured database.
+*   **`email`**
+    Transactional email via provider adapters (`sendgrid`, `console`). Config from `gingee.json` / `app.json`, plus `sendWithConfig` for per-transaction overrides. Permission-protected.
+*   **`ai`**
+    Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 *   **`fs`**
     A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
 *   **`httpclient`**
@@ -2211,6 +2421,24 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 ## Modules
 
 <dl>
+<dt><a href="#module_ai">ai</a></dt>
+<dd><p>Generative AI for Gingee apps (chat, multimodal, document parsing, content safety)
+via provider adapters — similar to <code>db</code> / <code>email</code>.</p>
+<p><b>Configuration (single config):</b></p>
+<ul>
+<li>Server defaults: <code>gingee.json</code> → <code>ai</code></li>
+<li>App override: <code>app.json</code> → <code>ai</code></li>
+<li>Per-call override: pass <code>{ config: { … } }</code> as the second argument to any method</li>
+</ul>
+<p><b>Providers:</b></p>
+<ul>
+<li><code>mock</code> — local deterministic responses (dev/tests)</li>
+<li><code>gemini</code> — Google Gemini (v1)</li>
+<li><code>xai</code> — Grok via xAI (P1 — stub until implemented)</li>
+</ul>
+<p><b>Streaming:</b> <code>ai.chatStream(request, options)</code> yields chunk objects; final chunk has <code>done: true</code>.</p>
+<p><b>IMPORTANT:</b> Requires the <code>ai</code> permission. See docs/permissions-guide.</p>
+</dd>
 <dt><a href="#module_auth">auth</a></dt>
 <dd><p>Provides authentication-related functions, including JWT creation and verification.</p>
 </dd>
@@ -2236,6 +2464,17 @@ The final dashboard image can be exported as a PNG buffer or Data URL.</p>
 This module supports multiple database types by loading the appropriate adapter based on configuration.
 It provides methods for querying, executing commands, and managing transactions. 
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
+</dd>
+<dt><a href="#module_email">email</a></dt>
+<dd><p>Transactional email for Gingee apps using a provider adapter pattern (similar to <code>db</code> / <code>cache</code>).</p>
+<p><b>Configuration (single config, no named profiles):</b></p>
+<ul>
+<li>Optional server defaults: <code>gingee.json</code> → <code>email</code></li>
+<li>Optional app config: <code>app.json</code> → <code>email</code> (overrides server for that app)</li>
+<li>Runtime override: <a href="#module_email.sendWithConfig">sendWithConfig</a> merges on top for one send only</li>
+</ul>
+<p><b>Providers (v1):</b> <code>console</code> (log only), <code>sendgrid</code> (@sendgrid/mail)</p>
+<p><b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_encode">encode</a></dt>
 <dd><p>Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
@@ -2311,6 +2550,103 @@ It ensures that all file operations are performed within the secure boundaries d
 </dd>
 </dl>
 
+<a name="module_ai"></a>
+
+## ai
+Generative AI for Gingee apps (chat, multimodal, document parsing, content safety)
+via provider adapters — similar to `db` / `email`.
+
+<b>Configuration (single config):</b>
+- Server defaults: `gingee.json` → `ai`
+- App override: `app.json` → `ai`
+- Per-call override: pass `{ config: { … } }` as the second argument to any method
+
+<b>Providers:</b>
+- `mock` — local deterministic responses (dev/tests)
+- `gemini` — Google Gemini (v1)
+- `xai` — Grok via xAI (P1 — stub until implemented)
+
+<b>Streaming:</b> `ai.chatStream(request, options)` yields chunk objects; final chunk has `done: true`.
+
+<b>IMPORTANT:</b> Requires the `ai` permission. See docs/permissions-guide.
+
+
+* [ai](#module_ai)
+    * _static_
+        * [.chat(request, [options])](#module_ai.chat) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.chatStream(request, [options])](#module_ai.chatStream) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
+        * [.complete()](#module_ai.complete)
+        * [.parseDocument()](#module_ai.parseDocument)
+        * [.moderate()](#module_ai.moderate)
+    * _inner_
+        * [~serverAiConfig](#module_ai..serverAiConfig) : <code>object</code> \| <code>null</code>
+        * [~aiInstances](#module_ai..aiInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+
+<a name="module_ai.chat"></a>
+
+### ai.chat(request, [options]) ⇒ <code>Promise.&lt;object&gt;</code>
+Chat / text generation (supports multimodal content parts). Non-streaming.
+
+**Kind**: static method of [<code>ai</code>](#module_ai)  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with `text`, `model`, `provider`, `usage`, etc.  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| request | <code>object</code> |  |
+| request.messages | <code>Array.&lt;object&gt;</code> | Chat messages: `{ role, content }` where content is a string or array of parts |
+| [request.system] | <code>string</code> |  |
+| [request.model] | <code>string</code> |  |
+| [request.temperature] | <code>number</code> |  |
+| [request.maxTokens] | <code>number</code> |  |
+| [options] | <code>object</code> |  |
+| [options.config] | <code>object</code> | Per-call AI config override |
+
+<a name="module_ai.chatStream"></a>
+
+### ai.chatStream(request, [options]) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
+Streaming chat. Async generator yielding `{ textDelta, done, … }`.
+Final chunk has `done: true` and full `text`.
+
+**Kind**: static method of [<code>ai</code>](#module_ai)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| request | <code>object</code> | Same as [chat](#module_ai.chat) |
+| [options] | <code>object</code> |  |
+| [options.config] | <code>object</code> |  |
+
+**Example**  
+```js
+for await (const chunk of ai.chatStream({ messages: [{ role: 'user', content: 'Hi' }] })) {
+  if (!chunk.done) process.stdout.write(chunk.textDelta);
+}
+```
+<a name="module_ai.complete"></a>
+
+### ai.complete()
+Single-prompt completion (wrapper over chat).
+
+**Kind**: static method of [<code>ai</code>](#module_ai)  
+<a name="module_ai.parseDocument"></a>
+
+### ai.parseDocument()
+OCR / extract / summarize a document (buffer, text, or sandboxed path).
+
+**Kind**: static method of [<code>ai</code>](#module_ai)  
+<a name="module_ai.moderate"></a>
+
+### ai.moderate()
+Content safety check for text (and provider-dependent media later).
+
+**Kind**: static method of [<code>ai</code>](#module_ai)  
+<a name="module_ai..serverAiConfig"></a>
+
+### ai~serverAiConfig : <code>object</code> \| <code>null</code>
+**Kind**: inner property of [<code>ai</code>](#module_ai)  
+<a name="module_ai..aiInstances"></a>
+
+### ai~aiInstances : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+**Kind**: inner constant of [<code>ai</code>](#module_ai)  
 <a name="module_auth"></a>
 
 ## auth
@@ -2938,6 +3274,91 @@ Executes a transaction with the provided callback function.
 ```js
 await db.transaction('myDatabase', async (client) => {    await client.execute('INSERT INTO users (name) VALUES (?)', ['Alice']);});
 ```
+<a name="module_email"></a>
+
+## email
+Transactional email for Gingee apps using a provider adapter pattern (similar to `db` / `cache`).
+
+<b>Configuration (single config, no named profiles):</b>
+- Optional server defaults: `gingee.json` → `email`
+- Optional app config: `app.json` → `email` (overrides server for that app)
+- Runtime override: [sendWithConfig](#module_email.sendWithConfig) merges on top for one send only
+
+<b>Providers (v1):</b> `console` (log only), `sendgrid` (@sendgrid/mail)
+
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+
+
+* [email](#module_email)
+    * _static_
+        * [.send(message)](#module_email.send) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.sendWithConfig(configOverride, message)](#module_email.sendWithConfig) ⇒ <code>Promise.&lt;object&gt;</code>
+    * _inner_
+        * [~serverEmailConfig](#module_email..serverEmailConfig) : <code>object</code> \| <code>null</code>
+        * [~emailInstances](#module_email..emailInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+
+<a name="module_email.send"></a>
+
+### email.send(message) ⇒ <code>Promise.&lt;object&gt;</code>
+Sends an email using the app's resolved config (app.json overrides gingee.json).
+
+**Kind**: static method of [<code>email</code>](#module_email)  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| message | <code>object</code> | Outbound message. |
+| message.to | <code>string</code> \| <code>Array.&lt;string&gt;</code> | Recipient(s). |
+| message.subject | <code>string</code> | Subject line. |
+| [message.text] | <code>string</code> | Plain-text body. |
+| [message.html] | <code>string</code> | HTML body. |
+| [message.from] | <code>string</code> | Override default from address for this message only. |
+| [message.fromName] | <code>string</code> | Override default from name. |
+| [message.cc] | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  |
+| [message.bcc] | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  |
+| [message.replyTo] | <code>string</code> |  |
+| [message.attachments] | <code>Array.&lt;object&gt;</code> | filename, content (Buffer or base64), type, disposition |
+
+**Example**  
+```js
+const email = require('email');
+await email.send({
+  to: 'user@example.com',
+  subject: 'Welcome',
+  text: 'Thanks for joining.',
+  html: '<p>Thanks for joining.</p>'
+});
+```
+<a name="module_email.sendWithConfig"></a>
+
+### email.sendWithConfig(configOverride, message) ⇒ <code>Promise.&lt;object&gt;</code>
+Sends a single email using a runtime config that overrides both server and app.json
+settings for this transaction only. Does not persist or change the app's default adapter.
+
+**Kind**: static method of [<code>email</code>](#module_email)  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| configOverride | <code>object</code> | Partial or full email config (type, api_key, from, from_name, etc.). |
+| message | <code>object</code> | Same shape as [send](#module_email.send). |
+
+**Example**  
+```js
+const email = require('email');
+await email.sendWithConfig(
+  { type: 'sendgrid', api_key: userApiKey, from: 'billing@example.com' },
+  { to: 'customer@example.com', subject: 'Invoice', text: 'Your invoice is attached.' }
+);
+```
+<a name="module_email..serverEmailConfig"></a>
+
+### email~serverEmailConfig : <code>object</code> \| <code>null</code>
+**Kind**: inner property of [<code>email</code>](#module_email)  
+<a name="module_email..emailInstances"></a>
+
+### email~emailInstances : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+**Kind**: inner constant of [<code>email</code>](#module_email)  
 <a name="module_encode"></a>
 
 ## encode

@@ -25,7 +25,8 @@ This phase is focused on adding major new modules that unlock entirely new categ
 -   **Third-Party Service Adapters**
     -   **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.
     -   **Modules:**
-        -   **`mail`**: For transactional email (with adapters for SendGrid, Amazon SES).
+        -   **`email`**: For transactional email (SendGrid + console shipped; Amazon SES and others later).
+        -   **`ai`**: Generative AI module (Gemini + mock shipped; **xai/Grok** and others next).
         -   **`storage`**: For cloud object storage (with an adapter for Amazon S3).
         -   **`search`**: For full-text search (with an adapter for Algolia or Elasticsearch).
 

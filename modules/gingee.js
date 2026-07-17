@@ -145,10 +145,90 @@ module.exports = {
                             cookies: {},
                             body: null,
 
+                            /**
+                             * Begin a streamed HTTP response (e.g. SSE for AI chat).
+                             * After startStream, use write() / writeSSE() and endStream().
+                             */
+                            startStream: (status, contentType, extraHeaders) => {
+                                if (store.$g && store.$g.isCompleted) {
+                                    store.logger.warn(`response.startStream() ignored; response already completed.`);
+                                    return;
+                                }
+                                if (store.$g && store.$g.isStreaming) {
+                                    store.logger.warn(`response.startStream() called twice.`);
+                                    return;
+                                }
+                                store.$g.isStreaming = true;
+                                store.$g.completedBy = path.basename(store.scriptPath);
+
+                                res.statusCode = status || 200;
+
+                                // Custom headers first, then stream defaults win for Content-Type.
+                                let headerKeys = Object.keys(response.headers);
+                                if (headerKeys.length > 0) {
+                                    headerKeys.forEach(key => {
+                                        if (String(key).toLowerCase() === 'content-type') return;
+                                        res.setHeader(key, response.headers[key]);
+                                    });
+                                }
+                                if (extraHeaders && typeof extraHeaders === 'object') {
+                                    Object.keys(extraHeaders).forEach(key => {
+                                        res.setHeader(key, extraHeaders[key]);
+                                    });
+                                }
+
+                                const ct = contentType || 'text/event-stream; charset=utf-8';
+                                res.setHeader('Content-Type', ct);
+                                res.setHeader('Cache-Control', 'no-cache, no-transform');
+                                res.setHeader('Connection', 'keep-alive');
+                                res.setHeader('X-Accel-Buffering', 'no');
+
+                                let cookieKeys = Object.keys(response.cookies);
+                                if (cookieKeys.length > 0) {
+                                    var cookieStrings = cookieKeys.map(key => {
+                                        return `${key}=${response.cookies[key]}`;
+                                    });
+                                    res.setHeader('Set-Cookie', cookieStrings);
+                                }
+
+                                if (typeof res.flushHeaders === 'function') {
+                                    res.flushHeaders();
+                                }
+                            },
+
+                            /** Write a raw chunk to an open stream. */
+                            write: (chunk) => {
+                                if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted) return;
+                                if (chunk === undefined || chunk === null) return;
+                                res.write(typeof chunk === 'string' || Buffer.isBuffer(chunk) ? chunk : String(chunk));
+                            },
+
+                            /**
+                             * Write one Server-Sent Event data line (JSON-serialized if object).
+                             */
+                            writeSSE: (payload) => {
+                                if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted) return;
+                                const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
+                                res.write(`data: ${data}\n\n`);
+                            },
+
+                            /** Finish a streamed response. */
+                            endStream: () => {
+                                if (!store.$g || store.$g.isCompleted) return;
+                                store.$g.isCompleted = true;
+                                store.$g.isStreaming = false;
+                                store.logger.info(`Stream ended by: ${store.$g.completedBy}`);
+                                res.end();
+                            },
+
                             send: (data, status, contentType) => {
                                 if (store.$g && store.$g.isCompleted) {
                                     // Prevent double-sending
                                     store.logger.warn(`response.send() called multiple times. Original call from '${store.$g.completedBy}'. New call from '${path.basename(store.scriptPath)}' ignored.`);
+                                    return;
+                                }
+                                if (store.$g && store.$g.isStreaming) {
+                                    store.logger.warn(`response.send() ignored; stream already started. Use endStream().`);
                                     return;
                                 }
                                 store.$g.isCompleted = true;
@@ -194,6 +274,10 @@ module.exports = {
                 store.$g.request = utils.request(store.req);
                 store.$g.response = response;
                 response.send = response.send.bind(response);
+                response.startStream = response.startStream.bind(response);
+                response.write = response.write.bind(response);
+                response.writeSSE = response.writeSSE.bind(response);
+                response.endStream = response.endStream.bind(response);
 
                 const req = store.req;
 

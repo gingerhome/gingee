@@ -177,13 +177,79 @@ Let's secure our `POST /posts` endpoint and validate its input.
     };
     ```
 
+## Chapter 5b: Email and Generative AI Modules
+
+Two permission-protected integration modules follow the same adapter pattern as `db` and `cache`.
+
+### Transactional email (`require('email')`)
+
+1. Configure a single email object in `app.json` (optional server defaults in `gingee.json`).
+2. Declare `"email"` in `pmft.json` / grant it in Glade.
+3. Send mail from a server script:
+
+```javascript
+module.exports = async function () {
+    await gingee(async ($g) => {
+        const email = require('email');
+        const result = await email.send({
+            to: $g.request.body.to,
+            subject: 'Welcome',
+            text: 'Thanks for joining.',
+            html: '<p>Thanks for joining.</p>'
+        });
+        // result: { messageId, provider, status }
+        $g.response.send(result);
+    });
+};
+```
+
+Use `email.sendWithConfig(configOverride, message)` when a single send must use different credentials or `from` than `app.json` / `gingee.json` (override applies to that call only).
+
+Providers: `console` (logs only; great for local dev), `sendgrid` (`api_key`, `from`, optional `from_name`).
+
+### Generative AI (`require('ai')`)
+
+1. Configure a single `ai` object in `app.json` (optional server defaults in `gingee.json`).
+2. Grant the `"ai"` permission.
+3. Call the unified API:
+
+```javascript
+module.exports = async function () {
+    await gingee(async ($g) => {
+        const ai = require('ai');
+
+        // Non-streaming
+        const reply = await ai.chat({
+            messages: [{ role: 'user', content: $g.request.body.prompt }],
+            model: 'gemini-2.5-pro',      // optional per-call model
+            temperature: 0.4,             // optional
+            maxTokens: 2048               // optional
+        });
+        // reply.text, reply.model, reply.provider, reply.usage { inputTokens, outputTokens }
+
+        $g.response.send({
+            text: reply.text,
+            usage: reply.usage
+        });
+    });
+};
+```
+
+**Streaming** uses `ai.chatStream` with `$g.response.startStream` / `writeSSE` / `endStream` (see [Server Script Guide](./server-script.md)).
+
+Other methods: `ai.complete`, `ai.parseDocument`, `ai.moderate`. Per-call provider override: second argument `{ config: { type, api_key, … } }`.
+
+Providers: `mock` (offline), `gemini` (Google); `xai` (Grok) is reserved for a future release.
+
+Full config field reference: [App Structure](./app-structure.md) and [Server Config](./server-config.md).
+
 ## Chapter 6: A New Paradigm - Building with a GenAI Partner
 
 Gingee was co-authored with a Generative AI, and you can leverage this same powerful workflow to build your own applications. The key is to provide the AI with a "knowledge bundle" of the platform's architecture. We've created this for you.
 
 **How to Start a Development Session with an AI:**
 
-1.  **Get the Context File:** Locate the pre-built `docs/ai-context.md` file in the Gingee repo. This file contains all the core concepts and API references of Gingee that an AI needs.
+1.  **Get the Context File:** Locate the pre-built `docs/ai-context/ai-context.md` file in the Gingee repo. This file contains all the core concepts and API references of Gingee that an AI needs.
 
 2.  **Start a New Chat:** Open a new session with a capable coding AI partner (like Google Gemini).
 
