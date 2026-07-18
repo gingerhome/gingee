@@ -2,6 +2,8 @@
 
 Security is a core principle of the Gingee platform. The permissions system is designed to be **secure by default**, following the **Principle of Least Privilege**. This guide explains how permissions are declared by developers and managed by administrators to create a safe and predictable server environment.
 
+**Important:** Permissions and the app sandbox provide **cooperative multi-app isolation** on a shared Node.js process. They are **not** a hard boundary against mutually hostile tenants. Before deploying untrusted apps, read the **[Gingee Threat Model](./threat-model.md)**.
+
 ## The Philosophy: Secure by Default (Whitelist Model)
 
 Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), generative AI (`ai`), or the CRON **scheduler**.

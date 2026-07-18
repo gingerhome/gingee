@@ -72,7 +72,11 @@ module.exports = async function() {
 
 The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`). For progressive output (for example AI token streaming), `$g.response` also supports `startStream`, `write` / `writeSSE`, and `endStream` — see the [Server Script Guide](./server-script.md).
 
-## 5. The Module Ecosystem
+## 5. Security model (short)
+
+Gingee is designed for **cooperative multi-app** hosting: several applications on one server, separated by a whitelist permission system, BOX/WEB path jails, and admin consent at install time. All apps still share **one Node.js process** (memory and event loop). That is appropriate for first-party or reviewed apps—not for untrusted multi-tenant code on the same instance. Full detail: **[Threat Model](./threat-model.md)**.
+
+## 6. The Module Ecosystem
 
 Gingee provides a rich standard library of "app modules" to handle common tasks securely and efficiently. These are required by name (e.g., `require('db')`) from any server script.
 
@@ -99,7 +103,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 **IMPORTANT**: All Gingee modules are required by name (eg. 'fs'). Some of these names intentionally are similar to NodeJS built-in modules for developer familiarity only. Gingee by default locks out access for all NodeJS built-in modules and third party modules with the exception of 'querystring', 'url' and 'mime-types'. A whitelist of built-in and third party modules can be configured in gingee.json but it is not recommended to do so to preserve the sandboxed nature of Gingee apps.
 
-## 6. Configuration (`gingee.json`, `app.json`, etc.)
+## 7. Configuration (`gingee.json`, `app.json`, etc.)
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
@@ -110,7 +114,7 @@ Configuration in Gingee is declarative and split across several manifest files, 
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.
 
-## 7. The Command Line Interface (CLI)
+## 8. The Command Line Interface (CLI)
 
 The `gingee-cli` is an essential, all-in-one tool for the entire application lifecycle. It is used for both local development and production server management. Its key capabilities include:
 
@@ -121,7 +125,7 @@ The `gingee-cli` is an essential, all-in-one tool for the entire application lif
 
 For detailed usage of all commands, see the **CLI Command Reference** [MD](./gingee-cli.md) / [HTML](./gingee-cli.html).
 
-## 8. A GenAI-Native Platform
+## 9. A GenAI-Native Platform
 
 Gingee is unique in its origin and development philosophy. It was co-authored by a human architect and a Generative AI partner, embracing a workflow we call "Dialog-Driven Development." High-level goals are discussed and refined in a collaborative dialogue, and the AI generates the implementation, which is then tested and validated.
 
