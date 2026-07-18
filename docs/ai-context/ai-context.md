@@ -502,6 +502,15 @@ Here is a comprehensive breakdown of all available properties.
     "enabled": false,
     "timezone": "UTC"
   },
+  "limits": {
+    "request_timeout_ms": 30000,
+    "request_timeout_stream_ms": 300000,
+    "stream_idle_timeout_ms": 60000,
+    "outbound_timeout_ms": 15000,
+    "max_concurrent_requests": 100,
+    "max_concurrent_requests_per_app": 25,
+    "max_concurrent_outbound": 50
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -596,6 +605,31 @@ An object that configures the HTTP and HTTPS servers.
 - **`timezone`** (string, optional):
   - **Default:** `"UTC"`
   - Default IANA timezone for jobs that omit `timezone` in `app.json`.
+
+### limits
+
+- **Type:** `object` (optional)
+- **Description:** Platform **timeouts and concurrency** for this Gingee node. Protects the shared process from hung scripts, stuck outbound HTTP, and request storms. Safe defaults apply when omitted.
+- **App override:** optional `app.json` → `limits` may only **tighten** (lower) these ceilings, never raise them.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `request_timeout_ms` | `30000` | Wall-clock budget for a non-streaming server script (starts when the script runs). On expiry: **504** JSON and request abort signal. |
+| `request_timeout_stream_ms` | `300000` | Hard cap after `$g.response.startStream()` (e.g. AI SSE). |
+| `stream_idle_timeout_ms` | `60000` | If no `write` / `writeSSE` for this long while streaming, the stream is ended (**504** / error SSE). |
+| `outbound_timeout_ms` | `15000` | Default `httpclient` axios timeout when the app omits `options.timeout` (also a ceiling for explicit timeouts). Clamped to remaining request budget when not streaming. |
+| `max_concurrent_requests` | `100` | Max in-flight **server scripts** process-wide (static files are not counted). Over limit → **503** `TOO_MANY_REQUESTS`. |
+| `max_concurrent_requests_per_app` | `25` | Max in-flight scripts per app. Over limit → **503**. |
+| `max_concurrent_outbound` | `50` | Max concurrent `httpclient` calls process-wide. Over limit → status **503** from httpclient. |
+| `headers_timeout_ms` | `60000` | Node HTTP `server.headersTimeout`. |
+| `request_timeout_server_ms` | `120000` | Node HTTP `server.requestTimeout` (whole connection). |
+| `keep_alive_timeout_ms` | `5000` | Node HTTP keep-alive. |
+
+**Notes:**
+
+- Timeouts are **best-effort** for async I/O. Pure CPU spin in a script is not preempted (shared event loop).
+- Streaming uses idle + hard caps so AI token streams are not killed at 30s.
+- Scheduler jobs use their own `timeout_ms` and do **not** consume HTTP concurrency slots.
 
 ### max_body_size
 - **Type:** `string`
@@ -1021,6 +1055,20 @@ Single generative AI configuration for the app. App config overrides optional se
 }
 ```
 
+### Limits (`limits` object, optional)
+
+Optional **tightening** of server `gingee.json` → `limits` for this app only (cannot raise ceilings).
+
+```json
+"limits": {
+  "request_timeout_ms": 15000,
+  "max_concurrent_requests": 10,
+  "outbound_timeout_ms": 8000
+}
+```
+
+See [Server Config](./server-config.md) for full field list and defaults. Use this to protect a noisy app from monopolizing the process (lower concurrency) or to fail faster than the server default.
+
 ### Schedules (`schedules` array, optional)
 
 Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**.
@@ -1423,6 +1471,19 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **Example (JSON):** `$g.response.send({ user: 'test' });`
     -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
     -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
+
+#### Platform limits (`$g.limits`, abort signal)
+
+When a **server script** runs under the engine limits module:
+
+-   **`$g.limits.remainingMs`** — milliseconds left on the non-stream request budget (or `null` if not applicable)
+-   **`$g.limits.deadline`** — absolute epoch ms deadline
+-   **`$g.limits.signal`** / **`$g.request.signal`** — `AbortSignal` aborted on request timeout (passed to `httpclient` automatically)
+-   **`$g.limits.config`** — effective limits object for this request
+
+Non-stream scripts that exceed `request_timeout_ms` receive a platform **504** if they have not yet completed. After `startStream()`, stream **idle** and **hard** timeouts apply instead. Concurrency overloads return **503** before the script runs.
+
+Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are subject to `max_concurrent_outbound`.
 
 #### Scheduled job context
 
@@ -2490,6 +2551,9 @@ These are the core architectural features that define the Gingee development exp
 *   **CRON Scheduler**
     Apps declare recurring jobs in `app.json` → `schedules` (script path under `box/` or absolute external URL). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`); enable it on **one** node in multi-server deployments. Requires the `scheduler` permission (and `httpclient` for URL targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
 
+*   **Request & Outbound Limits**
+    Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
@@ -2651,8 +2715,11 @@ It abstracts the complexities of making HTTP requests, providing a simple interf
 It supports both text and binary responses, automatically determining the response type based on the content-type header.
 It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
 It allows for flexible data submission, making it suitable for APIs that require different content types.
-It provides constants for common POST data types, ensuring that the correct headers are set for the request.
-<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
+It provides constants for common POST data types, ensuring that the correct headers are set for the request.</p>
+<p><b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
+<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
+remaining request budget when available). Concurrent outbound calls are also capped.</p>
+<p><b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_image">image</a></dt>
 <dd><p>A module for image processing using the <a href="https://sharp.pixelplumbing.com/">Sharp</a> library.
@@ -4459,7 +4526,19 @@ const $ = await html.fromUrl('https://example.com');console.log($('.test').text
 <a name="module_httpclient"></a>
 
 ## httpclient
-A module for making HTTP requests in Gingee applications.This module provides functions to perform GET and POST requests, supporting various content types.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.It supports both text and binary responses, automatically determining the response type based on the content-type header.It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.It allows for flexible data submission, making it suitable for APIs that require different content types.It provides constants for common POST data types, ensuring that the correct headers are set for the request.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+A module for making HTTP requests in Gingee applications.
+This module provides functions to perform GET and POST requests, supporting various content types.
+It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
+It supports both text and binary responses, automatically determining the response type based on the content-type header.
+It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
+It allows for flexible data submission, making it suitable for APIs that require different content types.
+It provides constants for common POST data types, ensuring that the correct headers are set for the request.
+
+<b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
+<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
+remaining request budget when available). Concurrent outbound calls are also capped.
+
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [httpclient](#module_httpclient)
@@ -4474,37 +4553,47 @@ A module for making HTTP requests in Gingee applications.This module provides f
 <a name="module_httpclient.JSON"></a>
 
 ### httpclient.JSON
-Constant for JSON content type in POST requests.This constant can be used to specify that the POST request body is in JSON format.
+Constant for JSON content type in POST requests.
+This constant can be used to specify that the POST request body is in JSON format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.FORM"></a>
 
 ### httpclient.FORM
-Constant for form-urlencoded content type in POST requests.This constant can be used to specify that the POST request body is in form-urlencoded format.
+Constant for form-urlencoded content type in POST requests.
+This constant can be used to specify that the POST request body is in form-urlencoded format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.TEXT"></a>
 
 ### httpclient.TEXT
-Constant for plain text content type in POST requests.This constant can be used to specify that the POST request body is in plain text format.
+Constant for plain text content type in POST requests.
+This constant can be used to specify that the POST request body is in plain text format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.XML"></a>
 
 ### httpclient.XML
-Constant for XML content type in POST requests.This constant can be used to specify that the POST request body is in XML format.
+Constant for XML content type in POST requests.
+This constant can be used to specify that the POST request body is in XML format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.MULTIPART"></a>
 
 ### httpclient.MULTIPART
-Constant for multipart/form-data content type in POST requests.This constant can be used to specify that the POST request body is in multipart/form-data format.
+Constant for multipart/form-data content type in POST requests.
+This constant can be used to specify that the POST request body is in multipart/form-data format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.get"></a>
 
 ### httpclient.get(url, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-Performs an HTTP GET request.This function retrieves data from a specified URL and returns the response status, headers, and body.It supports both text and binary responses, automatically determining the response type based on the content-type header.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.It is particularly useful for applications that need to fetch resources from external APIs or web services.
+Performs an HTTP GET request.
+This function retrieves data from a specified URL and returns the response status, headers, and body.
+It supports both text and binary responses, automatically determining the response type based on the content-type header.
+It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.
+It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.
+It is particularly useful for applications that need to fetch resources from external APIs or web services.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
 **Throws**:
@@ -4515,16 +4604,21 @@ Performs an HTTP GET request.This function retrieves data from a specified URL 
 | Param | Type | Description |
 | --- | --- | --- |
 | url | <code>string</code> | The URL to request. |
-| [options] | <code>object</code> | Axios request configuration options (e.g., headers). |
+| [options] | <code>object</code> | Axios request configuration options (e.g., headers, timeout, signal). |
 
 **Example**  
 ```js
-const response = await httpclient.get('https://api.example.com/data');console.log(response.body);
+const response = await httpclient.get('https://api.example.com/data');
+console.log(response.body);
 ```
 <a name="module_httpclient.post"></a>
 
 ### httpclient.post(url, body, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-Performs an HTTP POST request.This function sends data to a specified URL and returns the response status, headers, and body.It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.It allows for flexible data submission, making it suitable for APIs that require different content types.
+Performs an HTTP POST request.
+This function sends data to a specified URL and returns the response status, headers, and body.
+It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.
+It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.
+It allows for flexible data submission, making it suitable for APIs that require different content types.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
 **Throws**:
@@ -4541,7 +4635,8 @@ Performs an HTTP POST request.This function sends data to a specified URL and r
 
 **Example**  
 ```js
-const response = await httpclient.post('https://api.example.com/data', { key: 'value' });console.log(response.body);
+const response = await httpclient.post('https://api.example.com/data', { key: 'value' });
+console.log(response.body);
 ```
 <a name="module_image"></a>
 

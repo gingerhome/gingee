@@ -34,7 +34,8 @@ const restrictedGlobalModules = [
   'cache_service',
   'internal_utils',
   'platform',
-  'scheduler'
+  'scheduler',
+  'limits'
 ];
 
 const gingee = require('./gingee.js');

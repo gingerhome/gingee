@@ -186,6 +186,19 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
     -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
 
+#### Platform limits (`$g.limits`, abort signal)
+
+When a **server script** runs under the engine limits module:
+
+-   **`$g.limits.remainingMs`** — milliseconds left on the non-stream request budget (or `null` if not applicable)
+-   **`$g.limits.deadline`** — absolute epoch ms deadline
+-   **`$g.limits.signal`** / **`$g.request.signal`** — `AbortSignal` aborted on request timeout (passed to `httpclient` automatically)
+-   **`$g.limits.config`** — effective limits object for this request
+
+Non-stream scripts that exceed `request_timeout_ms` receive a platform **504** if they have not yet completed. After `startStream()`, stream **idle** and **hard** timeouts apply instead. Concurrency overloads return **503** before the script runs.
+
+Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are subject to `max_concurrent_outbound`.
+
 #### Scheduled job context
 
 When a script is invoked by the **CRON scheduler** (see `app.json` → `schedules`), there is no HTTP request. The `gingee()` middleware still provides `$g`, with:

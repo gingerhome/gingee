@@ -7,6 +7,7 @@ const { formidable } = require('formidable');
 
 const fs = require('fs');
 const path = require('path');
+const limits = require('./limits.js');
 
 function _parseSize(sizeStr) {
     if (typeof sizeStr !== "string") {
@@ -90,6 +91,22 @@ module.exports = {
             store.$g.request = null;
             store.$g.response = null;
             store.$g.schedule = null;
+
+            // Platform limits (request budget / abort) when attached by the engine.
+            if (store.limitsConfig || store.requestAbortSignal) {
+                store.$g.limits = {
+                    get remainingMs() {
+                        return limits.remainingRequestMs(store);
+                    },
+                    get deadline() {
+                        return store.requestDeadline || null;
+                    },
+                    get signal() {
+                        return store.requestAbortSignal || null;
+                    },
+                    config: store.limitsConfig || null
+                };
+            }
 
             if (store.isPrivileged) {
                 store.$g.appNames = store.appNames;
@@ -255,12 +272,16 @@ module.exports = {
                                 if (typeof res.flushHeaders === 'function') {
                                     res.flushHeaders();
                                 }
+
+                                // Replace short request wall-clock with stream idle + hard cap.
+                                limits.onStreamStart(store);
                             },
 
                             /** Write a raw chunk to an open stream. */
                             write: (chunk) => {
                                 if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted) return;
                                 if (chunk === undefined || chunk === null) return;
+                                limits.touchStream(store);
                                 res.write(typeof chunk === 'string' || Buffer.isBuffer(chunk) ? chunk : String(chunk));
                             },
 
@@ -269,6 +290,7 @@ module.exports = {
                              */
                             writeSSE: (payload) => {
                                 if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted) return;
+                                limits.touchStream(store);
                                 const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
                                 res.write(`data: ${data}\n\n`);
                             },
@@ -278,6 +300,7 @@ module.exports = {
                                 if (!store.$g || store.$g.isCompleted) return;
                                 store.$g.isCompleted = true;
                                 store.$g.isStreaming = false;
+                                limits.clearRequestTimers(store);
                                 store.logger.info(`Stream ended by: ${store.$g.completedBy}`);
                                 res.end();
                             },
@@ -294,6 +317,7 @@ module.exports = {
                                 }
                                 store.$g.isCompleted = true;
                                 store.$g.completedBy = path.basename(store.scriptPath);
+                                limits.clearRequestTimers(store);
                                 store.logger.info(`Response sent by: ${store.$g.completedBy}`);
 
                                 res.statusCode = status || response.status || 200;
@@ -333,6 +357,10 @@ module.exports = {
 
                 const response = utils.response(store.res);
                 store.$g.request = utils.request(store.req);
+                // Cooperative cancel for outbound calls / long work.
+                if (store.requestAbortSignal) {
+                    store.$g.request.signal = store.requestAbortSignal;
+                }
                 store.$g.response = response;
                 response.send = response.send.bind(response);
                 response.startStream = response.startStream.bind(response);

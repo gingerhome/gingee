@@ -57,6 +57,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Rich Standard Library:** A comprehensive suite of sandboxed modules for common tasks, including `crypto`, `image` processing, `pdf` generation, `db` access, `httpclient`, transactional `email` (SendGrid / console), and generative `ai` (Gemini / mock, streaming chat, multimodal, document parse, moderation).
   - **Streamed Responses:** Progressive output (e.g. SSE for AI tokens) via `$g.response.startStream` / `writeSSE` / `endStream`.
   - **CRON Scheduler:** App-declared schedules in `app.json` (sandbox script or external URL); server gate `scheduler.enabled` (default off; enable on one node when load balancing).
+  - **Request & Outbound Limits:** Concurrency caps, request/stream timeouts, and default `httpclient` timeouts via `gingee.json` → `limits`.
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 

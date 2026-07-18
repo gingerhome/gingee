@@ -138,6 +138,20 @@ Single generative AI configuration for the app. App config overrides optional se
 }
 ```
 
+### Limits (`limits` object, optional)
+
+Optional **tightening** of server `gingee.json` → `limits` for this app only (cannot raise ceilings).
+
+```json
+"limits": {
+  "request_timeout_ms": 15000,
+  "max_concurrent_requests": 10,
+  "outbound_timeout_ms": 8000
+}
+```
+
+See [Server Config](./server-config.md) for full field list and defaults. Use this to protect a noisy app from monopolizing the process (lower concurrency) or to fail faster than the server default.
+
 ### Schedules (`schedules` array, optional)
 
 Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**.

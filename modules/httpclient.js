@@ -1,6 +1,8 @@
 const axios = require('axios');
 const querystring = require('querystring');
 const FormData = require('form-data');
+const { getContext } = require('./gingee.js');
+const limits = require('./limits.js');
 
 /**
  * @module httpclient
@@ -11,6 +13,11 @@ const FormData = require('form-data');
  * It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
  * It allows for flexible data submission, making it suitable for APIs that require different content types.
  * It provides constants for common POST data types, ensuring that the correct headers are set for the request.
+ *
+ * <b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
+ * <code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
+ * remaining request budget when available). Concurrent outbound calls are also capped.
+ *
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
 
@@ -51,6 +58,97 @@ function processBody(data, headers) {
     return bodyBuffer.toString('utf8');
 }
 
+/**
+ * Build axios config with platform timeout, abort signal, and outbound concurrency.
+ * @private
+ */
+function applyPlatformLimits(options = {}) {
+    let store = null;
+    try {
+        store = getContext();
+    } catch (_) {
+        store = null;
+    }
+
+    const timeout = limits.resolveOutboundTimeoutMs(options.timeout, store);
+    const signal = options.signal || (store && store.requestAbortSignal) || undefined;
+
+    const outbound = limits.tryAcquireOutbound();
+    if (!outbound.ok) {
+        const err = new Error(outbound.message);
+        err.code = 'TOO_MANY_OUTBOUND';
+        throw err;
+    }
+
+    return {
+        axiosConfig: {
+            ...options,
+            timeout,
+            ...(signal ? { signal } : {}),
+            responseType: 'arraybuffer'
+        },
+        releaseOutbound: outbound.release,
+        timeout
+    };
+}
+
+/**
+ * Normalize axios / network errors into the module's status/body shape.
+ * @private
+ */
+function mapAxiosError(axiosErr) {
+    if (axiosErr.response) {
+        const body = processBody(axiosErr.response.data, axiosErr.response.headers);
+        return {
+            status: axiosErr.response.status,
+            headers: axiosErr.response.headers,
+            body: body,
+        };
+    }
+
+    const code = axiosErr.code || (axiosErr.name === 'CanceledError' || axiosErr.name === 'AbortError' ? 'ABORTED' : null);
+    const isTimeout =
+        code === 'ECONNABORTED' ||
+        code === 'ETIMEDOUT' ||
+        /timeout/i.test(axiosErr.message || '');
+    const isAbort =
+        code === 'ERR_CANCELED' ||
+        code === 'ABORTED' ||
+        axiosErr.name === 'CanceledError' ||
+        axiosErr.name === 'AbortError';
+
+    if (isTimeout) {
+        return {
+            status: 504,
+            headers: {},
+            body: 'Outbound request timed out: ' + (axiosErr.message || 'timeout'),
+            code: 'ETIMEDOUT'
+        };
+    }
+    if (isAbort) {
+        return {
+            status: 499,
+            headers: {},
+            body: 'Outbound request aborted: ' + (axiosErr.message || 'aborted'),
+            code: 'ABORTED'
+        };
+    }
+    if (axiosErr.code === 'TOO_MANY_OUTBOUND') {
+        return {
+            status: 503,
+            headers: {},
+            body: axiosErr.message,
+            code: 'TOO_MANY_OUTBOUND'
+        };
+    }
+
+    return {
+        status: 500,
+        headers: {},
+        body: 'Unexpected error occurred: ' + (axiosErr.message || 'No message provided'),
+        code: code || 'ERROR'
+    };
+}
 
 /**
  * @function get
@@ -62,7 +160,7 @@ function processBody(data, headers) {
  * It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.
  * It is particularly useful for applications that need to fetch resources from external APIs or web services.
  * @param {string} url The URL to request.
- * @param {object} [options] Axios request configuration options (e.g., headers).
+ * @param {object} [options] Axios request configuration options (e.g., headers, timeout, signal).
  * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
  * @throws {Error} If the request fails or if the response body cannot be processed.
  * @example
@@ -70,37 +168,24 @@ function processBody(data, headers) {
  * console.log(response.body);
  */
 async function get(url, options = {}) {
-    // --- KEY CHANGE ---
-    // Always request the raw arraybuffer so we can decide how to handle it later.
-    const config = { ...options, responseType: 'arraybuffer' };
-
-    try{
-        const response = await axios.get(url, config);
-
-        // Process the body based on the ACTUAL response headers.
+    let releaseOutbound = null;
+    try {
+        const prepared = applyPlatformLimits(options);
+        releaseOutbound = prepared.releaseOutbound;
+        const response = await axios.get(url, prepared.axiosConfig);
         const body = processBody(response.data, response.headers);
-
         return {
             status: response.status,
             headers: response.headers,
             body: body,
         };
-    }catch(axiosErr){
-        if(axiosErr.response){
-            // If we got a response, process it similarly.
-            const body = processBody(axiosErr.response.data, axiosErr.response.headers);
-            return {
-                status: axiosErr.response.status,
-                headers: axiosErr.response.headers,
-                body: body,
-            };
-        }else{
-            return {
-                status: 500,
-                headers: {},
-                body: 'Unexpected error occurred: ' + (axiosErr.message || 'No message provided'),
-            };
+    } catch (axiosErr) {
+        if (axiosErr.code === 'TOO_MANY_OUTBOUND') {
+            return mapAxiosError(axiosErr);
         }
+        return mapAxiosError(axiosErr);
+    } finally {
+        if (releaseOutbound) releaseOutbound();
     }
 }
 
@@ -124,49 +209,39 @@ async function get(url, options = {}) {
  */
 async function post(url, body, options = {}) {
     const postType = options.postType || POST_TYPES.JSON;
-    const config = {
-        headers: { 'Content-Type': postType, ...options.headers },
-        // --- KEY CHANGE ---
-        // Always request the raw arraybuffer for the response.
-        responseType: 'arraybuffer',
-    };
+    let releaseOutbound = null;
 
-    let data = body;
-    // ... (The logic for preparing the POST data based on postType is unchanged) ...
-    if (postType === POST_TYPES.JSON) data = JSON.stringify(body);
-    if (postType === POST_TYPES.FORM) data = querystring.stringify(body);
-    if (postType === POST_TYPES.MULTIPART) {
-        if (!(body instanceof FormData)) throw new Error("For MULTIPART, body must use object created with formdata module.");
-        delete config.headers['Content-Type'];
-    }
+    try {
+        const prepared = applyPlatformLimits(options);
+        releaseOutbound = prepared.releaseOutbound;
 
-    try{
+        const config = {
+            ...prepared.axiosConfig,
+            headers: { 'Content-Type': postType, ...(options.headers || {}) },
+        };
+
+        let data = body;
+        if (postType === POST_TYPES.JSON) data = JSON.stringify(body);
+        if (postType === POST_TYPES.FORM) data = querystring.stringify(body);
+        if (postType === POST_TYPES.MULTIPART) {
+            if (!(body instanceof FormData)) throw new Error("For MULTIPART, body must use object created with formdata module.");
+            delete config.headers['Content-Type'];
+        }
+
         const response = await axios.post(url, data, config);
-
-        // Process the body based on the ACTUAL response headers.
         const responseBody = processBody(response.data, response.headers);
-
         return {
             status: response.status,
             headers: response.headers,
             body: responseBody,
         };
-    }catch(axiosErr){
-        if(axiosErr.response){
-            // If we got a response, process it similarly.
-            const body = processBody(axiosErr.response.data, axiosErr.response.headers);
-            return {
-                status: axiosErr.response.status,
-                headers: axiosErr.response.headers,
-                body: body,
-            };
-        }else{
-            return {
-                status: 500,
-                headers: {},
-                body: 'Unexpected error occurred: ' + (axiosErr.message || 'No message provided'),
-            };
+    } catch (axiosErr) {
+        if (axiosErr.message && axiosErr.message.includes('MULTIPART')) {
+            throw axiosErr;
         }
+        return mapAxiosError(axiosErr);
+    } finally {
+        if (releaseOutbound) releaseOutbound();
     }
 }
 
