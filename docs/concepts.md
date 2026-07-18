@@ -74,7 +74,7 @@ The `$g` object is your secure gateway to everything you need for a request, inc
 
 ## 5. Security model (short)
 
-Gingee is designed for **cooperative multi-app** hosting: several applications on one server, separated by a whitelist permission system, BOX/WEB path jails, and admin consent at install time. All apps still share **one Node.js process** (memory and event loop). That is appropriate for first-party or reviewed apps—not for untrusted multi-tenant code on the same instance. Full detail: **[Threat Model](./threat-model.md)**.
+Gingee is designed for **cooperative multi-app** hosting: several applications on one server, separated by a whitelist permission system, BOX/WEB path jails, a **vm sandbox without host `process`**, and admin consent at install time. All apps still share **one Node.js process** (memory and event loop). That is appropriate for first-party or reviewed apps—not for untrusted multi-tenant code on the same instance. Full detail: **[Threat Model](./threat-model.md)**.
 
 ## 6. The Module Ecosystem
 

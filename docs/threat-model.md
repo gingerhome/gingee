@@ -105,24 +105,32 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ### 6.2 Soft sandbox reality (`gbox`)
 
-App scripts run via a custom `require` and `new Function(...)` (not a separate OS process, not `isolated-vm` by default).
+App scripts run in a **Node `vm` context** with a custom `require` (not a separate OS process). By default:
 
-**Shared across all apps on the instance:**
+- Host **`process`** is not available (throws if referenced) — primary defense against reading host/`process.env` secrets
+- Sandbox **`global` / `globalThis`** point at the sandbox object only
+- **`eval` / `new Function` string codegen** is **allowed by default** so common BOX-vendored UMD libraries (e.g. Handlebars) load; generated code still runs in the same vm and **does not regain host `process`**. Set `box.allow_code_generation: false` for stricter lockdown when those libs are not needed.
+- Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
 
-- Memory heap and V8 isolates (single process)
-- Event loop (one blocked script delays others)
-- Ability to allocate until OOM
+**Still shared across all apps on the instance:**
+
+- Memory heap and the single process event loop
+- Ability to allocate until OOM / burn CPU (timeouts help async work only)
 - Engine modules loaded into the same process
+- After config/secrets resolution, values live in process memory
 
 **Therefore:**
 
 | Claim | Valid? |
 | :--- | :--- |
-| “App A cannot `require('fs')` Node core without grant” | **Yes** (gRequire deny) |
+| “App A cannot `require` host `fs` / `child_process` without grant” | **Yes** (gRequire + forbidden built-ins) |
+| “App A cannot read `process.env` of the host” | **Yes** under default gbox (no `process`) |
 | “App A cannot read App B’s BOX via normal `fs` APIs” | **Yes**, if path jail holds |
 | “App A cannot affect App B’s availability” | **No** — CPU/memory/event loop are shared |
-| “App A cannot inspect App B’s secrets in RAM” | **No hard guarantee** against sophisticated process-level attacks |
+| “App A cannot inspect App B’s secrets in RAM after resolve” | **No hard guarantee** (same process) |
 | “Permissions equal cloud multi-tenant isolation” | **No** |
+
+**Env-based secrets (planned):** Putting secrets in `process.env` is **ops hygiene** (not in JSON/git). It is **not** inter-app isolation on one process—another reason untrusted apps must not share a process. Engine resolves `env:` refs into **that app’s config** only; scripts should not need `process`.
 
 ---
 

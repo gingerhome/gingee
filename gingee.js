@@ -65,7 +65,10 @@ const defaultConfig = {
     }
   },
   box: {
-    allowed_modules: []
+    allowed_modules: [],
+    // true (default): allow eval/new Function inside the vm sandbox so common UMD libs
+    // (e.g. Handlebars) load. Host process is still blocked. Set false for stricter lockdown.
+    allow_code_generation: true
   },
   // Scheduler is off by default. Enable on at most one node in multi-server deployments.
   scheduler: {
@@ -558,7 +561,11 @@ async function requestHandler(req, res, apps, config, logger) {
               allowedBuiltinModules,
               privilegedApps,
               useCache,
-              logger
+              logger,
+              globalConfig: config,
+              // undefined → gbox default (true); only false disables
+              allowCodeGeneration:
+                !config.box || config.box.allow_code_generation !== false
             };
 
             // Request budget + AbortSignal for this script invocation.

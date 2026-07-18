@@ -83,7 +83,7 @@ The `$g` object is your secure gateway to everything you need for a request, inc
 
 ## 5. Security model (short)
 
-Gingee is designed for **cooperative multi-app** hosting: several applications on one server, separated by a whitelist permission system, BOX/WEB path jails, and admin consent at install time. All apps still share **one Node.js process** (memory and event loop). That is appropriate for first-party or reviewed apps—not for untrusted multi-tenant code on the same instance. Full detail: **[Threat Model](./threat-model.md)**.
+Gingee is designed for **cooperative multi-app** hosting: several applications on one server, separated by a whitelist permission system, BOX/WEB path jails, a **vm sandbox without host `process`**, and admin consent at install time. All apps still share **one Node.js process** (memory and event loop). That is appropriate for first-party or reviewed apps—not for untrusted multi-tenant code on the same instance. Full detail: **[Threat Model](./threat-model.md)**.
 
 ## 6. The Module Ecosystem
 
@@ -693,9 +693,19 @@ An object that configures the server's logger.
 ### box (Sandbox Configuration)
 
 - **Type:** `object`
-- **Description:** Configures the security settings for the `gbox` sandbox environment.
-- **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Any module not on this list (e.g., `fs`, `child_process`) cannot be accessed. **Ideally you will never need to set this property**
-- **Example:** `["url", "querystring"]`
+- **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
+- **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
+- **`allow_code_generation`** (boolean, optional):
+  - **Default:** `false`
+  - When `false`, `eval` / `new Function` / string-based code generation is disabled in the sandbox (blocks classic sandbox escapes to host `process`).
+  - Set to `true` only if a **trusted** vendored library in an app BOX requires it (some minified bundles use `Function('return this')`).
+- **Example:**
+```json
+"box": {
+  "allowed_modules": [],
+  "allow_code_generation": false
+}
+```
 
 ### default_app
 
@@ -2330,24 +2340,32 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ### 6.2 Soft sandbox reality (`gbox`)
 
-App scripts run via a custom `require` and `new Function(...)` (not a separate OS process, not `isolated-vm` by default).
+App scripts run in a **Node `vm` context** with a custom `require` (not a separate OS process). By default:
 
-**Shared across all apps on the instance:**
+- Host **`process`** is not available (throws a security error if referenced)
+- Sandbox **`global` / `globalThis`** point at the sandbox object only
+- **`eval` / `new Function` string codegen** is disabled (`box.allow_code_generation` defaults to `false`) so classic `Function('return process')` escapes fail
+- Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
 
-- Memory heap and V8 isolates (single process)
-- Event loop (one blocked script delays others)
-- Ability to allocate until OOM
+**Still shared across all apps on the instance:**
+
+- Memory heap and the single process event loop
+- Ability to allocate until OOM / burn CPU (timeouts help async work only)
 - Engine modules loaded into the same process
+- After config/secrets resolution, values live in process memory
 
 **Therefore:**
 
 | Claim | Valid? |
 | :--- | :--- |
-| “App A cannot `require('fs')` Node core without grant” | **Yes** (gRequire deny) |
+| “App A cannot `require` host `fs` / `child_process` without grant” | **Yes** (gRequire + forbidden built-ins) |
+| “App A cannot read `process.env` of the host” | **Yes** under default gbox (no `process`) |
 | “App A cannot read App B’s BOX via normal `fs` APIs” | **Yes**, if path jail holds |
 | “App A cannot affect App B’s availability” | **No** — CPU/memory/event loop are shared |
-| “App A cannot inspect App B’s secrets in RAM” | **No hard guarantee** against sophisticated process-level attacks |
+| “App A cannot inspect App B’s secrets in RAM after resolve” | **No hard guarantee** (same process) |
 | “Permissions equal cloud multi-tenant isolation” | **No** |
+
+**Env-based secrets (planned):** Putting secrets in `process.env` is **ops hygiene** (not in JSON/git). It is **not** inter-app isolation on one process—another reason untrusted apps must not share a process. Engine resolves `env:` refs into **that app’s config** only; scripts should not need `process`.
 
 ---
 

@@ -223,9 +223,19 @@ An object that configures the server's logger.
 ### box (Sandbox Configuration)
 
 - **Type:** `object`
-- **Description:** Configures the security settings for the `gbox` sandbox environment.
-- **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Any module not on this list (e.g., `fs`, `child_process`) cannot be accessed. **Ideally you will never need to set this property**
-- **Example:** `["url", "querystring"]`
+- **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
+- **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
+- **`allow_code_generation`** (boolean, optional):
+  - **Default:** `true` (Instant Time to Joy — many UMD/minified libs such as Handlebars need `new Function` at load time).
+  - When `true`, string `eval` / `Function` work **inside the app vm only**. Host **`process` remains unavailable**; apps cannot read `process.env`.
+  - Set to `false` for a stricter lockdown when you do not load such libraries (disables string codegen in the sandbox).
+- **Example (stricter):**
+```json
+"box": {
+  "allowed_modules": [],
+  "allow_code_generation": false
+}
+```
 
 ### default_app
 

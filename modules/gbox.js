@@ -1,5 +1,6 @@
 const nodeFs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const sucrase = require('sucrase');
 const { isPathInside } = require('./internal_utils.js');
 
@@ -21,10 +22,34 @@ const PROTECTED_MODULES = [
 
 // A whitelist of globally-allowed, safe UTILITY modules (both built-in and third-party).
 const globallyAllowedModules = [
-  "url",          // built-in
-  "querystring",  // built-in
-  "mime-types"    // third-party
+  'url', // built-in
+  'querystring', // built-in
+  'mime-types' // third-party
 ];
+
+/**
+ * Host Node built-ins that must never be opened via box.allowed_modules.
+ * Note: bare 'fs' is the Gingee sandboxed module (modules/fs.js), not host fs —
+ * host fs is blocked because it is not on the allowed list and is not a gingee module under node:fs.
+ */
+const FORBIDDEN_BUILTINS = new Set([
+  'child_process',
+  'cluster',
+  'worker_threads',
+  'vm',
+  'v8',
+  'module',
+  'inspector',
+  'repl',
+  'fs/promises',
+  'node:fs',
+  'node:fs/promises',
+  'node:child_process',
+  'node:vm',
+  'node:worker_threads',
+  'node:module',
+  'node:inspector'
+]);
 
 const restrictedGlobalModules = [
   'gingee',
@@ -36,34 +61,128 @@ const restrictedGlobalModules = [
   'platform',
   'scheduler',
   'limits',
-  'egress'
+  'egress',
+  'secrets'
 ];
 
 const gingee = require('./gingee.js');
 const transpileCache = new Map();
 
+/**
+ * Security Error helper for blocked host globals.
+ * @private
+ */
+function blockedHostAccess(name) {
+  throw new Error(
+    `Security Error: '${name}' is not available in Gingee app scripts (sandbox host isolation).`
+  );
+}
+
+/**
+ * Build a vm context object without Node host privileges (no process, no real global).
+ * @private
+ */
+function createSandboxContext(gbox, gBoxConfig, scriptPath) {
+  // Default ON for Instant Time to Joy (Handlebars and many UMD builds need Function).
+  // Host process is still absent from the sandbox; codegen alone does not restore process.env.
+  // Set box.allow_code_generation=false for stricter lockdown when no such libs are used.
+  const allowCodeGeneration =
+    gBoxConfig.allowCodeGeneration !== false &&
+    !(
+      gBoxConfig.globalConfig &&
+      gBoxConfig.globalConfig.box &&
+      gBoxConfig.globalConfig.box.allow_code_generation === false
+    );
+
+  const sandbox = {
+    module: gbox.module,
+    exports: gbox.module.exports,
+    require: gbox.require,
+    gingee: gbox.gingee,
+    console: gbox.console,
+    // Common safe builtins apps expect
+    Buffer,
+    URL,
+    URLSearchParams,
+    TextEncoder,
+    TextDecoder,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    setImmediate,
+    clearImmediate,
+    queueMicrotask
+  };
+
+  if (typeof atob === 'function') sandbox.atob = atob;
+  if (typeof btoa === 'function') sandbox.btoa = btoa;
+
+  // Point "global" aliases at the sandbox only (not the host global).
+  sandbox.global = sandbox;
+  sandbox.globalThis = sandbox;
+
+  // Explicit denials with clear errors (also blocks accidental free-var use).
+  for (const name of ['process', 'GLOBAL', 'root']) {
+    Object.defineProperty(sandbox, name, {
+      configurable: false,
+      enumerable: false,
+      get() {
+        blockedHostAccess(name);
+      },
+      set() {
+        blockedHostAccess(name);
+      }
+    });
+  }
+
+  const contextOptions = {
+    name: `gingee-gbox:${gBoxConfig.appName || 'app'}:${path.basename(scriptPath)}`
+  };
+
+  // Disable eval / new Function / wasm codegen unless explicitly allowed (vendored libs).
+  if (!allowCodeGeneration) {
+    contextOptions.codeGeneration = {
+      strings: false,
+      wasm: false
+    };
+  }
+
+  return vm.createContext(sandbox, contextOptions);
+}
+
 // The list of safe modules is now a parameter.
 function createGRequire(callingScriptPath, gBoxConfig) {
   return function gRequire(moduleName) {
+    const rawName = String(moduleName || '');
+    const normalized = rawName.startsWith('node:') ? rawName.slice(5) : rawName;
 
-    // Check if the module is a protected module
-    if (PROTECTED_MODULES.includes(moduleName)) {
-        const granted = gBoxConfig.app.grantedPermissions || [];
-        if (!granted.includes(moduleName)) {
-            throw new Error(`Security Error: The app '${gBoxConfig.app.name}' has not been granted permission to access the '${moduleName}' module. Please grant permission in Glade or settings/permissions.json.`);
-        }
+    // Check if the module is a protected module (Gingee app modules: fs, db, …)
+    if (PROTECTED_MODULES.includes(moduleName) || PROTECTED_MODULES.includes(normalized)) {
+      const granted = gBoxConfig.app.grantedPermissions || [];
+      const key = PROTECTED_MODULES.includes(moduleName) ? moduleName : normalized;
+      if (!granted.includes(key)) {
+        throw new Error(
+          `Security Error: The app '${gBoxConfig.app.name}' has not been granted permission to access the '${key}' module. Please grant permission in Glade or settings/permissions.json.`
+        );
+      }
     }
-    
-    //Check if the module is a restricted module
-    if (restrictedGlobalModules.includes(moduleName)) {
+
+    // Check if the module is a restricted module
+    if (
+      restrictedGlobalModules.includes(moduleName) ||
+      restrictedGlobalModules.includes(normalized)
+    ) {
       const { appName } = gingee.getContext(); // Get the app that is making the call.
       // Check if the current app's ID is in the privileged list.
       if (gBoxConfig.privilegedApps && gBoxConfig.privilegedApps.includes(appName)) {
         // If it is, allow the require to proceed.
-        return require(`./${moduleName}.js`);
+        return require(`./${normalized}.js`);
       } else {
         // If not, throw a hard security error.
-        throw new Error(`Security Error: The app '${appName}' does not have permission to access the '${moduleName}' module.`);
+        throw new Error(
+          `Security Error: The app '${appName}' does not have permission to access the '${moduleName}' module.`
+        );
       }
     }
 
@@ -93,15 +212,38 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       return runInGBox(targetPath, gBoxConfig);
     }
 
-    // --- RULE 2: Global `modules` Folder Check ---
+    // --- RULE 2: Global `modules` Folder Check (Gingee modules, e.g. modules/fs.js) ---
     const globalModulePath = path.join(gBoxConfig.globalModulesPath, moduleName + '.js');
     if (nodeFs.existsSync(globalModulePath)) {
+      // Permission already checked for PROTECTED_MODULES above when applicable.
       return require(globalModulePath);
+    }
+    if (normalized !== moduleName) {
+      const alt = path.join(gBoxConfig.globalModulesPath, normalized + '.js');
+      if (nodeFs.existsSync(alt)) {
+        return require(alt);
+      }
+    }
+
+    // Never open dangerous host built-ins (even if listed in allowed_modules).
+    if (
+      FORBIDDEN_BUILTINS.has(rawName) ||
+      FORBIDDEN_BUILTINS.has(normalized) ||
+      FORBIDDEN_BUILTINS.has(`node:${normalized}`)
+    ) {
+      throw new Error(
+        `Security Error: Built-in module '${moduleName}' is forbidden in Gingee app scripts.`
+      );
     }
 
     // --- RULE 3: Globally Allowed and Built-in Module Check ---
     const appAllowedBuiltins = gBoxConfig.allowedBuiltinModules || [];
-    if (globallyAllowedModules.includes(moduleName) || appAllowedBuiltins.includes(moduleName)) {
+    if (
+      globallyAllowedModules.includes(moduleName) ||
+      globallyAllowedModules.includes(normalized) ||
+      appAllowedBuiltins.includes(moduleName) ||
+      appAllowedBuiltins.includes(normalized)
+    ) {
       return require(moduleName);
     }
 
@@ -160,27 +302,55 @@ function runInGBox(scriptPath, gBoxConfig) {
   const gbox = {
     module: { exports: {} },
     gingee: gingee.gingee,
-    console: console,
+    console: gBoxConfig.console || console,
     // Pass the list down to create the safe require function.
     require: createGRequire(scriptPath, gBoxConfig)
   };
 
-  const scriptWrapper = new Function(
-    'module',
-    'exports',
-    'gingee',
-    'console',
-    'require',
-    scriptCode
-  );
+  // Keep exports in sync if the script only assigns module.exports
+  gbox.module.exports = gbox.module.exports;
+  const sandboxContext = createSandboxContext(gbox, gBoxConfig, scriptPath);
 
-  scriptWrapper(
-    gbox.module,
-    gbox.module.exports,
-    gbox.gingee,
-    gbox.console,
-    gbox.require
-  );
+  // Ensure context sees the same module object (createContext copies properties by value
+  // for the initial object — module is a reference type so mutations to .exports stick).
+  // Re-assign in case createContext cloned poorly on some Node versions:
+  sandboxContext.module = gbox.module;
+  sandboxContext.exports = gbox.module.exports;
+  sandboxContext.require = gbox.require;
+  sandboxContext.gingee = gbox.gingee;
+  sandboxContext.console = gbox.console;
+
+  // CommonJS-style wrapper so top-level return is invalid and scope is contained.
+  const wrapped =
+    `(function (module, exports, require, gingee, console) {\n` +
+    `${scriptCode}\n` +
+    `})(module, exports, require, gingee, console);`;
+
+  try {
+    vm.runInContext(wrapped, sandboxContext, {
+      filename: scriptPath,
+      displayErrors: true
+    });
+  } catch (err) {
+    // Normalize codegen blocks into a clear security message
+    if (
+      err &&
+      err.code === 'ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG' // unlikely
+    ) {
+      throw err;
+    }
+    if (
+      err &&
+      (err.message || '').includes('Code generation from strings disallowed')
+    ) {
+      throw new Error(
+        `Security Error: eval/Function string code generation is disabled in Gingee app scripts` +
+          ` (script: ${path.basename(scriptPath)}). ` +
+          `If a trusted vendored library requires it, set box.allow_code_generation=true in gingee.json (server-wide).`
+      );
+    }
+    throw err;
+  }
 
   return gbox.module.exports;
 }
@@ -188,5 +358,6 @@ function runInGBox(scriptPath, gBoxConfig) {
 module.exports = {
   transpileCache,
   createGRequire,
-  runInGBox
+  runInGBox,
+  FORBIDDEN_BUILTINS
 };

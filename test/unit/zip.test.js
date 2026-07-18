@@ -27,8 +27,13 @@ describe('zip.js - Archive Utilities', () => {
             file: jest.fn(),
             finalize: jest.fn().mockResolvedValue(),
         };
-        // Make the main archiver function return our mock instance
-        archiver.mockReturnValue(mockArchive);
+        // archiver v8 uses ZipArchive constructor; support both mock styles
+        if (typeof archiver.mockReturnValue === 'function') {
+            archiver.mockReturnValue(mockArchive);
+        }
+        if (archiver.ZipArchive) {
+            archiver.ZipArchive = jest.fn().mockImplementation(() => mockArchive);
+        }
 
         // Use the real module's constants
         fs.BOX = 'BOX';

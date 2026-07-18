@@ -229,7 +229,12 @@ async function executeScriptJob(app, job, runMeta) {
       (globalConfigRef && globalConfigRef.box && globalConfigRef.box.allowed_modules) || [],
     privilegedApps: (globalConfigRef && globalConfigRef.privileged_apps) || [],
     useCache: true,
-    logger: app.logger || log()
+    logger: app.logger || log(),
+    globalConfig: globalConfigRef,
+    allowCodeGeneration:
+      !globalConfigRef ||
+      !globalConfigRef.box ||
+      globalConfigRef.box.allow_code_generation !== false
   };
 
   const scheduleMeta = {

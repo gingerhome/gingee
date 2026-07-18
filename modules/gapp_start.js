@@ -70,7 +70,10 @@ async function runStartupScripts(app) {
                     allowedBuiltinModules: (globalConfig.box && globalConfig.box.allowed_modules) || [],
                     privilegedApps: globalConfig.privileged_apps || [],
                     useCache: true, // Startup script transpilation can be cached
-                    logger: app.logger
+                    logger: app.logger,
+                    globalConfig,
+                    allowCodeGeneration:
+                      !globalConfig.box || globalConfig.box.allow_code_generation !== false
                 };
 
                 const scriptModule = runInGBox(fullScriptPath, gBoxConfig);
