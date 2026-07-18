@@ -81,7 +81,11 @@ module.exports = async function() {
 
 The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`). For progressive output (for example AI token streaming), `$g.response` also supports `startStream`, `write` / `writeSSE`, and `endStream` — see the [Server Script Guide](./server-script.md).
 
-## 5. The Module Ecosystem
+## 5. Security model (short)
+
+Gingee is designed for **cooperative multi-app** hosting: several applications on one server, separated by a whitelist permission system, BOX/WEB path jails, and admin consent at install time. All apps still share **one Node.js process** (memory and event loop). That is appropriate for first-party or reviewed apps—not for untrusted multi-tenant code on the same instance. Full detail: **[Threat Model](./threat-model.md)**.
+
+## 6. The Module Ecosystem
 
 Gingee provides a rich standard library of "app modules" to handle common tasks securely and efficiently. These are required by name (e.g., `require('db')`) from any server script.
 
@@ -108,7 +112,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 **IMPORTANT**: All Gingee modules are required by name (eg. 'fs'). Some of these names intentionally are similar to NodeJS built-in modules for developer familiarity only. Gingee by default locks out access for all NodeJS built-in modules and third party modules with the exception of 'querystring', 'url' and 'mime-types'. A whitelist of built-in and third party modules can be configured in gingee.json but it is not recommended to do so to preserve the sandboxed nature of Gingee apps.
 
-## 6. Configuration (`gingee.json`, `app.json`, etc.)
+## 7. Configuration (`gingee.json`, `app.json`, etc.)
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
@@ -119,7 +123,7 @@ Configuration in Gingee is declarative and split across several manifest files, 
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.
 
-## 7. The Command Line Interface (CLI)
+## 8. The Command Line Interface (CLI)
 
 The `gingee-cli` is an essential, all-in-one tool for the entire application lifecycle. It is used for both local development and production server management. Its key capabilities include:
 
@@ -130,7 +134,7 @@ The `gingee-cli` is an essential, all-in-one tool for the entire application lif
 
 For detailed usage of all commands, see the **CLI Command Reference** [MD](./gingee-cli.md) / [HTML](./gingee-cli.html).
 
-## 8. A GenAI-Native Platform
+## 9. A GenAI-Native Platform
 
 Gingee is unique in its origin and development philosophy. It was co-authored by a human architect and a Generative AI partner, embracing a workflow we call "Dialog-Driven Development." High-level goals are discussed and refined in a collaborative dialogue, and the AI generates the implementation, which is then tested and validated.
 
@@ -2077,6 +2081,8 @@ For a complete guide on the permissions system and the structure of this file, p
 
 Security is a core principle of the Gingee platform. The permissions system is designed to be **secure by default**, following the **Principle of Least Privilege**. This guide explains how permissions are declared by developers and managed by administrators to create a safe and predictable server environment.
 
+**Important:** Permissions and the app sandbox provide **cooperative multi-app isolation** on a shared Node.js process. They are **not** a hard boundary against mutually hostile tenants. Before deploying untrusted apps, read the **[Gingee Threat Model](./threat-model.md)**.
+
 ## The Philosophy: Secure by Default (Whitelist Model)
 
 Gingee operates on a strict **whitelist model**. By default, a sandboxed application has **no access** to potentially sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), generative AI (`ai`), or the CRON **scheduler**.
@@ -2174,6 +2180,270 @@ This is the definitive list of all permission keys available in Gingee.
 | **zip** | Allows the app to create and extract ZIP archives. | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **image** | Allows the app to manipulate image files. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
 
+
+
+---
+
+
+# Gingee Threat Model
+
+# Gingee Threat Model
+
+**Purpose:** State clearly what Gingee’s security model **is designed for**, what it **is not**, and how operators should deploy it.
+
+**Audience:** Server operators, app packagers, security reviewers, and contributors.
+
+**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `box`), [Concepts](./concepts.md).
+
+---
+
+## 1. One-sentence summary
+
+Gingee provides **cooperative multi-app isolation** on a **shared Node.js process**: apps are separated by **path jails, permission whitelists, and admin consent**—not by hardware virtualization or mutually hostile tenant isolation.
+
+---
+
+## 2. Two deployment models (read this first)
+
+| Model | Description | Gingee fit |
+| :--- | :--- | :--- |
+| **A. Cooperative multi-app** | One org (or trusted partners) runs several apps on one Gingee instance. Apps are first-party, reviewed third-party, or installed only after admin review of package + permissions. | **Intended.** Permissions, BOX/WEB, Glade, and `limits` are built for this. |
+| **B. Hostile multi-tenant** | Untrusted parties upload or install apps that may be malicious or compromised. Tenants must not affect each other’s confidentiality, integrity, or availability. | **Not supported as a hard security boundary.** Do not sell or operate Gingee as “shared hosting for arbitrary untrusted code” without process/container isolation **outside** Gingee. |
+
+**Operator rule of thumb:**
+
+- If you would not give an app’s author shell access on the same machine as other apps, **do not** grant them a Gingee app with broad permissions on a shared production process—or isolate that tenant in a **separate OS process / container / VM**.
+
+---
+
+## 3. Assets worth protecting
+
+| Asset | Examples | Typical owner |
+| :--- | :--- | :--- |
+| **App private code & data** | `box/` scripts, SQLite files, logs, secrets in `app.json` | App + server admin |
+| **App public assets** | `web/` static files | App (intentionally public) |
+| **Server control plane** | `gingee.json`, `settings/permissions.json`, SSL keys, backups | Server admin |
+| **Other apps on the same process** | Sibling `web/<other-app>/` trees | Other apps / admin |
+| **Outbound identity & budget** | SendGrid keys, AI API keys, ability to hit internal networks | Org / cloud account |
+| **Platform integrity** | Ability to install/delete apps (`platform` module, privileged apps) | Server admin only |
+| **Availability** | Shared event loop, memory, FDs, CPU | All tenants on the node |
+
+---
+
+## 4. Trust boundaries
+
+```
+                    ┌─────────────────────────────────────┐
+                    │         Untrusted network           │
+                    │   (browsers, bots, external APIs)   │
+                    └─────────────────┬───────────────────┘
+                                      │ HTTPS/HTTP
+                    ┌─────────────────▼───────────────────┐
+                    │     Gingee Node process (one)       │
+                    │  ┌──────────┐  ┌──────────┐         │
+                    │  │ App A    │  │ App B    │  ...    │
+                    │  │ gbox +   │  │ gbox +   │         │
+                    │  │ perms    │  │ perms    │         │
+                    │  └────┬─────┘  └────┬─────┘         │
+                    │       │ shared heap, event loop     │
+                    │       │ shared modules/, config     │
+                    │  ┌────▼─────────────────────────┐   │
+                    │  │ Privileged apps (e.g. Glade) │   │
+                    │  │ platform lifecycle           │   │
+                    │  └──────────────────────────────┘   │
+                    └─────────────────┬───────────────────┘
+                                      │
+              ┌───────────────────────┼───────────────────────┐
+              ▼                       ▼                       ▼
+         Host filesystem         Databases / Redis        External HTTPS
+         (web_root, settings)    (app-configured)         (httpclient, AI, email)
+```
+
+**Inside the Node process there is no hard wall between apps**—only software checks (permissions, path resolution, privileged app list).
+
+---
+
+## 5. Actors and intents
+
+| Actor | Intent | Assumed in cooperative model? |
+| :--- | :--- | :--- |
+| **Server admin** | Configure host, grant permissions, install apps | Trusted |
+| **App developer** (first-party) | Ship business logic; may make mistakes | Semi-trusted (bugs, not malice) |
+| **App packager / store app** | Distributes `.gin`; may request excessive perms | Review before grant |
+| **End user of an app** | Uses HTTP UI/API of one app | Untrusted for input; trusted only within that app’s auth model |
+| **External network attacker** | Exploit exposed HTTP, steal data, DoS | Always untrusted |
+| **Malicious app author** | Escape isolation, steal other apps’ data, mine crypto, SSRF | **Out of scope** for hard isolation on a shared process |
+| **Compromised dependency** | RCE inside process via native module or prototype pollution | Residual supply-chain risk |
+
+---
+
+## 6. What the platform controls (and how)
+
+### 6.1 Strengths (work as designed under model A)
+
+| Control | Mechanism | Limits of control |
+| :--- | :--- | :--- |
+| **Default deny modules** | `PROTECTED_MODULES` + `grantedPermissions` | Only modules that check permission; not a full OS sandbox |
+| **Path jail (`fs`, relative `require`)** | `isPathInside` / `resolveSecurePath` under app BOX/WEB | Must be used consistently; leading `/` vs script-relative paths can confuse authors |
+| **BOX not web-served** | Engine blocks `…/box` URLs | Misconfigured reverse proxies could still expose disk if mounted elsewhere |
+| **Privileged apps** | `privileged_apps` + restricted `platform` / engine modules | Anyone who can edit `gingee.json` is root-equivalent for the platform |
+| **Permission consent** | `pmft.json` + Glade / CLI + `settings/permissions.json` | Human factor; over-grant is common under time pressure |
+| **Request / outbound limits** | `limits` (concurrency, timeouts) | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin |
+| **Scheduler gate** | `scheduler.enabled` default off; one-node ops model | Prevents multi-node double-fire; does not prove job code is safe |
+| **Explicit high-risk capabilities** | `httpclient`, `email`, `ai`, `scheduler`, `platform` | Once granted, full capability within that API |
+
+### 6.2 Soft sandbox reality (`gbox`)
+
+App scripts run via a custom `require` and `new Function(...)` (not a separate OS process, not `isolated-vm` by default).
+
+**Shared across all apps on the instance:**
+
+- Memory heap and V8 isolates (single process)
+- Event loop (one blocked script delays others)
+- Ability to allocate until OOM
+- Engine modules loaded into the same process
+
+**Therefore:**
+
+| Claim | Valid? |
+| :--- | :--- |
+| “App A cannot `require('fs')` Node core without grant” | **Yes** (gRequire deny) |
+| “App A cannot read App B’s BOX via normal `fs` APIs” | **Yes**, if path jail holds |
+| “App A cannot affect App B’s availability” | **No** — CPU/memory/event loop are shared |
+| “App A cannot inspect App B’s secrets in RAM” | **No hard guarantee** against sophisticated process-level attacks |
+| “Permissions equal cloud multi-tenant isolation” | **No** |
+
+---
+
+## 7. Threat scenarios
+
+### 7.1 Cooperative multi-app (in scope — mitigated)
+
+| ID | Scenario | Primary mitigations | Residual risk |
+| :--- | :--- | :--- | :--- |
+| C1 | Accidental path traversal in app code | Sandboxed `fs` + `isPathInside` | Bugs in new modules that skip jail |
+| C2 | App requests too many permissions | Admin review of `pmft.json` / Glade | Admin grants “all” for convenience |
+| C3 | Hung outbound HTTP | `limits.outbound_timeout_ms`, outbound concurrency | Custom axios options still clamped; other egress paths (AI/email) have their own timeouts |
+| C4 | Runaway request volume | `max_concurrent_requests` / per-app caps → 503 | No sophisticated rate limit / WAF |
+| C5 | Script never finishes | `request_timeout_ms` / stream idle+hard | Sync infinite loops ignore timers until yield |
+| C6 | Install wrong package version | Backups, Glade rollback, review `.gin` | Supply chain of the package itself |
+| C7 | Secrets in `app.json` | Filesystem permissions, least privilege OS user | Backups, logs, package export may copy secrets |
+
+### 7.2 Hostile multi-tenant (out of scope for hard guarantees)
+
+| ID | Scenario | Why Gingee alone is insufficient |
+| :--- | :--- | :--- |
+| H1 | Malicious app with only “safe” permissions burns CPU | Shared event loop; no preemption of tight loops |
+| H2 | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs | No egress allowlist / private-IP block in platform |
+| H3 | Malicious app with `fs` + clever bugs tries cross-app read | Path jail is software; hostile code + engine bugs = higher risk |
+| H4 | Malicious app with `platform` (if wrongly privileged) | Full lifecycle control of all apps |
+| H5 | Malicious app with `scheduler` + `httpclient` | Persistent unattended egress |
+| H6 | Tenant escapes to steal other apps’ DB credentials from config in memory | Single process; no crypto boundary between apps |
+| H7 | Resource exhaustion (FD/memory) | `limits` help for HTTP concurrency; not a full cgroup story |
+
+**Required pattern for hostile or untrusted code:** **one Gingee process (or container) per trust domain**, network policy, secrets isolation, and independent resource limits at the orchestrator level.
+
+---
+
+## 8. STRIDE-style view (platform level)
+
+| Category | Example | Cooperative posture |
+| :--- | :--- | :--- |
+| **S**poofing | Forged admin session on Glade | App-level auth (JWT etc.); harden Glade credentials; TLS |
+| **T**ampering | Modified `permissions.json` on disk | OS file permissions; restrict who can write `settings/` |
+| **R**epudiation | “Who granted `httpclient`?” | Ops logging / future audit trail; today: file history + process logs |
+| **I**nformation disclosure | App data leakage via another app | Path jail + no cross-app API by default; not RAM isolation |
+| **D**enial of service | Heavy PDF/AI script stalls node | `limits`, separate processes for heavy apps, timeouts |
+| **E**levation of privilege | Normal app becomes privileged | Keep `privileged_apps` minimal; never put untrusted apps there |
+
+---
+
+## 9. Data flow trust notes
+
+| Flow | Trust note |
+| :--- | :--- |
+| Browser → App HTTP script | Validate all input in the app; Gingee parses body with size caps (`max_body_size`) |
+| App → `db` | Credentials from `app.json`; compromise of app with `db` = data plane compromise for that DB |
+| App → `httpclient` / AI / email | Treat as full egress for that capability; prefer dedicated keys with least privilege at the provider |
+| App → `fs` BOX | Private to app path; still on shared disk volume |
+| Admin → Glade/`platform` | Highest privilege path; protect like root |
+| Scheduler → script/URL | Runs as that app’s permissions; enable only on intended node |
+
+---
+
+## 10. Operator checklist
+
+### Recommended for production (cooperative multi-app)
+
+1. Run Gingee as a **non-root** OS user with write access only to intended dirs (`web/`, `settings/`, `logs/`, `backups/`, `temp/`).
+2. Keep **`privileged_apps`** to Glade (or equivalent) only.
+3. Grant permissions **least privilege**; prefer optional over mandatory in packages you publish.
+4. Set **`limits`** appropriately; do not disable timeouts without a reason.
+5. Keep **`scheduler.enabled`** false except on the designated scheduler node.
+6. Prefer **Redis** for cache when running more than one node.
+7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.
+8. Treat **`app.json` secrets** as sensitive; restrict backups and who can download `.gin` exports.
+9. Leave **`box.allowed_modules`** empty unless you fully understand the escape hatch.
+10. Review every new `.gin`’s `pmft.json` before production grant.
+
+### Required if any app is untrusted (hostile model)
+
+1. **Do not** co-locate untrusted apps in the same Node process as sensitive apps.
+2. Use **containers/VMs** per tenant (or per trust domain) with CPU/memory/network quotas.
+3. Apply **egress network policy** (block link-local / metadata IPs).
+4. Use **separate** DB credentials, AI keys, and email keys per tenant.
+5. Assume **compromise of one tenant process = full control of that process only**, not “Gingee permission sandboxes will save you.”
+
+---
+
+## 11. Developer checklist (app authors)
+
+1. Declare only permissions you need in `pmft.json`.
+2. Handle missing **optional** permissions gracefully.
+3. Use **leading `/`** on `fs` paths when multiple scripts must share BOX-root files (scheduled jobs vs HTTP handlers).
+4. Do not store long-lived secrets in client-visible responses.
+5. Respect `$g.request.signal` / timeouts for long work; design heavy jobs for scheduler or future queues.
+6. Never assume another app’s BOX or server `settings/` is readable.
+
+---
+
+## 12. Explicit non-goals (current platform)
+
+Gingee does **not** currently claim:
+
+- Process- or VM-level isolation between apps on one instance  
+- Formal verification of the sandbox  
+- Built-in WAF, CSRF framework, or global end-user SSO  
+- SSRF-safe HTTP by default  
+- Multi-tenant billing isolation or noisy-neighbor SLAs  
+- Guaranteed preemption of malicious infinite loops  
+
+These may appear on the roadmap (workers, queues, metrics, cluster); until shipped and documented, treat them as **absent**.
+
+---
+
+## 13. Mapping to critical assessment P0
+
+| Assessment item | This document |
+| :--- | :--- |
+| Document cooperative vs hostile models | §§2, 7, 10 |
+| Stop false assumptions about sandbox | §§6.2, 7.2, 12 |
+| Align operators with real controls | §§6.1, 10 |
+| Residual risk honesty | Throughout |
+
+**Related P0 (implemented separately):** request/outbound timeouts and concurrency — see `limits` in [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load; it is not a substitute for tenant isolation.
+
+---
+
+## 14. Document control
+
+| Field | Value |
+| :--- | :--- |
+| Status | Living document |
+| Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS` |
+| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/scheduler.js`, `gingee.js` |
+
+When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.
 
 
 ---
@@ -2513,7 +2783,7 @@ These are the core architectural features that define the Gingee development exp
     Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
 
 *   **Whitelist-Based Permissions System**
-    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`).
+    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).
 
 *   **Flexible Routing Engine**
     Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
@@ -2762,22 +3032,7 @@ It ensures that all file operations are performed within the secure boundaries d
 <a name="module_ai"></a>
 
 ## ai
-Generative AI for Gingee apps (chat, multimodal, document parsing, content safety)
-via provider adapters — similar to `db` / `email`.
-
-<b>Configuration (single config):</b>
-- Server defaults: `gingee.json` → `ai`
-- App override: `app.json` → `ai`
-- Per-call override: pass `{ config: { … } }` as the second argument to any method
-
-<b>Providers:</b>
-- `mock` — local deterministic responses (dev/tests)
-- `gemini` — Google Gemini (v1)
-- `xai` — Grok via xAI (P1 — stub until implemented)
-
-<b>Streaming:</b> `ai.chatStream(request, options)` yields chunk objects; final chunk has `done: true`.
-
-<b>IMPORTANT:</b> Requires the `ai` permission. See docs/permissions-guide.
+Generative AI for Gingee apps (chat, multimodal, document parsing, content safety)via provider adapters — similar to `db` / `email`.<b>Configuration (single config):</b>- Server defaults: `gingee.json` → `ai`- App override: `app.json` → `ai`- Per-call override: pass `{ config: { … } }` as the second argument to any method<b>Providers:</b>- `mock` — local deterministic responses (dev/tests)- `gemini` — Google Gemini (v1)- `xai` — Grok via xAI (P1 — stub until implemented)<b>Streaming:</b> `ai.chatStream(request, options)` yields chunk objects; final chunk has `done: true`.<b>IMPORTANT:</b> Requires the `ai` permission. See docs/permissions-guide.
 
 
 * [ai](#module_ai)
@@ -2813,8 +3068,7 @@ Chat / text generation (supports multimodal content parts). Non-streaming.
 <a name="module_ai.chatStream"></a>
 
 ### ai.chatStream(request, [options]) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
-Streaming chat. Async generator yielding `{ textDelta, done, … }`.
-Final chunk has `done: true` and full `text`.
+Streaming chat. Async generator yielding `{ textDelta, done, … }`.Final chunk has `done: true` and full `text`.
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
 
@@ -2826,9 +3080,7 @@ Final chunk has `done: true` and full `text`.
 
 **Example**  
 ```js
-for await (const chunk of ai.chatStream({ messages: [{ role: 'user', content: 'Hi' }] })) {
-  if (!chunk.done) process.stdout.write(chunk.textDelta);
-}
+for await (const chunk of ai.chatStream({ messages: [{ role: 'user', content: 'Hi' }] })) {  if (!chunk.done) process.stdout.write(chunk.textDelta);}
 ```
 <a name="module_ai.complete"></a>
 
@@ -3486,16 +3738,7 @@ await db.transaction('myDatabase', async (client) => {    await client.execute(
 <a name="module_email"></a>
 
 ## email
-Transactional email for Gingee apps using a provider adapter pattern (similar to `db` / `cache`).
-
-<b>Configuration (single config, no named profiles):</b>
-- Optional server defaults: `gingee.json` → `email`
-- Optional app config: `app.json` → `email` (overrides server for that app)
-- Runtime override: [sendWithConfig](#module_email.sendWithConfig) merges on top for one send only
-
-<b>Providers (v1):</b> `console` (log only), `sendgrid` (@sendgrid/mail)
-
-<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+Transactional email for Gingee apps using a provider adapter pattern (similar to `db` / `cache`).<b>Configuration (single config, no named profiles):</b>- Optional server defaults: `gingee.json` → `email`- Optional app config: `app.json` → `email` (overrides server for that app)- Runtime override: [sendWithConfig](#module_email.sendWithConfig) merges on top for one send only<b>Providers (v1):</b> `console` (log only), `sendgrid` (@sendgrid/mail)<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [email](#module_email)
@@ -3530,19 +3773,12 @@ Sends an email using the app's resolved config (app.json overrides gingee.json).
 
 **Example**  
 ```js
-const email = require('email');
-await email.send({
-  to: 'user@example.com',
-  subject: 'Welcome',
-  text: 'Thanks for joining.',
-  html: '<p>Thanks for joining.</p>'
-});
+const email = require('email');await email.send({  to: 'user@example.com',  subject: 'Welcome',  text: 'Thanks for joining.',  html: '<p>Thanks for joining.</p>'});
 ```
 <a name="module_email.sendWithConfig"></a>
 
 ### email.sendWithConfig(configOverride, message) ⇒ <code>Promise.&lt;object&gt;</code>
-Sends a single email using a runtime config that overrides both server and app.json
-settings for this transaction only. Does not persist or change the app's default adapter.
+Sends a single email using a runtime config that overrides both server and app.jsonsettings for this transaction only. Does not persist or change the app's default adapter.
 
 **Kind**: static method of [<code>email</code>](#module_email)  
 **Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status  
@@ -3554,11 +3790,7 @@ settings for this transaction only. Does not persist or change the app's default
 
 **Example**  
 ```js
-const email = require('email');
-await email.sendWithConfig(
-  { type: 'sendgrid', api_key: userApiKey, from: 'billing@example.com' },
-  { to: 'customer@example.com', subject: 'Invoice', text: 'Your invoice is attached.' }
-);
+const email = require('email');await email.sendWithConfig(  { type: 'sendgrid', api_key: userApiKey, from: 'billing@example.com' },  { to: 'customer@example.com', subject: 'Invoice', text: 'Your invoice is attached.' });
 ```
 <a name="module_email..serverEmailConfig"></a>
 
@@ -4526,19 +4758,7 @@ const $ = await html.fromUrl('https://example.com');console.log($('.test').text
 <a name="module_httpclient"></a>
 
 ## httpclient
-A module for making HTTP requests in Gingee applications.
-This module provides functions to perform GET and POST requests, supporting various content types.
-It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
-It supports both text and binary responses, automatically determining the response type based on the content-type header.
-It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
-It allows for flexible data submission, making it suitable for APIs that require different content types.
-It provides constants for common POST data types, ensuring that the correct headers are set for the request.
-
-<b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
-<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
-remaining request budget when available). Concurrent outbound calls are also capped.
-
-<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+A module for making HTTP requests in Gingee applications.This module provides functions to perform GET and POST requests, supporting various content types.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.It supports both text and binary responses, automatically determining the response type based on the content-type header.It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.It allows for flexible data submission, making it suitable for APIs that require different content types.It provides constants for common POST data types, ensuring that the correct headers are set for the request.<b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to theremaining request budget when available). Concurrent outbound calls are also capped.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [httpclient](#module_httpclient)
@@ -4553,47 +4773,37 @@ remaining request budget when available). Concurrent outbound calls are also cap
 <a name="module_httpclient.JSON"></a>
 
 ### httpclient.JSON
-Constant for JSON content type in POST requests.
-This constant can be used to specify that the POST request body is in JSON format.
+Constant for JSON content type in POST requests.This constant can be used to specify that the POST request body is in JSON format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.FORM"></a>
 
 ### httpclient.FORM
-Constant for form-urlencoded content type in POST requests.
-This constant can be used to specify that the POST request body is in form-urlencoded format.
+Constant for form-urlencoded content type in POST requests.This constant can be used to specify that the POST request body is in form-urlencoded format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.TEXT"></a>
 
 ### httpclient.TEXT
-Constant for plain text content type in POST requests.
-This constant can be used to specify that the POST request body is in plain text format.
+Constant for plain text content type in POST requests.This constant can be used to specify that the POST request body is in plain text format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.XML"></a>
 
 ### httpclient.XML
-Constant for XML content type in POST requests.
-This constant can be used to specify that the POST request body is in XML format.
+Constant for XML content type in POST requests.This constant can be used to specify that the POST request body is in XML format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.MULTIPART"></a>
 
 ### httpclient.MULTIPART
-Constant for multipart/form-data content type in POST requests.
-This constant can be used to specify that the POST request body is in multipart/form-data format.
+Constant for multipart/form-data content type in POST requests.This constant can be used to specify that the POST request body is in multipart/form-data format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.get"></a>
 
 ### httpclient.get(url, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-Performs an HTTP GET request.
-This function retrieves data from a specified URL and returns the response status, headers, and body.
-It supports both text and binary responses, automatically determining the response type based on the content-type header.
-It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.
-It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.
-It is particularly useful for applications that need to fetch resources from external APIs or web services.
+Performs an HTTP GET request.This function retrieves data from a specified URL and returns the response status, headers, and body.It supports both text and binary responses, automatically determining the response type based on the content-type header.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.It is particularly useful for applications that need to fetch resources from external APIs or web services.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
 **Throws**:
@@ -4608,17 +4818,12 @@ It is particularly useful for applications that need to fetch resources from ext
 
 **Example**  
 ```js
-const response = await httpclient.get('https://api.example.com/data');
-console.log(response.body);
+const response = await httpclient.get('https://api.example.com/data');console.log(response.body);
 ```
 <a name="module_httpclient.post"></a>
 
 ### httpclient.post(url, body, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-Performs an HTTP POST request.
-This function sends data to a specified URL and returns the response status, headers, and body.
-It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.
-It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.
-It allows for flexible data submission, making it suitable for APIs that require different content types.
+Performs an HTTP POST request.This function sends data to a specified URL and returns the response status, headers, and body.It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.It allows for flexible data submission, making it suitable for APIs that require different content types.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
 **Throws**:
@@ -4635,8 +4840,7 @@ It allows for flexible data submission, making it suitable for APIs that require
 
 **Example**  
 ```js
-const response = await httpclient.post('https://api.example.com/data', { key: 'value' });
-console.log(response.body);
+const response = await httpclient.post('https://api.example.com/data', { key: 'value' });console.log(response.body);
 ```
 <a name="module_image"></a>
 

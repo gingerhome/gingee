@@ -42,8 +42,8 @@ That's it! You should now see Glade - the Gingee admin panel in your web browser
 Gingee is a comprehensive platform designed to provide a secure, efficient, and enjoyable development experience.
 
 - **Secure by Default**
-  - **Whitelist Permissions System:** Applications have no access to the filesystem, database, network, email, generative AI, or CRON scheduler by default. Administrators grant explicit permissions for a "secure by default" posture.
-  - **Sandboxed Execution:** Every server script runs in a secure `gbox` sandbox, isolated from the host system and other applications.
+  - **Whitelist Permissions System:** Applications have no access to the filesystem, database, network, email, generative AI, or CRON scheduler by default. Administrators grant explicit permissions for a "secure by default" posture. See the [Threat Model](./threat-model.md) (cooperative multi-app vs hostile multi-tenant).
+  - **Sandboxed Execution:** Every server script runs in a `gbox` sandbox with a restricted `require` and path jails (cooperative isolation on a shared process—not a hard multi-tenant VM boundary).
 
 - **Instant Time to Joy**
   - **All-in-One CLI:** A single command (`gingee-cli init`) scaffolds a complete, runnable project with a built-in admin panel.
