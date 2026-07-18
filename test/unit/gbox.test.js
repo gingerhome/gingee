@@ -143,6 +143,20 @@ describe('gbox.js - Sandbox Execution', () => {
         });
     });
 
+    test('gRequire should reject relative requires that escape the box into a sibling app prefix path', () => {
+        als.run(mockAlsStore, () => {
+            // From test_app/box, ../test_app_evil/box/leak.js leaves the boundary
+            const scriptContent = `require('../test_app_evil/box/leak');`;
+            const mockScriptPath = path.resolve('/project/web/test_app/box/script.js');
+            fs.readFileSync.mockReturnValue(scriptContent);
+            fs.existsSync.mockReturnValue(true);
+
+            expect(() => {
+                runInGBox(mockScriptPath, mockGBoxConfig);
+            }).toThrow('Path traversal detected');
+        });
+    });
+
     // --- Transpilation Tests ---
     test('should transpile a script containing ESM "import" syntax', () => {
         als.run(mockAlsStore, () => {

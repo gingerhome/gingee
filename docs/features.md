@@ -10,7 +10,7 @@ These are the core architectural features that define the Gingee development exp
     Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
 
 *   **Whitelist-Based Permissions System**
-    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), or outbound HTTP client (`httpclient`).
+    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`).
 
 *   **Flexible Routing Engine**
     Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
@@ -22,7 +22,7 @@ These are the core architectural features that define the Gingee development exp
     Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
 
 *   **SPA Hosting & Development Workflow**
-    Gingee provides a seamless experience for modern Single Page Applications (React, Vue, Angular). In development, it automatically proxies requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves your compiled static assets and provides the necessary fallback routing for client-side routers to work out of the box.
+    Gingee provides first-class support for modern Single Page Applications (React, Vue, Angular). In development (`type: "SPA"`, `mode: "development"`), it proxies non-API requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves compiled assets from `spa.build_path` and falls back to `spa.fallback_path` (e.g. `index.html`) for client-side routers. Backend APIs continue to run from the secure `box/` folder. See the [SPA Developer's Guide](./app-spadev-guide.md).
 
 *   **Application Lifecycle Management**
     A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
@@ -30,14 +30,26 @@ These are the core architectural features that define the Gingee development exp
 *   **App Store with Interactive Installation**
     The `gingee-cli` provides commands to browse and install applications from any decentralized "GStore" - the Gingee app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
 
-*   **SPA Hosting & Development Workflow**
-    Effortlessly host Single Page Applications (React, Angular, Vue). The server is designed to handle client-side routing and supports a seamless "two-server" development workflow via proxying.
-
 *   **Hierarchical & Context-Aware Logging**
     Each app writes to its own structured JSON log file within its private `box` directory, while logs are also forwarded to a central, timestamped server log for a complete system overview.
 
 *   **Resilient Distributed Caching**
     The server provides a centralized, pluggable caching service. Use a dependency-free in-memory cache for local development, or switch to a Redis backend for horizontally scaled production deployments by changing a single line of config.
+
+*   **Transactional Email (`email` Module)**
+    Send mail through a provider adapter (SendGrid in v1, plus a `console` logger for local dev). Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `email.send(message)` or `email.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `email` permission.
+
+*   **Generative AI (`ai` Module)**
+    Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
+
+*   **Streamed HTTP Responses**
+    Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
+
+*   **CRON Scheduler**
+    Apps declare recurring jobs in `app.json` → `schedules` (script path under `box/` or absolute external URL). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`); enable it on **one** node in multi-server deployments. Requires the `scheduler` permission (and `httpclient` for URL targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
+
+*   **Request & Outbound Limits**
+    Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
@@ -57,6 +69,10 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 
 *   **`db`**
     The unified database interface. Provides a consistent API (`query`, `execute`, `transaction`) for interacting with any configured database.
+*   **`email`**
+    Transactional email via provider adapters (`sendgrid`, `console`). Config from `gingee.json` / `app.json`, plus `sendWithConfig` for per-transaction overrides. Permission-protected.
+*   **`ai`**
+    Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 *   **`fs`**
     A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
 *   **`httpclient`**

@@ -31,7 +31,20 @@ function init() {
                 bolditalics: path.join(engineRoot, 'settings/fonts/Roboto/Roboto-BoldItalic.ttf')
             }
         };
-        defaultPrinter = new PdfPrinter(fontDescriptors);
+        defaultPrinter = PdfPrinter;
+
+        defaultPrinter.setUrlAccessPolicy((url) => {
+            // this can be used to restrict allowed domains
+            return true;
+        });
+
+        // eslint-disable-next-line no-unused-vars
+        defaultPrinter.setLocalAccessPolicy((path) => {
+            // this can be used to restrict access to local file system
+            return true;
+        });
+
+        defaultPrinter.addFonts(fontDescriptors);
         return { status: true };
     } catch (error) {
         return { status: false, error };
@@ -81,13 +94,14 @@ function create(documentDefinition) {
         }
 
         // Create a temporary, request-specific printer with the custom fonts.
-        printerToUse = new PdfPrinter(customFontDescriptors);
+        printerToUse.addFonts(customFontDescriptors);
     }
 
-    return new Promise((resolve, reject) => {
+    return printerToUse.createPdf(documentDefinition).getBuffer();
+    /*return new Promise((resolve, reject) => {
         try {
             // Create the PDF document
-            const pdfDoc = printerToUse.createPdfKitDocument(documentDefinition);
+            const pdfDoc = printerToUse.createPdf(documentDefinition);
 
             const chunks = [];
             pdfDoc.on('data', (chunk) => {
@@ -103,7 +117,7 @@ function create(documentDefinition) {
         } catch (err) {
             reject(err);
         }
-    });
+    });*/
 }
 
 // In the future, you could add a registerFont function here if needed,

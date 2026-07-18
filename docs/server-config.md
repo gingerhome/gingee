@@ -26,6 +26,25 @@ Here is a comprehensive breakdown of all available properties.
       "password": null
     }
   },
+  "email": {
+    "type": "console"
+  },
+  "ai": {
+    "type": "mock"
+  },
+  "scheduler": {
+    "enabled": false,
+    "timezone": "UTC"
+  },
+  "limits": {
+    "request_timeout_ms": 30000,
+    "request_timeout_stream_ms": 300000,
+    "stream_idle_timeout_ms": 60000,
+    "outbound_timeout_ms": 15000,
+    "max_concurrent_requests": 100,
+    "max_concurrent_requests_per_app": 25,
+    "max_concurrent_outbound": 50
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -88,6 +107,63 @@ An object that configures the HTTP and HTTPS servers.
   - **`host`** (string): The hostname or IP address of your Redis server.
   - **`port`** (number): The port of your Redis server.
   - **`password`** (string | null): The password for your Redis server, or `null` if none is set.
+
+### email
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the transactional `email` module. Each app may override this with `app.json` → `email`. There is a single config object (no named profiles). Apps still need the `email` permission to call `require('email')`.
+- **`type`** (string): Provider id. Supported in v1: `"console"` (log only, for local dev) or `"sendgrid"`.
+- **`api_key`** (string, optional): SendGrid API key when using `"sendgrid"`.
+- **`from`** / **`from_name`** (string, optional): Default sender identity.
+- **Runtime override:** App scripts may call `email.sendWithConfig(config, message)` to override server + app config for a single send.
+
+### ai
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the generative `ai` module. Apps override with `app.json` → `ai`. Requires the `ai` permission.
+- **`type`** (string): `"mock"` | `"gemini"` | `"xai"` (`xai` / Grok is P1 stub).
+- **`api_key`** (string): Cloud provider key.
+- **`default_model`**, **`default_vision_model`** (string, optional)
+- **`safety`** (object, optional): content safety defaults.
+- **Streaming:** apps use `ai.chatStream(...)` (async iterator).
+
+### scheduler
+
+- **Type:** `object` (optional)
+- **Description:** Controls the in-process **CRON scheduler** for this Gingee node. App jobs are declared in each app’s `app.json` → `schedules` (see [App Structure](./app-structure.md)).
+- **`enabled`** (boolean):
+  - **Default:** `false`
+  - When `false`, this node does **not** register or fire any schedules (safe default for multi-server load-balanced fleets).
+  - When `true`, this node registers schedules for all installed apps that have the `scheduler` permission and valid `schedules` entries.
+  - **Multi-server:** enable on **at most one** node so jobs do not run in duplicate.
+- **`timezone`** (string, optional):
+  - **Default:** `"UTC"`
+  - Default IANA timezone for jobs that omit `timezone` in `app.json`.
+
+### limits
+
+- **Type:** `object` (optional)
+- **Description:** Platform **timeouts and concurrency** for this Gingee node. Protects the shared process from hung scripts, stuck outbound HTTP, and request storms. Safe defaults apply when omitted.
+- **App override:** optional `app.json` → `limits` may only **tighten** (lower) these ceilings, never raise them.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `request_timeout_ms` | `30000` | Wall-clock budget for a non-streaming server script (starts when the script runs). On expiry: **504** JSON and request abort signal. |
+| `request_timeout_stream_ms` | `300000` | Hard cap after `$g.response.startStream()` (e.g. AI SSE). |
+| `stream_idle_timeout_ms` | `60000` | If no `write` / `writeSSE` for this long while streaming, the stream is ended (**504** / error SSE). |
+| `outbound_timeout_ms` | `15000` | Default `httpclient` axios timeout when the app omits `options.timeout` (also a ceiling for explicit timeouts). Clamped to remaining request budget when not streaming. |
+| `max_concurrent_requests` | `100` | Max in-flight **server scripts** process-wide (static files are not counted). Over limit → **503** `TOO_MANY_REQUESTS`. |
+| `max_concurrent_requests_per_app` | `25` | Max in-flight scripts per app. Over limit → **503**. |
+| `max_concurrent_outbound` | `50` | Max concurrent `httpclient` calls process-wide. Over limit → status **503** from httpclient. |
+| `headers_timeout_ms` | `60000` | Node HTTP `server.headersTimeout`. |
+| `request_timeout_server_ms` | `120000` | Node HTTP `server.requestTimeout` (whole connection). |
+| `keep_alive_timeout_ms` | `5000` | Node HTTP keep-alive. |
+
+**Notes:**
+
+- Timeouts are **best-effort** for async I/O. Pure CPU spin in a script is not preempted (shared event loop).
+- Streaming uses idle + hard caps so AI token streams are not killed at 30s.
+- Scheduler jobs use their own `timeout_ms` and do **not** consume HTTP concurrency slots.
 
 ### max_body_size
 - **Type:** `string`

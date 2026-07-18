@@ -15,7 +15,8 @@ describe('httpclient.js - HTTP Client', () => {
         const result = await httpclient.get('http://example.com');
 
         expect(axios.get).toHaveBeenCalledWith('http://example.com', expect.objectContaining({
-            responseType: 'arraybuffer'
+            responseType: 'arraybuffer',
+            timeout: expect.any(Number)
         }));
         expect(result.body).toBe(mockHtml);
     });
@@ -54,9 +55,21 @@ describe('httpclient.js - HTTP Client', () => {
             JSON.stringify(postData), // 1. Verify body was stringified
             expect.objectContaining({
                 headers: { 'Content-Type': 'application/json' }, // 2. Verify header was set
-                responseType: 'arraybuffer'
+                responseType: 'arraybuffer',
+                timeout: expect.any(Number)
             })
         );
+    });
+
+    test('get applies default timeout and returns 504 on axios timeout', async () => {
+        const err = new Error('timeout of 15000ms exceeded');
+        err.code = 'ECONNABORTED';
+        axios.get.mockRejectedValue(err);
+
+        const result = await httpclient.get('http://example.com/slow');
+        expect(result.status).toBe(504);
+        expect(result.code).toBe('ETIMEDOUT');
+        expect(String(result.body)).toMatch(/timed out/i);
     });
 
     test('post should correctly format a FORM url-encoded body', async () => {

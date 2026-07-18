@@ -25,7 +25,7 @@ Gingee features a powerful and flexible routing engine that automatically maps i
 
 **NOTE:** 
 - In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
-- For Single Page Applications (SPA), the engine is also configured to serve your app's `index.html` for any request that doesn't match a specific API route or static file. This enables client-side routing libraries like React Router to function seamlessly.
+- For Single Page Applications (`"type": "SPA"` with `spa.enabled`), Gingee provides first-class SPA hosting: in production it serves assets from `spa.build_path` and falls back to `spa.fallback_path` (usually `index.html`) for client-side routes; in development it can proxy non-API traffic to your frontend hot-reload server. Backend APIs still run from `box/`. See the [SPA Developer's Guide](./app-spadev-guide.md).
 
 
 ### Mode 1: File-Based Routing (Zero-Config Default)
@@ -70,18 +70,20 @@ module.exports = async function() {
 };
 ```
 
-The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`).
+The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`). For progressive output (for example AI token streaming), `$g.response` also supports `startStream`, `write` / `writeSSE`, and `endStream` — see the [Server Script Guide](./server-script.md).
 
 ## 5. The Module Ecosystem
 
 Gingee provides a rich standard library of "app modules" to handle common tasks securely and efficiently. These are required by name (e.g., `require('db')`) from any server script.
 
+-   **`ai`**: Generative AI (chat/stream, multimodal, document parsing, moderation) via provider adapters (`gemini`, `mock`; `xai` planned)
 -   **`auth`**: Provides authentication-related functions, including JWT creation and verification
 -   **`cache`**: Provides a secure interface for caching data within the Gingee application context.
 -   **`chart`**: Provides functionality to create and manipulate server-side charts
 -   **`crypto`**: Provides an essential cryptographic toolkit.
 -   **`dashboard`**: Provides functionality to create and manage a dashboard layout with multiple charts.
 -   **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
+-   **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
 -   **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
 -   **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations.
 -   **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
@@ -101,9 +103,9 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), and logging policies.
--   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, startup scripts, and middleware.
--   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, and whether the **scheduler** is enabled on this node (default off).
+-   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), startup scripts, and middleware.
+-   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.

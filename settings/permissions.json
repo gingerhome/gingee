@@ -30,5 +30,38 @@
       "fs",
       "image"
     ]
+  },
+  "tests": {
+    "granted": [
+      "cache",
+      "db",
+      "fs",
+      "httpclient",
+      "platform",
+      "pdf",
+      "zip",
+      "image",
+      "email",
+      "ai",
+      "scheduler"
+    ]
+  },
+  "ginpin": {
+    "granted": [
+      "db",
+      "fs",
+      "image"
+    ]
+  },
+  "gintring": {
+    "granted": [
+      "db",
+      "email"
+    ]
+  },
+  "ginmind": {
+    "granted": [
+      "ai"
+    ]
   }
 }

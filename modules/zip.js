@@ -33,7 +33,8 @@ const { resolveSecurePath } = require('./internal_utils.js');
  */
 async function zip(scope, sourcePath, options = {}) {
     const absolutePath = resolveSecurePath(scope, sourcePath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
+    
 
     // Create a promise that resolves when the stream is finished.
     const streamPromise = new Promise((resolve, reject) => {
@@ -87,7 +88,7 @@ async function zipToFile(sourceScope, sourcePath, destScope, destPath, options =
     nodeFs.mkdirSync(destDir, { recursive: true });
 
     const output = nodeFs.createWriteStream(destAbsolutePath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
 
     // Create a promise that resolves when the output file stream is closed.
     const streamPromise = new Promise((resolve, reject) => {

@@ -60,7 +60,7 @@ async function createDevContextFile() {
         description: "The source code for the bundled `glade` admin panel. This serves as a primary example of a privileged, MPA-style Gingee application.",
         baseDir: 'web/glade',
         glob: '**/*.{js,html,css,json,gpkg,md}',
-        ignore: ['box/logs/**']
+        ignore: ['box/logs/**', 'libs/**', 'node_modules/**', 'images/**']
       },
       {
         title: "Server Script & Module Tests",
@@ -104,7 +104,7 @@ async function createDevContextFile() {
       {
         title: "Gingee CLI - Templates",
         baseDir: '../gingee-cli/templates',
-        glob: '**/*'
+        glob: '**/*.{json,js}'
       }
     ];
 

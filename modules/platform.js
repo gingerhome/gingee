@@ -9,15 +9,22 @@ const fg = require('fast-glob');
 const zip = require('./zip.js');
 const { als, getContext } = require('./gingee.js');
 const db = require('./db.js');
+const email = require('./email.js');
+const ai = require('./ai.js');
+const scheduler = require('./scheduler.js');
 const appLogger = require('./logger.js');
 
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
 const gdev = require('./gdev.js');
+const { isPathInside } = require('./internal_utils.js');
 
 const ALL_PERMISSIONS = {
     "cache": "Allows the app to use the caching service for storing and retrieving data.",
     "db": "Allows the app to connect to and query the database(s) you configure for it.",
+    "email": "Allows the app to send transactional email via the configured provider (e.g. SendGrid) or a runtime config override.",
+    "ai": "Allows the app to call generative AI providers (chat, multimodal, document parsing, content safety) via the ai module.",
+    "scheduler": "Allows the app to register CRON schedules declared in app.json (script or URL targets). URL targets also need httpclient.",
     "fs": "Grants full read/write access within the app's own secure directories (`box` and `web`).",
     "httpclient": "Permits the app to make outbound network requests to any external API or website.",
     "platform": "PRIVILEGED: Allows managing the lifecycle of other applications on the server. Grant with extreme caution.",
@@ -141,7 +148,8 @@ function _resolveSecureAppPath(appName, filePath) {
     const targetPath = path.join(appBasePath, finalFilePath);
 
     const resolvedPath = path.resolve(targetPath);
-    if (!resolvedPath.startsWith(appBasePath)) {
+    // isPathInside rejects sibling prefix escapes (app1 vs app10), unlike String.startsWith.
+    if (!isPathInside(resolvedPath, appBasePath)) {
         logger.error(`Path Traversal Error: Attempted access to '${filePath}' is outside of app '${appName}' directory.`);
         throw new Error(`Path Traversal Error: Access is forbidden.`);
     }
@@ -171,7 +179,7 @@ async function _unzipBufferToPath(zipBuffer, destAbsolutePath) {
             const finalDestPath = path.join(destAbsolutePath, entry.fileName);
             const resolvedPath = path.resolve(finalDestPath);
 
-            if (!resolvedPath.startsWith(destAbsolutePath)) {
+            if (!isPathInside(resolvedPath, destAbsolutePath)) {
                 return reject(new Error(`Security Error: Zip file contains path traversal ('${entry.fileName}').`));
             }
 
@@ -450,10 +458,14 @@ async function registerNewApp(appName, permissionsArray) {
         _reloadRoutes(appName);
 
         await db.reinitApp(appName, app, logger);
+        await email.reinitApp(appName, app, logger);
+        await ai.reinitApp(appName, app, logger);
 
         await als.run({ app, logger, globalConfig }, async () => {
             await runStartupScripts(app);
         });
+
+        scheduler.reinitApp(appName, app);
     } catch (error) {
         logger.error(`Error initializing app '${appName}': ${error.message}`);
         return false;
@@ -501,7 +513,7 @@ async function reloadApp(appName) {
         // Clear local script cache associated with this app
         const appPathPrefix = app.appBoxPath;
         for (const key of transpileCache.keys()) {
-            if (key.startsWith(appPathPrefix)) {
+            if (isPathInside(key, appPathPrefix)) {
                 transpileCache.delete(key);
             }
         }
@@ -518,13 +530,18 @@ async function reloadApp(appName) {
             gdev.startDevServer(app);
         }
 
-        // Re-initialize the DB for this app
+        // Re-initialize the DB, email, and AI for this app
         await db.reinitApp(appName, app, logger);
+        await email.reinitApp(appName, app, logger);
+        await ai.reinitApp(appName, app, logger);
 
         // Run startup scripts for this app
         await als.run({ app, logger, globalConfig }, async () => {
             await runStartupScripts(app);
         });
+
+        // Re-register CRON schedules for this app (if server scheduler is enabled)
+        scheduler.reinitApp(appName, app);
     } catch (error) {
         logger.error(`Error reloading app '${appName}': ${error.message}`);
         return false;
@@ -569,6 +586,15 @@ async function deleteApp(appName) {
         logger.info(`Shutting down database connections for app '${appName}' before deletion.`);
         await db.shutdownApp(appName, logger);
 
+        logger.info(`Shutting down email for app '${appName}' before deletion.`);
+        await email.shutdownApp(appName, logger);
+
+        logger.info(`Shutting down AI for app '${appName}' before deletion.`);
+        await ai.shutdownApp(appName, logger);
+
+        logger.info(`Unregistering scheduled jobs for app '${appName}' before deletion.`);
+        scheduler.unregisterApp(appName);
+
         logger.info(`Revoking permissions for '${appName}'...`);
         removeAppPermissions(appName);
 
@@ -576,7 +602,7 @@ async function deleteApp(appName) {
         const appConfigPath = path.join(app.appBoxPath, 'app.json');
 
         // Final safety check to ensure we're not deleting something outside the web root
-        if (!path.resolve(appBasePath).startsWith(path.resolve(webPath))) {
+        if (!isPathInside(appBasePath, webPath)) {
             throw new Error(`Security Error: Cannot delete directory outside of the web root.`);
         }
 
@@ -596,7 +622,7 @@ async function deleteApp(appName) {
 
         // 1. Clear transpilation cache for all files within the app's box folder.
         for (const key of transpileCache.keys()) {
-            if (key.startsWith(app.appBoxPath)) {
+            if (isPathInside(key, app.appBoxPath)) {
                 transpileCache.delete(key);
             }
         }
@@ -658,7 +684,7 @@ async function unzipToApp(appName, relativePath, zipBuffer) {
             const resolvedPath = path.resolve(finalDestPath);
 
             // Verify that the final resolved path is still INSIDE our secure destination directory.
-            if (!resolvedPath.startsWith(destAbsolutePath)) {
+            if (!isPathInside(resolvedPath, destAbsolutePath)) {
                 const securityError = new Error(`Security Error: Zip file contains a path traversal attempt ('${entry.fileName}').`);
                 return reject(securityError);
             }

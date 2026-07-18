@@ -147,4 +147,5 @@ test/data/*
 web/*
 !web/glade
 !web/glade/**
+web/glade/box/logs
 

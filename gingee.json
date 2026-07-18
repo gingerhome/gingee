@@ -37,5 +37,18 @@
             "period_days": 7,
             "max_size_mb": 50
         }
+    },
+    "scheduler": {
+        "enabled": false,
+        "timezone": "UTC"
+    },
+    "limits": {
+        "request_timeout_ms": 30000,
+        "request_timeout_stream_ms": 300000,
+        "stream_idle_timeout_ms": 60000,
+        "outbound_timeout_ms": 15000,
+        "max_concurrent_requests": 100,
+        "max_concurrent_requests_per_app": 25,
+        "max_concurrent_outbound": 50
     }
 }

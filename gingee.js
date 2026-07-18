@@ -26,6 +26,10 @@ const userConfig = require(path.join(projectRoot, 'gingee.json'));
 const { als } = require('./modules/gingee.js');
 const { runStartupScripts, loadPermissionsForApp } = require('./modules/gapp_start.js');
 const db = require('./modules/db.js');
+const email = require('./modules/email.js');
+const ai = require('./modules/ai.js');
+const scheduler = require('./modules/scheduler.js');
+const limits = require('./modules/limits.js');
 const { log } = require('console');
 const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
@@ -62,6 +66,13 @@ const defaultConfig = {
   box: {
     allowed_modules: []
   },
+  // Scheduler is off by default. Enable on at most one node in multi-server deployments.
+  scheduler: {
+    enabled: false,
+    timezone: "UTC"
+  },
+  // Request/outbound timeouts and concurrency (app.json limits may only tighten these).
+  limits: { ...limits.DEFAULTS },
   default_app: "glade", //set default app as the glade admin panel
   privileged_apps: ['glade'] //set glade as a priviledged app by default
 };
@@ -77,7 +88,9 @@ const config = {
     ...userConfig.logging,
     rotation: { ...defaultConfig.logging.rotation, ...(userConfig.logging && userConfig.logging.rotation) }
   },
-  box: { ...defaultConfig.box, ...userConfig.box }
+  box: { ...defaultConfig.box, ...userConfig.box },
+  scheduler: { ...defaultConfig.scheduler, ...(userConfig.scheduler || {}) },
+  limits: { ...defaultConfig.limits, ...(userConfig.limits || {}) }
 };
 
 let webPath;
@@ -179,6 +192,18 @@ async function initializeApps(config, logger, webPath) {
           });
         }
 
+        try {
+          email.initApp(apps[appName], dedicatedLogger);
+        } catch (err) {
+          logger.error(`Failed to initialize email for app '${appName}': ${err.message}`);
+        }
+
+        try {
+          ai.initApp(apps[appName], dedicatedLogger);
+        } catch (err) {
+          logger.error(`Failed to initialize AI for app '${appName}': ${err.message}`);
+        }
+
         await als.run({ app, logger, projectRoot }, async () => {
           await loadPermissionsForApp(app);
         });
@@ -187,6 +212,13 @@ async function initializeApps(config, logger, webPath) {
           await als.run({ app, logger, globalConfig: config }, async () => {
             await runStartupScripts(app);
           });
+        }
+
+        // Register CRON schedules after permissions are loaded (no-op if scheduler disabled).
+        try {
+          scheduler.registerApp(apps[appName]);
+        } catch (err) {
+          logger.error(`Failed to register schedules for app '${appName}': ${err.message}`);
         }
       }
     }
@@ -450,6 +482,37 @@ async function requestHandler(req, res, apps, config, logger) {
         const scriptPath = targetScriptPath;
         if (fs.existsSync(scriptPath)) {
           logger.info(`Executing script: ${scriptPath}`);
+
+          // Concurrency gate (server scripts only; static files are not counted).
+          const acquire = limits.tryAcquireRequest(appName, app);
+          if (!acquire.ok) {
+            if (!res.headersSent) {
+              res.writeHead(acquire.statusCode || 503, {
+                'Content-Type': 'application/json',
+                'Retry-After': '1'
+              });
+              res.end(
+                JSON.stringify({
+                  error: 'TOO_MANY_REQUESTS',
+                  scope: acquire.scope,
+                  message: acquire.message
+                })
+              );
+            }
+            return;
+          }
+
+          const releaseOnce = () => limits.releaseRequest(acquire.token);
+          let releaseHooked = false;
+          const hookReleaseOnResponse = () => {
+            if (releaseHooked) return;
+            releaseHooked = true;
+            const done = () => releaseOnce();
+            res.on('finish', done);
+            res.on('close', done);
+          };
+          hookReleaseOnResponse();
+
           try {
             // --- Server Script Cache Logic ---
             const serverCacheConfig = cacheConfig.server;
@@ -487,6 +550,12 @@ async function requestHandler(req, res, apps, config, logger) {
               logger
             };
 
+            // Request budget + AbortSignal for this script invocation.
+            const store = als.getStore();
+            if (store) {
+              limits.attachRequestContext(store, acquire.token, res);
+            }
+
             if (app.config.default_include) {
               // Note: default_include scripts are always cached by Node unless the server is restarted.
               const gRequire = createGRequire(scriptPath, gBoxConfig);
@@ -497,12 +566,12 @@ async function requestHandler(req, res, apps, config, logger) {
                   includeScript = await includeScript();
                 }
 
-                const store = als.getStore();
-                if (store && store.$g && store.$g.isCompleted) {
+                const includeStore = als.getStore();
+                if (includeStore && includeStore.$g && includeStore.$g.isCompleted) {
                   // If a default include script (like the auth middleware) has sent a response,
                   // we must stop all further processing.
                   logger.info(`Request handled by default include '${includedPath}'. Halting execution.`);
-                  return; // Exit the requestHandler.
+                  return; // Exit the requestHandler (release on res finish/close).
                 }
               }
             }
@@ -580,6 +649,18 @@ async function requestHandler(req, res, apps, config, logger) {
   // Initialize the cache service as configured, else fall back to in-memory cache
   await cache.init(config.cache, logger);
 
+  // Server-level email defaults (optional); per-app email is initialized in initializeApps
+  email.initServer(config.email, logger);
+
+  // Server-level AI defaults (optional); per-app AI is initialized in initializeApps
+  ai.initServer(config.ai, logger);
+
+  // Scheduler (default disabled). Apps' app.json schedules register during initializeApps.
+  scheduler.initServer(config.scheduler, logger, config);
+
+  // Request/outbound timeouts and concurrency limits
+  limits.initServer(config.limits, logger);
+
   const pdfStatus = pdf.init(); // Initialize the PDF module
   if (pdfStatus.error) {
     logger.error(`Failed to initialize PDF module: ${pdfStatus.error.message}`);
@@ -616,6 +697,7 @@ async function requestHandler(req, res, apps, config, logger) {
     try {
       const reqHandler = (req, res) => requestHandler(req, res, apps, config, logger);
       const httpServer = http.createServer(reqHandler);
+      limits.applyServerTimeouts(httpServer);
 
       httpServer.on('error', (error) => {
         handleServerError(error, config.server.http.port, 'HTTP');
@@ -647,6 +729,7 @@ async function requestHandler(req, res, apps, config, logger) {
 
       const reqHandler = (req, res) => requestHandler(req, res, apps, config, logger);
       const httpsServer = https.createServer(options, reqHandler);
+      limits.applyServerTimeouts(httpsServer);
 
       httpsServer.on('error', (error) => {
         handleServerError(error, config.server.https.port, 'HTTPS');

@@ -8,6 +8,6 @@
   ],
   "env": {
     "ADMIN_USERNAME": "admin",
-    "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=65536,t=3,p=4$ULnq1khDFNVv0nIAS8tguA$i3dUdCtp8zz4JcRvMFOlF5JieMvAIxL7ZT231EJPps4"
+    "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=65536,t=3,p=4$YwlXSrNScSAZ7tv/UE9w9A$xBwFI2TmFmIHhjyftTqPxeqEU9Km74sBG0usyckQg/Y"
   }
 }

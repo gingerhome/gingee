@@ -17,6 +17,9 @@ This phase is focused on adding major new modules that unlock entirely new categ
     -   **Use Cases:** Live chat applications, real-time notifications, collaborative editing tools, and live data dashboards.
     -   **Implementation:** A new module, likely wrapping a robust library like `ws`, that integrates securely with the Gingee routing model.
 
+-   **CRON Scheduler** *(v1 shipped: declarative `app.json` schedules; server gate `scheduler.enabled` default off)*
+    -   **Next:** Redis leader election for multi-node, runtime API / “Run now” in Glade, optional handoff to `queue`.
+
 -   **Job Queues & Background Processing (`queue` Module)**
     -   **Goal:** Enable applications to offload long-running or deferrable tasks to a background worker process.
     -   **Use Cases:** Sending welcome emails, processing video uploads, generating complex reports, or calling slow third-party APIs without blocking the main request.
@@ -25,7 +28,8 @@ This phase is focused on adding major new modules that unlock entirely new categ
 -   **Third-Party Service Adapters**
     -   **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.
     -   **Modules:**
-        -   **`mail`**: For transactional email (with adapters for SendGrid, Amazon SES).
+        -   **`email`**: For transactional email (SendGrid + console shipped; Amazon SES and others later).
+        -   **`ai`**: Generative AI module (Gemini + mock shipped; **xai/Grok** and others next).
         -   **`storage`**: For cloud object storage (with an adapter for Amazon S3).
         -   **`search`**: For full-text search (with an adapter for Algolia or Elasticsearch).
 

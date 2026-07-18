@@ -176,7 +176,7 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **Description:** A property to hold the response body before sending. It's often more direct to just pass the data to the `send()` method.
 
 -   **`$g.response.send(data, [status], [contentType])`**
-    -   **Description:** The final method you call to send the response. It intelligently handles different data types.
+    -   **Description:** The final method you call to send a **complete** (non-streaming) response. It intelligently handles different data types.
     -   **`data`**: The content to send.
         -   If `string` or `Buffer`, it's sent as-is.
         -   If `object` or `Array`, it is automatically `JSON.stringify()`-ed, and the `Content-Type` is set to `application/json`.
@@ -184,6 +184,79 @@ An object used to build the outgoing HTTP response. You modify its properties an
     -   **`contentType` (optional):** A `string` to set the `Content-Type` header, overriding `$g.response.headers['Content-Type']`.
     -   **Example (JSON):** `$g.response.send({ user: 'test' });`
     -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
+    -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
+
+#### Platform limits (`$g.limits`, abort signal)
+
+When a **server script** runs under the engine limits module:
+
+-   **`$g.limits.remainingMs`** — milliseconds left on the non-stream request budget (or `null` if not applicable)
+-   **`$g.limits.deadline`** — absolute epoch ms deadline
+-   **`$g.limits.signal`** / **`$g.request.signal`** — `AbortSignal` aborted on request timeout (passed to `httpclient` automatically)
+-   **`$g.limits.config`** — effective limits object for this request
+
+Non-stream scripts that exceed `request_timeout_ms` receive a platform **504** if they have not yet completed. After `startStream()`, stream **idle** and **hard** timeouts apply instead. Concurrency overloads return **503** before the script runs.
+
+Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are subject to `max_concurrent_outbound`.
+
+#### Scheduled job context
+
+When a script is invoked by the **CRON scheduler** (see `app.json` → `schedules`), there is no HTTP request. The `gingee()` middleware still provides `$g`, with:
+
+-   **`$g.request.method`:** `"SCHEDULE"`
+-   **`$g.request.body`:** the job’s optional `payload` from `app.json`
+-   **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
+-   **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
+-   **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
+-   **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
+
+#### Streaming responses (SSE and chunked output)
+
+For long-running or progressive output (for example, `require('ai').chatStream(...)`), use the streaming helpers on `$g.response` instead of a single `send()`. These write to the underlying HTTP response without exposing Node's raw `res` object to the sandbox.
+
+-   **`$g.response.startStream([status], [contentType], [extraHeaders])`**
+    -   Opens a streamed response. Default `Content-Type` is `text/event-stream; charset=utf-8` (Server-Sent Events).
+    -   Also sets `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no` for proxy-friendly streaming.
+    -   Optional `extraHeaders` is an object of additional headers to set before the body starts.
+-   **`$g.response.write(chunk)`**
+    -   Writes a raw string or `Buffer` chunk to the open stream.
+-   **`$g.response.writeSSE(payload)`**
+    -   Writes one SSE event line. If `payload` is an object, it is `JSON.stringify`-ed. Format: `data: …\n\n`.
+-   **`$g.response.endStream()`**
+    -   Ends the streamed response and marks the request complete (same completion semantics as `send()` for request lifecycle).
+
+**Example (AI streaming via SSE):**
+```javascript
+module.exports = async function () {
+    await gingee(async ($g) => {
+        const ai = require('ai');
+        const messages = $g.request.body.messages;
+
+        $g.response.startStream(200, 'text/event-stream; charset=utf-8');
+        try {
+            for await (const chunk of ai.chatStream({ messages })) {
+                if (chunk.done) {
+                    $g.response.writeSSE({
+                        type: 'done',
+                        text: chunk.text,
+                        model: chunk.model,
+                        provider: chunk.provider,
+                        usage: chunk.usage || null
+                    });
+                } else if (chunk.textDelta) {
+                    $g.response.writeSSE({ type: 'delta', textDelta: chunk.textDelta });
+                }
+            }
+        } catch (err) {
+            $g.response.writeSSE({ type: 'error', error: err.message });
+        } finally {
+            $g.response.endStream();
+        }
+    });
+};
+```
+
+Clients typically consume this with `fetch()` + `ReadableStream` (POST bodies are not supported by browser `EventSource`).
 
 ### `$g.log`
 

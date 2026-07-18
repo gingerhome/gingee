@@ -109,7 +109,7 @@ For full control over your application's distributable package, creating a `.gpk
 While `.gpkg` controls *what files* are included in your package, the `pmft.json` manifest declares the *security permissions* your application requires to function.
 
 -   **Location:** The `pmft.json` file must be placed in your application's `box` folder (e.g., `web/my-app/box/pmft.json`).
--   **Purpose:** To declare which protected Gingee modules (like `db` or `fs`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
+-   **Purpose:** To declare which protected Gingee modules (like `db`, `fs`, `email`, or `ai`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
 
 When an administrator installs your `.gin` package using the `gingee-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
 
