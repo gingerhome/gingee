@@ -58,6 +58,16 @@ Here is a comprehensive breakdown of all available properties.
     "required": true,
     "file_roots": ["./settings/secrets", "/run/secrets"]
   },
+  "metrics": {
+    "enabled": true,
+    "path": "/metrics",
+    "allow_from": ["127.0.0.1", "::1", "::ffff:127.0.0.1"],
+    "bearer_token": null
+  },
+  "audit": {
+    "enabled": true,
+    "path": "./logs/audit.jsonl"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -228,6 +238,49 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 **Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
 
 **Examples of fields that commonly use refs:** `jwt_secret`, `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
+
+### metrics
+
+- **Type:** `object` (optional)
+- **Description:** Engine-scoped **Prometheus** exposition for observability (Grafana, etc.). Not an application route and not available via sandboxed `require`—scrape the HTTP path on the server itself. Prefer keeping scrapes on localhost or a private network interface; do not expose `/metrics` on the public internet without a reverse proxy ACL and optional bearer token.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | When `false`, the metrics path is not served. |
+| `path` | `"/metrics"` | HTTP path for scrapes (must start with `/`). |
+| `allow_from` | `["127.0.0.1", "::1", "::ffff:127.0.0.1"]` | Socket remote addresses allowed to scrape. **Empty array = allow all** (not recommended). Uses the TCP peer address only—`X-Forwarded-For` is **not** trusted. |
+| `bearer_token` | `null` | If set (literal or `env:` / `file:` secret ref), require `Authorization: Bearer <token>`. |
+
+**Series (high level):** HTTP request counts/durations (by app, kind, status class), concurrency reject counters, egress deny reasons, scheduler job run outcomes, in-flight gauges, process memory, app/job counts.
+
+**Scrape example (local):**
+
+```bash
+curl -s http://127.0.0.1:7070/metrics
+```
+
+### audit
+
+- **Type:** `object` (optional)
+- **Description:** Append-only **JSONL** audit trail for privileged platform actions: permission changes and app lifecycle (install, upgrade, reload, delete, rollback, register). Written by the engine when Glade / `platform` APIs mutate state—not request-level access logs.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | When `false`, no audit file is written. |
+| `path` | `"./logs/audit.jsonl"` | Absolute or project-relative path to the audit log file. Parent directories are created if needed. |
+
+Each line is one JSON object, for example:
+
+```json
+{"ts":"2026-07-18T12:00:00.000Z","event":"permission.set","actor":"glade","app":"myapp","details":{"previous":["fs"],"granted":["fs","db"]}}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `event` | Stable name: `permission.set`, `app.install`, `app.upgrade`, `app.reload`, `app.delete`, `app.rollback`, `app.register` |
+| `actor` | Privileged app that performed the action when available; otherwise `system` |
+| `app` | Target application name |
+| `details` | Event-specific payload (previous/granted permissions, versions, etc.) |
 
 ### max_body_size
 - **Type:** `string`

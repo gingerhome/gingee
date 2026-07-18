@@ -59,6 +59,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **CRON Scheduler:** Declare recurring script or URL jobs in `app.json`; enable per node via `scheduler.enabled` (default off).
   - **Request limits & egress:** Concurrency/timeouts (`limits`) and default-protected SSRF policy (`egress`) for outbound HTTP.
   - **Config secrets:** `env:` / `file:` references resolved at load; sandbox has no host `process`.
+  - **Metrics & audit:** Prometheus `/metrics` (localhost-only by default) and JSONL audit for permissions/lifecycle.
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 

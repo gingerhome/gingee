@@ -344,6 +344,15 @@ async function runJob(app, runtime) {
     );
     runtime.lastStatus = 'skipped_maintenance';
     runtime.lastError = null;
+    try {
+      const metrics = require('./metrics.js');
+      metrics.inc('gingee_scheduler_job_runs_total', {
+        app: app.name,
+        status: 'skipped_maintenance'
+      });
+    } catch (_) {
+      /* ignore */
+    }
     return;
   }
 
@@ -352,6 +361,15 @@ async function runJob(app, runtime) {
       `[scheduler] Skipping job '${job.name}' for app '${app.name}': previous run still in progress (overlap=skip).`
     );
     runtime.lastStatus = 'skipped_overlap';
+    try {
+      const metrics = require('./metrics.js');
+      metrics.inc('gingee_scheduler_job_runs_total', {
+        app: app.name,
+        status: 'skipped_overlap'
+      });
+    } catch (_) {
+      /* ignore */
+    }
     return;
   }
 
@@ -395,6 +413,15 @@ async function runJob(app, runtime) {
     );
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
+    try {
+      const metrics = require('./metrics.js');
+      metrics.inc('gingee_scheduler_job_runs_total', {
+        app: app.name,
+        status: runtime.lastStatus || 'unknown'
+      });
+    } catch (_) {
+      /* metrics optional */
+    }
   }
 
   // Wait for underlying work to settle so overlap protection stays accurate.

@@ -8,7 +8,7 @@
         },
         "http": {
             "enabled": true,
-            "port": 7070
+            "port": 8080
         }
     },
     "content_encoding": {
@@ -69,5 +69,15 @@
         "load_dotenv": false,
         "required": true,
         "file_roots": ["./settings/secrets", "/run/secrets"]
+    },
+    "metrics": {
+        "enabled": true,
+        "path": "/metrics",
+        "allow_from": ["127.0.0.1", "::1", "::ffff:127.0.0.1"],
+        "bearer_token": null
+    },
+    "audit": {
+        "enabled": true,
+        "path": "./logs/audit.jsonl"
     }
 }

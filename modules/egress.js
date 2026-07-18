@@ -322,7 +322,8 @@ function isIpAllowed(ip) {
 /**
  * Assert a URL is allowed under egress policy.
  * @param {string} urlString
- * @param {{ skipDns?: boolean }} [options]
+ * @param {object} [options]
+ * @param {boolean} [options.skipDns]
  * @returns {Promise<{ ok: true, url: string, host: string } | { ok: false, code: string, message: string, reason: string }>}
  */
 async function assertUrlAllowed(urlString, options = {}) {
@@ -465,6 +466,12 @@ async function resolveAndCheckHost(host, sync) {
  * @private
  */
 function deny(reason, message) {
+  try {
+    const metrics = require('./metrics.js');
+    metrics.inc('gingee_egress_denied_total', { reason: String(reason || 'UNKNOWN') });
+  } catch (_) {
+    /* metrics optional at load */
+  }
   return {
     ok: false,
     code: 'EGRESS_DENIED',

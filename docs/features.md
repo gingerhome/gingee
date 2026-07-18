@@ -57,6 +57,12 @@ These are the core architectural features that define the Gingee development exp
 *   **Config secret references**
     Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
 
+-   **Prometheus Metrics:**
+    Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, and process gauges—not cross-app data APIs for untrusted code.
+
+-   **Audit Trail:**
+    Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 

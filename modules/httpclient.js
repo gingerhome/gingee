@@ -80,6 +80,12 @@ function applyPlatformLimits(options = {}) {
 
     const outbound = limits.tryAcquireOutbound();
     if (!outbound.ok) {
+        try {
+            const metrics = require('./metrics.js');
+            metrics.inc('gingee_limits_rejected_total', { scope: 'outbound' });
+        } catch (_) {
+            /* ignore */
+        }
         const err = new Error(outbound.message);
         err.code = 'TOO_MANY_OUTBOUND';
         throw err;

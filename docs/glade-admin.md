@@ -133,6 +133,10 @@ This is a destructive action that will permanently remove an application and all
 
 ![Glade App Delete](./images/7.glade-app-delete.png)
 
+### Audit trail (server-side)
+
+Glade actions that change permissions or app lifecycle (install, upgrade, reload, rollback, uninstall, permission save) are recorded by the **engine** in an append-only JSONL audit log. By default this is `logs/audit.jsonl` relative to the project root (`gingee.json` → `audit`). Each line includes timestamp, event name, actor (typically `glade`), target app, and details (for example previous vs granted permissions). This is separate from application request logs—see [Server Config](./server-config.md) → `audit`.
+
 ## Administration & Security
 
 ### Logging Out

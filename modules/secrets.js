@@ -199,7 +199,7 @@ function resolveEnvSecret(name, required) {
 
 /**
  * Parse "env:NAME" / "file:path" / { $secret, required? }
- * @returns {{ kind: 'literal'|'ref', value?: any, ref?: string, required?: boolean }|null}
+ * @returns {object|null} Parsed form: `{ kind: 'literal'|'ref', value, ref, required }`
  * @private
  */
 function parseSecretRef(value) {

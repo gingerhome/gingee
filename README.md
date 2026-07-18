@@ -60,6 +60,8 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Request & Outbound Limits:** Concurrency caps, request/stream timeouts, and default `httpclient` timeouts via `gingee.json` → `limits`.
   - **Egress / SSRF policy:** Default-protected outbound URL checks on `httpclient` and scheduler URL jobs (`gingee.json` → `egress`).
   - **Config secrets:** `env:VAR` / `file:…` references in JSON config, resolved by the engine (apps still cannot read host `process.env`).
+  - **Prometheus Metrics:** Engine-scoped `/metrics` scrape endpoint (default localhost-only; optional bearer token) for HTTP scripts, limits, egress, and scheduler series.
+  - **Audit Trail:** Append-only JSONL log of permission changes and app lifecycle events (`gingee.json` → `audit`, default `logs/audit.jsonl`).
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 

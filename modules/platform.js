@@ -13,6 +13,7 @@ const email = require('./email.js');
 const ai = require('./ai.js');
 const scheduler = require('./scheduler.js');
 const secrets = require('./secrets.js');
+const audit = require('./audit.js');
 const appLogger = require('./logger.js');
 
 const { match } = require('path-to-regexp');
@@ -56,6 +57,11 @@ async function _writePermissionsToFile(appName, permissionsArray) {
         allGrants = JSON.parse(nodeFs.readFileSync(permissionsFilePath, 'utf8'));
     }
 
+    const previous =
+        allGrants[appName] && Array.isArray(allGrants[appName].granted)
+            ? [...allGrants[appName].granted]
+            : [];
+
     // Ensure permissionsArray is a unique set of valid keys
     if (Array.isArray(permissionsArray)) {
         const validPermissions = permissionsArray.filter(p => ALL_PERMISSIONS.hasOwnProperty(p));
@@ -67,7 +73,10 @@ async function _writePermissionsToFile(appName, permissionsArray) {
     nodeFs.writeFileSync(permissionsFilePath, JSON.stringify(allGrants, null, 2));
     logger.info(`Permissions file on disk updated for app '${appName}'.`);
 
-    return allGrants[appName].granted;
+    const granted = allGrants[appName].granted;
+    audit.emit('permission.set', { previous, granted }, { app: appName });
+
+    return granted;
 }
 
 /**
@@ -473,6 +482,11 @@ async function registerNewApp(appName, permissionsArray) {
     }
 
     logger.info(`App '${appName}' registered successfully.`);
+    audit.emit(
+        'app.register',
+        { permissions: grantedPermissions || [] },
+        { app: appName }
+    );
     return true;
 }
 
@@ -553,6 +567,7 @@ async function reloadApp(appName) {
     }
 
     logger.info(`App '${appName}' reloaded successfully.`);
+    audit.emit('app.reload', {}, { app: appName });
     return true; // Indicate success
 }
 
@@ -632,6 +647,7 @@ async function deleteApp(appName) {
         await staticFileCache.clear(`static:${app.appWebPath}`);
 
         logger.info(`App '${appName}' deleted successfully.`);
+        audit.emit('app.delete', {}, { app: appName });
     } finally {
         // `reloadApp` will set the flag back to false. This is a safety net in case of an early error.
         if (app.in_maintenance) {
@@ -924,6 +940,11 @@ async function installApp(appName, packageBuffer, grantedPermissions) {
     //await setAppPermissions(appName, grantedPermissions, false); //set reload app to false as it is a new install
 
     logger.info(`App '${appName}' installed successfully from package.`);
+    audit.emit(
+        'app.install',
+        { permissions: Array.isArray(grantedPermissions) ? grantedPermissions : [] },
+        { app: appName }
+    );
     return true; // Indicate success
 }
 
@@ -991,6 +1012,15 @@ async function upgradeApp(appName, packageBuffer, grantedPermissions, options = 
         }
 
         logger.info(`App '${appName}' upgraded successfully from version ${plan.fromVersion} to ${plan.toVersion}.`);
+        audit.emit(
+            'app.upgrade',
+            {
+                fromVersion: plan.fromVersion,
+                toVersion: plan.toVersion,
+                permissions: Array.isArray(grantedPermissions) ? grantedPermissions : []
+            },
+            { app: appName }
+        );
     } finally {
         if (app.in_maintenance) {
             app.in_maintenance = false;
@@ -1029,6 +1059,11 @@ async function rollbackApp(appName, grantedPermissions) {
     nodeFs.unlinkSync(latestBackupPath);
 
     logger.info(`App '${appName}' rolled back successfully using backup '${latestBackupFile}'.`);
+    audit.emit(
+        'app.rollback',
+        { backup: latestBackupFile },
+        { app: appName }
+    );
     return true; // Indicate success
 }
 

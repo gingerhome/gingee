@@ -4,7 +4,7 @@
 
 **Audience:** Server operators, app packagers, security reviewers, and contributors.
 
-**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `box`), [Concepts](./concepts.md).
+**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `box`), [Concepts](./concepts.md).
 
 ---
 
@@ -171,7 +171,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 | :--- | :--- | :--- |
 | **S**poofing | Forged admin session on Glade | App-level auth (JWT etc.); harden Glade credentials; TLS |
 | **T**ampering | Modified `permissions.json` on disk | OS file permissions; restrict who can write `settings/` |
-| **R**epudiation | “Who granted `httpclient`?” | Ops logging / future audit trail; today: file history + process logs |
+| **R**epudiation | “Who granted `httpclient`?” | Append-only JSONL **`audit`** log (`permission.set`, lifecycle events) + process logs; keep file history on `settings/permissions.json` |
 | **I**nformation disclosure | App data leakage via another app | Path jail + no cross-app API by default; not RAM isolation |
 | **D**enial of service | Heavy PDF/AI script stalls node | `limits`, separate processes for heavy apps, timeouts |
 | **E**levation of privilege | Normal app becomes privileged | Keep `privileged_apps` minimal; never put untrusted apps there |
@@ -199,6 +199,8 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 2. Keep **`privileged_apps`** to Glade (or equivalent) only.
 3. Grant permissions **least privilege**; prefer optional over mandatory in packages you publish.
 4. Set **`limits`** appropriately; do not disable timeouts without a reason.
+4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
+4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
 5. Keep **`scheduler.enabled`** false except on the designated scheduler node.
 6. Prefer **Redis** for cache when running more than one node.
 7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.
@@ -239,7 +241,9 @@ Gingee does **not** currently claim:
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops  
 
-These may appear on the roadmap (workers, queues, metrics, cluster); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
+
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`) and **JSONL audit** for permissions/lifecycle (`audit`) — see [Server Config](./server-config.md). They improve observability and non-repudiation; they do **not** add tenant isolation.
 
 ---
 
@@ -252,7 +256,7 @@ These may appear on the roadmap (workers, queues, metrics, cluster); until shipp
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0 (implemented separately):** request/outbound timeouts and concurrency — see `limits` in [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load; it is not a substitute for tenant isolation.
+**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, and audit — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for tenant isolation.
 
 ---
 
@@ -262,6 +266,6 @@ These may appear on the roadmap (workers, queues, metrics, cluster); until shipp
 | :--- | :--- |
 | Status | Living document |
 | Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS` |
-| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/scheduler.js`, `gingee.js` |
+| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `gingee.js` |
 
 When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.

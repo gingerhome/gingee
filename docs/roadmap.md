@@ -45,9 +45,9 @@ This phase is focused on adding features essential for running massive, high-tra
     -   **Goal:** Allow a single Gingee instance to run on multiple CPU cores and scale across a fleet of machines.
     -   **Implementation:** Leverage Node.js's `cluster` module and enhance core services (like the app registry and caches) to work in a distributed environment, likely with Redis.
 
--   **Metrics & Monitoring**
-    -   **Goal:** Expose internal server metrics for observability and alerting.
-    -   **Implementation:** Add a standard `/metrics` endpoint that exposes data in the **Prometheus** format for easy integration with tools like Grafana.
+-   **Metrics & Monitoring** *(baseline shipped)*
+    -   **Done:** Engine `/metrics` Prometheus scrape (localhost-only by default, optional bearer), counters/histograms for scripts, limits rejects, egress denies, scheduler runs; JSONL `audit` for permissions/lifecycle. See `gingee.json` → `metrics` / `audit`.
+    -   **Later:** Richer dashboards, distributed metrics under clustering, optional OpenTelemetry.
 
 -   **Community Plugin System**
     -   **Goal:** Allow the community to build, publish, and share their own Gingee app modules.

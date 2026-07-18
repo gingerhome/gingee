@@ -208,7 +208,7 @@ function releaseRequest(token) {
  * Call once when script execution begins (after concurrency acquire).
  * @param {object} store - ALS store
  * @param {object} token - from tryAcquireRequest
- * @param {import('http').ServerResponse} res
+ * @param {object} res - Node HTTP ServerResponse
  */
 function attachRequestContext(store, token, res) {
   if (!store || !token) return;
@@ -440,7 +440,7 @@ function tryAcquireOutbound() {
 
 /**
  * Apply Node HTTP server timeout knobs.
- * @param {import('http').Server} server
+ * @param {object} server - Node HTTP Server
  */
 function applyServerTimeouts(server) {
   if (!server) return;

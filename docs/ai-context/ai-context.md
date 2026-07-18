@@ -116,7 +116,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, and whether the **scheduler** is enabled on this node (default off).
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, plus engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log).
 -   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), startup scripts, and middleware.
 -   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
@@ -528,6 +528,16 @@ Here is a comprehensive breakdown of all available properties.
     "required": true,
     "file_roots": ["./settings/secrets", "/run/secrets"]
   },
+  "metrics": {
+    "enabled": true,
+    "path": "/metrics",
+    "allow_from": ["127.0.0.1", "::1", "::ffff:127.0.0.1"],
+    "bearer_token": null
+  },
+  "audit": {
+    "enabled": true,
+    "path": "./logs/audit.jsonl"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -698,6 +708,49 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 **Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
 
 **Examples of fields that commonly use refs:** `jwt_secret`, `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
+
+### metrics
+
+- **Type:** `object` (optional)
+- **Description:** Engine-scoped **Prometheus** exposition for observability (Grafana, etc.). Not an application route and not available via sandboxed `require`—scrape the HTTP path on the server itself. Prefer keeping scrapes on localhost or a private network interface; do not expose `/metrics` on the public internet without a reverse proxy ACL and optional bearer token.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | When `false`, the metrics path is not served. |
+| `path` | `"/metrics"` | HTTP path for scrapes (must start with `/`). |
+| `allow_from` | `["127.0.0.1", "::1", "::ffff:127.0.0.1"]` | Socket remote addresses allowed to scrape. **Empty array = allow all** (not recommended). Uses the TCP peer address only—`X-Forwarded-For` is **not** trusted. |
+| `bearer_token` | `null` | If set (literal or `env:` / `file:` secret ref), require `Authorization: Bearer <token>`. |
+
+**Series (high level):** HTTP request counts/durations (by app, kind, status class), concurrency reject counters, egress deny reasons, scheduler job run outcomes, in-flight gauges, process memory, app/job counts.
+
+**Scrape example (local):**
+
+```bash
+curl -s http://127.0.0.1:7070/metrics
+```
+
+### audit
+
+- **Type:** `object` (optional)
+- **Description:** Append-only **JSONL** audit trail for privileged platform actions: permission changes and app lifecycle (install, upgrade, reload, delete, rollback, register). Written by the engine when Glade / `platform` APIs mutate state—not request-level access logs.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | When `false`, no audit file is written. |
+| `path` | `"./logs/audit.jsonl"` | Absolute or project-relative path to the audit log file. Parent directories are created if needed. |
+
+Each line is one JSON object, for example:
+
+```json
+{"ts":"2026-07-18T12:00:00.000Z","event":"permission.set","actor":"glade","app":"myapp","details":{"previous":["fs"],"granted":["fs","db"]}}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `event` | Stable name: `permission.set`, `app.install`, `app.upgrade`, `app.reload`, `app.delete`, `app.rollback`, `app.register` |
+| `actor` | Privileged app that performed the action when available; otherwise `system` |
+| `app` | Target application name |
+| `details` | Event-specific payload (previous/granted permissions, versions, etc.) |
 
 ### max_body_size
 - **Type:** `string`
@@ -966,6 +1019,10 @@ This is a destructive action that will permanently remove an application and all
 4.  Click the **Confirm** button. Glade will gracefully shut down the application's services, revoke its permissions, clear its caches, and delete its entire directory from the server.
 
 ![Glade App Delete](./images/7.glade-app-delete.png)
+
+### Audit trail (server-side)
+
+Glade actions that change permissions or app lifecycle (install, upgrade, reload, rollback, uninstall, permission save) are recorded by the **engine** in an append-only JSONL audit log. By default this is `logs/audit.jsonl` relative to the project root (`gingee.json` → `audit`). Each line includes timestamp, event name, actor (typically `glade`), target app, and details (for example previous vs granted permissions). This is separate from application request logs—see [Server Config](./server-config.md) → `audit`.
 
 ## Administration & Security
 
@@ -2323,7 +2380,7 @@ This is the definitive list of all permission keys available in Gingee.
 
 **Audience:** Server operators, app packagers, security reviewers, and contributors.
 
-**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `box`), [Concepts](./concepts.md).
+**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `box`), [Concepts](./concepts.md).
 
 ---
 
@@ -2490,7 +2547,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 | :--- | :--- | :--- |
 | **S**poofing | Forged admin session on Glade | App-level auth (JWT etc.); harden Glade credentials; TLS |
 | **T**ampering | Modified `permissions.json` on disk | OS file permissions; restrict who can write `settings/` |
-| **R**epudiation | “Who granted `httpclient`?” | Ops logging / future audit trail; today: file history + process logs |
+| **R**epudiation | “Who granted `httpclient`?” | Append-only JSONL **`audit`** log (`permission.set`, lifecycle events) + process logs; keep file history on `settings/permissions.json` |
 | **I**nformation disclosure | App data leakage via another app | Path jail + no cross-app API by default; not RAM isolation |
 | **D**enial of service | Heavy PDF/AI script stalls node | `limits`, separate processes for heavy apps, timeouts |
 | **E**levation of privilege | Normal app becomes privileged | Keep `privileged_apps` minimal; never put untrusted apps there |
@@ -2518,6 +2575,8 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 2. Keep **`privileged_apps`** to Glade (or equivalent) only.
 3. Grant permissions **least privilege**; prefer optional over mandatory in packages you publish.
 4. Set **`limits`** appropriately; do not disable timeouts without a reason.
+4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
+4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
 5. Keep **`scheduler.enabled`** false except on the designated scheduler node.
 6. Prefer **Redis** for cache when running more than one node.
 7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.
@@ -2558,7 +2617,9 @@ Gingee does **not** currently claim:
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops  
 
-These may appear on the roadmap (workers, queues, metrics, cluster); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
+
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`) and **JSONL audit** for permissions/lifecycle (`audit`) — see [Server Config](./server-config.md). They improve observability and non-repudiation; they do **not** add tenant isolation.
 
 ---
 
@@ -2571,7 +2632,7 @@ These may appear on the roadmap (workers, queues, metrics, cluster); until shipp
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0 (implemented separately):** request/outbound timeouts and concurrency — see `limits` in [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load; it is not a substitute for tenant isolation.
+**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, and audit — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for tenant isolation.
 
 ---
 
@@ -2581,7 +2642,7 @@ These may appear on the roadmap (workers, queues, metrics, cluster); until shipp
 | :--- | :--- |
 | Status | Living document |
 | Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS` |
-| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/scheduler.js`, `gingee.js` |
+| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `gingee.js` |
 
 When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.
 
@@ -2969,6 +3030,12 @@ These are the core architectural features that define the Gingee development exp
 
 *   **Config secret references**
     Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
+
+-   **Prometheus Metrics:**
+    Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, and process gauges—not cross-app data APIs for untrusted code.
+
+-   **Audit Trail:**
+    Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

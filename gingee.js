@@ -32,12 +32,15 @@ const scheduler = require('./modules/scheduler.js');
 const limits = require('./modules/limits.js');
 const egress = require('./modules/egress.js');
 const secrets = require('./modules/secrets.js');
+const metrics = require('./modules/metrics.js');
+const audit = require('./modules/audit.js');
 const { log } = require('console');
 const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
 const pdf = require('./modules/pdf.js');
 const { env } = require('process');
 const gdev = require('./modules/gdev.js');
+const packageJson = require('./package.json');
 
 const defaultConfig = {
   server: {
@@ -82,6 +85,10 @@ const defaultConfig = {
   egress: { ...egress.DEFAULTS },
   // Secret references: env:VAR / file:path resolved at load (engine only; apps cannot read process.env).
   secrets: { ...secrets.DEFAULTS, file_roots: [...secrets.DEFAULTS.file_roots] },
+  // Prometheus scrape endpoint (engine-scoped; default localhost-only).
+  metrics: { ...metrics.DEFAULTS, allow_from: [...metrics.DEFAULTS.allow_from] },
+  // Append-only JSONL audit for permissions + app lifecycle.
+  audit: { ...audit.DEFAULTS },
   default_app: "glade", //set default app as the glade admin panel
   privileged_apps: ['glade'] //set glade as a priviledged app by default
 };
@@ -114,6 +121,17 @@ const rawMergedConfig = {
     file_roots:
       (userConfig.secrets && userConfig.secrets.file_roots) ||
       defaultConfig.secrets.file_roots
+  },
+  metrics: {
+    ...defaultConfig.metrics,
+    ...(userConfig.metrics || {}),
+    allow_from:
+      (userConfig.metrics && userConfig.metrics.allow_from) ||
+      defaultConfig.metrics.allow_from
+  },
+  audit: {
+    ...defaultConfig.audit,
+    ...(userConfig.audit || {})
   }
 };
 
@@ -265,9 +283,29 @@ async function initializeApps(config, logger, webPath) {
   return apps;
 }
 
+/**
+ * Prometheus scrape hooks (live gauges).
+ * @private
+ */
+function metricsScrapeHooks(apps) {
+  return {
+    limitsStats: limits.getStats(),
+    appsCount: apps ? Object.keys(apps).length : 0,
+    schedulerJobs: scheduler.listJobs().length
+  };
+}
+
 // --- Request Handler ---
 async function requestHandler(req, res, apps, config, logger) {
+  const requestStartedAt = Date.now();
   try {
+    // Engine metrics endpoint (before app routing). Default: localhost-only.
+    if (
+      metrics.tryHandleRequest(req, res, metricsScrapeHooks(apps))
+    ) {
+      return;
+    }
+
     const urlPath = req.url.split('?')[0];
     const queryIndex = req.url.indexOf('?');
     const queryString = queryIndex !== -1 ? req.url.substring(queryIndex) : '';
@@ -311,6 +349,12 @@ async function requestHandler(req, res, apps, config, logger) {
       logger.warn(`Request to '${req.url}' blocked because app '${appName}' is in maintenance mode.`);
       res.writeHead(503, { 'Content-Type': 'text/html' });
       res.end('<h1>503 Service Unavailable</h1><p>This application is currently undergoing maintenance. Please try again shortly.</p>');
+      metrics.recordHttpRequest({
+        app: appName,
+        kind: 'other',
+        statusCode: 503,
+        durationSeconds: (Date.now() - requestStartedAt) / 1000
+      });
       return;
     }
 
@@ -333,6 +377,12 @@ async function requestHandler(req, res, apps, config, logger) {
     if (!app) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('APP_NOT_FOUND');
+      metrics.recordHttpRequest({
+        app: appName || '_none',
+        kind: 'other',
+        statusCode: 404,
+        durationSeconds: (Date.now() - requestStartedAt) / 1000
+      });
       return;
     }
 
@@ -524,6 +574,9 @@ async function requestHandler(req, res, apps, config, logger) {
           // Concurrency gate (server scripts only; static files are not counted).
           const acquire = limits.tryAcquireRequest(appName, app);
           if (!acquire.ok) {
+            metrics.inc('gingee_limits_rejected_total', {
+              scope: acquire.scope || 'global'
+            });
             if (!res.headersSent) {
               res.writeHead(acquire.statusCode || 503, {
                 'Content-Type': 'application/json',
@@ -537,15 +590,37 @@ async function requestHandler(req, res, apps, config, logger) {
                 })
               );
             }
+            metrics.recordHttpRequest({
+              app: appName,
+              kind: 'script',
+              statusCode: acquire.statusCode || 503,
+              durationSeconds: (Date.now() - requestStartedAt) / 1000
+            });
             return;
           }
 
           const releaseOnce = () => limits.releaseRequest(acquire.token);
           let releaseHooked = false;
+          let metricsRecorded = false;
           const hookReleaseOnResponse = () => {
             if (releaseHooked) return;
             releaseHooked = true;
-            const done = () => releaseOnce();
+            const done = () => {
+              releaseOnce();
+              if (metricsRecorded) return;
+              metricsRecorded = true;
+              try {
+                const code = res.statusCode || 200;
+                metrics.recordHttpRequest({
+                  app: appName,
+                  kind: 'script',
+                  statusCode: code,
+                  durationSeconds: (Date.now() - requestStartedAt) / 1000
+                });
+              } catch (_) {
+                /* ignore metrics errors */
+              }
+            };
             res.on('finish', done);
             res.on('close', done);
           };
@@ -652,6 +727,12 @@ async function requestHandler(req, res, apps, config, logger) {
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       res.end(`INTERNAL_SERVER_ERROR - ${err.message}`);
+      metrics.recordHttpRequest({
+        app: '_engine',
+        kind: 'other',
+        statusCode: 500,
+        durationSeconds: (Date.now() - requestStartedAt) / 1000
+      });
     }
   }
 };
@@ -705,6 +786,12 @@ async function requestHandler(req, res, apps, config, logger) {
 
   // Outbound URL / SSRF policy for httpclient + scheduler URL jobs
   egress.initServer(config.egress, logger);
+
+  // Prometheus metrics (engine /metrics; default localhost-only)
+  metrics.initServer(config.metrics, logger, packageJson.version || 'unknown');
+
+  // JSONL audit trail for permissions + lifecycle
+  audit.initServer(config.audit, projectRoot, logger);
 
   const pdfStatus = pdf.init(); // Initialize the PDF module
   if (pdfStatus.error) {
