@@ -191,7 +191,7 @@ Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual
 }
 ```
 
-`url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`).
+`url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`). URLs are checked against server **egress** policy at registration and again when the job fires (default `protected` mode blocks private/loopback/metadata). See [Server Config](./server-config.md) → `egress`.
 
 **Example:**
 

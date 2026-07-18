@@ -5,6 +5,7 @@ const axios = require('axios');
 const { als } = require('./gingee.js');
 const { runInGBox } = require('./gbox.js');
 const { isPathInside } = require('./internal_utils.js');
+const egress = require('./egress.js');
 
 const engineRoot = path.resolve(__dirname, '..');
 
@@ -275,6 +276,13 @@ async function executeUrlJob(app, job) {
     );
   }
 
+  const allowed = await egress.assertUrlAllowed(job.target.url);
+  if (!allowed.ok) {
+    throw new Error(
+      `Schedule '${job.name}' egress denied (${allowed.reason}): ${allowed.message}`
+    );
+  }
+
   const method = job.target.method || 'GET';
   const headers = { ...(job.target.headers || {}) };
   const config = {
@@ -283,7 +291,8 @@ async function executeUrlJob(app, job) {
     headers,
     timeout: job.timeout_ms,
     validateStatus: () => true,
-    maxRedirects: 5,
+    maxRedirects: egress.getMaxRedirects(),
+    beforeRedirect: egress.beforeRedirect,
     responseType: 'text',
     transitional: { clarifyTimeoutError: true }
   };
@@ -470,7 +479,7 @@ function initServer(config, logger, globalConfig) {
  * No-op if server scheduler is disabled or app has no schedules.
  * @param {object} app
  */
-function registerApp(app) {
+async function registerApp(app) {
   if (!serverConfig.enabled) return;
   if (!app || !app.name) return;
 
@@ -519,6 +528,17 @@ function registerApp(app) {
       continue;
     }
 
+    if (job.target.type === 'url') {
+      // Full egress check (incl. DNS) at register; re-checked again at fire time.
+      const eg = await egress.assertUrlAllowed(job.target.url);
+      if (!eg.ok) {
+        log().error(
+          `[scheduler] App '${app.name}' job '${job.name}' URL blocked by egress (${eg.reason}): ${eg.message}`
+        );
+        continue;
+      }
+    }
+
     try {
       startCronWithApp(app, job);
     } catch (e) {
@@ -552,9 +572,9 @@ function unregisterApp(appName) {
  * @param {string} appName
  * @param {object} app
  */
-function reinitApp(appName, app) {
+async function reinitApp(appName, app) {
   unregisterApp(appName);
-  if (app) registerApp(app);
+  if (app) await registerApp(app);
 }
 
 /**

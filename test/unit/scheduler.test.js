@@ -6,6 +6,7 @@ jest.mock('axios');
 const axios = require('axios');
 
 const scheduler = require('../../modules/scheduler');
+const egress = require('../../modules/egress');
 const { als, gingee } = require('../../modules/gingee');
 
 describe('scheduler.js', () => {
@@ -21,6 +22,9 @@ describe('scheduler.js', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     scheduler._resetForTests();
+    egress._resetForTests();
+    // Avoid real DNS for URL schedule registration in unit tests.
+    egress.initServer({ mode: 'protected', dns_check: false }, logger);
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gingee-sched-'));
     appBoxPath = path.join(tmpRoot, 'box');
     fs.mkdirSync(path.join(appBoxPath, 'jobs'), { recursive: true });
@@ -28,6 +32,7 @@ describe('scheduler.js', () => {
 
   afterEach(() => {
     scheduler._resetForTests();
+    egress._resetForTests();
     try {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     } catch (_) {
@@ -142,7 +147,7 @@ describe('scheduler.js', () => {
   });
 
   describe('registerApp / server gate', () => {
-    test('does not register when scheduler is disabled (default)', () => {
+    test('does not register when scheduler is disabled (default)', async () => {
       scheduler.initServer({ enabled: false }, logger, {});
       const app = makeApp({
         config: {
@@ -155,11 +160,11 @@ describe('scheduler.js', () => {
           ]
         }
       });
-      scheduler.registerApp(app);
+      await scheduler.registerApp(app);
       expect(scheduler.listJobs()).toHaveLength(0);
     });
 
-    test('does not register without scheduler permission', () => {
+    test('does not register without scheduler permission', async () => {
       scheduler.initServer({ enabled: true, timezone: 'UTC' }, logger, {});
       const app = makeApp({
         grantedPermissions: [],
@@ -173,12 +178,12 @@ describe('scheduler.js', () => {
           ]
         }
       });
-      scheduler.registerApp(app);
+      await scheduler.registerApp(app);
       expect(scheduler.listJobs()).toHaveLength(0);
       expect(logger.error).toHaveBeenCalled();
     });
 
-    test('skips URL jobs without httpclient permission', () => {
+    test('skips URL jobs without httpclient permission', async () => {
       scheduler.initServer({ enabled: true }, logger, {});
       const app = makeApp({
         grantedPermissions: ['scheduler'],
@@ -192,12 +197,12 @@ describe('scheduler.js', () => {
           ]
         }
       });
-      scheduler.registerApp(app);
+      await scheduler.registerApp(app);
       expect(scheduler.listJobs()).toHaveLength(0);
       expect(logger.error).toHaveBeenCalled();
     });
 
-    test('registers valid jobs when enabled and permitted', () => {
+    test('registers valid jobs when enabled and permitted', async () => {
       scheduler.initServer({ enabled: true, timezone: 'UTC' }, logger, {});
       fs.writeFileSync(path.join(appBoxPath, 'jobs', 'a.js'), 'module.exports = async function(){}');
       const app = makeApp({
@@ -223,7 +228,7 @@ describe('scheduler.js', () => {
           ]
         }
       });
-      scheduler.registerApp(app);
+      await scheduler.registerApp(app);
       const jobs = scheduler.listJobs();
       expect(jobs.map((j) => j.name).sort()).toEqual(['script_job', 'url_job']);
       scheduler.unregisterApp(app.name);
@@ -298,7 +303,7 @@ describe('scheduler.js', () => {
         }
       });
 
-      scheduler.registerApp(app);
+      await scheduler.registerApp(app);
       await scheduler.runNow(app.name, 'marker_job');
       const jobs = scheduler.listJobs();
       expect(jobs[0].lastStatus).toBe('ok');
@@ -325,7 +330,7 @@ describe('scheduler.js', () => {
           ]
         }
       });
-      scheduler.registerApp(app);
+      await scheduler.registerApp(app);
       await scheduler.runNow(app.name, 'hook');
       expect(axios).toHaveBeenCalled();
       const call = axios.mock.calls[0][0];
@@ -354,7 +359,7 @@ describe('scheduler.js', () => {
           ]
         }
       });
-      scheduler.registerApp(app);
+      await scheduler.registerApp(app);
       await scheduler.runNow(app.name, 'm');
       expect(scheduler.listJobs()[0].lastStatus).toBe('skipped_maintenance');
       scheduler.unregisterApp(app.name);

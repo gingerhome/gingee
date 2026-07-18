@@ -30,6 +30,7 @@ const email = require('./modules/email.js');
 const ai = require('./modules/ai.js');
 const scheduler = require('./modules/scheduler.js');
 const limits = require('./modules/limits.js');
+const egress = require('./modules/egress.js');
 const { log } = require('console');
 const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
@@ -73,6 +74,8 @@ const defaultConfig = {
   },
   // Request/outbound timeouts and concurrency (app.json limits may only tighten these).
   limits: { ...limits.DEFAULTS },
+  // Outbound URL policy (SSRF hardening). mode "protected" by default.
+  egress: { ...egress.DEFAULTS },
   default_app: "glade", //set default app as the glade admin panel
   privileged_apps: ['glade'] //set glade as a priviledged app by default
 };
@@ -90,7 +93,15 @@ const config = {
   },
   box: { ...defaultConfig.box, ...userConfig.box },
   scheduler: { ...defaultConfig.scheduler, ...(userConfig.scheduler || {}) },
-  limits: { ...defaultConfig.limits, ...(userConfig.limits || {}) }
+  limits: { ...defaultConfig.limits, ...(userConfig.limits || {}) },
+  egress: {
+    ...defaultConfig.egress,
+    ...(userConfig.egress || {}),
+    allow_hosts: (userConfig.egress && userConfig.egress.allow_hosts) || defaultConfig.egress.allow_hosts || [],
+    allow_cidrs: (userConfig.egress && userConfig.egress.allow_cidrs) || defaultConfig.egress.allow_cidrs || [],
+    deny_hosts: (userConfig.egress && userConfig.egress.deny_hosts) || defaultConfig.egress.deny_hosts || [],
+    deny_cidrs: (userConfig.egress && userConfig.egress.deny_cidrs) || defaultConfig.egress.deny_cidrs || []
+  }
 };
 
 let webPath;
@@ -216,7 +227,7 @@ async function initializeApps(config, logger, webPath) {
 
         // Register CRON schedules after permissions are loaded (no-op if scheduler disabled).
         try {
-          scheduler.registerApp(apps[appName]);
+          await scheduler.registerApp(apps[appName]);
         } catch (err) {
           logger.error(`Failed to register schedules for app '${appName}': ${err.message}`);
         }
@@ -660,6 +671,9 @@ async function requestHandler(req, res, apps, config, logger) {
 
   // Request/outbound timeouts and concurrency limits
   limits.initServer(config.limits, logger);
+
+  // Outbound URL / SSRF policy for httpclient + scheduler URL jobs
+  egress.initServer(config.egress, logger);
 
   const pdfStatus = pdf.init(); // Initialize the PDF module
   if (pdfStatus.error) {

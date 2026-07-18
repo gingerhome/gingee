@@ -135,6 +135,7 @@ App scripts run via a custom `require` and `new Function(...)` (not a separate O
 | C1 | Accidental path traversal in app code | Sandboxed `fs` + `isPathInside` | Bugs in new modules that skip jail |
 | C2 | App requests too many permissions | Admin review of `pmft.json` / Glade | Admin grants “all” for convenience |
 | C3 | Hung outbound HTTP | `limits.outbound_timeout_ms`, outbound concurrency | Custom axios options still clamped; other egress paths (AI/email) have their own timeouts |
+| C3b | Accidental SSRF to localhost/metadata | `egress` protected mode on `httpclient` + scheduler URLs | DNS rebinding residual; `mode=off` disables |
 | C4 | Runaway request volume | `max_concurrent_requests` / per-app caps → 503 | No sophisticated rate limit / WAF |
 | C5 | Script never finishes | `request_timeout_ms` / stream idle+hard | Sync infinite loops ignore timers until yield |
 | C6 | Install wrong package version | Backups, Glade rollback, review `.gin` | Supply chain of the package itself |
@@ -145,7 +146,7 @@ App scripts run via a custom `require` and `new Function(...)` (not a separate O
 | ID | Scenario | Why Gingee alone is insufficient |
 | :--- | :--- | :--- |
 | H1 | Malicious app with only “safe” permissions burns CPU | Shared event loop; no preemption of tight loops |
-| H2 | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs | No egress allowlist / private-IP block in platform |
+| H2 | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs | **Mitigated by default** via `egress.mode=protected` (private/loopback/metadata blocked; DNS check; redirect re-validation). Residual: DNS rebinding TOCTOU, `mode=off`, or overly broad `allow_cidrs` |
 | H3 | Malicious app with `fs` + clever bugs tries cross-app read | Path jail is software; hostile code + engine bugs = higher risk |
 | H4 | Malicious app with `platform` (if wrongly privileged) | Full lifecycle control of all apps |
 | H5 | Malicious app with `scheduler` + `httpclient` | Persistent unattended egress |
@@ -225,7 +226,8 @@ Gingee does **not** currently claim:
 - Process- or VM-level isolation between apps on one instance  
 - Formal verification of the sandbox  
 - Built-in WAF, CSRF framework, or global end-user SSO  
-- SSRF-safe HTTP by default  
+- Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
+
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops  
 

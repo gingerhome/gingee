@@ -283,9 +283,9 @@ module.exports = async function () {
 
 Without a leading `/`, `fs` paths are relative to the **script folder** (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`). Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`.
 
-External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`.
+External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`. URL targets (and all `httpclient` calls) are subject to server **egress** SSRF policy—public HTTPS APIs work by default; localhost/private/metadata are blocked unless the operator configures `allow_cidrs` / `allow_hosts` or `egress.mode: "off"` for local dev.
 
-See [App Structure](./app-structure.md) for the full field list and [Server Config](./server-config.md) for the server gate.
+See [App Structure](./app-structure.md) for the full field list and [Server Config](./server-config.md) for the server gate, `limits`, and `egress`.
 
 ## Chapter 6: A New Paradigm - Building with a GenAI Partner
 

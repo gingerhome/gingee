@@ -1,8 +1,19 @@
 const httpclient = require('../../modules/httpclient');
+const egress = require('../../modules/egress');
 jest.mock('axios');
 const axios = require('axios');
 
 describe('httpclient.js - HTTP Client', () => {
+    beforeEach(() => {
+        egress._resetForTests();
+        // Tests use public hostnames; disable DNS check for speed/determinism.
+        egress.initServer({ mode: 'protected', dns_check: false }, { info: jest.fn(), warn: jest.fn() });
+        jest.clearAllMocks();
+    });
+
+    afterEach(() => {
+        egress._resetForTests();
+    });
 
     test('get should request an arraybuffer and return a string for text content', async () => {
         const mockHtml = '<html><body>Hello</body></html>';
@@ -70,6 +81,13 @@ describe('httpclient.js - HTTP Client', () => {
         expect(result.status).toBe(504);
         expect(result.code).toBe('ETIMEDOUT');
         expect(String(result.body)).toMatch(/timed out/i);
+    });
+
+    test('get denies private IP with EGRESS_DENIED without calling axios', async () => {
+        const result = await httpclient.get('http://127.0.0.1:9/');
+        expect(result.status).toBe(403);
+        expect(result.code).toBe('EGRESS_DENIED');
+        expect(axios.get).not.toHaveBeenCalled();
     });
 
     test('post should correctly format a FORM url-encoded body', async () => {

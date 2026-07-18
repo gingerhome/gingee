@@ -45,6 +45,14 @@ Here is a comprehensive breakdown of all available properties.
     "max_concurrent_requests_per_app": 25,
     "max_concurrent_outbound": 50
   },
+  "egress": {
+    "mode": "protected",
+    "https_only": false,
+    "dns_check": true,
+    "max_redirects": 3,
+    "allow_hosts": [],
+    "allow_cidrs": []
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -164,6 +172,34 @@ An object that configures the HTTP and HTTPS servers.
 - Timeouts are **best-effort** for async I/O. Pure CPU spin in a script is not preempted (shared event loop).
 - Streaming uses idle + hard caps so AI token streams are not killed at 30s.
 - Scheduler jobs use their own `timeout_ms` and do **not** consume HTTP concurrency slots.
+
+### egress
+
+- **Type:** `object` (optional)
+- **Description:** Outbound URL policy (**SSRF hardening**) for `require('httpclient')` and scheduler **URL** jobs. Defaults to **protected** mode. See also the [Threat Model](./threat-model.md).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `mode` | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
+| `https_only` | `false` | When `true`, reject `http:` URLs. |
+| `dns_check` | `true` | In `protected` mode, resolve hostnames and deny if any address is blocked. |
+| `max_redirects` | `3` | Max HTTP redirects; **each hop is re-validated**. |
+| `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true` | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`. |
+| `allow_hosts` | `[]` | Exact host or `*.example.com` patterns (exceptions / allowlist entries). |
+| `allow_cidrs` | `[]` | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access. |
+| `deny_hosts` / `deny_cidrs` | `[]` | Extra denials. |
+
+**Examples:**
+
+```json
+"egress": { "mode": "protected", "allow_cidrs": ["10.0.1.0/24"] }
+```
+
+```json
+"egress": { "mode": "off" }
+```
+
+Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler URL jobs fail registration/run with a clear log line.
 
 ### max_body_size
 - **Type:** `string`

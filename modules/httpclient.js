@@ -3,6 +3,7 @@ const querystring = require('querystring');
 const FormData = require('form-data');
 const { getContext } = require('./gingee.js');
 const limits = require('./limits.js');
+const egress = require('./egress.js');
 
 /**
  * @module httpclient
@@ -17,6 +18,10 @@ const limits = require('./limits.js');
  * <b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
  * <code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
  * remaining request budget when available). Concurrent outbound calls are also capped.
+ *
+ * <b>Egress / SSRF:</b> URLs are checked against <code>gingee.json</code> → <code>egress</code>
+ * (default mode <code>protected</code> blocks private/loopback/link-local/metadata). Denied calls
+ * return status 403 with <code>code: 'EGRESS_DENIED'</code>.
  *
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
@@ -59,7 +64,7 @@ function processBody(data, headers) {
 }
 
 /**
- * Build axios config with platform timeout, abort signal, and outbound concurrency.
+ * Build axios config with platform timeout, abort signal, egress redirects, and outbound concurrency.
  * @private
  */
 function applyPlatformLimits(options = {}) {
@@ -80,10 +85,15 @@ function applyPlatformLimits(options = {}) {
         throw err;
     }
 
+    const maxRedirects =
+        options.maxRedirects != null ? options.maxRedirects : egress.getMaxRedirects();
+
     return {
         axiosConfig: {
             ...options,
             timeout,
+            maxRedirects,
+            beforeRedirect: options.beforeRedirect || egress.beforeRedirect,
             ...(signal ? { signal } : {}),
             responseType: 'arraybuffer'
         },
@@ -141,6 +151,18 @@ function mapAxiosError(axiosErr) {
             code: 'TOO_MANY_OUTBOUND'
         };
     }
+    if (
+        axiosErr.code === 'EGRESS_DENIED' ||
+        (axiosErr.message && String(axiosErr.message).includes('EGRESS_DENIED'))
+    ) {
+        return {
+            status: 403,
+            headers: {},
+            body: axiosErr.message || 'EGRESS_DENIED',
+            code: 'EGRESS_DENIED',
+            reason: axiosErr.reason || null
+        };
+    }
 
     return {
         status: 500,
@@ -170,6 +192,17 @@ function mapAxiosError(axiosErr) {
 async function get(url, options = {}) {
     let releaseOutbound = null;
     try {
+        const allowed = await egress.assertUrlAllowed(url);
+        if (!allowed.ok) {
+            return {
+                status: 403,
+                headers: {},
+                body: allowed.message,
+                code: 'EGRESS_DENIED',
+                reason: allowed.reason
+            };
+        }
+
         const prepared = applyPlatformLimits(options);
         releaseOutbound = prepared.releaseOutbound;
         const response = await axios.get(url, prepared.axiosConfig);
@@ -180,9 +213,6 @@ async function get(url, options = {}) {
             body: body,
         };
     } catch (axiosErr) {
-        if (axiosErr.code === 'TOO_MANY_OUTBOUND') {
-            return mapAxiosError(axiosErr);
-        }
         return mapAxiosError(axiosErr);
     } finally {
         if (releaseOutbound) releaseOutbound();
@@ -212,6 +242,17 @@ async function post(url, body, options = {}) {
     let releaseOutbound = null;
 
     try {
+        const allowed = await egress.assertUrlAllowed(url);
+        if (!allowed.ok) {
+            return {
+                status: 403,
+                headers: {},
+                body: allowed.message,
+                code: 'EGRESS_DENIED',
+                reason: allowed.reason
+            };
+        }
+
         const prepared = applyPlatformLimits(options);
         releaseOutbound = prepared.releaseOutbound;
 

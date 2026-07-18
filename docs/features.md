@@ -51,6 +51,9 @@ These are the core architectural features that define the Gingee development exp
 *   **Request & Outbound Limits**
     Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
 
+*   **Egress / SSRF policy**
+    Default **`egress.mode: protected`** blocks outbound calls to loopback, private, link-local, and cloud metadata targets for `httpclient` and scheduler URL jobs; DNS is checked and redirects are re-validated. Deny → **403** `EGRESS_DENIED`. Use `allow_cidrs` / `allow_hosts` for intentional internal access, or `mode: "off"` for local dev only.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 

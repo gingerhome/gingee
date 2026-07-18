@@ -515,6 +515,14 @@ Here is a comprehensive breakdown of all available properties.
     "max_concurrent_requests_per_app": 25,
     "max_concurrent_outbound": 50
   },
+  "egress": {
+    "mode": "protected",
+    "https_only": false,
+    "dns_check": true,
+    "max_redirects": 3,
+    "allow_hosts": [],
+    "allow_cidrs": []
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -634,6 +642,34 @@ An object that configures the HTTP and HTTPS servers.
 - Timeouts are **best-effort** for async I/O. Pure CPU spin in a script is not preempted (shared event loop).
 - Streaming uses idle + hard caps so AI token streams are not killed at 30s.
 - Scheduler jobs use their own `timeout_ms` and do **not** consume HTTP concurrency slots.
+
+### egress
+
+- **Type:** `object` (optional)
+- **Description:** Outbound URL policy (**SSRF hardening**) for `require('httpclient')` and scheduler **URL** jobs. Defaults to **protected** mode. See also the [Threat Model](./threat-model.md).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `mode` | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
+| `https_only` | `false` | When `true`, reject `http:` URLs. |
+| `dns_check` | `true` | In `protected` mode, resolve hostnames and deny if any address is blocked. |
+| `max_redirects` | `3` | Max HTTP redirects; **each hop is re-validated**. |
+| `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true` | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`. |
+| `allow_hosts` | `[]` | Exact host or `*.example.com` patterns (exceptions / allowlist entries). |
+| `allow_cidrs` | `[]` | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access. |
+| `deny_hosts` / `deny_cidrs` | `[]` | Extra denials. |
+
+**Examples:**
+
+```json
+"egress": { "mode": "protected", "allow_cidrs": ["10.0.1.0/24"] }
+```
+
+```json
+"egress": { "mode": "off" }
+```
+
+Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler URL jobs fail registration/run with a clear log line.
 
 ### max_body_size
 - **Type:** `string`
@@ -1112,7 +1148,7 @@ Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual
 }
 ```
 
-`url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`).
+`url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`). URLs are checked against server **egress** policy at registration and again when the job fires (default `protected` mode blocks private/loopback/metadata). See [Server Config](./server-config.md) → `egress`.
 
 **Example:**
 
@@ -1487,7 +1523,7 @@ When a **server script** runs under the engine limits module:
 
 Non-stream scripts that exceed `request_timeout_ms` receive a platform **504** if they have not yet completed. After `startStream()`, stream **idle** and **hard** timeouts apply instead. Concurrency overloads return **503** before the script runs.
 
-Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are subject to `max_concurrent_outbound`.
+Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are subject to `max_concurrent_outbound`. They are also checked against server **egress** policy (`gingee.json` → `egress`, default `protected`); denied URLs return **403** with `code: 'EGRESS_DENIED'` (private/loopback/metadata blocked unless you configure exceptions or `mode: "off"`).
 
 #### Scheduled job context
 
@@ -1860,9 +1896,9 @@ module.exports = async function () {
 
 Without a leading `/`, `fs` paths are relative to the **script folder** (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`). Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`.
 
-External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`.
+External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`. URL targets (and all `httpclient` calls) are subject to server **egress** SSRF policy—public HTTPS APIs work by default; localhost/private/metadata are blocked unless the operator configures `allow_cidrs` / `allow_hosts` or `egress.mode: "off"` for local dev.
 
-See [App Structure](./app-structure.md) for the full field list and [Server Config](./server-config.md) for the server gate.
+See [App Structure](./app-structure.md) for the full field list and [Server Config](./server-config.md) for the server gate, `limits`, and `egress`.
 
 ## Chapter 6: A New Paradigm - Building with a GenAI Partner
 
@@ -2174,7 +2210,7 @@ This is the definitive list of all permission keys available in Gingee.
 | **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
 | **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
 | **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/` or outbound URL). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json`. | **High.** The app can wake itself on a timer to run privileged sandbox code or (with `httpclient`) call external URLs unattended. |
-| **httpclient** | Permits the app to make outbound HTTP/HTTPS network requests to any external API or website. Also required for scheduler **URL** targets. | **High.** The app can send data to or receive data from any server on the internet. |
+| **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets). | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts. |
 | **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
 | **zip** | Allows the app to create and extract ZIP archives. | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
@@ -2324,6 +2360,7 @@ App scripts run via a custom `require` and `new Function(...)` (not a separate O
 | C1 | Accidental path traversal in app code | Sandboxed `fs` + `isPathInside` | Bugs in new modules that skip jail |
 | C2 | App requests too many permissions | Admin review of `pmft.json` / Glade | Admin grants “all” for convenience |
 | C3 | Hung outbound HTTP | `limits.outbound_timeout_ms`, outbound concurrency | Custom axios options still clamped; other egress paths (AI/email) have their own timeouts |
+| C3b | Accidental SSRF to localhost/metadata | `egress` protected mode on `httpclient` + scheduler URLs | DNS rebinding residual; `mode=off` disables |
 | C4 | Runaway request volume | `max_concurrent_requests` / per-app caps → 503 | No sophisticated rate limit / WAF |
 | C5 | Script never finishes | `request_timeout_ms` / stream idle+hard | Sync infinite loops ignore timers until yield |
 | C6 | Install wrong package version | Backups, Glade rollback, review `.gin` | Supply chain of the package itself |
@@ -2334,7 +2371,7 @@ App scripts run via a custom `require` and `new Function(...)` (not a separate O
 | ID | Scenario | Why Gingee alone is insufficient |
 | :--- | :--- | :--- |
 | H1 | Malicious app with only “safe” permissions burns CPU | Shared event loop; no preemption of tight loops |
-| H2 | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs | No egress allowlist / private-IP block in platform |
+| H2 | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs | **Mitigated by default** via `egress.mode=protected` (private/loopback/metadata blocked; DNS check; redirect re-validation). Residual: DNS rebinding TOCTOU, `mode=off`, or overly broad `allow_cidrs` |
 | H3 | Malicious app with `fs` + clever bugs tries cross-app read | Path jail is software; hostile code + engine bugs = higher risk |
 | H4 | Malicious app with `platform` (if wrongly privileged) | Full lifecycle control of all apps |
 | H5 | Malicious app with `scheduler` + `httpclient` | Persistent unattended egress |
@@ -2414,7 +2451,8 @@ Gingee does **not** currently claim:
 - Process- or VM-level isolation between apps on one instance  
 - Formal verification of the sandbox  
 - Built-in WAF, CSRF framework, or global end-user SSO  
-- SSRF-safe HTTP by default  
+- Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
+
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops  
 
@@ -2824,6 +2862,9 @@ These are the core architectural features that define the Gingee development exp
 *   **Request & Outbound Limits**
     Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
 
+*   **Egress / SSRF policy**
+    Default **`egress.mode: protected`** blocks outbound calls to loopback, private, link-local, and cloud metadata targets for `httpclient` and scheduler URL jobs; DNS is checked and redirects are re-validated. Deny → **403** `EGRESS_DENIED`. Use `allow_cidrs` / `allow_hosts` for intentional internal access, or `mode: "off"` for local dev only.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
@@ -2989,6 +3030,9 @@ It provides constants for common POST data types, ensuring that the correct head
 <p><b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
 <code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
 remaining request budget when available). Concurrent outbound calls are also capped.</p>
+<p><b>Egress / SSRF:</b> URLs are checked against <code>gingee.json</code> → <code>egress</code>
+(default mode <code>protected</code> blocks private/loopback/link-local/metadata). Denied calls
+return status 403 with <code>code: 'EGRESS_DENIED'</code>.</p>
 <p><b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_image">image</a></dt>
@@ -4758,7 +4802,7 @@ const $ = await html.fromUrl('https://example.com');console.log($('.test').text
 <a name="module_httpclient"></a>
 
 ## httpclient
-A module for making HTTP requests in Gingee applications.This module provides functions to perform GET and POST requests, supporting various content types.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.It supports both text and binary responses, automatically determining the response type based on the content-type header.It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.It allows for flexible data submission, making it suitable for APIs that require different content types.It provides constants for common POST data types, ensuring that the correct headers are set for the request.<b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to theremaining request budget when available). Concurrent outbound calls are also capped.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+A module for making HTTP requests in Gingee applications.This module provides functions to perform GET and POST requests, supporting various content types.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.It supports both text and binary responses, automatically determining the response type based on the content-type header.It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.It allows for flexible data submission, making it suitable for APIs that require different content types.It provides constants for common POST data types, ensuring that the correct headers are set for the request.<b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to theremaining request budget when available). Concurrent outbound calls are also capped.<b>Egress / SSRF:</b> URLs are checked against <code>gingee.json</code> → <code>egress</code>(default mode <code>protected</code> blocks private/loopback/link-local/metadata). Denied callsreturn status 403 with <code>code: 'EGRESS_DENIED'</code>.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [httpclient](#module_httpclient)

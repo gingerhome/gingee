@@ -197,7 +197,7 @@ When a **server script** runs under the engine limits module:
 
 Non-stream scripts that exceed `request_timeout_ms` receive a platform **504** if they have not yet completed. After `startStream()`, stream **idle** and **hard** timeouts apply instead. Concurrency overloads return **503** before the script runs.
 
-Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are subject to `max_concurrent_outbound`.
+Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are subject to `max_concurrent_outbound`. They are also checked against server **egress** policy (`gingee.json` → `egress`, default `protected`); denied URLs return **403** with `code: 'EGRESS_DENIED'` (private/loopback/metadata blocked unless you configure exceptions or `mode: "off"`).
 
 #### Scheduled job context
 

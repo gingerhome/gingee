@@ -465,7 +465,7 @@ async function registerNewApp(appName, permissionsArray) {
             await runStartupScripts(app);
         });
 
-        scheduler.reinitApp(appName, app);
+        await scheduler.reinitApp(appName, app);
     } catch (error) {
         logger.error(`Error initializing app '${appName}': ${error.message}`);
         return false;
@@ -541,7 +541,7 @@ async function reloadApp(appName) {
         });
 
         // Re-register CRON schedules for this app (if server scheduler is enabled)
-        scheduler.reinitApp(appName, app);
+        await scheduler.reinitApp(appName, app);
     } catch (error) {
         logger.error(`Error reloading app '${appName}': ${error.message}`);
         return false;
