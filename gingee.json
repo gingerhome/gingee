@@ -8,7 +8,7 @@
         },
         "http": {
             "enabled": true,
-            "port": 8080
+            "port": 7070
         }
     },
     "content_encoding": {
