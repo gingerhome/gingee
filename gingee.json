@@ -64,5 +64,10 @@
         "allow_cidrs": [],
         "deny_hosts": [],
         "deny_cidrs": []
+    },
+    "secrets": {
+        "load_dotenv": false,
+        "required": true,
+        "file_roots": ["./settings/secrets", "/run/secrets"]
     }
 }

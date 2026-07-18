@@ -130,7 +130,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 | “App A cannot inspect App B’s secrets in RAM after resolve” | **No hard guarantee** (same process) |
 | “Permissions equal cloud multi-tenant isolation” | **No** |
 
-**Env-based secrets (planned):** Putting secrets in `process.env` is **ops hygiene** (not in JSON/git). It is **not** inter-app isolation on one process—another reason untrusted apps must not share a process. Engine resolves `env:` refs into **that app’s config** only; scripts should not need `process`.
+**Env/file secrets (P2a):** Config may use `env:VAR` / `file:path` refs. The **engine** resolves them at load into that app’s in-memory config. App scripts still **cannot** read host `process.env`. This is **ops hygiene** (keys out of git/JSON packages), **not** inter-app isolation on one process—another reason untrusted apps must not share a process.
 
 ---
 

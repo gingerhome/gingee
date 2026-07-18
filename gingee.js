@@ -31,6 +31,7 @@ const ai = require('./modules/ai.js');
 const scheduler = require('./modules/scheduler.js');
 const limits = require('./modules/limits.js');
 const egress = require('./modules/egress.js');
+const secrets = require('./modules/secrets.js');
 const { log } = require('console');
 const appLogger = require('./modules/logger.js');
 const cache = require('./modules/cache_service.js');
@@ -79,13 +80,15 @@ const defaultConfig = {
   limits: { ...limits.DEFAULTS },
   // Outbound URL policy (SSRF hardening). mode "protected" by default.
   egress: { ...egress.DEFAULTS },
+  // Secret references: env:VAR / file:path resolved at load (engine only; apps cannot read process.env).
+  secrets: { ...secrets.DEFAULTS, file_roots: [...secrets.DEFAULTS.file_roots] },
   default_app: "glade", //set default app as the glade admin panel
   privileged_apps: ['glade'] //set glade as a priviledged app by default
 };
 
 // Merge the user's config over the defaults.
 // This creates a final, safe config object. The user's values take precedence.
-const config = {
+const rawMergedConfig = {
   ...defaultConfig,
   ...userConfig,
   server: { ...defaultConfig.server, ...userConfig.server },
@@ -104,8 +107,28 @@ const config = {
     allow_cidrs: (userConfig.egress && userConfig.egress.allow_cidrs) || defaultConfig.egress.allow_cidrs || [],
     deny_hosts: (userConfig.egress && userConfig.egress.deny_hosts) || defaultConfig.egress.deny_hosts || [],
     deny_cidrs: (userConfig.egress && userConfig.egress.deny_cidrs) || defaultConfig.egress.deny_cidrs || []
+  },
+  secrets: {
+    ...defaultConfig.secrets,
+    ...(userConfig.secrets || {}),
+    file_roots:
+      (userConfig.secrets && userConfig.secrets.file_roots) ||
+      defaultConfig.secrets.file_roots
   }
 };
+
+// Resolve env:/file: secret references in gingee.json (after optional .env load).
+secrets.initServer(rawMergedConfig.secrets, projectRoot, console);
+const config = secrets.resolveDeep(rawMergedConfig);
+
+// Optional test/ops override (e2e uses GINGEE_HTTP_PORT=7070 so local gingee.json port does not matter).
+if (process.env.GINGEE_HTTP_PORT) {
+  const p = Number(process.env.GINGEE_HTTP_PORT);
+  if (Number.isFinite(p) && p > 0) {
+    config.server = config.server || {};
+    config.server.http = { ...(config.server.http || {}), enabled: true, port: p };
+  }
+}
 
 let webPath;
 const configWebPath = config.web_root || './web';
@@ -132,7 +155,8 @@ async function initializeApps(config, logger, webPath) {
         // Create a dedicated logger for this app
         const dedicatedLogger = appLogger.createAppLogger(appName, appBoxPath, config.logging); //user server level logging config
 
-        const userAppConfig = require(appConfigPath);
+        // Resolve env:/file: refs so jwt_secret, db passwords, api keys never need process in the sandbox.
+        const userAppConfig = secrets.resolveDeep(require(appConfigPath));
         const defaultAppConfig = {
           name: "Untitled Gingee App",
           description: "",

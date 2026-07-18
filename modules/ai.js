@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { getContext } = require('./gingee.js');
 const { resolveSecurePath, SCOPES } = require('./internal_utils.js');
+const secrets = require('./secrets.js');
 
 /**
  * @module ai
@@ -141,7 +142,8 @@ function _resolveCall(options = {}) {
     mergeConfig(serverAiConfig, app && app.config && app.config.ai);
 
   if (options.config && typeof options.config === 'object') {
-    const effective = mergeConfig(base, options.config);
+    // Resolve env:/file: refs in per-call overrides (engine-side; sandbox still has no process).
+    const effective = mergeConfig(base, secrets.resolveDeep(options.config));
     if (!normalizeType(effective.type)) {
       throw new Error("AI call config override is missing 'type'.");
     }

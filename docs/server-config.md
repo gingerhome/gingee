@@ -53,6 +53,11 @@ Here is a comprehensive breakdown of all available properties.
     "allow_hosts": [],
     "allow_cidrs": []
   },
+  "secrets": {
+    "load_dotenv": false,
+    "required": true,
+    "file_roots": ["./settings/secrets", "/run/secrets"]
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -200,6 +205,29 @@ An object that configures the HTTP and HTTPS servers.
 ```
 
 Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler URL jobs fail registration/run with a clear log line.
+
+### secrets
+
+- **Type:** `object` (optional)
+- **Description:** How the engine resolves **secret references** in `gingee.json` and each app’s `app.json` at load/reload time. Apps still **cannot** read host `process.env` from sandbox code; the engine injects resolved values into in-memory config only. See [Threat Model](./threat-model.md).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `load_dotenv` | `false` | When `true`, load project-root `.env` into `process.env` for keys not already set (local Joy). |
+| `required` | `true` | Missing `env:` / `file:` targets throw at load time (fail closed). |
+| `file_roots` | `["./settings/secrets", "/run/secrets"]` | Absolute or project-relative directories allowed for `file:` secrets. Paths outside these roots are rejected. |
+
+**Reference syntax** (any string config value, including nested fields):
+
+| Form | Example |
+| :--- | :--- |
+| Env | `"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET"` |
+| File | `"password": "file:./settings/secrets/myapp_db_password"` |
+| Object | `"api_key": { "$secret": "env:SENDGRID_KEY", "required": true }` |
+
+**Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
+
+**Examples of fields that commonly use refs:** `jwt_secret`, `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
 
 ### max_body_size
 - **Type:** `string`

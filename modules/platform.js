@@ -12,6 +12,7 @@ const db = require('./db.js');
 const email = require('./email.js');
 const ai = require('./ai.js');
 const scheduler = require('./scheduler.js');
+const secrets = require('./secrets.js');
 const appLogger = require('./logger.js');
 
 const { match } = require('path-to-regexp');
@@ -81,7 +82,7 @@ function _loadAndCacheAppConfig(appConfigPath) {
 
     let finalConfig = {};
     if (nodeFs.existsSync(appConfigPath)) {
-        const userAppConfig = require(appConfigPath);
+        const userAppConfig = secrets.resolveDeep(require(appConfigPath));
         const defaultAppConfig = {
             name: "Untitled Gingee App",
             description: "",

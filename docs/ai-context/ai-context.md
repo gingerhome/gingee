@@ -523,6 +523,11 @@ Here is a comprehensive breakdown of all available properties.
     "allow_hosts": [],
     "allow_cidrs": []
   },
+  "secrets": {
+    "load_dotenv": false,
+    "required": true,
+    "file_roots": ["./settings/secrets", "/run/secrets"]
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -671,6 +676,29 @@ An object that configures the HTTP and HTTPS servers.
 
 Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler URL jobs fail registration/run with a clear log line.
 
+### secrets
+
+- **Type:** `object` (optional)
+- **Description:** How the engine resolves **secret references** in `gingee.json` and each app’s `app.json` at load/reload time. Apps still **cannot** read host `process.env` from sandbox code; the engine injects resolved values into in-memory config only. See [Threat Model](./threat-model.md).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `load_dotenv` | `false` | When `true`, load project-root `.env` into `process.env` for keys not already set (local Joy). |
+| `required` | `true` | Missing `env:` / `file:` targets throw at load time (fail closed). |
+| `file_roots` | `["./settings/secrets", "/run/secrets"]` | Absolute or project-relative directories allowed for `file:` secrets. Paths outside these roots are rejected. |
+
+**Reference syntax** (any string config value, including nested fields):
+
+| Form | Example |
+| :--- | :--- |
+| Env | `"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET"` |
+| File | `"password": "file:./settings/secrets/myapp_db_password"` |
+| Object | `"api_key": { "$secret": "env:SENDGRID_KEY", "required": true }` |
+
+**Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
+
+**Examples of fields that commonly use refs:** `jwt_secret`, `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
+
 ### max_body_size
 - **Type:** `string`
 - **Description:** Configures the maximum allowed HTTP request body size. Defaults to '10mb'. Interprets human readable string such as `mb`, `gb`.
@@ -696,10 +724,10 @@ An object that configures the server's logger.
 - **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
 - **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
 - **`allow_code_generation`** (boolean, optional):
-  - **Default:** `false`
-  - When `false`, `eval` / `new Function` / string-based code generation is disabled in the sandbox (blocks classic sandbox escapes to host `process`).
-  - Set to `true` only if a **trusted** vendored library in an app BOX requires it (some minified bundles use `Function('return this')`).
-- **Example:**
+  - **Default:** `true` (Instant Time to Joy — many UMD/minified libs such as Handlebars need `new Function` at load time).
+  - When `true`, string `eval` / `Function` work **inside the app vm only**. Host **`process` remains unavailable**; apps cannot read `process.env`.
+  - Set to `false` for a stricter lockdown when you do not load such libraries (disables string codegen in the sandbox).
+- **Example (stricter):**
 ```json
 "box": {
   "allowed_modules": [],
@@ -1104,6 +1132,37 @@ Single generative AI configuration for the app. App config overrides optional se
   "default_model": "gemini-2.5-pro"
 }
 ```
+
+### Secrets in `app.json`
+
+Any string value may be a **secret reference** resolved by the engine at app load (not by sandbox `process.env`):
+
+```json
+"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET",
+"db": [{
+  "type": "postgres",
+  "name": "main",
+  "host": "db.internal",
+  "user": "myapp",
+  "password": "env:GINGEE_MYAPP_DB_PASSWORD",
+  "database": "myapp"
+}],
+"email": {
+  "type": "sendgrid",
+  "api_key": "env:GINGEE_MYAPP_SENDGRID_KEY",
+  "from": "noreply@example.com"
+},
+"ai": {
+  "type": "gemini",
+  "api_key": "file:./settings/secrets/myapp_gemini_key"
+}
+```
+
+- **`env:NAME`** — read from the host process environment (set by Docker/K8s/systemd or optional `.env` when `secrets.load_dotenv` is true).
+- **`file:path`** — read a secret file under server `secrets.file_roots` only (e.g. Docker/K8s mounted secrets).
+- Literals remain valid for local development.
+
+App scripts never need host `process` access; resolved values appear on `$g.app` / module config as normal strings. Server settings: [Server Config](./server-config.md) → `secrets`.
 
 ### Limits (`limits` object, optional)
 
@@ -1800,6 +1859,31 @@ Let's secure our `POST /posts` endpoint and validate its input.
     };
     ```
 
+## Chapter 5a: Secrets in config (env / file refs)
+
+Do not commit production API keys or DB passwords into `app.json` when you can avoid it. Use **secret references**; the engine resolves them at load time:
+
+```json
+"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET",
+"ai": { "type": "gemini", "api_key": "env:GINGEE_MYAPP_GEMINI_KEY" }
+```
+
+```bash
+export GINGEE_MYAPP_JWT_SECRET=...
+export GINGEE_MYAPP_GEMINI_KEY=...
+npm start
+```
+
+Or Docker/K8s file mounts:
+
+```json
+"password": "file:./settings/secrets/myapp_db_password"
+```
+
+(with the file under `secrets.file_roots` from `gingee.json`).
+
+Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
+
 ## Chapter 5b: Email and Generative AI Modules
 
 Two permission-protected integration modules follow the same adapter pattern as `db` and `cache`.
@@ -2342,9 +2426,9 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 App scripts run in a **Node `vm` context** with a custom `require` (not a separate OS process). By default:
 
-- Host **`process`** is not available (throws a security error if referenced)
+- Host **`process`** is not available (throws if referenced) — primary defense against reading host/`process.env` secrets
 - Sandbox **`global` / `globalThis`** point at the sandbox object only
-- **`eval` / `new Function` string codegen** is disabled (`box.allow_code_generation` defaults to `false`) so classic `Function('return process')` escapes fail
+- **`eval` / `new Function` string codegen** is **allowed by default** so common BOX-vendored UMD libraries (e.g. Handlebars) load; generated code still runs in the same vm and **does not regain host `process`**. Set `box.allow_code_generation: false` for stricter lockdown when those libs are not needed.
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
 
 **Still shared across all apps on the instance:**
@@ -2365,7 +2449,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 | “App A cannot inspect App B’s secrets in RAM after resolve” | **No hard guarantee** (same process) |
 | “Permissions equal cloud multi-tenant isolation” | **No** |
 
-**Env-based secrets (planned):** Putting secrets in `process.env` is **ops hygiene** (not in JSON/git). It is **not** inter-app isolation on one process—another reason untrusted apps must not share a process. Engine resolves `env:` refs into **that app’s config** only; scripts should not need `process`.
+**Env/file secrets (P2a):** Config may use `env:VAR` / `file:path` refs. The **engine** resolves them at load into that app’s in-memory config. App scripts still **cannot** read host `process.env`. This is **ops hygiene** (keys out of git/JSON packages), **not** inter-app isolation on one process—another reason untrusted apps must not share a process.
 
 ---
 
@@ -2882,6 +2966,9 @@ These are the core architectural features that define the Gingee development exp
 
 *   **Egress / SSRF policy**
     Default **`egress.mode: protected`** blocks outbound calls to loopback, private, link-local, and cloud metadata targets for `httpclient` and scheduler URL jobs; DNS is checked and redirects are re-validated. Deny → **403** `EGRESS_DENIED`. Use `allow_cidrs` / `allow_hosts` for intentional internal access, or `mode: "off"` for local dev only.
+
+*   **Config secret references**
+    Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

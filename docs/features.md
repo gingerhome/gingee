@@ -54,6 +54,9 @@ These are the core architectural features that define the Gingee development exp
 *   **Egress / SSRF policy**
     Default **`egress.mode: protected`** blocks outbound calls to loopback, private, link-local, and cloud metadata targets for `httpclient` and scheduler URL jobs; DNS is checked and redirects are re-validated. Deny → **403** `EGRESS_DENIED`. Use `allow_cidrs` / `allow_hosts` for intentional internal access, or `mode: "off"` for local dev only.
 
+*   **Config secret references**
+    Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 

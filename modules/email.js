@@ -1,4 +1,5 @@
 const { getContext } = require('./gingee.js');
+const secrets = require('./secrets.js');
 
 /**
  * @module email
@@ -245,7 +246,8 @@ async function sendWithConfig(configOverride, message) {
   }
 
   const baseConfig = (entry && entry.config) || mergeEmailConfig(serverEmailConfig, app && app.config && app.config.email);
-  const effective = mergeEmailConfig(baseConfig, configOverride);
+  // Allow env:/file: refs in runtime overrides (resolved by engine, not app process.env access).
+  const effective = mergeEmailConfig(baseConfig, secrets.resolveDeep(configOverride));
 
   if (!normalizeType(effective.type)) {
     throw new Error("email.sendWithConfig: resolved config has no 'type'.");

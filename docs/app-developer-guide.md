@@ -177,6 +177,31 @@ Let's secure our `POST /posts` endpoint and validate its input.
     };
     ```
 
+## Chapter 5a: Secrets in config (env / file refs)
+
+Do not commit production API keys or DB passwords into `app.json` when you can avoid it. Use **secret references**; the engine resolves them at load time:
+
+```json
+"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET",
+"ai": { "type": "gemini", "api_key": "env:GINGEE_MYAPP_GEMINI_KEY" }
+```
+
+```bash
+export GINGEE_MYAPP_JWT_SECRET=...
+export GINGEE_MYAPP_GEMINI_KEY=...
+npm start
+```
+
+Or Docker/K8s file mounts:
+
+```json
+"password": "file:./settings/secrets/myapp_db_password"
+```
+
+(with the file under `secrets.file_roots` from `gingee.json`).
+
+Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
+
 ## Chapter 5b: Email and Generative AI Modules
 
 Two permission-protected integration modules follow the same adapter pattern as `db` and `cache`.

@@ -138,6 +138,37 @@ Single generative AI configuration for the app. App config overrides optional se
 }
 ```
 
+### Secrets in `app.json`
+
+Any string value may be a **secret reference** resolved by the engine at app load (not by sandbox `process.env`):
+
+```json
+"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET",
+"db": [{
+  "type": "postgres",
+  "name": "main",
+  "host": "db.internal",
+  "user": "myapp",
+  "password": "env:GINGEE_MYAPP_DB_PASSWORD",
+  "database": "myapp"
+}],
+"email": {
+  "type": "sendgrid",
+  "api_key": "env:GINGEE_MYAPP_SENDGRID_KEY",
+  "from": "noreply@example.com"
+},
+"ai": {
+  "type": "gemini",
+  "api_key": "file:./settings/secrets/myapp_gemini_key"
+}
+```
+
+- **`env:NAME`** — read from the host process environment (set by Docker/K8s/systemd or optional `.env` when `secrets.load_dotenv` is true).
+- **`file:path`** — read a secret file under server `secrets.file_roots` only (e.g. Docker/K8s mounted secrets).
+- Literals remain valid for local development.
+
+App scripts never need host `process` access; resolved values appear on `$g.app` / module config as normal strings. Server settings: [Server Config](./server-config.md) → `secrets`.
+
 ### Limits (`limits` object, optional)
 
 Optional **tightening** of server `gingee.json` → `limits` for this app only (cannot raise ceilings).
