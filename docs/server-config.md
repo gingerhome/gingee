@@ -282,6 +282,26 @@ Each line is one JSON object, for example:
 | `app` | Target application name |
 | `details` | Event-specific payload (previous/granted permissions, versions, etc.) |
 
+### Optional npm feature packages
+
+Gingee keeps a **core** set of required dependencies (engine, SQLite, sharp image, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
+
+| Feature | Packages |
+| :--- | :--- |
+| PostgreSQL / MySQL / MSSQL / Oracle | `pg`, `mysql2`, `mssql`, `oracledb` |
+| Charts / canvas barcodes / dashboard | `chartjs-node-canvas`, `canvas` |
+| PDF | `pdfmake` |
+| SendGrid email | `@sendgrid/mail` |
+| Gemini AI | `@google/generative-ai` |
+
+**Install behavior (npm):**
+
+- Default `npm install` **still attempts** optional packages (full batteries when builds succeed).
+- If an optional package **fails to compile** (common for Oracle / canvas), install **continues** — core Gingee still works.
+- **Slim install:** `npm install --omit=optional`, then add only what you need, e.g. `npm install pg @sendgrid/mail`.
+
+Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals.
+
 ### max_body_size
 - **Type:** `string`
 - **Description:** Configures the maximum allowed HTTP request body size. Defaults to '10mb'. Interprets human readable string such as `mb`, `gb`.

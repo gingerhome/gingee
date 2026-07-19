@@ -1,8 +1,7 @@
-const PdfPrinter = require('pdfmake');
 const path = require('path');
 const fs = require('./fs.js');
 const { getContext } = require('./gingee.js');
-const { resolveSecurePath } = require('./internal_utils.js');
+const { resolveSecurePath, loadOptional } = require('./internal_utils.js');
 
 /**
  * @module pdf
@@ -16,12 +15,21 @@ const { resolveSecurePath } = require('./internal_utils.js');
 let defaultPrinter;
 
 /**
+ * Lazy-load optional pdfmake once per module instance (Jest resetModules-safe).
+ * @private
+ */
+function getPdfMake() {
+    return loadOptional(() => require('pdfmake'), 'pdfmake', 'PDF generation (pdf module)');
+}
+
+/**
  * Initializes the PDF module with default fonts.
  * Called once by gingee.js at server startup.
  * @private
  */
 function init() {
     try {
+        const PdfPrinter = getPdfMake();
         const engineRoot = path.dirname(__dirname);
         const fontDescriptors = {
             Roboto: {
@@ -74,6 +82,12 @@ function init() {
  * $g.response.send(pdfBuffer, 200, 'application/pdf');
  */
 function create(documentDefinition) {
+    if (!defaultPrinter) {
+        const status = init();
+        if (!status.status) {
+            throw status.error || new Error('PDF module is not initialized (is optional package pdfmake installed?)');
+        }
+    }
     let printerToUse = defaultPrinter;
 
     if (documentDefinition.fonts) {

@@ -24,8 +24,13 @@ class SendGridEmailAdapter {
       );
     }
 
-    // Lazy-require so console-only installs still load the module graph in tests without network.
-    const sgMail = require('@sendgrid/mail');
+    // Optional dependency — console provider works without @sendgrid/mail installed.
+    const { loadOptional } = require('../internal_utils.js');
+    const sgMail = loadOptional(
+      () => require('@sendgrid/mail'),
+      '@sendgrid/mail',
+      'SendGrid email provider'
+    );
     // Use a dedicated client instance shape: setApiKey is process-global on the default export.
     // That is acceptable for single-key apps; sendWithConfig creates a fresh adapter and re-sets the key.
     this._sgMail = sgMail;

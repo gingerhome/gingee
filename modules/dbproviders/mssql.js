@@ -1,4 +1,4 @@
-const sql = require('mssql');
+const { loadOptional } = require('../internal_utils.js');
 
 /**
  * A class that provides an interface for interacting with a Microsoft SQL Server database.
@@ -13,6 +13,7 @@ class MssqlAdapter {
      */
     constructor(dbConfig, app, logger) {
         this.logger = logger;
+        this.sql = loadOptional(() => require('mssql'), 'mssql', 'Microsoft SQL Server database adapter');
         // The constructor for ConnectionPool needs to be async, so we use a factory pattern.
         // We will store the promise and await it in the methods.
         this.poolPromise = this._createPool(dbConfig);
@@ -21,7 +22,7 @@ class MssqlAdapter {
     /**
      * @description Creates a connection pool for the database.
      * @param {Object} dbConfig - The database configuration object.
-     * @returns {Promise<sql.ConnectionPool>} The created connection pool.
+     * @returns {Promise<this.sql.ConnectionPool>} The created connection pool.
      * @throws {Error} If the pool creation fails.
      */
     async _createPool(dbConfig) {
@@ -42,7 +43,7 @@ class MssqlAdapter {
                     trustServerCertificate: dbConfig.trustServerCertificate || false
                 }
             };
-            const pool = new sql.ConnectionPool(config);
+            const pool = new this.sql.ConnectionPool(config);
             await pool.connect();
             this.logger.info(`Initialized MS SQL Server connection pool for: ${dbConfig.database}`);
             return pool;
@@ -65,7 +66,7 @@ class MssqlAdapter {
 
     /**
      * @description Prepares a SQL request by adding input parameters.
-     * @param {sql.Request} request - The SQL request object.
+     * @param {this.sql.Request} request - The SQL request object.
      * @param {Array} params - The parameters to add to the request.
      */
     _prepareRequest(request, params) {
@@ -125,18 +126,18 @@ class MssqlAdapter {
      */
     async transaction(callback) {
         const pool = await this.poolPromise;
-        const transaction = new sql.Transaction(pool);
+        const transaction = new this.sql.Transaction(pool);
         await transaction.begin();
         try {
             const txClient = {
                 query: async (sqlString, params) => {
-                    const request = new sql.Request(transaction);
+                    const request = new this.sql.Request(transaction);
                     this._prepareRequest(request, params);
                     const result = await request.query(this._transpileSql(sqlString));
                     return { rows: result.recordset, rowCount: result.rowsAffected[0] || result.recordset.length };
                 },
                 execute: async (sqlString, params) => {
-                    const request = new sql.Request(transaction);
+                    const request = new this.sql.Request(transaction);
                     this._prepareRequest(request, params);
                     const result = await request.query(this._transpileSql(sqlString));
                     return result.rowsAffected[0];

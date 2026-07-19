@@ -1,7 +1,8 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { loadOptional } = require('../internal_utils.js');
 
 /**
  * Google Gemini adapter for the Gingee `ai` module.
+ * Optional dependency: @google/generative-ai
  * @private
  */
 class GeminiAiAdapter {
@@ -15,6 +16,11 @@ class GeminiAiAdapter {
       throw new Error("Gemini AI config is missing 'api_key'.");
     }
 
+    const { GoogleGenerativeAI } = loadOptional(
+      () => require('@google/generative-ai'),
+      '@google/generative-ai',
+      'Gemini AI provider'
+    );
     this._genAI = new GoogleGenerativeAI(apiKey);
     this.defaultModel = this.config.default_model || this.config.model || 'gemini-2.0-flash';
     this.defaultVisionModel =

@@ -1,4 +1,4 @@
-const mysql = require('mysql2/promise');
+const { loadOptional } = require('../internal_utils.js');
 
 /**
  * A class that provides an interface for interacting with a MySQL database.
@@ -6,12 +6,13 @@ const mysql = require('mysql2/promise');
  */
 class MysqlAdapter {
     /**
-     * @description Initializes the PostgresAdapter with the given configuration.
+     * @description Initializes the MysqlAdapter with the given configuration.
      * @param {Object} dbConfig - The database configuration object.
      * @param {Object} app - The Gingee application instance.
      * @param {Object} logger - The logger instance.
      */
     constructor(dbConfig, app, logger) {
+        const mysql = loadOptional(() => require('mysql2/promise'), 'mysql2', 'MySQL database adapter');
         this.pool = mysql.createPool({
             host: dbConfig.host,
             user: dbConfig.user,

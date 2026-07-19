@@ -1,5 +1,4 @@
 const path = require('path');
-const { als } = require('../../modules/gingee');
 
 // pdfmake 0.3.x exposes a module-level singleton API (not a constructable PdfPrinter class).
 jest.mock('pdfmake', () => ({
@@ -17,17 +16,22 @@ jest.mock('../../modules/internal_utils', () => {
     };
 });
 
-const PdfPrinter = require('pdfmake');
-const internalUtils = require('../../modules/internal_utils');
-const pdf = require('../../modules/pdf');
-const fs = require('../../modules/fs');
-
 describe('pdf.js - PDF Generation (pdfmake 0.3 API)', () => {
     const mockPdfBytes = Buffer.from('%PDF-1.4 mock');
     let mockGetBuffer;
+    let PdfPrinter;
+    let internalUtils;
+    let pdf;
+    let als;
+    let fs;
 
     beforeEach(() => {
-        jest.clearAllMocks();
+        // jest.config has resetModules: true — re-require so pdf.js, ALS, and mocks share one graph.
+        PdfPrinter = require('pdfmake');
+        internalUtils = require('../../modules/internal_utils');
+        ({ als } = require('../../modules/gingee'));
+        fs = require('../../modules/fs');
+        pdf = require('../../modules/pdf');
         mockGetBuffer = jest.fn().mockResolvedValue(mockPdfBytes);
         PdfPrinter.createPdf.mockImplementation(() => ({ getBuffer: mockGetBuffer }));
     });
@@ -81,85 +85,70 @@ describe('pdf.js - PDF Generation (pdfmake 0.3 API)', () => {
             expect(PdfPrinter.createPdf).toHaveBeenCalledWith(docDefinition);
             expect(mockGetBuffer).toHaveBeenCalledTimes(1);
             expect(result).toBe(mockPdfBytes);
-            // No custom font registration on the default path
             expect(PdfPrinter.addFonts).not.toHaveBeenCalled();
         });
 
         test('should resolve custom fonts via BOX scope and register them before createPdf', async () => {
-            internalUtils.resolveSecurePath.mockReturnValue('/fake/app/box/fonts/myfont.ttf');
-
+            const mockApp = { name: 'testApp' };
+            const mockStore = { app: mockApp, appName: 'testApp' };
             const docDefinition = {
-                fonts: { MyFont: { normal: './fonts/myfont.ttf' } },
-                content: 'Hello with custom font',
-            };
-
-            const mockStore = {
-                appName: 'test_app',
-                app: {
-                    name: 'test_app',
-                    appBoxPath: path.resolve('/fake/app/box'),
-                    appWebPath: path.resolve('/fake/app'),
+                content: 'Hello with custom fonts',
+                fonts: {
+                    MyFont: {
+                        normal: 'fonts/MyFont-Regular.ttf',
+                        bold: 'fonts/MyFont-Bold.ttf',
+                    },
                 },
-                scriptFolder: path.resolve('/fake/app/box'),
             };
 
-            let result;
+            internalUtils.resolveSecurePath
+                .mockReturnValueOnce('/abs/path/to/MyFont-Regular.ttf')
+                .mockReturnValueOnce('/abs/path/to/MyFont-Bold.ttf');
+
             await als.run(mockStore, async () => {
-                result = await pdf.create(docDefinition);
+                const result = await pdf.create(docDefinition);
+                expect(result).toBe(mockPdfBytes);
             });
 
-            expect(internalUtils.resolveSecurePath).toHaveBeenCalledWith(fs.BOX, './fonts/myfont.ttf');
+            expect(internalUtils.resolveSecurePath).toHaveBeenCalledWith(fs.BOX, 'fonts/MyFont-Regular.ttf');
+            expect(internalUtils.resolveSecurePath).toHaveBeenCalledWith(fs.BOX, 'fonts/MyFont-Bold.ttf');
             expect(PdfPrinter.addFonts).toHaveBeenCalledWith({
-                MyFont: { normal: '/fake/app/box/fonts/myfont.ttf' },
+                MyFont: {
+                    normal: '/abs/path/to/MyFont-Regular.ttf',
+                    bold: '/abs/path/to/MyFont-Bold.ttf',
+                },
             });
             expect(PdfPrinter.createPdf).toHaveBeenCalledWith(docDefinition);
-            expect(mockGetBuffer).toHaveBeenCalledTimes(1);
-            expect(result).toBe(mockPdfBytes);
         });
 
         test('should resolve every style path for each custom font family', async () => {
-            internalUtils.resolveSecurePath
-                .mockReturnValueOnce('/box/fonts/a-regular.ttf')
-                .mockReturnValueOnce('/box/fonts/a-bold.ttf')
-                .mockReturnValueOnce('/box/fonts/b-regular.ttf');
-
+            const mockStore = { app: { name: 'testApp' }, appName: 'testApp' };
             const docDefinition = {
+                content: 'x',
                 fonts: {
-                    FontA: {
-                        normal: './fonts/a-regular.ttf',
-                        bold: './fonts/a-bold.ttf',
-                    },
-                    FontB: {
-                        normal: './fonts/b-regular.ttf',
-                    },
+                    A: { normal: 'a.ttf', italics: 'a-i.ttf' },
+                    B: { bold: 'b.ttf' },
                 },
-                content: 'multi-font',
             };
 
-            await als.run({
-                appName: 'test_app',
-                app: { name: 'test_app', appBoxPath: '/box', appWebPath: '/' },
-                scriptFolder: '/box',
-            }, async () => {
+            internalUtils.resolveSecurePath.mockImplementation((_scope, p) => `/resolved/${p}`);
+
+            await als.run(mockStore, async () => {
                 await pdf.create(docDefinition);
             });
 
             expect(internalUtils.resolveSecurePath).toHaveBeenCalledTimes(3);
             expect(PdfPrinter.addFonts).toHaveBeenCalledWith({
-                FontA: {
-                    normal: '/box/fonts/a-regular.ttf',
-                    bold: '/box/fonts/a-bold.ttf',
-                },
-                FontB: {
-                    normal: '/box/fonts/b-regular.ttf',
-                },
+                A: { normal: '/resolved/a.ttf', italics: '/resolved/a-i.ttf' },
+                B: { bold: '/resolved/b.ttf' },
             });
         });
 
         test('should surface errors from getBuffer', async () => {
-            mockGetBuffer.mockRejectedValueOnce(new Error('render failed'));
+            mockGetBuffer.mockRejectedValue(new Error('pdf render failed'));
+            PdfPrinter.createPdf.mockImplementation(() => ({ getBuffer: mockGetBuffer }));
 
-            await expect(pdf.create({ content: 'x' })).rejects.toThrow('render failed');
+            await expect(pdf.create({ content: 'x' })).rejects.toThrow('pdf render failed');
         });
     });
 });

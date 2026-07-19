@@ -1,4 +1,4 @@
-const oracledb = require('oracledb');
+const { loadOptional } = require('../internal_utils.js');
 
 /**
  * A class that provides an interface for interacting with an Oracle database.
@@ -13,15 +13,16 @@ class OracleAdapter {
      */
     constructor(dbConfig, app, logger) {
         this.logger = logger;
+        this.oracledb = loadOptional(() => require('oracledb'), 'oracledb', 'Oracle database adapter');
         this.poolPromise = this._createPool(dbConfig);
         // This setting tells the driver how to format query results.
-        oracledb.outFormat = oracledb.OUT_FORMAT_ARRAY;
+        this.oracledb.outFormat = this.oracledb.OUT_FORMAT_ARRAY;
     }
 
     /**
      * @description Creates a connection pool for the database.
      * @param {Object} dbConfig - The database configuration object.
-     * @returns {Promise<oracledb.Pool>} The created connection pool.
+     * @returns {Promise<this.oracledb.Pool>} The created connection pool.
      * @throws {Error} If the pool creation fails.
      */
     async _createPool(dbConfig) {
@@ -31,7 +32,7 @@ class OracleAdapter {
                 password: dbConfig.password,
                 connectString: dbConfig.connectString, // e.g., "localhost:1521/XEPDB1"
             };
-            const pool = await oracledb.createPool(config);
+            const pool = await this.oracledb.createPool(config);
             this.logger.info(`Initialized OracleDB connection pool.`);
             return pool;
         } catch (err) {
@@ -70,7 +71,7 @@ class OracleAdapter {
 
     /**
      * @description Executes a SQL statement.
-     * @param {oracledb.Connection} connection - The database connection.
+     * @param {this.oracledb.Connection} connection - The database connection.
      * @param {string} sqlString - The SQL statement to execute.
      * @param {Array} params - The parameters for the SQL statement.
      * @param {Object} options - Additional options for the execution.

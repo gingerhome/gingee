@@ -1,6 +1,19 @@
 const QRCode = require('qrcode');
 const JsBarcode = require('jsbarcode');
-const { createCanvas } = require('canvas');
+const { loadOptional } = require('./internal_utils.js');
+
+/**
+ * node-canvas is optional (used for 1D barcodes / some outputs).
+ * @private
+ */
+function getCreateCanvas() {
+  const canvas = loadOptional(
+    () => require('canvas'),
+    'canvas',
+    'QR/barcode canvas rendering'
+  );
+  return canvas.createCanvas;
+}
 
 /**
  * @module qrcode
@@ -85,7 +98,7 @@ async function barcode(format, text, options = {}) {
         ...options,
     };
 
-    const canvas = createCanvas(200, 200); // Initial canvas size, jsbarcode will resize if needed.
+    const canvas = getCreateCanvas()(200, 200); // Initial canvas size, jsbarcode will resize if needed.
 
     // jsbarcode renders the barcode onto the canvas
     JsBarcode(canvas, text, {

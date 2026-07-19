@@ -1,4 +1,4 @@
-const { Pool } = require('pg');
+const { loadOptional } = require('../internal_utils.js');
 
 /**
  * A class that provides an interface for interacting with a PostgreSQL database.
@@ -12,6 +12,7 @@ class PostgresAdapter {
      * @param {Object} logger - The logger instance.
      */
     constructor(dbConfig, app, logger) {
+        const { Pool } = loadOptional(() => require('pg'), 'pg', 'PostgreSQL database adapter');
         this.pool = new Pool(dbConfig);
         this.logger = logger;
     }

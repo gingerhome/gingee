@@ -1,6 +1,11 @@
 const path = require('path');
 const { als } = require('../../modules/gingee');
-const { resolveSecurePath, SCOPES, isPathInside } = require('../../modules/internal_utils');
+const {
+    resolveSecurePath,
+    SCOPES,
+    isPathInside,
+    loadOptional
+} = require('../../modules/internal_utils');
 
 describe('internal_utils.js - isPathInside', () => {
     test('allows the boundary path itself', () => {
@@ -150,5 +155,25 @@ describe('internal_utils.js - resolveSecurePath', () => {
             const resolved = resolveSecurePath(SCOPES.BOX, '/');
             expect(resolved).toBe(path.resolve('/project/web/app1/box'));
         });
+    });
+});
+
+describe('internal_utils.js - loadOptional', () => {
+    test('returns the loader result when the package is available', () => {
+        expect(loadOptional(() => ({ ok: true }), 'fake-pkg', 'Fake feature')).toEqual({ ok: true });
+    });
+
+    test('maps MODULE_NOT_FOUND to FEATURE_NOT_INSTALLED', () => {
+        expect(() =>
+            loadOptional(
+                () => {
+                    const err = new Error("Cannot find module 'missing-pkg'");
+                    err.code = 'MODULE_NOT_FOUND';
+                    throw err;
+                },
+                'missing-pkg',
+                'Missing feature'
+            )
+        ).toThrow(/FEATURE_NOT_INSTALLED.*missing-pkg/);
     });
 });

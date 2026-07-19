@@ -116,8 +116,56 @@ function resolveSecurePath(scope, userPath) {
   return resolved;
 }
 
+/**
+ * Load an optional npm package with a clear operator-facing error.
+ * Used when packages live under package.json `optionalDependencies` (or may be
+ * omitted via `npm install --omit=optional`).
+ *
+ * Prefer a **static** loader so Jest/bundlers can resolve and mock the package:
+ *   loadOptional(() => require('pdfmake'), 'pdfmake', 'PDF generation')
+ *
+ * @param {function(): any} loader - zero-arg function that calls require('pkg')
+ * @param {string} packageName - npm package name (for error text / npm install hint)
+ * @param {string} featureLabel - human feature (e.g. 'PostgreSQL', 'PDF')
+ * @returns {any} module.exports of the package
+ */
+function loadOptional(loader, packageName, featureLabel) {
+  try {
+    return loader();
+  } catch (e) {
+    const msg = e && e.message ? String(e.message) : '';
+    const missing =
+      e.code === 'MODULE_NOT_FOUND' ||
+      /Cannot find module/.test(msg) ||
+      /Cannot find package/.test(msg);
+    if (missing) {
+      const err = new Error(
+        `FEATURE_NOT_INSTALLED: ${featureLabel} requires optional package '${packageName}'. ` +
+          `Install it with: npm install ${packageName} ` +
+          `(or reinstall without --omit=optional so optionalDependencies are included).`
+      );
+      err.code = 'FEATURE_NOT_INSTALLED';
+      err.packageName = packageName;
+      err.feature = featureLabel;
+      err.cause = e;
+      throw err;
+    }
+    throw e;
+  }
+}
+
+/**
+ * @deprecated Prefer {@link loadOptional} with a static `() => require('pkg')` loader
+ * so Jest mocks apply. Kept for call sites that only need a string require.
+ */
+function requireOptional(packageName, featureLabel) {
+  return loadOptional(() => require(packageName), packageName, featureLabel);
+}
+
 module.exports = {
   SCOPES,
   isPathInside,
-  resolveSecurePath
+  resolveSecurePath,
+  loadOptional,
+  requireOptional
 };

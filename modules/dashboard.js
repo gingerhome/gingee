@@ -1,5 +1,12 @@
-const { createCanvas, loadImage } = require('canvas');
+const { loadOptional } = require('./internal_utils.js');
 const chart = require('./chart.js'); // We will use this in the next step
+
+/**
+ * @private
+ */
+function loadCanvas() {
+    return loadOptional(() => require('canvas'), 'canvas', 'Dashboard image rendering');
+}
 
 /**
  * @module dashboard
@@ -28,6 +35,7 @@ class Dashboard {
         }
 
         this.layout = layout;
+        const { createCanvas } = loadCanvas();
         this.canvas = createCanvas(layout.width, layout.height);
         this.ctx = this.canvas.getContext('2d');
         this.cells = this._calculateCellGeometry();
@@ -86,6 +94,7 @@ class Dashboard {
         });
 
         // 2. Load the rendered chart buffer into a Canvas Image object.
+        const { loadImage } = loadCanvas();
         const chartImage = await loadImage(chartBuffer);
 
         // 3. Draw the chart image onto our main dashboard canvas at the cell's coordinates.

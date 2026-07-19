@@ -62,7 +62,14 @@ gingee-cli init my-awesome-project
 **Wizard Prompts:**
 -   `Administrator Username for glade:` Sets the initial username for the bundled Glade admin panel. Defaults to `admin`.
 -   `Administrator Password for glade:` Securely prompts for the admin password. This is hashed and stored in Glade's configuration.
--   `Install npm dependencies automatically?` If yes (default), it will run `npm install` so the project is ready to run immediately.
+-   **Optional feature packages:** Choose a dependency profile for Gingee’s heavy/native optionals (non-SQLite SQL drivers, PDF, charts/canvas, SendGrid, Gemini):
+    - **Minimal** — core + SQLite only (fastest install).
+    - **Recommended** (default) — PostgreSQL, PDF, charts, SendGrid, Gemini.
+    - **Full** — all optional packages (including Oracle and other SQL drivers).
+    - **Custom** — checkbox picker per feature.
+-   `Install npm dependencies automatically?` If yes (default), runs `npm install --omit=optional` for a resilient core install, then `npm install <selected packages>` for any optionals you chose. If you decline, the CLI prints the exact commands to run later.
+
+SQLite, email `console`, and AI `mock` work without optionals. Using a feature without its package fails at runtime with `FEATURE_NOT_INSTALLED` (see Gingee server-config → Optional npm feature packages).
 
 ---
 

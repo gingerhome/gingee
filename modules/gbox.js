@@ -62,7 +62,10 @@ const restrictedGlobalModules = [
   'scheduler',
   'limits',
   'egress',
-  'secrets'
+  'secrets',
+  // Engine observability/control — not for sandboxed apps (privileged only).
+  'metrics',
+  'audit'
 ];
 
 const gingee = require('./gingee.js');

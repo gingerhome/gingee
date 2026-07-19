@@ -53,7 +53,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
 
 - **Batteries-Included Backend**
   - **Multi App Hosting:** Deploy and run multiple apps with clear isolation, individual app lifecycles and hot app reloads.
-  - **Multi-Database Support:** Write your code once and deploy against PostgreSQL, SQLite, MySQL, and more, with a consistent API.
+  - **Multi-Database Support:** Write your code once and deploy against PostgreSQL, SQLite, MySQL, MSSQL, and Oracle, with a consistent API. SQLite is always installed; other drivers are **optional dependencies** (install fails soft if a native build fails).
   - **Rich Standard Library:** A comprehensive suite of sandboxed modules for common tasks, including `crypto`, `image` processing, `pdf` generation, `db` access, `httpclient`, transactional `email` (SendGrid / console), and generative `ai` (Gemini / mock, streaming chat, multimodal, document parse, moderation).
   - **Streamed Responses:** Progressive output (e.g. SSE for AI tokens) via `$g.response.startStream` / `writeSSE` / `endStream`.
   - **CRON Scheduler:** App-declared schedules in `app.json` (sandbox script or external URL); server gate `scheduler.enabled` (default off; enable on one node when load balancing).

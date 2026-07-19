@@ -1,11 +1,15 @@
-const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
 const fs = require('./fs.js'); // Our secure fs module for font registration
+const { loadOptional } = require('./internal_utils.js');
 
 /**
  * @module chart
  * @description
  * This module provides functionality to create and manipulate charts using Chart.js.
  * It includes a renderer for generating chart images and a font registration system.
+ *
+ * <b>Optional dependency:</b> requires <code>chartjs-node-canvas</code> and <code>canvas</code>
+ * (package.json optionalDependencies). Install without <code>--omit=optional</code>, or
+ * <code>npm install chartjs-node-canvas canvas</code>.
  */
 
 const OUTPUT_TYPES = {
@@ -13,19 +17,47 @@ const OUTPUT_TYPES = {
     DATA_URL: 'dataurl'
 };
 
-// We create one instance of the renderer and reuse it.
-// This is more efficient than creating a new one for every request.
-const canvasRenderer = new ChartJSNodeCanvas({
-    width: 800, // Default width
-    height: 600, // Default height
-    chartCallback: (ChartJS) => {
-        // Allows for global Chart.js configuration if needed
-        // For example: ChartJS.defaults.font.family = 'Arial';
-    }
-});
+/** @type {Function|null} */
+let ChartJSNodeCanvas = null;
+
+/** @type {object|null} */
+let defaultRenderer = null;
 
 /**
- * @function runInGBox
+ * @private
+ */
+function loadChartCanvas() {
+    // Always resolve via require so the same module identity as test mocks is used,
+    // but only throw FEATURE_NOT_INSTALLED when the package is truly missing.
+    if (!ChartJSNodeCanvas) {
+        const mod = loadOptional(
+            () => require('chartjs-node-canvas'),
+            'chartjs-node-canvas',
+            'Chart rendering (chart module)'
+        );
+        ChartJSNodeCanvas = mod.ChartJSNodeCanvas || mod;
+        loadOptional(() => require('canvas'), 'canvas', 'Chart rendering (node-canvas)');
+    }
+    return ChartJSNodeCanvas;
+}
+
+/**
+ * Shared renderer for font registration (matches prior module behavior).
+ * @private
+ */
+function getDefaultRenderer() {
+    const ChartCtor = loadChartCanvas();
+    if (!defaultRenderer) {
+        defaultRenderer = new ChartCtor({
+            width: 800,
+            height: 600
+        });
+    }
+    return defaultRenderer;
+}
+
+/**
+ * @function render
  * @memberOf module:chart
  * @description Renders a chart based on a Chart.js configuration object.
  * @param {object} configuration - A standard Chart.js configuration object (type, data, options).
@@ -52,6 +84,7 @@ const canvasRenderer = new ChartJSNodeCanvas({
  * $g.response.send(imageBuffer, 200, 'image/png');
  */
 async function render(configuration, options = {}) {
+    const ChartCtor = loadChartCanvas();
     const finalOptions = {
         width: 800,
         height: 600,
@@ -59,7 +92,7 @@ async function render(configuration, options = {}) {
         ...options
     };
 
-    const renderer = new ChartJSNodeCanvas({
+    const renderer = new ChartCtor({
         width: finalOptions.width,
         height: finalOptions.height,
     });
@@ -87,23 +120,12 @@ async function render(configuration, options = {}) {
  */
 function registerFont(scope, filePath, options) {
     const absolutePath = fs.resolveSecurePath(scope, filePath);
-    canvasRenderer.registerFont(absolutePath, { family: options.family });
+    getDefaultRenderer().registerFont(absolutePath, { family: options.family });
 }
 
 module.exports = {
     render,
     registerFont,
-    // Export constants for user convenience
-    /*
-    * @constant BUFFER
-    * @description
-    * This constant represents the output type for rendering charts as a buffer.
-    */
     BUFFER: OUTPUT_TYPES.BUFFER,
-    /**
-     * @constant DATA_URL
-     * @description
-     * This constant represents the output type for rendering charts as a Data URL.
-     */
     DATA_URL: OUTPUT_TYPES.DATA_URL,
 };
