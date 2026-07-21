@@ -171,11 +171,22 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       }
     }
 
-    // Check if the module is a restricted module
+    // Check if the module is a restricted module (engine control plane, etc.)
+    const isEngineInternal =
+      normalized === 'engine' ||
+      normalized.startsWith('engine/') ||
+      normalized.startsWith('engine\\');
     if (
       restrictedGlobalModules.includes(moduleName) ||
-      restrictedGlobalModules.includes(normalized)
+      restrictedGlobalModules.includes(normalized) ||
+      isEngineInternal
     ) {
+      if (isEngineInternal) {
+        // Never expose modules/engine/* to sandboxed apps (including privileged).
+        throw new Error(
+          `Security Error: The engine module '${moduleName}' is not available to application scripts.`
+        );
+      }
       const { appName } = gingee.getContext(); // Get the app that is making the call.
       // Check if the current app's ID is in the privileged list.
       if (gBoxConfig.privilegedApps && gBoxConfig.privilegedApps.includes(appName)) {
