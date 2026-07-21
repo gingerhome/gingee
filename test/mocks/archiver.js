@@ -1,7 +1,8 @@
 /**
- * CJS mock for ESM-only archiver (v8+) so Jest can load platform/zip tests.
- * Matches archiver v8 style: `new archiver.ZipArchive(options)`.
+ * CJS mock for archiver v8+ (ESM-only package).
+ * Production API: `new archiver.ZipArchive(options)` — not `archiver('zip', options)`.
  */
+
 function createInstance() {
   const handlers = {};
   const instance = {
@@ -23,6 +24,7 @@ function createInstance() {
     },
     finalize() {
       if (handlers.finish) setImmediate(handlers.finish);
+      if (handlers.end) setImmediate(handlers.end);
       return Promise.resolve();
     },
     pointer() {
@@ -32,17 +34,20 @@ function createInstance() {
   return instance;
 }
 
-function archiver() {
-  return createInstance();
-}
-
 class ZipArchive {
-  constructor() {
+  constructor(_options) {
     return createInstance();
   }
 }
 
-archiver.ZipArchive = ZipArchive;
+// Namespace-style export matching real archiver v8 require()
+const archiver = {
+  ZipArchive,
+  Archiver: ZipArchive,
+  TarArchive: ZipArchive,
+  JsonArchive: ZipArchive
+};
+
 module.exports = archiver;
 module.exports.ZipArchive = ZipArchive;
 module.exports.default = archiver;

@@ -54,7 +54,8 @@ async function createGinPackage(appName, projectRoot) {
     console.log(`   -> Found ${filesToInclude.length} files to include.`);
 
     // --- Create the Archive from the TEMPORARY directory ---
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    // archiver v8+: class API (not archiver('zip', opts))
+    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
     const buffers = [];
     archive.on('data', buffer => buffers.push(buffer));
     const streamPromise = new Promise((resolve, reject) => {

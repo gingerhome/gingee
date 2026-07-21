@@ -758,7 +758,8 @@ async function zipApp(appName) {
     }
     const appInfo = allApps[appName];
 
-    const archive = require('archiver')('zip', { zlib: { level: 9 } });
+    // archiver v8+: class API (not archiver('zip', opts))
+    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
     const buffers = [];
     archive.on('data', buffer => buffers.push(buffer));
 
@@ -821,7 +822,8 @@ async function packageApp(appName) {
     }
 
     // --- Create the Archive ---
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    // archiver v8+: class API (not archiver('zip', opts)) — matches modules/zip.js
+    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
     const buffers = [];
     archive.on('data', buffer => buffers.push(buffer));
 

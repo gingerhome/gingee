@@ -596,15 +596,23 @@ module.exports = {
                                 var files = {};
                                 var fileFields = Object.keys(uploadedFiles);
                                 fileFields.forEach(fileField => {
-                                    let file = uploadedFiles[fileField][0];
+                                    let file = uploadedFiles[fileField] && uploadedFiles[fileField][0];
+                                    if (!file) return;
                                     files[fileField] = {
                                         name: file.originalFilename,
                                         type: file.mimetype,
                                         size: file.size
                                     };
-                                    // Ensure the file path is absolute
-                                    if (fs.existsSync(file.filepath)) {
-                                        let fPath = path.resolve(file.filepath);
+                                    // Temp path from formidable — only touch the disk if we have a real string path.
+                                    // (Passing undefined/null to fs.existsSync triggers Node DEP0187.)
+                                    const tempPath =
+                                        typeof file.filepath === 'string' && file.filepath
+                                            ? file.filepath
+                                            : typeof file.path === 'string' && file.path
+                                              ? file.path
+                                              : null;
+                                    if (tempPath && fs.existsSync(tempPath)) {
+                                        const fPath = path.resolve(tempPath);
                                         const fileBuffer = fs.readFileSync(fPath);
                                         files[fileField].data = fileBuffer;
                                     }
