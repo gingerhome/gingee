@@ -10,7 +10,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 /**
  * Handle SPA when no script target matched.
- * @returns {{ handled: boolean, filePath?: string }}
+ * @returns {object} `{ handled: boolean, filePath: string|undefined }` —
  *   handled=true means response already sent (or handed to proxy).
  *   filePath set means treat as static asset under SPA build path.
  */

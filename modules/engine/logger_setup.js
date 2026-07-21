@@ -12,7 +12,7 @@ require('winston-daily-rotate-file');
  * Create the main server logger (daily rotate file under project logs/).
  * @param {object} config - resolved gingee config
  * @param {string} projectRoot
- * @returns {import('winston').Logger}
+ * @returns {object} Winston logger instance
  */
 function createServerLogger(config, projectRoot) {
   return winston.createLogger({

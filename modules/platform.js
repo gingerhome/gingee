@@ -15,11 +15,12 @@ const scheduler = require('./scheduler.js');
 const secrets = require('./secrets.js');
 const audit = require('./audit.js');
 const appLogger = require('./logger.js');
+const workerManager = require('./engine/isolation/worker_manager.js');
 
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
 const gdev = require('./gdev.js');
-const { isPathInside } = require('./internal_utils.js');
+const { isPathInside, loadJsonFile } = require('./internal_utils.js');
 
 const ALL_PERMISSIONS = {
     "cache": "Allows the app to use the caching service for storing and retrieving data.",
@@ -84,14 +85,13 @@ async function _writePermissionsToFile(appName, permissionsArray) {
  * @private 
  */
 function _loadAndCacheAppConfig(appConfigPath) {
-    // Always purge the cache before reading to get the freshest version
-    if (nodeFs.existsSync(appConfigPath) && require.cache[require.resolve(appConfigPath)]) {
-        delete require.cache[require.resolve(appConfigPath)];
-    }
-
     let finalConfig = {};
     if (nodeFs.existsSync(appConfigPath)) {
-        const userAppConfig = secrets.resolveDeep(require(appConfigPath));
+        // loadJsonFile: safe parse + purge require cache (invalid JSON throws INVALID_JSON, not process crash)
+        const userAppConfig = secrets.resolveDeep(loadJsonFile(appConfigPath));
+        if (!userAppConfig || typeof userAppConfig !== 'object' || Array.isArray(userAppConfig)) {
+            throw new Error(`app.json must be a JSON object: ${appConfigPath}`);
+        }
         const defaultAppConfig = {
             name: "Untitled Gingee App",
             description: "",
@@ -557,6 +557,18 @@ async function reloadApp(appName) {
 
         // Re-register CRON schedules for this app (if server scheduler is enabled)
         await scheduler.reinitApp(appName, app);
+
+        // Restart isolation worker if this app is process-isolated
+        try {
+          workerManager.stopWorker(appName, { silent: true });
+          if (workerManager.shouldIsolate(app, globalConfig)) {
+            await workerManager.startWorker(app, globalConfig);
+          }
+        } catch (werr) {
+          logger.error(
+            `Failed to reinit isolation worker for '${appName}': ${werr.message}`
+          );
+        }
     } catch (error) {
         logger.error(`Error reloading app '${appName}': ${error.message}`);
         return false;
@@ -610,6 +622,9 @@ async function deleteApp(appName) {
 
         logger.info(`Unregistering scheduled jobs for app '${appName}' before deletion.`);
         scheduler.unregisterApp(appName);
+
+        logger.info(`Stopping isolation worker for app '${appName}' before deletion.`);
+        workerManager.stopWorker(appName, { silent: true });
 
         logger.info(`Revoking permissions for '${appName}'...`);
         removeAppPermissions(appName);

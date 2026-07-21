@@ -162,10 +162,51 @@ function requireOptional(packageName, featureLabel) {
   return loadOptional(() => require(packageName), packageName, featureLabel);
 }
 
+/**
+ * Read and parse a JSON file. Purges require.cache for the path when present so
+ * repeated loads (reload) see disk changes. Throws a clear SyntaxError-style message
+ * on invalid JSON (does not crash the process by itself).
+ *
+ * @param {string} filePath - absolute path
+ * @returns {object|array|string|number|boolean|null}
+ */
+function loadJsonFile(filePath) {
+  const fs = require('fs');
+  // Prefer readFile + JSON.parse over require() so invalid JSON never leaves a broken module cache entry.
+  try {
+    const resolved = require.resolve(filePath);
+    if (require.cache[resolved]) {
+      delete require.cache[resolved];
+    }
+  } catch (_) {
+    /* path may not be resolvable as a module; still readable from disk */
+  }
+
+  let raw;
+  try {
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch (e) {
+    const err = new Error(`Cannot read JSON file '${filePath}': ${e.message}`);
+    err.code = e.code || 'ENOENT';
+    err.cause = e;
+    throw err;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    const err = new Error(`Invalid JSON in '${filePath}': ${e.message}`);
+    err.code = 'INVALID_JSON';
+    err.cause = e;
+    throw err;
+  }
+}
+
 module.exports = {
   SCOPES,
   isPathInside,
   resolveSecurePath,
   loadOptional,
-  requireOptional
+  requireOptional,
+  loadJsonFile
 };

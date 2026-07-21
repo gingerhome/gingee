@@ -10,6 +10,7 @@ const egress = require('../egress.js');
 const secrets = require('../secrets.js');
 const metrics = require('../metrics.js');
 const audit = require('../audit.js');
+const { ISOLATION_DEFAULTS } = require('./isolation/policy.js');
 const { projectRoot, resolveWebPath } = require('./paths.js');
 
 /**
@@ -64,6 +65,11 @@ function buildDefaultConfig() {
     metrics: { ...metrics.DEFAULTS, allow_from: [...metrics.DEFAULTS.allow_from] },
     // Append-only JSONL audit for permissions + app lifecycle.
     audit: { ...audit.DEFAULTS },
+    // Process isolation for server scripts (default off — all in-process).
+    isolation: {
+      ...ISOLATION_DEFAULTS,
+      apps: [...ISOLATION_DEFAULTS.apps]
+    },
     default_app: 'glade', //set default app as the glade admin panel
     privileged_apps: ['glade'] //set glade as a priviledged app by default
   };
@@ -114,6 +120,14 @@ function mergeUserConfig(defaultConfig, userConfig) {
     audit: {
       ...defaultConfig.audit,
       ...(uc.audit || {})
+    },
+    isolation: {
+      ...defaultConfig.isolation,
+      ...(uc.isolation || {}),
+      apps:
+        (uc.isolation && Array.isArray(uc.isolation.apps) && uc.isolation.apps) ||
+        defaultConfig.isolation.apps ||
+        []
     }
   };
 }

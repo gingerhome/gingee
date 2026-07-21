@@ -132,8 +132,10 @@ async function runServerScript(opts) {
       gBoxConfig,
       app,
       acquireToken: acquire.token,
+      req,
       res,
-      logger
+      logger,
+      useCache
     });
   } catch (e) {
     logger.error(`Error executing script: ${scriptPath} in app ${appName}`, e);

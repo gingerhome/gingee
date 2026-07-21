@@ -68,6 +68,11 @@ Here is a comprehensive breakdown of all available properties.
     "enabled": true,
     "path": "./logs/audit.jsonl"
   },
+  "isolation": {
+    "mode": "off",
+    "default": "inprocess",
+    "apps": []
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -281,6 +286,35 @@ Each line is one JSON object, for example:
 | `actor` | Privileged app that performed the action when available; otherwise `system` |
 | `app` | Target application name |
 | `details` | Event-specific payload (previous/granted permissions, versions, etc.) |
+
+### isolation
+
+- **Type:** `object` (optional)
+- **Description:** Opt-in **process isolation** for server scripts. When enabled, selected apps run box scripts in a **child process** (IPC). The public HTTP(S) ports remain those under `server` — the master accepts connections; workers do not listen on ports. **Default is off** (all apps in-process, same as before).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `mode` | `"off"` | `"off"` = never use workers. `"process"` = allow workers per policy below. |
+| `default` | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`. |
+| `apps` | `[]` | App folder names always isolated when `mode` is `"process"`. |
+| `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
+| `request_timeout_ms` | `120000` | Max wait for a worker to finish one script request. |
+
+**Per-app** (`app.json`): `"isolation": "process"` or `"isolation": "inprocess"`.
+
+**Rules (v1):**
+
+- Apps listed in `privileged_apps` (e.g. Glade) **always stay in-process**.
+- Only **buffered** responses are supported over IPC (no SSE/`startStream` in the worker yet — keep streaming apps in-process).
+- Static files and SPA routing stay on the master.
+
+```json
+"isolation": {
+  "mode": "process",
+  "default": "inprocess",
+  "apps": ["untrusted-app"]
+}
+```
 
 ### Optional npm feature packages
 

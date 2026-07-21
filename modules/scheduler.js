@@ -694,7 +694,7 @@ module.exports = {
   shutdown,
   listJobs,
   runNow,
-  /** @private test helpers */
+  // private test helpers
   _normalizeSchedule: normalizeSchedule,
   _resetForTests,
   _getServerConfig: () => ({ ...serverConfig }),

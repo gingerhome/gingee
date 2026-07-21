@@ -116,8 +116,8 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, plus engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log).
--   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), startup scripts, and middleware.
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log), and opt-in **process isolation** for selected apps’ server scripts.
+-   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, startup scripts, and middleware.
 -   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
@@ -216,7 +216,14 @@ gingee-cli init my-awesome-project
 **Wizard Prompts:**
 -   `Administrator Username for glade:` Sets the initial username for the bundled Glade admin panel. Defaults to `admin`.
 -   `Administrator Password for glade:` Securely prompts for the admin password. This is hashed and stored in Glade's configuration.
--   `Install npm dependencies automatically?` If yes (default), it will run `npm install` so the project is ready to run immediately.
+-   **Optional feature packages:** Choose a dependency profile for Gingee’s heavy/native optionals (non-SQLite SQL drivers, PDF, charts/canvas, SendGrid, Gemini):
+    - **Minimal** — core + SQLite only (fastest install).
+    - **Recommended** (default) — PostgreSQL, PDF, charts, SendGrid, Gemini.
+    - **Full** — all optional packages (including Oracle and other SQL drivers).
+    - **Custom** — checkbox picker per feature.
+-   `Install npm dependencies automatically?` If yes (default), runs `npm install --omit=optional` for a resilient core install, then `npm install <selected packages>` for any optionals you chose. If you decline, the CLI prints the exact commands to run later.
+
+SQLite, email `console`, and AI `mock` work without optionals. Using a feature without its package fails at runtime with `FEATURE_NOT_INSTALLED` (see Gingee server-config → Optional npm feature packages).
 
 ---
 
@@ -538,6 +545,11 @@ Here is a comprehensive breakdown of all available properties.
     "enabled": true,
     "path": "./logs/audit.jsonl"
   },
+  "isolation": {
+    "mode": "off",
+    "default": "inprocess",
+    "apps": []
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -751,6 +763,55 @@ Each line is one JSON object, for example:
 | `actor` | Privileged app that performed the action when available; otherwise `system` |
 | `app` | Target application name |
 | `details` | Event-specific payload (previous/granted permissions, versions, etc.) |
+
+### isolation
+
+- **Type:** `object` (optional)
+- **Description:** Opt-in **process isolation** for server scripts. When enabled, selected apps run box scripts in a **child process** (IPC). The public HTTP(S) ports remain those under `server` — the master accepts connections; workers do not listen on ports. **Default is off** (all apps in-process, same as before).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `mode` | `"off"` | `"off"` = never use workers. `"process"` = allow workers per policy below. |
+| `default` | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`. |
+| `apps` | `[]` | App folder names always isolated when `mode` is `"process"`. |
+| `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
+| `request_timeout_ms` | `120000` | Max wait for a worker to finish one script request. |
+
+**Per-app** (`app.json`): `"isolation": "process"` or `"isolation": "inprocess"`.
+
+**Rules (v1):**
+
+- Apps listed in `privileged_apps` (e.g. Glade) **always stay in-process**.
+- Only **buffered** responses are supported over IPC (no SSE/`startStream` in the worker yet — keep streaming apps in-process).
+- Static files and SPA routing stay on the master.
+
+```json
+"isolation": {
+  "mode": "process",
+  "default": "inprocess",
+  "apps": ["untrusted-app"]
+}
+```
+
+### Optional npm feature packages
+
+Gingee keeps a **core** set of required dependencies (engine, SQLite, sharp image, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
+
+| Feature | Packages |
+| :--- | :--- |
+| PostgreSQL / MySQL / MSSQL / Oracle | `pg`, `mysql2`, `mssql`, `oracledb` |
+| Charts / canvas barcodes / dashboard | `chartjs-node-canvas`, `canvas` |
+| PDF | `pdfmake` |
+| SendGrid email | `@sendgrid/mail` |
+| Gemini AI | `@google/generative-ai` |
+
+**Install behavior (npm):**
+
+- Default `npm install` **still attempts** optional packages (full batteries when builds succeed).
+- If an optional package **fails to compile** (common for Oracle / canvas), install **continues** — core Gingee still works.
+- **Slim install:** `npm install --omit=optional`, then add only what you need, e.g. `npm install pg @sendgrid/mail`.
+
+Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals.
 
 ### max_body_size
 - **Type:** `string`
@@ -1234,6 +1295,21 @@ Optional **tightening** of server `gingee.json` → `limits` for this app only (
 ```
 
 See [Server Config](./server-config.md) for full field list and defaults. Use this to protect a noisy app from monopolizing the process (lower concurrency) or to fail faster than the server default.
+
+### Isolation (`isolation` string, optional)
+
+Opt-in **process isolation** for this app’s **server scripts** (not static files). Only takes effect when the server has `gingee.json` → `isolation.mode: "process"`. Privileged apps (e.g. Glade) always stay in-process regardless of this flag.
+
+| Value | Meaning |
+| :--- | :--- |
+| `"process"` | Run box scripts in a child worker (IPC); public HTTP still hits the master |
+| `"inprocess"` | Force in-process (default when server mode is process but app is unmarked) |
+
+```json
+"isolation": "process"
+```
+
+Alternatively list app names under server `isolation.apps`. **v1:** buffered responses only—do not isolate apps that rely on SSE/`startStream` until stream IPC ships. Full server keys: [Server Config](./server-config.md) → `isolation`.
 
 ### Schedules (`schedules` array, optional)
 
@@ -1941,6 +2017,10 @@ Or Docker/K8s file mounts:
 
 Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
 
+### Process isolation (optional)
+
+If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when marked with `"isolation": "process"` in `app.json` (or listed under server `isolation.apps`). HTTP still enters on the same server port; only script execution is isolated. **Streaming** (`startStream` / SSE) is not supported in workers in v1—keep AI/stream apps in-process. Privileged apps such as Glade never use workers. Details: [Server Config](./server-config.md) → `isolation`.
+
 ## Chapter 5b: Email and Generative AI Modules
 
 Two permission-protected integration modules follow the same adapter pattern as `db` and `cache`.
@@ -2380,13 +2460,13 @@ This is the definitive list of all permission keys available in Gingee.
 
 **Audience:** Server operators, app packagers, security reviewers, and contributors.
 
-**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `box`), [Concepts](./concepts.md).
+**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `isolation`, `box`), [Concepts](./concepts.md).
 
 ---
 
 ## 1. One-sentence summary
 
-Gingee provides **cooperative multi-app isolation** on a **shared Node.js process**: apps are separated by **path jails, permission whitelists, and admin consent**—not by hardware virtualization or mutually hostile tenant isolation.
+Gingee provides **cooperative multi-app isolation** on a **shared Node.js process** by default: apps are separated by **path jails, permission whitelists, and admin consent**. Opt-in **process isolation** (`isolation.mode: "process"`) can run selected apps’ **server scripts** in a child process (IPC) for crash/memory containment—still **not** full hostile multi-tenant isolation (shared master, disk/network policy, no stream IPC in v1).
 
 ---
 
@@ -2609,17 +2689,17 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 Gingee does **not** currently claim:
 
-- Process- or VM-level isolation between apps on one instance  
+- Full hostile multi-tenant isolation on one host (even with process isolation)  
 - Formal verification of the sandbox  
 - Built-in WAF, CSRF framework, or global end-user SSO  
 - Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
-
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
-- Guaranteed preemption of malicious infinite loops  
+- Guaranteed preemption of malicious infinite loops in the **master** process  
+- SSE/streaming over isolated workers (v1 workers are buffered request/response only)  
 
-These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (stream IPC, isolation groups, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`) and **JSONL audit** for permissions/lifecycle (`audit`) — see [Server Config](./server-config.md). They improve observability and non-repudiation; they do **not** add tenant isolation.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per selected app; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -2632,7 +2712,7 @@ These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, and audit — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for tenant isolation.
+**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, and opt-in process isolation — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
 
 ---
 
@@ -2642,7 +2722,7 @@ These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until
 | :--- | :--- |
 | Status | Living document |
 | Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS` |
-| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `gingee.js` |
+| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `modules/engine/isolation/*`, `gingee.js` |
 
 When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.
 
@@ -3037,6 +3117,12 @@ These are the core architectural features that define the Gingee development exp
 -   **Audit Trail:**
     Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
 
+-   **Optional feature packages:**
+    Heavy or specialized npm packages ship as **`optionalDependencies`**: non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
+
+-   **Process isolation (opt-in):**
+    With `isolation.mode: "process"`, selected apps can run server scripts in a **child process** (IPC). Public HTTP ports stay on the master (`gingee.json` server ports). Privileged apps (e.g. Glade) stay in-process. v1 is **buffered** responses only (no SSE in workers yet). See [Server Config](./server-config.md) → `isolation`.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
@@ -3138,6 +3224,9 @@ via provider adapters — similar to <code>db</code> / <code>email</code>.</p>
 <dt><a href="#module_chart">chart</a></dt>
 <dd><p>This module provides functionality to create and manipulate charts using Chart.js.
 It includes a renderer for generating chart images and a font registration system.</p>
+<p><b>Optional dependency:</b> requires <code>chartjs-node-canvas</code> and <code>canvas</code>
+(package.json optionalDependencies). Install without <code>--omit=optional</code>, or
+<code>npm install chartjs-node-canvas canvas</code>.</p>
 </dd>
 <dt><a href="#module_crypto">crypto</a></dt>
 <dd><p>Provides cryptographic functions for hashing, encryption, and secure random string generation.</p>
@@ -3468,19 +3557,25 @@ const cache = require('cache');await cache.clear();console.log("All cache clea
 <a name="module_chart"></a>
 
 ## chart
-This module provides functionality to create and manipulate charts using Chart.js.It includes a renderer for generating chart images and a font registration system.
+This module provides functionality to create and manipulate charts using Chart.js.
+It includes a renderer for generating chart images and a font registration system.
+
+<b>Optional dependency:</b> requires <code>chartjs-node-canvas</code> and <code>canvas</code>
+(package.json optionalDependencies). Install without <code>--omit=optional</code>, or
+<code>npm install chartjs-node-canvas canvas</code>.
 
 
 * [chart](#module_chart)
     * _static_
-        * [.runInGBox(configuration, [options])](#module_chart.runInGBox) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+        * [.render(configuration, [options])](#module_chart.render) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
         * [.registerFont(scope, filePath, options)](#module_chart.registerFont)
     * _inner_
-        * [~DATA_URL](#module_chart..DATA_URL)
+        * [~ChartJSNodeCanvas](#module_chart..ChartJSNodeCanvas) : <code>function</code> \| <code>null</code>
+        * [~defaultRenderer](#module_chart..defaultRenderer) : <code>object</code> \| <code>null</code>
 
-<a name="module_chart.runInGBox"></a>
+<a name="module_chart.render"></a>
 
-### chart.runInGBox(configuration, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+### chart.render(configuration, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
 Renders a chart based on a Chart.js configuration object.
 
 **Kind**: static method of [<code>chart</code>](#module_chart)  
@@ -3500,12 +3595,26 @@ Renders a chart based on a Chart.js configuration object.
 
 **Example**  
 ```js
-const chart = require('chart');const config = {    type: 'bar',    data: {        labels: ['January', 'February', 'March'],        datasets: [{            label: 'Sales',            data: [100, 200, 300]        }]    }};const imageBuffer = await chart.render(config);// To send the image in a http response:$g.response.send(imageBuffer, 200, 'image/png');
+const chart = require('chart');
+const config = {
+    type: 'bar',
+    data: {
+        labels: ['January', 'February', 'March'],
+        datasets: [{
+            label: 'Sales',
+            data: [100, 200, 300]
+        }]
+    }
+};
+const imageBuffer = await chart.render(config);
+// To send the image in a http response:
+$g.response.send(imageBuffer, 200, 'image/png');
 ```
 <a name="module_chart.registerFont"></a>
 
 ### chart.registerFont(scope, filePath, options)
-Registers a custom font from a file to be used in charts.This should be called at the application's startup or in a default_include script.
+Registers a custom font from a file to be used in charts.
+This should be called at the application's startup or in a default_include script.
 
 **Kind**: static method of [<code>chart</code>](#module_chart)  
 **Throws**:
@@ -3524,12 +3633,14 @@ Registers a custom font from a file to be used in charts.This should be called 
 ```js
 chart.registerFont(fs.BOX, 'path/to/Roboto-Regular.ttf', { family: 'Roboto' });
 ```
-<a name="module_chart..DATA_URL"></a>
+<a name="module_chart..ChartJSNodeCanvas"></a>
 
-### chart~DATA\_URL
-This constant represents the output type for rendering charts as a Data URL.
+### chart~ChartJSNodeCanvas : <code>function</code> \| <code>null</code>
+**Kind**: inner property of [<code>chart</code>](#module_chart)  
+<a name="module_chart..defaultRenderer"></a>
 
-**Kind**: inner constant of [<code>chart</code>](#module_chart)  
+### chart~defaultRenderer : <code>object</code> \| <code>null</code>
+**Kind**: inner property of [<code>chart</code>](#module_chart)  
 <a name="module_crypto"></a>
 
 ## crypto

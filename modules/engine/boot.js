@@ -22,6 +22,7 @@ const { ensureProjectDirs } = require('./paths.js');
 const { createServerLogger } = require('./logger_setup.js');
 const { startHttpServers } = require('./http_servers.js');
 const { initializeApps } = require('./app_registry.js');
+const workerManager = require('./isolation/worker_manager.js');
 
 /**
  * Boot the Gingee control plane and start listening.
@@ -79,19 +80,33 @@ async function startServer(options) {
   }
   logger.info(`Serving from Web root folder: ${webPath}`);
 
+  // Process isolation (opt-in): init manager before apps so workers can start at register time.
+  workerManager.init(config, logger, webPath);
+  if (config.isolation && config.isolation.mode === 'process') {
+    logger.info(
+      `[isolation] mode=process default=${config.isolation.default || 'inprocess'}`
+    );
+  }
+
   const apps = await initializeApps(config, logger, webPath);
 
   const reqHandler = (req, res) => requestHandler(req, res, apps, config, logger);
   startHttpServers({ config, logger, projectRoot, reqHandler });
 
-  process.on('exit', () => {
+  const shutdown = () => {
+    try {
+      workerManager.shutdownAll();
+    } catch (_) {
+      /* ignore */
+    }
     als.run({ logger }, () => {
-      // Ensure context is available for logger
       for (const appName in apps) {
         gdev.stopDevServer(apps[appName]);
       }
     });
-  });
+  };
+
+  process.on('exit', shutdown);
   process.on('SIGINT', () => process.exit());
   process.on('SIGTERM', () => process.exit());
 
