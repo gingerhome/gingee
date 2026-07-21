@@ -623,7 +623,7 @@ module.exports = {
   getMaxRedirects,
   beforeRedirect,
   _resetForTests,
-  /** @private test helpers */
+  // private test helpers
   _isMetadataHost: isMetadataHost,
   _hostMatchesPattern: hostMatchesPattern
 };

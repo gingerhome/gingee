@@ -183,6 +183,21 @@ Optional **tightening** of server `gingee.json` → `limits` for this app only (
 
 See [Server Config](./server-config.md) for full field list and defaults. Use this to protect a noisy app from monopolizing the process (lower concurrency) or to fail faster than the server default.
 
+### Isolation (`isolation` string, optional)
+
+Opt-in **process isolation** for this app’s **server scripts** (not static files). Only takes effect when the server has `gingee.json` → `isolation.mode: "process"`. Privileged apps (e.g. Glade) always stay in-process regardless of this flag.
+
+| Value | Meaning |
+| :--- | :--- |
+| `"process"` | Run box scripts in a child worker (IPC); public HTTP still hits the master |
+| `"inprocess"` | Force in-process (default when server mode is process but app is unmarked) |
+
+```json
+"isolation": "process"
+```
+
+Alternatively list app names under server `isolation.apps`. **v1:** buffered responses only—do not isolate apps that rely on SSE/`startStream` until stream IPC ships. Full server keys: [Server Config](./server-config.md) → `isolation`.
+
 ### Schedules (`schedules` array, optional)
 
 Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**.

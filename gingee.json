@@ -1,83 +1,87 @@
 {
-    "server": {
-        "https": {
-            "enabled": false,
-            "port": 7443,
-            "key_file": "settings/ssl/key.pem",
-            "cert_file": "settings/ssl/cert.pem"
-        },
-        "http": {
-            "enabled": true,
-            "port": 7070
-        }
-    },
-    "content_encoding": {
-        "enabled": true
-    },
-    "box": {
-        "allowed_modules": []
-    },
-    "web_root": "./web",
-    "cache": {
-        "provider": "redis",
-        "redis": {
-            "host": "127.0.0.1",
-            "port": 6379,
-            "password": null
-        }
-    },
-    "default_app": "glade",
-    "privileged_apps": [
-        "glide",
-        "glade"
-    ],
-    "logging": {
-        "level": "info",
-        "rotation": {
-            "period_days": 7,
-            "max_size_mb": 50
-        }
-    },
-    "scheduler": {
-        "enabled": false,
-        "timezone": "UTC"
-    },
-    "limits": {
-        "request_timeout_ms": 30000,
-        "request_timeout_stream_ms": 300000,
-        "stream_idle_timeout_ms": 60000,
-        "outbound_timeout_ms": 15000,
-        "max_concurrent_requests": 100,
-        "max_concurrent_requests_per_app": 25,
-        "max_concurrent_outbound": 50
-    },
-    "egress": {
-        "mode": "protected",
-        "https_only": false,
-        "dns_check": true,
-        "max_redirects": 3,
-        "block_private": true,
-        "block_loopback": true,
-        "block_link_local": true,
-        "block_metadata": true,
-        "allow_hosts": [],
-        "allow_cidrs": [],
-        "deny_hosts": [],
-        "deny_cidrs": []
-    },
-    "secrets": {
-        "load_dotenv": false,
-        "required": true,
-        "file_roots": ["./settings/secrets", "/run/secrets"]
-    },
-    "metrics": {
-        "enabled": true,
-        "path": "/metrics",
-        "allow_from": ["127.0.0.1", "::1", "::ffff:127.0.0.1"],
-        "bearer_token": null
-    },
-    "audit": {
-        "enabled": true,
-        "path": "./logs/audit.jsonl"
-    }
+	"server": {
+		"https": {
+			"enabled": false,
+			"port": 7443,
+			"key_file": "settings/ssl/key.pem",
+			"cert_file": "settings/ssl/cert.pem"
+		},
+		"http": {
+			"enabled": true,
+			"port": 7070
+		}
+	},
+	"content_encoding": {
+		"enabled": true
+	},
+	"box": {
+		"allowed_modules": []
+	},
+	"web_root": "./web",
+	"cache": {
+		"provider": "redis",
+		"redis": {
+			"host": "127.0.0.1",
+			"port": 6379,
+			"password": null
+		}
+	},
+	"default_app": "glade",
+	"privileged_apps": ["glide", "glade"],
+	"logging": {
+		"level": "info",
+		"rotation": {
+			"period_days": 7,
+			"max_size_mb": 50
+		}
+	},
+	"scheduler": {
+		"enabled": false,
+		"timezone": "UTC"
+	},
+	"limits": {
+		"request_timeout_ms": 30000,
+		"request_timeout_stream_ms": 300000,
+		"stream_idle_timeout_ms": 60000,
+		"outbound_timeout_ms": 15000,
+		"max_concurrent_requests": 100,
+		"max_concurrent_requests_per_app": 25,
+		"max_concurrent_outbound": 50
+	},
+	"egress": {
+		"mode": "protected",
+		"https_only": false,
+		"dns_check": true,
+		"max_redirects": 3,
+		"block_private": true,
+		"block_loopback": true,
+		"block_link_local": true,
+		"block_metadata": true,
+		"allow_hosts": [],
+		"allow_cidrs": [],
+		"deny_hosts": [],
+		"deny_cidrs": []
+	},
+	"secrets": {
+		"load_dotenv": false,
+		"required": true,
+		"file_roots": ["./settings/secrets", "/run/secrets"]
+	},
+	"metrics": {
+		"enabled": true,
+		"path": "/metrics",
+		"allow_from": ["127.0.0.1", "::1", "::ffff:127.0.0.1"],
+		"bearer_token": null
+	},
+	"audit": {
+		"enabled": true,
+		"path": "./logs/audit.jsonl"
+	},
+	"isolation": {
+		"mode": "off",
+		"default": "inprocess",
+		"apps": [],
+		"worker_ready_timeout_ms": 15000,
+		"request_timeout_ms": 120000
+	}
 }

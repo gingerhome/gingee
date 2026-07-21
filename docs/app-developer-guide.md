@@ -202,6 +202,10 @@ Or Docker/K8s file mounts:
 
 Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
 
+### Process isolation (optional)
+
+If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when marked with `"isolation": "process"` in `app.json` (or listed under server `isolation.apps`). HTTP still enters on the same server port; only script execution is isolated. **Streaming** (`startStream` / SSE) is not supported in workers in v1—keep AI/stream apps in-process. Privileged apps such as Glade never use workers. Details: [Server Config](./server-config.md) → `isolation`.
+
 ## Chapter 5b: Email and Generative AI Modules
 
 Two permission-protected integration modules follow the same adapter pattern as `db` and `cache`.

@@ -22,7 +22,7 @@ class MssqlAdapter {
     /**
      * @description Creates a connection pool for the database.
      * @param {Object} dbConfig - The database configuration object.
-     * @returns {Promise<this.sql.ConnectionPool>} The created connection pool.
+     * @returns {Promise<object>} The created connection pool.
      * @throws {Error} If the pool creation fails.
      */
     async _createPool(dbConfig) {
@@ -66,7 +66,7 @@ class MssqlAdapter {
 
     /**
      * @description Prepares a SQL request by adding input parameters.
-     * @param {this.sql.Request} request - The SQL request object.
+     * @param {object} request - The SQL request object.
      * @param {Array} params - The parameters to add to the request.
      */
     _prepareRequest(request, params) {

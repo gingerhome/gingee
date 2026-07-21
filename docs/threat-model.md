@@ -4,13 +4,13 @@
 
 **Audience:** Server operators, app packagers, security reviewers, and contributors.
 
-**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `box`), [Concepts](./concepts.md).
+**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `isolation`, `box`), [Concepts](./concepts.md).
 
 ---
 
 ## 1. One-sentence summary
 
-Gingee provides **cooperative multi-app isolation** on a **shared Node.js process**: apps are separated by **path jails, permission whitelists, and admin consent**—not by hardware virtualization or mutually hostile tenant isolation.
+Gingee provides **cooperative multi-app isolation** on a **shared Node.js process** by default: apps are separated by **path jails, permission whitelists, and admin consent**. Opt-in **process isolation** (`isolation.mode: "process"`) can run selected apps’ **server scripts** in a child process (IPC) for crash/memory containment—still **not** full hostile multi-tenant isolation (shared master, disk/network policy, no stream IPC in v1).
 
 ---
 
@@ -233,17 +233,17 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 Gingee does **not** currently claim:
 
-- Process- or VM-level isolation between apps on one instance  
+- Full hostile multi-tenant isolation on one host (even with process isolation)  
 - Formal verification of the sandbox  
 - Built-in WAF, CSRF framework, or global end-user SSO  
 - Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
-
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
-- Guaranteed preemption of malicious infinite loops  
+- Guaranteed preemption of malicious infinite loops in the **master** process  
+- SSE/streaming over isolated workers (v1 workers are buffered request/response only)  
 
-These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (stream IPC, isolation groups, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`) and **JSONL audit** for permissions/lifecycle (`audit`) — see [Server Config](./server-config.md). They improve observability and non-repudiation; they do **not** add tenant isolation.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per selected app; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -256,7 +256,7 @@ These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, and audit — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for tenant isolation.
+**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, and opt-in process isolation — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
 
 ---
 
@@ -266,6 +266,6 @@ These may appear on the roadmap (workers, queues, cluster, OpenTelemetry); until
 | :--- | :--- |
 | Status | Living document |
 | Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS` |
-| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `gingee.js` |
+| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `modules/engine/isolation/*`, `gingee.js` |
 
 When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.

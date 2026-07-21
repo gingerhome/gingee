@@ -22,7 +22,7 @@ class OracleAdapter {
     /**
      * @description Creates a connection pool for the database.
      * @param {Object} dbConfig - The database configuration object.
-     * @returns {Promise<this.oracledb.Pool>} The created connection pool.
+     * @returns {Promise<object>} The created connection pool.
      * @throws {Error} If the pool creation fails.
      */
     async _createPool(dbConfig) {
@@ -71,7 +71,7 @@ class OracleAdapter {
 
     /**
      * @description Executes a SQL statement.
-     * @param {this.oracledb.Connection} connection - The database connection.
+     * @param {object} connection - The database connection.
      * @param {string} sqlString - The SQL statement to execute.
      * @param {Array} params - The parameters for the SQL statement.
      * @param {Object} options - Additional options for the execution.

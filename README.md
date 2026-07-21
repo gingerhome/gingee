@@ -62,6 +62,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Config secrets:** `env:VAR` / `file:…` references in JSON config, resolved by the engine (apps still cannot read host `process.env`).
   - **Prometheus Metrics:** Engine-scoped `/metrics` scrape endpoint (default localhost-only; optional bearer token) for HTTP scripts, limits, egress, and scheduler series.
   - **Audit Trail:** Append-only JSONL log of permission changes and app lifecycle events (`gingee.json` → `audit`, default `logs/audit.jsonl`).
+  - **Process isolation (opt-in):** Selected apps can run server scripts in a child process (`isolation.mode: "process"`); public ports stay on the master. Privileged apps stay in-process; streaming workers not yet supported.
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 
