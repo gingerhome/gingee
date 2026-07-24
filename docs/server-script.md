@@ -123,6 +123,28 @@ module.exports = async function (socket, ctx) {
 
 See [Server Config](./server-config.md) → `websockets` and [App Structure](./app-structure.md).
 
+### 5. Queue job handlers (background)
+
+Deferred work uses the same `module.exports = async function () { await gingee(…) }` pattern as server scripts, but is **not** triggered by HTTP.
+
+-   **Purpose:** Emails, reports, slow AI, cleanup — anything that should not block a request.
+-   **Execution:** Enqueued with `require('queue').add(name, payload)` (permission **`queue`**). Default script path: `box/jobs/{name}.js`.
+-   **`$g` context:** Non-HTTP. `$g.request.method` is `"QUEUE"`. **`$g.queue`** holds `{ id, name, payload, attempt, maxAttempts }`. `$g.response.send(...)` records a result in logs only.
+-   **Retries:** On throw, the engine retries up to `attempts` with backoff (see server `queue` config).
+-   **CRON:** Prefer `schedules[].target.type: "queue"` so multi-node CRON only enqueues once (with Redis).
+
+**Example (`box/jobs/send-welcome.js`):**
+```javascript
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const { payload, attempt, id } = $g.queue;
+    // long work…
+  });
+};
+```
+
+See [Server Config](./server-config.md) → `queue` and [App Developer Guide](./app-developer-guide.md).
+
 ---
 
 ## The `$g` Object: Full API Reference

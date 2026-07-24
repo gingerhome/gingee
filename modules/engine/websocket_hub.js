@@ -316,7 +316,7 @@ function unregisterApp(appName, opts = {}) {
 
 /**
  * Attach upgrade listener to an http.Server / https.Server.
- * @param {import('http').Server} server
+ * @param {object} server - Node http.Server or https.Server
  */
 function attachServer(server) {
   const S = state();
@@ -335,8 +335,8 @@ function attachServer(server) {
 }
 
 /**
- * @param {import('http').IncomingMessage} req
- * @param {import('stream').Duplex} socket
+ * @param {object} req - IncomingMessage
+ * @param {object} socket - net.Socket / Duplex
  * @param {Buffer} head
  */
 async function handleUpgrade(req, socket, head) {
@@ -462,8 +462,8 @@ async function handleUpgrade(req, socket, head) {
 }
 
 /**
- * @param {import('ws').WebSocket} ws
- * @param {import('http').IncomingMessage} req
+ * @param {object} ws - ws WebSocket instance
+ * @param {object} req - IncomingMessage
  */
 function onConnection(ws, req) {
   const S = state();

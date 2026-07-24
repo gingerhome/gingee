@@ -15,17 +15,17 @@ const {
 } = require('./policy.js');
 const { projectRoot } = require('../paths.js');
 
-/** @type {Map<string, object>} workerKey → handle */
-const workers = new Map();
+/** @type {Map<string, object>} */
+const workers = new Map(); // workerKey → handle
 
-/** @type {Map<string, string>} appName → workerKey */
-const appWorkerKeys = new Map();
+/** @type {Map<string, string>} */
+const appWorkerKeys = new Map(); // appName → workerKey
 
-/** @type {Map<string, object>} appName → last known app snapshot for restarts */
-const appSnapshots = new Map();
+/** @type {Map<string, object>} */
+const appSnapshots = new Map(); // appName → last known app snapshot for restarts
 
-/** @type {Map<string, NodeJS.Timeout>} workerKey → pending restart timer */
-const restartTimers = new Map();
+/** @type {Map<string, object>} */
+const restartTimers = new Map(); // workerKey → pending restart timer
 
 /** @type {object|null} */
 let serverConfig = null;
@@ -33,8 +33,8 @@ let serverConfig = null;
 let serverLogger = null;
 /** @type {string} */
 let webPathResolved = '';
-/** @type {object|null} full apps registry for group membership */
-let appsRegistry = null;
+/** @type {object|null} */
+let appsRegistry = null; // full apps registry for group membership
 
 /**
  * @param {object} config
