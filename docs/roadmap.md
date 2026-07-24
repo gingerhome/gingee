@@ -19,10 +19,9 @@ This phase is focused on adding major new modules that unlock entirely new categ
 -   **CRON Scheduler** *(v1 shipped: declarative `app.json` schedules; server gate `scheduler.enabled` default off)*
     -   **Next:** Redis leader election for multi-node, runtime API / “Run now” in Glade, optional handoff to `queue`.
 
--   **Job Queues & Background Processing (`queue` Module)**
-    -   **Goal:** Enable applications to offload long-running or deferrable tasks to a background worker process.
-    -   **Use Cases:** Sending welcome emails, processing video uploads, generating complex reports, or calling slow third-party APIs without blocking the main request.
-    -   **Implementation:** A new `queue` module using a driver-based pattern to support backends like **Redis (via BullMQ)** and a simple in-memory queue for development.
+-   **Job Queues & Background Processing (`queue` Module)** *(v1 shipped)*
+    -   **Done:** `require('queue').add`, memory + redis drivers (ioredis), concurrency, retries/backoff, `$g.queue` in handlers, `queue` permission, CRON `target.type: "queue"`, metrics.
+    -   **Later:** Glade “Run now” / job UI, dead-letter admin, BullMQ-class priorities/rate limits if needed.
 
 -   **Third-Party Service Adapters**
     -   **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.

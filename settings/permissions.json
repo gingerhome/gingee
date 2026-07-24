@@ -43,7 +43,8 @@
       "image",
       "email",
       "ai",
-      "scheduler"
+      "scheduler",
+      "queue"
     ]
   },
   "ginpin": {

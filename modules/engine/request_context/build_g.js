@@ -59,6 +59,11 @@ function initializeGContext(store) {
     attachScheduleContext(store);
   }
 
+  // Background queue job context
+  if (store.isQueue && !isHttpContext) {
+    attachQueueContext(store);
+  }
+
   if (isHttpContext) {
     attachHttpContext(store);
   }
@@ -122,6 +127,64 @@ function attachScheduleContext(store) {
         contentType: contentType || null
       };
       store.logger.info(`Schedule job response recorded by: ${store.$g.completedBy}`);
+    }
+  };
+}
+
+/**
+ * @private
+ */
+function attachQueueContext(store) {
+  const q = store.queueJob || {};
+  store.$g.queue = {
+    id: q.id || null,
+    name: q.name || null,
+    payload: q.payload !== undefined ? q.payload : store.queuePayload,
+    attempt: q.attempt || 1,
+    maxAttempts: q.maxAttempts || 1
+  };
+  store.$g.schedule = null;
+  store.$g.request = {
+    protocol: 'queue',
+    hostname: null,
+    method: 'QUEUE',
+    path: q.name ? `/queue/${q.name}` : '/queue',
+    url: null,
+    headers: {},
+    cookies: {},
+    query: {},
+    params: {},
+    body: store.$g.queue.payload
+  };
+  store.$g.response = {
+    status: 200,
+    headers: { 'Content-Type': 'text/plain' },
+    cookies: {},
+    body: null,
+    startStream: () => {
+      store.logger.warn('response.startStream() is not supported in queue context.');
+    },
+    write: () => {},
+    writeSSE: () => {},
+    endStream: () => {
+      store.$g.isCompleted = true;
+      store.$g.isStreaming = false;
+    },
+    send: (data, status, contentType) => {
+      if (store.$g && store.$g.isCompleted) {
+        store.logger.warn(
+          `response.send() called multiple times in queue context from '${path.basename(store.scriptPath)}' — ignored.`
+        );
+        return;
+      }
+      store.$g.isCompleted = true;
+      store.$g.completedBy = path.basename(store.scriptPath);
+      store.$g.queueResult = {
+        data,
+        status: status || 200,
+        contentType: contentType || null
+      };
+      store.logger.info(`Queue job response recorded by: ${store.$g.completedBy}`);
     }
   };
 }

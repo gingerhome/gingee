@@ -12,6 +12,7 @@ const metrics = require('../metrics.js');
 const audit = require('../audit.js');
 const { ISOLATION_DEFAULTS } = require('./isolation/policy.js');
 const { DEFAULTS: WEBSOCKET_DEFAULTS } = require('./websocket_hub.js');
+const { DEFAULTS: QUEUE_DEFAULTS } = require('./queue_service.js');
 const { projectRoot, resolveWebPath } = require('./paths.js');
 
 /**
@@ -74,6 +75,11 @@ function buildDefaultConfig() {
     },
     // WebSockets (master upgrade; apps opt in via app.json + websockets permission).
     websockets: { ...WEBSOCKET_DEFAULTS },
+    // Background job queue (memory default; redis for multi-node).
+    queue: {
+      ...QUEUE_DEFAULTS,
+      redis: { ...(QUEUE_DEFAULTS.redis || {}) }
+    },
     default_app: 'glade', //set default app as the glade admin panel
     privileged_apps: ['glade'] //set glade as a priviledged app by default
   };
@@ -140,6 +146,14 @@ function mergeUserConfig(defaultConfig, userConfig) {
     websockets: {
       ...defaultConfig.websockets,
       ...(uc.websockets || {})
+    },
+    queue: {
+      ...defaultConfig.queue,
+      ...(uc.queue || {}),
+      redis: {
+        ...(defaultConfig.queue && defaultConfig.queue.redis),
+        ...((uc.queue && uc.queue.redis) || {})
+      }
     }
   };
 }

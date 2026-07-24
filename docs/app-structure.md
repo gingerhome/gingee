@@ -183,6 +183,20 @@ Optional **tightening** of server `gingee.json` → `limits` for this app only (
 
 See [Server Config](./server-config.md) for full field list and defaults. Use this to protect a noisy app from monopolizing the process (lower concurrency) or to fail faster than the server default.
 
+### Queue (`queue` object, optional)
+
+Optional job name → script map for the background queue. Handlers default to `box/jobs/{name}.js` if unmapped. Requires the **`queue`** permission and server `queue.enabled` (default true).
+
+```json
+"queue": {
+  "jobs": {
+    "send-welcome": { "script": "jobs/send_welcome.js" }
+  }
+}
+```
+
+Enqueue from scripts: `require('queue').add('send-welcome', payload)`. See [Server Config](./server-config.md) → `queue`.
+
 ### WebSockets (`websockets` object, optional)
 
 Opt-in **WebSocket** endpoint for this app. Requires server `websockets.enabled` (default true), the **`websockets`** permission, and a handler under `box/`. Connections use the public HTTP(S) port: `ws://host/{appFolder}{path}`.
@@ -234,7 +248,7 @@ Buffered responses and SSE (`startStream` / `writeSSE` / `endStream`) are suppor
 
 ### Schedules (`schedules` array, optional)
 
-Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**.
+Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**. Queue targets also require **`queue`**.
 
 Each entry:
 
@@ -244,9 +258,9 @@ Each entry:
 | `cron` | yes | CRON expression (standard 5-field; seconds supported by engine dialect) |
 | `timezone` | no | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`) |
 | `enabled` | no | Default `true`. Set `false` to keep the definition without registering |
-| `timeout_ms` | no | Default `300000` (script) / `60000` (url) |
+| `timeout_ms` | no | Default `300000` (script) / `60000` (url) / `30000` (queue enqueue) |
 | `overlap` | no | Only `"skip"` in v1 (skip if previous run still active) |
-| `payload` | no | Passed as `$g.request.body` for **script** targets |
+| `payload` | no | Passed as `$g.request.body` for **script** targets; default payload for **queue** targets |
 | `target` | yes | See below |
 
 **`target` for scripts** (path is relative to the app’s `box/` folder only):
@@ -273,6 +287,14 @@ Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual
 
 `url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`). URLs are checked against server **egress** policy at registration and again when the job fires (default `protected` mode blocks private/loopback/metadata). See [Server Config](./server-config.md) → `egress`.
 
+**`target` for queue** (enqueue a background job — multi-node safe when `queue.driver` is `redis`):
+
+```json
+"target": { "type": "queue", "job": "nightly_cleanup", "payload": { "mode": "full" } }
+```
+
+The schedule only **enqueues**; the `queue` worker runs `box/jobs/nightly_cleanup.js` (or a mapped script). App needs **`queue`** + **`scheduler`**.
+
 **Example:**
 
 ```json
@@ -283,6 +305,11 @@ Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual
     "timezone": "UTC",
     "payload": { "mode": "full" },
     "target": { "type": "script", "path": "jobs/cleanup.js" }
+  },
+  {
+    "name": "nightly_via_queue",
+    "cron": "0 3 * * *",
+    "target": { "type": "queue", "job": "nightly_cleanup" }
   },
   {
     "name": "partner_ping",

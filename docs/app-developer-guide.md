@@ -202,6 +202,31 @@ Or Docker/K8s file mounts:
 
 Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
 
+### Background jobs (`queue`, optional)
+
+For work that should not block an HTTP response (emails, reports, slow AI):
+
+1. Grant the **`queue`** permission.
+2. Add a handler at `box/jobs/my-job.js` (or map names in `app.json` → `queue.jobs`).
+3. From a server script:
+
+```javascript
+const queue = require('queue');
+await queue.add('my-job', { userId: 42 }, { delayMs: 0, attempts: 3 });
+```
+
+```javascript
+// box/jobs/my-job.js
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const { payload, attempt, id } = $g.queue;
+    // long work here
+  });
+};
+```
+
+Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. See [Server Config](./server-config.md) → `queue`.
+
 ### WebSockets (optional)
 
 For bidirectional real-time traffic (chat, live dashboards), enable WebSockets instead of polling:

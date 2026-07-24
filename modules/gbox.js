@@ -16,7 +16,8 @@ const PROTECTED_MODULES = [
   'pdf',
   'zip',
   'image',
-  'websockets'
+  'websockets',
+  'queue'
   // Note: 'scheduler' is engine-internal (restricted). Apps declare jobs in app.json;
   // they do not require('scheduler') in v1. The "scheduler" permission gates registration.
 ];

@@ -73,6 +73,11 @@ module.exports = {
           `INTERNAL SERVER ERROR - ${err.message} - check logs for more details`
         );
         store.$g.isCompleted = true;
+        return;
+      }
+      // Schedule / queue / startup: rethrow so the engine can fail or retry the job
+      if (!isHttpContext) {
+        throw err;
       }
     }
   }
