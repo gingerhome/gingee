@@ -71,7 +71,10 @@ Here is a comprehensive breakdown of all available properties.
   "isolation": {
     "mode": "off",
     "default": "inprocess",
-    "apps": []
+    "apps": [],
+    "groups": {},
+    "auto_restart": true,
+    "restart_max": 10
   },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
@@ -296,25 +299,55 @@ Each line is one JSON object, for example:
 | :--- | :--- | :--- |
 | `mode` | `"off"` | `"off"` = never use workers. `"process"` = allow workers per policy below. |
 | `default` | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`. |
-| `apps` | `[]` | App folder names always isolated when `mode` is `"process"`. |
+| `apps` | `[]` | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`. |
+| `groups` | `{}` | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`. |
 | `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
-| `request_timeout_ms` | `120000` | Max wait for a worker to finish one script request. |
+| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. |
+| `auto_restart` | `true` | Restart workers after unexpected exit (not after intentional stop/reload). |
+| `restart_max` | `10` | Max automatic restarts before staying down until next request/reload. |
+| `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
+| `restart_backoff_max_ms` | `30000` | Cap on backoff delay. |
+| `restart_stable_ms` | `60000` | After this long ready without crash, restart counter resets. |
 
 **Per-app** (`app.json`): `"isolation": "process"` or `"isolation": "inprocess"`.
 
-**Rules (v1):**
+**How apps are selected (when `mode` is `"process"`):**
 
-- Apps listed in `privileged_apps` (e.g. Glade) **always stay in-process**.
-- Only **buffered** responses are supported over IPC (no SSE/`startStream` in the worker yet — keep streaming apps in-process).
+| Source | Effect |
+| :--- | :--- |
+| `app.json` `"isolation": "process"` | Solo worker unless the app is also in a **group** |
+| `isolation.apps` | Same as solo opt-in by name |
+| `isolation.groups` | Shared worker for all listed members that are installed |
+| `default: "process"` | Every non-privileged app isolated (use carefully) |
+| `privileged_apps` (e.g. Glade) | **Always** stay in-process |
+
+If an app appears in both `apps` and a group, the **group wins** (one shared worker).
+
+**Runtime rules:**
+
+- **Buffered** and **SSE/stream** (`startStream` / `writeSSE` / `endStream`) are supported over IPC.
 - Static files and SPA routing stay on the master.
+- Workers re-initialize process-local adapters (`ai`, `email`) from the app config snapshot so `app.json` AI/email config works in isolated apps (permissions still required).
+- **Groups** share one Node worker (density within a trust set); not hostile multi-tenant isolation.
+- Unexpected worker exit triggers **auto-restart** with backoff (unless disabled or `restart_max` exceeded).
 
 ```json
 "isolation": {
   "mode": "process",
   "default": "inprocess",
-  "apps": ["untrusted-app"]
+  "apps": ["untrusted-app"],
+  "groups": {
+    "tenant-a": ["app-one", "app-two"]
+  },
+  "auto_restart": true,
+  "restart_max": 10,
+  "restart_delay_ms": 500,
+  "restart_backoff_max_ms": 30000,
+  "restart_stable_ms": 60000
 }
 ```
+
+In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `app-two` (if installed) → shared worker `group:tenant-a`; all other apps stay on the master.
 
 ### Optional npm feature packages
 

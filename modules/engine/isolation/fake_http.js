@@ -1,6 +1,7 @@
 /**
  * @module engine/isolation/fake_http
  * @description Minimal req/res shims for running gingee() scripts in a worker.
+ * Supports buffered capture and optional streaming callbacks for IPC.
  * Engine-internal.
  */
 
@@ -62,16 +63,24 @@ class FakeIncomingMessage extends EventEmitter {
 }
 
 /**
- * Server response shim that records status/headers/body for IPC return.
+ * Server response shim that records status/headers/body for IPC return,
+ * and optionally streams via hooks (for SSE over IPC).
+ *
+ * @param {object} [streamHooks]
+ * @param {function} [streamHooks.onStreamStart] - (statusCode, headers) => void
+ * @param {function} [streamHooks.onStreamChunk] - (Buffer) => void
+ * @param {function} [streamHooks.onStreamEnd] - () => void
  */
 class FakeServerResponse extends EventEmitter {
-  constructor() {
+  constructor(streamHooks) {
     super();
     this.statusCode = 200;
     this.headersSent = false;
     this._headers = {};
     this._chunks = [];
     this.writableEnded = false;
+    this._streaming = false;
+    this._streamHooks = streamHooks || null;
   }
 
   setHeader(name, value) {
@@ -107,11 +116,29 @@ class FakeServerResponse extends EventEmitter {
 
   flushHeaders() {
     this.headersSent = true;
+    // gingee startStream calls flushHeaders — treat as stream start if hooks present
+    if (this._streamHooks && this._streamHooks.onStreamStart && !this._streaming) {
+      this._streaming = true;
+      try {
+        this._streamHooks.onStreamStart(this.statusCode || 200, this.getHeaders());
+      } catch (_) {
+        /* ignore */
+      }
+    }
   }
 
   write(chunk, encoding, cb) {
     if (chunk != null && chunk !== '') {
-      this._chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding));
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding);
+      if (this._streaming && this._streamHooks && this._streamHooks.onStreamChunk) {
+        try {
+          this._streamHooks.onStreamChunk(buf);
+        } catch (_) {
+          /* ignore */
+        }
+      } else {
+        this._chunks.push(buf);
+      }
     }
     this.headersSent = true;
     if (typeof encoding === 'function') encoding();
@@ -132,6 +159,13 @@ class FakeServerResponse extends EventEmitter {
     }
     this.writableEnded = true;
     this.headersSent = true;
+    if (this._streaming && this._streamHooks && this._streamHooks.onStreamEnd) {
+      try {
+        this._streamHooks.onStreamEnd();
+      } catch (_) {
+        /* ignore */
+      }
+    }
     this.emit('finish');
     this.emit('close');
     if (typeof cb === 'function') cb();
@@ -139,13 +173,14 @@ class FakeServerResponse extends EventEmitter {
   }
 
   /**
-   * @returns {{ statusCode: number, headers: object, body: Buffer }}
+   * @returns {{ statusCode: number, headers: object, body: Buffer, streamed: boolean }}
    */
   toResult() {
     return {
       statusCode: this.statusCode || 200,
       headers: this.getHeaders(),
-      body: this._chunks.length ? Buffer.concat(this._chunks) : Buffer.alloc(0)
+      body: this._chunks.length ? Buffer.concat(this._chunks) : Buffer.alloc(0),
+      streamed: this._streaming
     };
   }
 }

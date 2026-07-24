@@ -68,7 +68,8 @@ function buildDefaultConfig() {
     // Process isolation for server scripts (default off — all in-process).
     isolation: {
       ...ISOLATION_DEFAULTS,
-      apps: [...ISOLATION_DEFAULTS.apps]
+      apps: [...ISOLATION_DEFAULTS.apps],
+      groups: { ...(ISOLATION_DEFAULTS.groups || {}) }
     },
     default_app: 'glade', //set default app as the glade admin panel
     privileged_apps: ['glade'] //set glade as a priviledged app by default
@@ -127,7 +128,11 @@ function mergeUserConfig(defaultConfig, userConfig) {
       apps:
         (uc.isolation && Array.isArray(uc.isolation.apps) && uc.isolation.apps) ||
         defaultConfig.isolation.apps ||
-        []
+        [],
+      groups: {
+        ...(defaultConfig.isolation.groups || {}),
+        ...((uc.isolation && uc.isolation.groups) || {})
+      }
     }
   };
 }

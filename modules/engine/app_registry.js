@@ -155,14 +155,6 @@ async function initializeOneApp(appName, webPath, config, logger) {
     logger.error(`Failed to register schedules for app '${appName}': ${err.message}`);
   }
 
-  try {
-    if (workerManager.shouldIsolate(app, config)) {
-      await workerManager.startWorker(app, config);
-    }
-  } catch (err) {
-    logger.error(`Failed to start isolation worker for app '${appName}': ${err.message}`);
-  }
-
   return app;
 }
 
@@ -223,6 +215,30 @@ async function initializeApps(config, logger, webPath) {
   logger.info(
     `App registry: ${loaded.length} app(s) loaded${loaded.length ? ` (${loaded.join(', ')})` : ''}.`
   );
+
+  // Process isolation: start workers after full registry is known (supports isolation groups).
+  workerManager.setAppsRegistry(apps);
+  const startedKeys = new Set();
+  for (const appName of loaded) {
+    const app = apps[appName];
+    try {
+      if (workerManager.shouldIsolate(app, config)) {
+        // startWorker is keyed by group/app; skip duplicates for group members
+        const before = workerManager.getWorkerStats().map((s) => s.workerKey);
+        await workerManager.startWorker(app, config);
+        for (const s of workerManager.getWorkerStats()) {
+          if (!before.includes(s.workerKey)) startedKeys.add(s.workerKey);
+        }
+      }
+    } catch (err) {
+      logger.error(
+        `Failed to start isolation worker for app '${appName}': ${err.message}`
+      );
+    }
+  }
+  if (startedKeys.size) {
+    logger.info(`[isolation] Started ${startedKeys.size} worker(s): ${[...startedKeys].join(', ')}`);
+  }
 
   return apps;
 }

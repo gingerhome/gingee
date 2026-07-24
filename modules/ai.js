@@ -151,6 +151,22 @@ function _resolveCall(options = {}) {
     return { adapter, config: effective, ephemeral: true, logger };
   }
 
+  // Lazy init: worker processes (and rare race after reload) may have app.config.ai
+  // but an empty process-local aiInstances map.
+  if ((!entry || !entry.adapter) && base && normalizeType(base.type)) {
+    try {
+      initApp(app || { name: appName, config: { ai: base } }, logger || console);
+      const fresh = aiInstances.get(appName);
+      if (fresh && fresh.adapter) {
+        return { adapter: fresh.adapter, config: fresh.config, ephemeral: false, logger };
+      }
+    } catch (e) {
+      throw new Error(
+        `No AI configuration for app '${appName}' (lazy init failed: ${e.message}). Set ai in app.json or gingee.json, or pass { config: { type, api_key, … } }.`
+      );
+    }
+  }
+
   if (!entry || !entry.adapter) {
     throw new Error(
       `No AI configuration for app '${appName}'. Set ai in app.json or gingee.json, or pass { config: { type, api_key, … } }.`

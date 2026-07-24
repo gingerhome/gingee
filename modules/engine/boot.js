@@ -89,6 +89,7 @@ async function startServer(options) {
   }
 
   const apps = await initializeApps(config, logger, webPath);
+  workerManager.setAppsRegistry(apps);
 
   const reqHandler = (req, res) => requestHandler(req, res, apps, config, logger);
   startHttpServers({ config, logger, projectRoot, reqHandler });

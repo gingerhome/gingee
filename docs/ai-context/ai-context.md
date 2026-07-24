@@ -548,7 +548,13 @@ Here is a comprehensive breakdown of all available properties.
   "isolation": {
     "mode": "off",
     "default": "inprocess",
-    "apps": []
+    "apps": [],
+    "groups": {},
+    "auto_restart": true,
+    "restart_max": 10,
+    "restart_delay_ms": 500,
+    "restart_backoff_max_ms": 30000,
+    "restart_stable_ms": 60000
   },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
@@ -773,23 +779,38 @@ Each line is one JSON object, for example:
 | :--- | :--- | :--- |
 | `mode` | `"off"` | `"off"` = never use workers. `"process"` = allow workers per policy below. |
 | `default` | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`. |
-| `apps` | `[]` | App folder names always isolated when `mode` is `"process"`. |
+| `apps` | `[]` | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`. |
+| `groups` | `{}` | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`. |
 | `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
-| `request_timeout_ms` | `120000` | Max wait for a worker to finish one script request. |
+| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. |
+| `auto_restart` | `true` | Restart workers after unexpected exit (not after intentional stop/reload). |
+| `restart_max` | `10` | Max automatic restarts before staying down until next request/reload. |
+| `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
+| `restart_backoff_max_ms` | `30000` | Cap on backoff delay. |
+| `restart_stable_ms` | `60000` | After this long ready without crash, restart counter resets. |
 
 **Per-app** (`app.json`): `"isolation": "process"` or `"isolation": "inprocess"`.
 
-**Rules (v1):**
+**How apps are selected (when `mode` is `"process"`):** solo via `app.json` / `apps`; shared via `groups`; if both, **group wins**. Privileged apps (e.g. Glade) always stay in-process.
 
-- Apps listed in `privileged_apps` (e.g. Glade) **always stay in-process**.
-- Only **buffered** responses are supported over IPC (no SSE/`startStream` in the worker yet — keep streaming apps in-process).
+**Runtime rules:**
+
+- **Buffered** and **SSE/stream** (`startStream` / `writeSSE` / `endStream`) are supported over IPC (including AI).
+- Workers re-init process-local `ai` / `email` from the app config snapshot.
 - Static files and SPA routing stay on the master.
+- **Groups** share one Node worker (density); still not hostile multi-tenant isolation.
+- Unexpected exit → **auto-restart** with backoff unless intentional stop / `restart_max`.
 
 ```json
 "isolation": {
   "mode": "process",
   "default": "inprocess",
-  "apps": ["untrusted-app"]
+  "apps": ["untrusted-app"],
+  "groups": {
+    "tenant-a": ["app-one", "app-two"]
+  },
+  "auto_restart": true,
+  "restart_max": 10
 }
 ```
 
@@ -1309,7 +1330,7 @@ Opt-in **process isolation** for this app’s **server scripts** (not static fil
 "isolation": "process"
 ```
 
-Alternatively list app names under server `isolation.apps`. **v1:** buffered responses only—do not isolate apps that rely on SSE/`startStream` until stream IPC ships. Full server keys: [Server Config](./server-config.md) → `isolation`.
+**Server-side alternatives:** `isolation.apps` (solo) or `isolation.groups` (shared—membership alone isolates). Buffered responses and SSE are supported over IPC. Full server keys: [Server Config](./server-config.md) → `isolation`.
 
 ### Schedules (`schedules` array, optional)
 
@@ -2019,7 +2040,7 @@ Sandbox scripts **cannot** read `process.env` (host isolation). The engine resol
 
 ### Process isolation (optional)
 
-If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when marked with `"isolation": "process"` in `app.json` (or listed under server `isolation.apps`). HTTP still enters on the same server port; only script execution is isolated. **Streaming** (`startStream` / SSE) is not supported in workers in v1—keep AI/stream apps in-process. Privileged apps such as Glade never use workers. Details: [Server Config](./server-config.md) → `isolation`.
+If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process via `app.json` `"isolation": "process"`, server `isolation.apps` (solo), or `isolation.groups` (shared). HTTP still enters on the same server port. **Buffered** and **SSE** (including AI) work over IPC; workers re-init `ai` / `email` from app config. Prefer `await gingee(...)`. Privileged apps such as Glade never use workers. Details: [Server Config](./server-config.md) → `isolation`.
 
 ## Chapter 5b: Email and Generative AI Modules
 
@@ -2466,7 +2487,7 @@ This is the definitive list of all permission keys available in Gingee.
 
 ## 1. One-sentence summary
 
-Gingee provides **cooperative multi-app isolation** on a **shared Node.js process** by default: apps are separated by **path jails, permission whitelists, and admin consent**. Opt-in **process isolation** (`isolation.mode: "process"`) can run selected apps’ **server scripts** in a child process (IPC) for crash/memory containment—still **not** full hostile multi-tenant isolation (shared master, disk/network policy, no stream IPC in v1).
+Gingee provides **cooperative multi-app isolation** on a **shared Node.js process** by default: apps are separated by **path jails, permission whitelists, and admin consent**. Opt-in **process isolation** (`isolation.mode: "process"`) can run selected apps’ **server scripts** in a child process (IPC; buffered + SSE, optional groups, auto-restart) for crash/memory containment—still **not** full hostile multi-tenant isolation (shared master, disk/network policy, no hard OS resource quotas).
 
 ---
 
@@ -2695,11 +2716,11 @@ Gingee does **not** currently claim:
 - Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops in the **master** process  
-- SSE/streaming over isolated workers (v1 workers are buffered request/response only)  
+- OS-level resource quotas on workers (cgroups / Job Objects) without external orchestration  
 
-These may appear on the roadmap (stream IPC, isolation groups, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (queues, cluster, OpenTelemetry, OS resource limits); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per selected app; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE over IPC; auto-restart with backoff; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -3121,7 +3142,7 @@ These are the core architectural features that define the Gingee development exp
     Heavy or specialized npm packages ship as **`optionalDependencies`**: non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
 
 -   **Process isolation (opt-in):**
-    With `isolation.mode: "process"`, selected apps can run server scripts in a **child process** (IPC). Public HTTP ports stay on the master (`gingee.json` server ports). Privileged apps (e.g. Glade) stay in-process. v1 is **buffered** responses only (no SSE in workers yet). See [Server Config](./server-config.md) → `isolation`.
+    With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps stay in-process. Supports **buffered** and **SSE** (incl. AI), **solo workers** or **groups**, **auto-restart**, and worker-side `ai` / `email` re-init. See [Server Config](./server-config.md) → `isolation`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

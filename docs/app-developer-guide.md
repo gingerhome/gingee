@@ -204,7 +204,13 @@ Sandbox scripts **cannot** read `process.env` (host isolation). The engine resol
 
 ### Process isolation (optional)
 
-If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when marked with `"isolation": "process"` in `app.json` (or listed under server `isolation.apps`). HTTP still enters on the same server port; only script execution is isolated. **Streaming** (`startStream` / SSE) is not supported in workers in v1—keep AI/stream apps in-process. Privileged apps such as Glade never use workers. Details: [Server Config](./server-config.md) → `isolation`.
+If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when:
+
+- `"isolation": "process"` is set in `app.json`, or  
+- the app folder name is listed under server `isolation.apps` (solo worker), or  
+- the app is a member of `isolation.groups` (shared worker with co-members).
+
+HTTP still enters on the same server port; only script execution is isolated. **Buffered** responses and **SSE** (`startStream` / `writeSSE` / `endStream`) both work over IPC—including AI streaming when the `ai` permission is granted and `app.json` (or server) AI config is set. The worker re-loads that config at init (you do not need a second copy in `gingee.json`). Privileged apps such as Glade never use workers. Prefer `await gingee(async ($g) => { … })` in async scripts so the handler fully finishes before the script returns. Details: [Server Config](./server-config.md) → `isolation`.
 
 ## Chapter 5b: Email and Generative AI Modules
 

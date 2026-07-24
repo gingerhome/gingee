@@ -10,7 +10,7 @@
 
 ## 1. One-sentence summary
 
-Gingee provides **cooperative multi-app isolation** on a **shared Node.js process** by default: apps are separated by **path jails, permission whitelists, and admin consent**. Opt-in **process isolation** (`isolation.mode: "process"`) can run selected apps’ **server scripts** in a child process (IPC) for crash/memory containment—still **not** full hostile multi-tenant isolation (shared master, disk/network policy, no stream IPC in v1).
+Gingee provides **cooperative multi-app isolation** on a **shared Node.js process** by default: apps are separated by **path jails, permission whitelists, and admin consent**. Opt-in **process isolation** (`isolation.mode: "process"`) can run selected apps’ **server scripts** in a child process (IPC; buffered + SSE, optional groups, auto-restart) for crash/memory containment—still **not** full hostile multi-tenant isolation (shared master, disk/network policy, no hard OS resource quotas).
 
 ---
 
@@ -239,11 +239,11 @@ Gingee does **not** currently claim:
 - Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops in the **master** process  
-- SSE/streaming over isolated workers (v1 workers are buffered request/response only)  
+- OS-level resource quotas on workers (cgroups / Job Objects) without external orchestration  
 
-These may appear on the roadmap (stream IPC, isolation groups, queues, cluster, OpenTelemetry); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (queues, cluster, OpenTelemetry, OS resource limits); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per selected app; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE over IPC; auto-restart with backoff; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -256,7 +256,7 @@ These may appear on the roadmap (stream IPC, isolation groups, queues, cluster, 
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, and opt-in process isolation — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
+**Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, and **opt-in process isolation** (solo or group workers; buffered + SSE; auto-restart) — see [Server Config](./server-config.md) and the [critical assessment](../dev-docs/gingee-critical-assessment.md). That reduces **availability** abuse under cooperative load and improves crash containment for opted-in apps; it is not a substitute for full tenant isolation.
 
 ---
 
