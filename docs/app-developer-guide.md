@@ -202,6 +202,39 @@ Or Docker/K8s file mounts:
 
 Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
 
+### WebSockets (optional)
+
+For bidirectional real-time traffic (chat, live dashboards), enable WebSockets instead of polling:
+
+1. Grant the **`websockets`** permission.
+2. In `app.json`:
+
+```json
+"websockets": {
+  "enabled": true,
+  "path": "/ws",
+  "handler": "realtime/handler.js"
+}
+```
+
+3. Client connects to `ws://host/{appFolder}/ws` (same port as HTTP).
+
+```javascript
+// box/realtime/handler.js
+module.exports = async function (socket, ctx) {
+  const ws = require('websockets');
+  const room = ws.tenantRoom(ctx.query.tenant || 'default', 'lobby');
+  socket.tenantId = ctx.query.tenant || 'default';
+  socket.join(room);
+  socket.send({ type: 'joined', room });
+  socket.on('message', (raw) => {
+    socket.to(room).send({ from: socket.id, raw });
+  });
+};
+```
+
+From an HTTP script: `require('websockets').toRoom(room, payload)`. Use **SSE** (`startStream`) for one-shot AI token streams. Full walkthrough sample: **`web/ginchat/`** (UI at `/ginchat/`). See [Server Config](./server-config.md) → `websockets` and [Server Script Guide](./server-script.md) → WebSocket handlers.
+
 ### Process isolation (optional)
 
 If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when:

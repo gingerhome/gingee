@@ -76,6 +76,15 @@ Here is a comprehensive breakdown of all available properties.
     "auto_restart": true,
     "restart_max": 10
   },
+  "websockets": {
+    "enabled": true,
+    "max_connections": 10000,
+    "max_connections_per_app": 2000,
+    "max_message_bytes": 65536,
+    "idle_timeout_ms": 300000,
+    "heartbeat_ms": 30000,
+    "default_path": "/ws"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -259,7 +268,7 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 | `allow_from` | `["127.0.0.1", "::1", "::ffff:127.0.0.1"]` | Socket remote addresses allowed to scrape. **Empty array = allow all** (not recommended). Uses the TCP peer address only—`X-Forwarded-For` is **not** trusted. |
 | `bearer_token` | `null` | If set (literal or `env:` / `file:` secret ref), require `Authorization: Bearer <token>`. |
 
-**Series (high level):** HTTP request counts/durations (by app, kind, status class), concurrency reject counters, egress deny reasons, scheduler job run outcomes, in-flight gauges, process memory, app/job counts.
+**Series (high level):** HTTP request counts/durations (by app, kind, status class), concurrency reject counters, egress deny reasons, scheduler job run outcomes, WebSocket upgrade results / open connection gauges, in-flight gauges, process memory, app/job counts.
 
 **Scrape example (local):**
 
@@ -348,6 +357,49 @@ If an app appears in both `apps` and a group, the **group wins** (one shared wor
 ```
 
 In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `app-two` (if installed) → shared worker `group:tenant-a`; all other apps stay on the master.
+
+### websockets
+
+- **Type:** `object` (optional)
+- **Description:** Master-owned **WebSocket** upgrade support on the same HTTP(S) ports as normal traffic. Apps opt in via `app.json` → `websockets` and must be granted the **`websockets`** permission. Connections always terminate on the **master** (not isolation workers). For one-shot progressive HTTP output, prefer SSE (`startStream` / `writeSSE`).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | Global kill switch. When `false`, no upgrades are accepted. |
+| `max_connections` | `10000` | Max open sockets server-wide. |
+| `max_connections_per_app` | `2000` | Max open sockets per app. |
+| `max_message_bytes` | `65536` | Max inbound message size (also `ws` maxPayload). |
+| `idle_timeout_ms` | `300000` | Close sockets idle longer than this (activity = message or pong). |
+| `heartbeat_ms` | `30000` | Server ping interval; also drives idle checks. |
+| `default_path` | `"/ws"` | Used when an app omits `websockets.path`. Full URL is `/{appName}{path}`. |
+
+**Per-app** (`app.json`):
+
+```json
+"websockets": {
+  "enabled": true,
+  "path": "/ws",
+  "handler": "realtime/handler.js",
+  "auth": "realtime/auth.js",
+  "allowed_origins": ["https://app.example.com"]
+}
+```
+
+| Field | Required | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | no | Set `false` to disable; presence of `handler` is enough to enable when permission is granted |
+| `path` | no | Path under the app (default server `default_path`). Client connects to `ws(s)://host/{appName}{path}` |
+| `handler` | **yes** | Box-relative script exporting `async function (socket, ctx)` |
+| `auth` | no | Box-relative script run on upgrade; return `false` / `{ ok: false }` to reject |
+| `allowed_origins` | no | If set, `Origin` must match exactly |
+
+**Multi-tenant apps:** rooms are app-global. Prefix with `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
+
+**Reload / delete:** app reload re-binds the handler and closes that app’s sockets.
+
+**Sample app:** `web/ginchat/` — multi-tenant room chat + HTTP announce (`POST /ginchat/api/announce`). Open `/ginchat/` after granting the `websockets` permission and restarting/reloading.
+
+**Metrics:** `gingee_websocket_upgrades_total`, `gingee_websocket_connections_opened_total` / `_closed_total`, gauges `gingee_websocket_connections` and `gingee_websocket_connections_per_app`.
 
 ### Optional npm feature packages
 

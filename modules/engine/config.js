@@ -11,6 +11,7 @@ const secrets = require('../secrets.js');
 const metrics = require('../metrics.js');
 const audit = require('../audit.js');
 const { ISOLATION_DEFAULTS } = require('./isolation/policy.js');
+const { DEFAULTS: WEBSOCKET_DEFAULTS } = require('./websocket_hub.js');
 const { projectRoot, resolveWebPath } = require('./paths.js');
 
 /**
@@ -71,6 +72,8 @@ function buildDefaultConfig() {
       apps: [...ISOLATION_DEFAULTS.apps],
       groups: { ...(ISOLATION_DEFAULTS.groups || {}) }
     },
+    // WebSockets (master upgrade; apps opt in via app.json + websockets permission).
+    websockets: { ...WEBSOCKET_DEFAULTS },
     default_app: 'glade', //set default app as the glade admin panel
     privileged_apps: ['glade'] //set glade as a priviledged app by default
   };
@@ -133,6 +136,10 @@ function mergeUserConfig(defaultConfig, userConfig) {
         ...(defaultConfig.isolation.groups || {}),
         ...((uc.isolation && uc.isolation.groups) || {})
       }
+    },
+    websockets: {
+      ...defaultConfig.websockets,
+      ...(uc.websockets || {})
     }
   };
 }

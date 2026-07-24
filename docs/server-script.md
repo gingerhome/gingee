@@ -23,7 +23,7 @@ This unified structure ensures that every piece of executable code runs within t
 
 ## Types of Scripts in Gingee
 
-While the structure is the same, the purpose of a script and the context it runs in can differ. There are three types of scripts you can create.
+While the structure is the same, the purpose of a script and the context it runs in can differ. There are four types of scripts you can create (plus WebSocket handlers, which use a slightly different entry signature).
 
 ### 1. Server Scripts (API Endpoints)
 
@@ -94,6 +94,34 @@ module.exports = async function() {
     });
 };
 ```
+
+### 4. WebSocket Handlers (Realtime)
+
+Long-lived connections use a **different entry signature** (no `gingee()` wrapper required). Configure them in `app.json` → `websockets` and grant the **`websockets`** permission.
+
+-   **Purpose:** Bidirectional messaging (chat, live dashboards, presence).
+-   **Execution:** Client connects to `ws(s)://host/{appFolder}{path}` (default path `/ws`). The master accepts the upgrade; handlers run **in-process on the master** (not isolation workers).
+-   **Signature:** `module.exports = async function (socket, ctx) { … }`
+    *   **`socket`:** `send`, `close`, `join(room)`, `leave(room)`, `to(room).send(…)`, `on('message'|'close')`, optional `tenantId` / `meta`
+    *   **`ctx`:** `{ app, log, query, path, headers, meta, remoteAddress }`
+-   **From HTTP scripts:** `require('websockets').toRoom(room, payload)` (same permission).
+-   **Multi-tenant:** use `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
+-   **Sample app:** `web/ginchat/` — UI at `/ginchat/`.
+
+**Example (`box/realtime/handler.js`):**
+```javascript
+module.exports = async function (socket, ctx) {
+  const ws = require('websockets');
+  const room = ws.tenantRoom(ctx.query.tenant || 'demo', ctx.query.room || 'lobby');
+  socket.join(room);
+  socket.send({ type: 'welcome' });
+  socket.on('message', (raw) => {
+    socket.to(room).send({ echo: raw });
+  });
+};
+```
+
+See [Server Config](./server-config.md) → `websockets` and [App Structure](./app-structure.md).
 
 ---
 

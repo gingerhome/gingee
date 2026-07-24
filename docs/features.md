@@ -69,6 +69,9 @@ These are the core architectural features that define the Gingee development exp
 -   **Process isolation (opt-in):**
     With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, and worker-side re-init of `ai` / `email` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
 
+-   **WebSockets (opt-in per app):**
+    Bidirectional real-time connections on the same public HTTP(S) port (`ws` library). Declare `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, then use `require('websockets')` for rooms/broadcast. Multi-tenant apps should use `tenantRoom(tenantId, name)`. Connections terminate on the **master** (not isolation workers). Prefer SSE for one-shot AI token streams. Sample app: **`ginchat`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets`.
+
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 

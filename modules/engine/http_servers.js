@@ -38,13 +38,19 @@ function handleServerError(error, port, protocol, logger) {
  * @param {object} options.logger
  * @param {string} options.projectRoot
  * @param {function} options.reqHandler - (req, res) => void
+ * @param {function} [options.onServer] - (server, protocol) => void after create, before listen
+ * @returns {{ httpServer: import('http').Server|null, httpsServer: import('https').Server|null }}
  */
-function startHttpServers({ config, logger, projectRoot, reqHandler }) {
+function startHttpServers({ config, logger, projectRoot, reqHandler, onServer }) {
+  let httpServer = null;
+  let httpsServer = null;
+
   // --- HTTP Server ---
   if (config.server.http.enabled) {
     try {
-      const httpServer = http.createServer(reqHandler);
+      httpServer = http.createServer(reqHandler);
       limits.applyServerTimeouts(httpServer);
+      if (typeof onServer === 'function') onServer(httpServer, 'http');
 
       httpServer.on('error', (error) => {
         handleServerError(error, config.server.http.port, 'HTTP', logger);
@@ -74,8 +80,9 @@ function startHttpServers({ config, logger, projectRoot, reqHandler }) {
         cert: fs.readFileSync(certPath)
       };
 
-      const httpsServer = https.createServer(options, reqHandler);
+      httpsServer = https.createServer(options, reqHandler);
       limits.applyServerTimeouts(httpsServer);
+      if (typeof onServer === 'function') onServer(httpsServer, 'https');
 
       httpsServer.on('error', (error) => {
         handleServerError(error, config.server.https.port, 'HTTPS', logger);
@@ -91,6 +98,8 @@ function startHttpServers({ config, logger, projectRoot, reqHandler }) {
       handleServerError(err, config.server.https.port, 'HTTPS', logger);
     }
   }
+
+  return { httpServer, httpsServer };
 }
 
 module.exports = {

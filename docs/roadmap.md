@@ -12,10 +12,9 @@ This phase is focused on polishing the existing platform and delivering on our "
 
 This phase is focused on adding major new modules that unlock entirely new categories of applications that can be built on Gingee. [INPROGRESS]
 
--   **Real-Time Communication (`websockets` Module)**
-    -   **Goal:** Add first-class support for real-time, bidirectional communication.
-    -   **Use Cases:** Live chat applications, real-time notifications, collaborative editing tools, and live data dashboards.
-    -   **Implementation:** A new module, likely wrapping a robust library like `ws`, that integrates securely with the Gingee routing model.
+-   **Real-Time Communication (`websockets` Module)** *(v1 shipped)*
+    -   **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**.
+    -   **Later:** Redis fan-out for multi-node, optional isolation bridge, Glade connection admin UI.
 
 -   **CRON Scheduler** *(v1 shipped: declarative `app.json` schedules; server gate `scheduler.enabled` default off)*
     -   **Next:** Redis leader election for multi-node, runtime API / “Run now” in Glade, optional handoff to `queue`.

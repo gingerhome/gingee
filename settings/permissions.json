@@ -63,5 +63,10 @@
     "granted": [
       "ai"
     ]
+  },
+  "ginchat": {
+    "granted": [
+      "websockets"
+    ]
   }
 }

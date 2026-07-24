@@ -78,6 +78,7 @@
     "sucrase": "^3.35.1",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
+    "ws": "^8.21.1",
     "yauzl": "^3.4.0"
   },
   "optionalDependencies": {
