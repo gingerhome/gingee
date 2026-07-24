@@ -183,6 +183,35 @@ Optional **tightening** of server `gingee.json` → `limits` for this app only (
 
 See [Server Config](./server-config.md) for full field list and defaults. Use this to protect a noisy app from monopolizing the process (lower concurrency) or to fail faster than the server default.
 
+### WebSockets (`websockets` object, optional)
+
+Opt-in **WebSocket** endpoint for this app. Requires server `websockets.enabled` (default true), the **`websockets`** permission, and a handler under `box/`. Connections use the public HTTP(S) port: `ws://host/{appFolder}{path}`.
+
+```json
+"websockets": {
+  "enabled": true,
+  "path": "/ws",
+  "handler": "realtime/handler.js",
+  "auth": "realtime/auth.js",
+  "allowed_origins": ["https://example.com"]
+}
+```
+
+**Handler** (`box/realtime/handler.js`):
+
+```javascript
+module.exports = async function (socket, ctx) {
+  // ctx: { app, log, query, path, headers, meta, remoteAddress }
+  socket.join('lobby');
+  socket.send({ type: 'hello' });
+  socket.on('message', (raw) => {
+    socket.to('lobby').send({ echo: raw });
+  });
+};
+```
+
+From HTTP scripts: `require('websockets').toRoom('lobby', payload)`. Multi-tenant: use `tenantRoom(tenantId, 'lobby')`. Sample: **`web/ginchat/`**. Full server keys: [Server Config](./server-config.md) → `websockets`.
+
 ### Isolation (`isolation` string, optional)
 
 Opt-in **process isolation** for this app’s **server scripts** (not static files). Only takes effect when the server has `gingee.json` → `isolation.mode: "process"`. Privileged apps (e.g. Glade) always stay in-process regardless of this flag.

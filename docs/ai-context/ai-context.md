@@ -116,8 +116,8 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log), and opt-in **process isolation** for selected apps’ server scripts.
--   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, startup scripts, and middleware.
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log), opt-in **process isolation**, and **WebSocket** connection limits (`websockets`).
+-   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, startup scripts, and middleware.
 -   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
@@ -556,6 +556,15 @@ Here is a comprehensive breakdown of all available properties.
     "restart_backoff_max_ms": 30000,
     "restart_stable_ms": 60000
   },
+  "websockets": {
+    "enabled": true,
+    "max_connections": 10000,
+    "max_connections_per_app": 2000,
+    "max_message_bytes": 65536,
+    "idle_timeout_ms": 300000,
+    "heartbeat_ms": 30000,
+    "default_path": "/ws"
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -813,6 +822,23 @@ Each line is one JSON object, for example:
   "restart_max": 10
 }
 ```
+
+### websockets
+
+- **Type:** `object` (optional)
+- **Description:** Master-owned **WebSocket** upgrade support on the same HTTP(S) ports. Apps opt in via `app.json` → `websockets` and the **`websockets`** permission. Handlers run on the **master** (not isolation workers). Prefer SSE for one-shot streams.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | Global kill switch |
+| `max_connections` | `10000` | Server-wide open sockets |
+| `max_connections_per_app` | `2000` | Per-app cap |
+| `max_message_bytes` | `65536` | Max inbound message size |
+| `idle_timeout_ms` | `300000` | Idle close |
+| `heartbeat_ms` | `30000` | Ping interval |
+| `default_path` | `"/ws"` | Used when app omits path; full URL `/{appName}{path}` |
+
+**Per-app:** `handler` (required), optional `path`, `auth`, `allowed_origins`. Module: `require('websockets')` → `toRoom`, `toApp`, `tenantRoom`. Sample: `web/ginchat/`.
 
 ### Optional npm feature packages
 
@@ -2461,6 +2487,7 @@ This is the definitive list of all permission keys available in Gingee.
 | **db** | Allows the app to connect to and query the database(s) configured for it in `app.json`. | **High.** Grants access to the application's primary data store. |
 | **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
 | **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
+| **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. |
 | **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/` or outbound URL). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json`. | **High.** The app can wake itself on a timer to run privileged sandbox code or (with `httpclient`) call external URLs unattended. |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets). | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts. |
 | **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
@@ -3120,6 +3147,9 @@ These are the core architectural features that define the Gingee development exp
 *   **Streamed HTTP Responses**
     Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
 
+*   **WebSockets (opt-in per app)**
+    Bidirectional realtime on the public HTTP(S) port. Configure `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, use `require('websockets')` for rooms/broadcast. Multi-tenant: `tenantRoom(tenantId, name)`. Master-owned (not isolation workers). Sample: **`ginchat`** (`/ginchat/`).
+
 *   **CRON Scheduler**
     Apps declare recurring jobs in `app.json` → `schedules` (script path under `box/` or absolute external URL). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`); enable it on **one** node in multi-server deployments. Requires the `scheduler` permission (and `httpclient` for URL targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
 
@@ -3133,7 +3163,7 @@ These are the core architectural features that define the Gingee development exp
     Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
 
 -   **Prometheus Metrics:**
-    Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, and process gauges—not cross-app data APIs for untrusted code.
+    Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, WebSocket upgrades/connections, and process gauges—not cross-app data APIs for untrusted code.
 
 -   **Audit Trail:**
     Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
@@ -3143,6 +3173,9 @@ These are the core architectural features that define the Gingee development exp
 
 -   **Process isolation (opt-in):**
     With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps stay in-process. Supports **buffered** and **SSE** (incl. AI), **solo workers** or **groups**, **auto-restart**, and worker-side `ai` / `email` re-init. See [Server Config](./server-config.md) → `isolation`.
+
+-   **WebSockets (opt-in):**
+    Master-owned realtime on the public port; `app.json` → `websockets` + `websockets` permission; `require('websockets')` rooms/broadcast; sample **`ginchat`**. See [Server Config](./server-config.md) → `websockets`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

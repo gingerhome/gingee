@@ -23,6 +23,7 @@ const { createServerLogger } = require('./logger_setup.js');
 const { startHttpServers } = require('./http_servers.js');
 const { initializeApps } = require('./app_registry.js');
 const workerManager = require('./isolation/worker_manager.js');
+const websocketHub = require('./websocket_hub.js');
 
 /**
  * Boot the Gingee control plane and start listening.
@@ -68,6 +69,9 @@ async function startServer(options) {
   // JSONL audit trail for permissions + lifecycle
   audit.initServer(config.audit, projectRoot, logger);
 
+  // WebSockets (master upgrade; apps register after load)
+  websocketHub.initServer(config.websockets, logger, config);
+
   const pdfStatus = pdf.init(); // Initialize the PDF module
   if (pdfStatus.error) {
     logger.error(`Failed to initialize PDF module: ${pdfStatus.error.message}`);
@@ -90,11 +94,32 @@ async function startServer(options) {
 
   const apps = await initializeApps(config, logger, webPath);
   workerManager.setAppsRegistry(apps);
+  websocketHub.setAppsRegistry(apps);
+
+  // Bind WebSocket handlers (permission + app.json websockets required)
+  for (const appName of Object.keys(apps)) {
+    try {
+      await websocketHub.registerApp(apps[appName], config);
+    } catch (err) {
+      logger.error(`[websockets] register '${appName}' failed: ${err.message}`);
+    }
+  }
 
   const reqHandler = (req, res) => requestHandler(req, res, apps, config, logger);
-  startHttpServers({ config, logger, projectRoot, reqHandler });
+  startHttpServers({
+    config,
+    logger,
+    projectRoot,
+    reqHandler,
+    onServer: (server) => websocketHub.attachServer(server)
+  });
 
   const shutdown = () => {
+    try {
+      websocketHub.shutdownAll();
+    } catch (_) {
+      /* ignore */
+    }
     try {
       workerManager.shutdownAll();
     } catch (_) {

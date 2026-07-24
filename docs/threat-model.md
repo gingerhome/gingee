@@ -4,7 +4,7 @@
 
 **Audience:** Server operators, app packagers, security reviewers, and contributors.
 
-**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `isolation`, `box`), [Concepts](./concepts.md).
+**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `isolation`, `websockets`, `box`), [Concepts](./concepts.md).
 
 ---
 
@@ -243,7 +243,7 @@ Gingee does **not** currently claim:
 
 These may appear on the roadmap (queues, cluster, OpenTelemetry, OS resource limits); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE over IPC; auto-restart with backoff; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE over IPC; auto-restart), and **opt-in WebSockets** on the master (permission-gated per app; rooms are app-scoped—multi-tenant isolation inside one app is the developer’s responsibility via room prefixes) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, and real-time features; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 

@@ -16,6 +16,7 @@ const secrets = require('./secrets.js');
 const audit = require('./audit.js');
 const appLogger = require('./logger.js');
 const workerManager = require('./engine/isolation/worker_manager.js');
+const websocketHub = require('./engine/websocket_hub.js');
 
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
@@ -33,7 +34,8 @@ const ALL_PERMISSIONS = {
     "platform": "PRIVILEGED: Allows managing the lifecycle of other applications on the server. Grant with extreme caution.",
     "pdf": "Allows the app to generate and manipulate PDF documents.",
     "zip": "Allows the app to create and extract ZIP archives.",
-    "image": "Allows the app to manipulate image files."
+    "image": "Allows the app to manipulate image files.",
+    "websockets": "Allows the app to accept WebSocket connections and use require('websockets') for rooms/broadcast."
 };
 
 /**
@@ -476,6 +478,12 @@ async function registerNewApp(appName, permissionsArray) {
         });
 
         await scheduler.reinitApp(appName, app);
+
+        try {
+          await websocketHub.registerApp(app, globalConfig);
+        } catch (wsErr) {
+          logger.error(`Failed to register websockets for '${appName}': ${wsErr.message}`);
+        }
     } catch (error) {
         logger.error(`Error initializing app '${appName}': ${error.message}`);
         return false;
@@ -558,6 +566,13 @@ async function reloadApp(appName) {
         // Re-register CRON schedules for this app (if server scheduler is enabled)
         await scheduler.reinitApp(appName, app);
 
+        // Re-bind WebSocket handler (closes existing sockets for this app)
+        try {
+          await websocketHub.registerApp(app, globalConfig);
+        } catch (wsErr) {
+          logger.error(`Failed to reinit websockets for '${appName}': ${wsErr.message}`);
+        }
+
         // Restart isolation worker if this app is process-isolated
         try {
           workerManager.stopWorker(appName, { silent: true });
@@ -625,6 +640,9 @@ async function deleteApp(appName) {
 
         logger.info(`Stopping isolation worker for app '${appName}' before deletion.`);
         workerManager.stopWorker(appName, { silent: true });
+
+        logger.info(`Unregistering websockets for app '${appName}' before deletion.`);
+        websocketHub.unregisterApp(appName, { silent: true });
 
         logger.info(`Revoking permissions for '${appName}'...`);
         removeAppPermissions(appName);

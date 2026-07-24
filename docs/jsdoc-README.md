@@ -61,6 +61,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Config secrets:** `env:` / `file:` references resolved at load; sandbox has no host `process`.
   - **Metrics & audit:** Prometheus `/metrics` (localhost-only by default) and JSONL audit for permissions/lifecycle.
   - **Process isolation (opt-in):** Child-process script workers via `isolation` config; same public HTTP port; Glade stays in-process; buffered + SSE (incl. AI), solo apps or groups, auto-restart, worker ai/email re-init.
+  - **WebSockets (opt-in):** Master-owned `ws` upgrade per app (`app.json` + `websockets` permission); rooms/broadcast via `require('websockets')`; sample app `ginchat`.
   - **Optional feature packages:** Non-SQLite SQL drivers, chart/canvas, pdfmake, SendGrid, and Gemini SDK are `optionalDependencies` (slim via `npm install --omit=optional`).
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
