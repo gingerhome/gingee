@@ -189,14 +189,19 @@ Opt-in **process isolation** for this app’s **server scripts** (not static fil
 
 | Value | Meaning |
 | :--- | :--- |
-| `"process"` | Run box scripts in a child worker (IPC); public HTTP still hits the master |
+| `"process"` | Run box scripts in a **solo** child worker (`app:<folderName>`) unless the app is also in a server **group** |
 | `"inprocess"` | Force in-process (default when server mode is process but app is unmarked) |
 
 ```json
 "isolation": "process"
 ```
 
-Alternatively list app names under server `isolation.apps`. **v1:** buffered responses only—do not isolate apps that rely on SSE/`startStream` until stream IPC ships. Full server keys: [Server Config](./server-config.md) → `isolation`.
+**Server-side alternatives** (no need to set this flag if you use them):
+
+- `isolation.apps: ["my-app"]` — solo worker by folder name  
+- `isolation.groups: { "tenant-a": ["app-one", "app-two"] }` — one shared worker for members (do **not** also list those names in `apps` unless you want redundancy; group already isolates them)
+
+Buffered responses and SSE (`startStream` / `writeSSE` / `endStream`) are supported over IPC. Full server keys: [Server Config](./server-config.md) → `isolation`.
 
 ### Schedules (`schedules` array, optional)
 

@@ -49,9 +49,9 @@ This phase is focused on adding features essential for running massive, high-tra
     -   **Done:** Engine `/metrics` Prometheus scrape (localhost-only by default, optional bearer), counters/histograms for scripts, limits rejects, egress denies, scheduler runs; JSONL `audit` for permissions/lifecycle. See `gingee.json` → `metrics` / `audit`.
     -   **Later:** Richer dashboards, distributed metrics under clustering, optional OpenTelemetry.
 
--   **Process isolation** *(step 1 shipped)*
-    -   **Done:** Opt-in `isolation.mode: "process"`; selected apps run server scripts in a forked worker (IPC); master keeps `gingee.json` listen ports; privileged apps stay in-process; buffered responses only.
-    -   **Later:** SSE/stream IPC, isolation groups, scheduler-in-worker, OS resource limits, broader crash auto-restart policy.
+-   **Process isolation** *(P1 product baseline shipped)*
+    -   **Done:** Opt-in workers (IPC), master listen ports, privileged apps in-process, **buffered + SSE** over IPC (incl. AI), **isolation groups** vs solo `apps`, **auto-restart** with backoff/`restart_max`, worker **ai/email** re-init from app config.
+    -   **Later:** Scheduler-in-worker, OS resource limits (cgroups/Job Objects), multi-node worker placement.
 
 -   **Community Plugin System**
     -   **Goal:** Allow the community to build, publish, and share their own Gingee app modules.

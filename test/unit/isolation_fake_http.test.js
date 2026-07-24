@@ -31,4 +31,32 @@ describe('isolation fake_http', () => {
       done();
     });
   });
+
+  test('stream hooks fire on flushHeaders/write/end', () => {
+    const started = [];
+    const chunks = [];
+    let ended = false;
+    const res = new FakeServerResponse({
+      onStreamStart: (status, headers) => started.push({ status, headers }),
+      onStreamChunk: (buf) => chunks.push(buf),
+      onStreamEnd: () => {
+        ended = true;
+      }
+    });
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.flushHeaders();
+    res.write('data: a\n\n');
+    res.write(Buffer.from('data: b\n\n'));
+    res.end();
+
+    expect(started).toHaveLength(1);
+    expect(started[0].status).toBe(200);
+    expect(started[0].headers['content-type']).toBe('text/event-stream');
+    expect(Buffer.concat(chunks).toString()).toBe('data: a\n\ndata: b\n\n');
+    expect(ended).toBe(true);
+    expect(res.toResult().streamed).toBe(true);
+    // Streamed path does not buffer into toResult body
+    expect(res.toResult().body.length).toBe(0);
+  });
 });
