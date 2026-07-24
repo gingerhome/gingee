@@ -565,6 +565,22 @@ Here is a comprehensive breakdown of all available properties.
     "heartbeat_ms": 30000,
     "default_path": "/ws"
   },
+  "queue": {
+    "enabled": true,
+    "driver": "memory",
+    "concurrency": 5,
+    "default_attempts": 3,
+    "default_backoff_ms": 1000,
+    "jobs_dir": "jobs",
+    "redis": {
+      "url": null,
+      "host": "127.0.0.1",
+      "port": 6379,
+      "password": null,
+      "db": 0,
+      "key_prefix": "gingee:queue:"
+    }
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -2488,7 +2504,8 @@ This is the definitive list of all permission keys available in Gingee.
 | **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
 | **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
 | **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. |
-| **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/` or outbound URL). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json`. | **High.** The app can wake itself on a timer to run privileged sandbox code or (with `httpclient`) call external URLs unattended. |
+| **queue** | Allows the app to enqueue background jobs via `require('queue')` and run handlers under `box/jobs/`. | **High.** Deferred privileged work with retries; with Redis, multi-node processing. |
+| **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script, URL, or **queue** job). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json`. | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended. |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets). | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts. |
 | **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
@@ -2728,7 +2745,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 2. Handle missing **optional** permissions gracefully.
 3. Use **leading `/`** on `fs` paths when multiple scripts must share BOX-root files (scheduled jobs vs HTTP handlers).
 4. Do not store long-lived secrets in client-visible responses.
-5. Respect `$g.request.signal` / timeouts for long work; design heavy jobs for scheduler or future queues.
+5. Respect `$g.request.signal` / timeouts for long work; offload heavy work to the **queue** (`require('queue')`) or scheduler → `target.type: "queue"`.
 6. Never assume another app’s BOX or server `settings/` is readable.
 
 ---
@@ -2745,9 +2762,9 @@ Gingee does **not** currently claim:
 - Guaranteed preemption of malicious infinite loops in the **master** process  
 - OS-level resource quotas on workers (cgroups / Job Objects) without external orchestration  
 
-These may appear on the roadmap (queues, cluster, OpenTelemetry, OS resource limits); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (cluster, OpenTelemetry, OS resource limits, multi-node WS fan-out); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE over IPC; auto-restart with backoff; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** (`isolation`), **WebSockets**, and a **background job queue** (`queue` — memory/redis, retries, CRON handoff) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -2760,7 +2777,7 @@ These may appear on the roadmap (queues, cluster, OpenTelemetry, OS resource lim
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, and opt-in process isolation — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
+**Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, process isolation, WebSockets, and background **queue** — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
 
 ---
 
@@ -3176,6 +3193,9 @@ These are the core architectural features that define the Gingee development exp
 
 -   **WebSockets (opt-in):**
     Master-owned realtime on the public port; `app.json` → `websockets` + `websockets` permission; `require('websockets')` rooms/broadcast; sample **`ginchat`**. See [Server Config](./server-config.md) → `websockets`.
+
+-   **Background queue:**
+    `require('queue').add(name, payload)` with memory or redis drivers, retries, handlers under `box/jobs/`, permission **`queue`**. CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
