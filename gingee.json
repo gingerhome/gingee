@@ -81,7 +81,13 @@
 		"mode": "off",
 		"default": "inprocess",
 		"apps": [],
+		"groups": {},
 		"worker_ready_timeout_ms": 15000,
-		"request_timeout_ms": 120000
+		"request_timeout_ms": 120000,
+		"auto_restart": true,
+		"restart_max": 10,
+		"restart_delay_ms": 500,
+		"restart_backoff_max_ms": 30000,
+		"restart_stable_ms": 60000
 	}
 }
