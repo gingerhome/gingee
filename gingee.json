@@ -98,5 +98,21 @@
 		"idle_timeout_ms": 300000,
 		"heartbeat_ms": 30000,
 		"default_path": "/ws"
+	},
+	"queue": {
+		"enabled": true,
+		"driver": "memory",
+		"concurrency": 5,
+		"default_attempts": 3,
+		"default_backoff_ms": 1000,
+		"jobs_dir": "jobs",
+		"redis": {
+			"url": null,
+			"host": "127.0.0.1",
+			"port": 6379,
+			"password": null,
+			"db": 0,
+			"key_prefix": "gingee:queue:"
+		}
 	}
 }

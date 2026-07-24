@@ -85,6 +85,20 @@ Here is a comprehensive breakdown of all available properties.
     "heartbeat_ms": 30000,
     "default_path": "/ws"
   },
+  "queue": {
+    "enabled": true,
+    "driver": "memory",
+    "concurrency": 5,
+    "default_attempts": 3,
+    "default_backoff_ms": 1000,
+    "jobs_dir": "jobs",
+    "redis": {
+      "url": null,
+      "host": "127.0.0.1",
+      "port": 6379,
+      "key_prefix": "gingee:queue:"
+    }
+  },
   "max_body_size": "10mb",
   "content_encoding": { "enabled": true },
   "logging": {
@@ -170,12 +184,12 @@ An object that configures the HTTP and HTTPS servers.
 ### scheduler
 
 - **Type:** `object` (optional)
-- **Description:** Controls the in-process **CRON scheduler** for this Gingee node. App jobs are declared in each app’s `app.json` → `schedules` (see [App Structure](./app-structure.md)).
+- **Description:** Controls the in-process **CRON scheduler** for this Gingee node. App jobs are declared in each app’s `app.json` → `schedules` (see [App Structure](./app-structure.md)). Targets: `"script"`, `"url"`, or **`"queue"`** (enqueue a background job — preferred when `queue.driver` is `redis` on multiple nodes).
 - **`enabled`** (boolean):
   - **Default:** `false`
   - When `false`, this node does **not** register or fire any schedules (safe default for multi-server load-balanced fleets).
   - When `true`, this node registers schedules for all installed apps that have the `scheduler` permission and valid `schedules` entries.
-  - **Multi-server:** enable on **at most one** node so jobs do not run in duplicate.
+  - **Multi-server:** for `"script"` / `"url"` targets, enable on **at most one** node. For `"queue"` targets with a shared Redis queue, every node may run the scheduler **or** only one — jobs still process once via the queue.
 - **`timezone`** (string, optional):
   - **Default:** `"UTC"`
   - Default IANA timezone for jobs that omit `timezone` in `app.json`.
@@ -400,6 +414,62 @@ In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `
 **Sample app:** `web/ginchat/` — multi-tenant room chat + HTTP announce (`POST /ginchat/api/announce`). Open `/ginchat/` after granting the `websockets` permission and restarting/reloading.
 
 **Metrics:** `gingee_websocket_upgrades_total`, `gingee_websocket_connections_opened_total` / `_closed_total`, gauges `gingee_websocket_connections` and `gingee_websocket_connections_per_app`.
+
+### queue
+
+- **Type:** `object` (optional)
+- **Description:** Background **job queue**. Apps enqueue work with `require('queue').add(name, payload)`; handlers live under `box/jobs/{name}.js` (or paths mapped in `app.json` → `queue.jobs`). Requires the **`queue`** permission. Default driver is **memory** (single process, not durable). Use **redis** for multi-node shared work and durable jobs (uses existing `ioredis`).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | When `false`, enqueue and processing are off. |
+| `driver` | `"memory"` | `"memory"` or `"redis"`. |
+| `concurrency` | `5` | Max jobs running at once on this node. |
+| `default_attempts` | `3` | Retries after handler failure (exponential backoff). |
+| `default_backoff_ms` | `1000` | Base delay between retries. |
+| `jobs_dir` | `"jobs"` | Default folder under `box/` for job scripts. |
+| `redis` | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`. |
+
+```json
+"queue": {
+  "enabled": true,
+  "driver": "redis",
+  "concurrency": 10,
+  "redis": { "url": "env:REDIS_URL", "key_prefix": "gingee:queue:" }
+}
+```
+
+**App (`app.json` optional):**
+
+```json
+"queue": {
+  "jobs": {
+    "send-welcome": { "script": "jobs/send_welcome.js" }
+  }
+}
+```
+
+**Handler example (`box/jobs/echo.js`):**
+
+```javascript
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const { payload, attempt, id } = $g.queue;
+    // do work…
+  });
+};
+```
+
+**From a server script:**
+
+```javascript
+const queue = require('queue');
+await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
+```
+
+**CRON → queue (multi-node friendly):** schedule target `"type": "queue", "job": "nightly"` enqueues instead of running the heavy work inline. App needs both `scheduler` and `queue` permissions; server needs `scheduler.enabled` and `queue.enabled`.
+
+**Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, histogram `gingee_queue_job_duration_seconds`.
 
 ### Optional npm feature packages
 

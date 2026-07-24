@@ -24,6 +24,7 @@ const { startHttpServers } = require('./http_servers.js');
 const { initializeApps } = require('./app_registry.js');
 const workerManager = require('./isolation/worker_manager.js');
 const websocketHub = require('./websocket_hub.js');
+const queueService = require('./queue_service.js');
 
 /**
  * Boot the Gingee control plane and start listening.
@@ -72,6 +73,9 @@ async function startServer(options) {
   // WebSockets (master upgrade; apps register after load)
   websocketHub.initServer(config.websockets, logger, config);
 
+  // Background job queue (memory or redis)
+  await queueService.initServer(config.queue, logger, config);
+
   const pdfStatus = pdf.init(); // Initialize the PDF module
   if (pdfStatus.error) {
     logger.error(`Failed to initialize PDF module: ${pdfStatus.error.message}`);
@@ -95,6 +99,7 @@ async function startServer(options) {
   const apps = await initializeApps(config, logger, webPath);
   workerManager.setAppsRegistry(apps);
   websocketHub.setAppsRegistry(apps);
+  queueService.setAppsRegistry(apps);
 
   // Bind WebSocket handlers (permission + app.json websockets required)
   for (const appName of Object.keys(apps)) {
@@ -115,6 +120,11 @@ async function startServer(options) {
   });
 
   const shutdown = () => {
+    try {
+      queueService.shutdown();
+    } catch (_) {
+      /* ignore */
+    }
     try {
       websocketHub.shutdownAll();
     } catch (_) {

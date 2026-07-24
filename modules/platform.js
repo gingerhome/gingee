@@ -35,7 +35,8 @@ const ALL_PERMISSIONS = {
     "pdf": "Allows the app to generate and manipulate PDF documents.",
     "zip": "Allows the app to create and extract ZIP archives.",
     "image": "Allows the app to manipulate image files.",
-    "websockets": "Allows the app to accept WebSocket connections and use require('websockets') for rooms/broadcast."
+    "websockets": "Allows the app to accept WebSocket connections and use require('websockets') for rooms/broadcast.",
+    "queue": "Allows the app to enqueue background jobs via require('queue') and run box/jobs handlers."
 };
 
 /**

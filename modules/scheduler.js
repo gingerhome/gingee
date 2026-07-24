@@ -103,10 +103,10 @@ function normalizeSchedule(raw, appName) {
   }
 
   const type = target.type != null ? String(target.type).toLowerCase() : '';
-  if (type !== 'script' && type !== 'url') {
+  if (type !== 'script' && type !== 'url' && type !== 'queue') {
     return {
       ok: false,
-      error: `Schedule '${name}' target.type must be "script" or "url".`
+      error: `Schedule '${name}' target.type must be "script", "url", or "queue".`
     };
   }
 
@@ -132,6 +132,28 @@ function normalizeSchedule(raw, appName) {
       };
     }
     normalizedTarget.path = scriptPath.replace(/\\/g, '/');
+  } else if (type === 'queue') {
+    // Enqueue a background job (multi-node safe when queue.driver is redis).
+    const jobName =
+      (target.job != null && String(target.job).trim()) ||
+      (target.name != null && String(target.name).trim()) ||
+      '';
+    if (!jobName) {
+      return {
+        ok: false,
+        error: `Schedule '${name}' queue target needs "job" (queue job name).`
+      };
+    }
+    normalizedTarget.job = jobName;
+    if (target.script != null) {
+      normalizedTarget.script = String(target.script).trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(target, 'payload')) {
+      normalizedTarget.payload = target.payload;
+    }
+    if (target.delayMs != null) {
+      normalizedTarget.delayMs = Number(target.delayMs) || 0;
+    }
   } else {
     const url = target.url != null ? String(target.url).trim() : '';
     if (!url) {
@@ -181,7 +203,7 @@ function normalizeSchedule(raw, appName) {
       };
     }
   } else {
-    timeout_ms = type === 'url' ? 60000 : 300000;
+    timeout_ms = type === 'url' ? 60000 : type === 'queue' ? 30000 : 300000;
   }
 
   const overlap = raw.overlap != null ? String(raw.overlap).toLowerCase() : 'skip';
@@ -273,6 +295,45 @@ async function executeScriptJob(app, job, runMeta) {
 /**
  * @private
  */
+/**
+ * Enqueue a queue job from a CRON schedule (preferred multi-node pattern).
+ * @private
+ */
+async function executeQueueJob(app, job, runMeta) {
+  const perms = granted(app);
+  if (!perms.includes('queue')) {
+    throw new Error(
+      `Schedule '${job.name}' queue target requires the "queue" permission for app '${app.name}'.`
+    );
+  }
+  const queueService = require('./engine/queue_service.js');
+  if (!queueService.isEnabled()) {
+    throw new Error(
+      `Schedule '${job.name}' cannot enqueue: server queue is disabled (queue.enabled).`
+    );
+  }
+  const jobName = job.target.job;
+  const payload =
+    job.target.payload !== undefined
+      ? job.target.payload
+      : job.payload !== undefined
+        ? job.payload
+        : {
+            schedule: job.name,
+            runId: runMeta && runMeta.runId,
+            scheduledAt: runMeta && runMeta.scheduledAt
+          };
+  const result = await queueService.addJob(app, jobName, payload, {
+    script: job.target.script,
+    delayMs: job.target.delayMs || 0
+  });
+  const logger = app.logger || log();
+  logger.info(
+    `[scheduler] Queue job '${job.name}' enqueued queue job '${jobName}' id=${result.id}`
+  );
+  return result;
+}
+
 async function executeUrlJob(app, job) {
   const perms = granted(app);
   if (!perms.includes('httpclient')) {
@@ -385,6 +446,8 @@ async function runJob(app, runtime) {
   const work = (async () => {
     if (job.target.type === 'script') {
       await executeScriptJob(app, job, { runId, scheduledAt });
+    } else if (job.target.type === 'queue') {
+      await executeQueueJob(app, job, { runId, scheduledAt });
     } else {
       await executeUrlJob(app, job);
     }
@@ -549,6 +612,13 @@ async function registerApp(app) {
     if (!job.enabled) {
       log().info(
         `[scheduler] App '${app.name}' job '${job.name}' is disabled — not registered.`
+      );
+      continue;
+    }
+
+    if (job.target.type === 'queue' && !perms.includes('queue')) {
+      log().error(
+        `[scheduler] App '${app.name}' job '${job.name}' is a queue target but "queue" is not granted — skipping.`
       );
       continue;
     }

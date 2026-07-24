@@ -57,7 +57,8 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Rich Standard Library:** A comprehensive suite of sandboxed modules for common tasks, including `crypto`, `image` processing, `pdf` generation, `db` access, `httpclient`, transactional `email` (SendGrid / console), and generative `ai` (Gemini / mock, streaming chat, multimodal, document parse, moderation).
   - **Streamed Responses:** Progressive output (e.g. SSE for AI tokens) via `$g.response.startStream` / `writeSSE` / `endStream`.
   - **WebSockets (opt-in):** Master-owned realtime connections on the public HTTP(S) port (`app.json` → `websockets` + `websockets` permission); rooms/broadcast via `require('websockets')`. Sample: **`ginchat`**.
-  - **CRON Scheduler:** App-declared schedules in `app.json` (sandbox script or external URL); server gate `scheduler.enabled` (default off; enable on one node when load balancing).
+  - **Background queue:** `require('queue').add` with memory or Redis drivers, retries, and box job handlers (`queue` permission). CRON can target `type: "queue"` for multi-node-safe schedules.
+  - **CRON Scheduler:** App-declared schedules in `app.json` (script, URL, or queue job); server gate `scheduler.enabled` (default off; enable carefully when load balancing).
   - **Request & Outbound Limits:** Concurrency caps, request/stream timeouts, and default `httpclient` timeouts via `gingee.json` → `limits`.
   - **Egress / SSRF policy:** Default-protected outbound URL checks on `httpclient` and scheduler URL jobs (`gingee.json` → `egress`).
   - **Config secrets:** `env:VAR` / `file:…` references in JSON config, resolved by the engine (apps still cannot read host `process.env`).
