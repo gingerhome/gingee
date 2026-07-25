@@ -149,4 +149,50 @@ module.exports = async function () {
     expect(queueService.isEnabled()).toBe(true);
     expect(queueService.getStats().driver).toBe('memory');
   });
+
+  test('permanent failure goes to DLQ; retry and discard work', async () => {
+    fs.writeFileSync(
+      path.join(app.appBoxPath, 'jobs', 'always_fail.js'),
+      `
+module.exports = async function () {
+  await gingee(async ($g) => {
+    throw new Error('always fail for dlq');
+  });
+};
+`
+    );
+    await queueService.addJob(app, 'always_fail', { n: 1 }, { attempts: 1, backoffMs: 10 });
+    // wait for DLQ
+    const deadline = Date.now() + 3000;
+    let dlq = [];
+    while (Date.now() < deadline) {
+      dlq = await queueService.listDlq({ appName: 'qapp' });
+      if (dlq.length >= 1) break;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    expect(dlq.length).toBeGreaterThanOrEqual(1);
+    expect(dlq[0].error).toMatch(/always fail/);
+    const id = dlq[0].id;
+
+    const stats = await queueService.getAdminStats();
+    expect(stats.dlqCount).toBeGreaterThanOrEqual(1);
+
+    // Retry should re-enqueue and fail again into DLQ
+    await queueService.retryDlqJob(id);
+    const deadline2 = Date.now() + 3000;
+    let found = false;
+    while (Date.now() < deadline2) {
+      const list = await queueService.listDlq({ appName: 'qapp' });
+      if (list.some((j) => j.id === id && j.error)) {
+        found = true;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    expect(found).toBe(true);
+
+    await queueService.discardDlqJob(id);
+    const after = await queueService.listDlq({ appName: 'qapp' });
+    expect(after.find((j) => j.id === id)).toBeUndefined();
+  }, 15000);
 });

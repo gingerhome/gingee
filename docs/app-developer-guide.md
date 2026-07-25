@@ -225,7 +225,7 @@ module.exports = async function () {
 };
 ```
 
-Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. See [Server Config](./server-config.md) → `queue`.
+Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. Jobs that exhaust retries land in the **DLQ**; operators manage them in **Glade → top menu Queue / DLQ** (retry / discard). See [Server Config](./server-config.md) → `queue` and [Glade Admin](./glade-admin.md).
 
 ### WebSockets (optional)
 

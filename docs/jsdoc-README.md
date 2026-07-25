@@ -62,13 +62,13 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Metrics & audit:** Prometheus `/metrics` (localhost-only by default) and JSONL audit for permissions/lifecycle.
   - **Process isolation (opt-in):** Child-process script workers via `isolation` config; same public HTTP port; Glade stays in-process; buffered + SSE (incl. AI), solo apps or groups, auto-restart, worker ai/email re-init.
   - **WebSockets (opt-in):** Master-owned `ws` upgrade per app (`app.json` + `websockets` permission); rooms/broadcast via `require('websockets')`; sample app `ginchat`.
-  - **Background queue:** `require('queue')` with memory/redis drivers, retries, job handlers under `box/jobs/`.
-  - **Optional feature packages:** Non-SQLite SQL drivers, chart/canvas, pdfmake, SendGrid, and Gemini SDK are `optionalDependencies` (slim via `npm install --omit=optional`).
+  - **Background queue:** `require('queue')` with memory/redis drivers, retries, dead-letter queue (DLQ), job handlers under `box/jobs/`; Glade **Queue / DLQ** admin.
+  - **Optional feature packages:** `sharp` (image), non-SQLite SQL drivers, chart/canvas, pdfmake, SendGrid, and Gemini SDK are `optionalDependencies` (slim via `npm install --omit=optional`).
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 
 - **Full Lifecycle & Automation**
-  - **Glade Admin UI:** A built-in, secure web panel for managing the entire application lifecycle (install, upgrade, rollback, delete, manage permissions) with no command line needed.
+  - **Glade Admin UI:** A built-in, secure web panel for managing the entire application lifecycle (install, upgrade, rollback, delete, manage permissions) and **Queue / DLQ** ops, with no command line needed.
   - **Interactive Installers:** Both the CLI and the Glade UI feature intelligent installers that read an app's requirements, prompt the admin for permission consent, and guide them through database configuration.
   - **Automated Deployments:** All lifecycle commands in the CLI can be run non-interactively using a preset file, making it perfect for CI/CD pipelines.
   - **Automatic Maintenance Mode:** The server automatically puts an application into a `503 Service Unavailable` state during critical lifecycle events to ensure data integrity.

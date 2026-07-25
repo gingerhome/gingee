@@ -664,6 +664,168 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Queue / DLQ Admin ---
+    const queueStatsPanel = document.getElementById('queue-stats-panel');
+    const queueDlqBody = document.getElementById('queue-dlq-body');
+    const queueAdminError = document.getElementById('queue-admin-error');
+    const queueRefreshBtn = document.getElementById('queue-refresh-btn');
+    const queueAppFilter = document.getElementById('queue-dlq-app-filter');
+    const queueAdminModalEl = document.getElementById('queueAdminModal');
+    /** Full DLQ list from last fetch; client-filters after 3+ chars */
+    let cachedDlqJobs = [];
+
+    function showQueueError(msg) {
+        if (!queueAdminError) return;
+        queueAdminError.textContent = msg || '';
+        queueAdminError.classList.toggle('d-none', !msg);
+    }
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function filterDlqJobs(jobs) {
+        const q = (queueAppFilter && queueAppFilter.value.trim().toLowerCase()) || '';
+        if (q.length < 3) return jobs;
+        return jobs.filter((j) => String(j.appName || '').toLowerCase().includes(q));
+    }
+
+    function renderDlqTable(jobs) {
+        if (!queueDlqBody) return;
+        if (!jobs || jobs.length === 0) {
+            const q = (queueAppFilter && queueAppFilter.value.trim()) || '';
+            const emptyMsg =
+                q.length >= 3
+                    ? `No dead-letter jobs matching “${escapeHtml(q)}”`
+                    : 'No dead-letter jobs';
+            queueDlqBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">${emptyMsg}</td></tr>`;
+            return;
+        }
+        queueDlqBody.innerHTML = jobs
+            .map((j) => {
+                const failedAt = j.failedAt ? new Date(j.failedAt).toLocaleString() : '—';
+                const err = j.error ? String(j.error).slice(0, 120) : '—';
+                const id = escapeHtml(j.id);
+                return `<tr>
+                        <td class="font-monospace small">${id.slice(0, 12)}…</td>
+                        <td>${escapeHtml(j.appName)}</td>
+                        <td>${escapeHtml(j.name)}</td>
+                        <td>${escapeHtml(j.attempt)}/${escapeHtml(j.maxAttempts)}</td>
+                        <td class="small">${escapeHtml(failedAt)}</td>
+                        <td class="small text-danger" title="${escapeHtml(j.error || '')}">${escapeHtml(err)}</td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="queue-action-link queue-dlq-retry" data-id="${id}" title="Re-enqueue with a fresh attempt budget">Retry</button>
+                            <button type="button" class="queue-action-link queue-dlq-discard" data-id="${id}" title="Remove from dead-letter queue">Discard</button>
+                        </td>
+                    </tr>`;
+            })
+            .join('');
+    }
+
+    async function loadQueueAdmin() {
+        showQueueError('');
+        try {
+            const [statsRes, dlqRes] = await Promise.all([
+                fetch('/glade/api/queue-stats', { credentials: 'include' }),
+                fetch('/glade/api/queue-dlq-list?limit=200', { credentials: 'include' })
+            ]);
+            if (statsRes.status === 401 || dlqRes.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const statsData = await statsRes.json();
+            const dlqData = await dlqRes.json();
+            if (statsData.status !== 'success') throw new Error(statsData.error || 'Failed to load queue stats');
+            if (dlqData.status !== 'success') throw new Error(dlqData.error || 'Failed to load DLQ');
+
+            const s = statsData.stats || {};
+            if (queueStatsPanel) {
+                queueStatsPanel.innerHTML = [
+                    `<strong>Enabled:</strong> ${s.enabled ? 'yes' : 'no'}`,
+                    `<strong>Driver:</strong> ${escapeHtml(s.driver || '—')}`,
+                    `<strong>In flight:</strong> ${s.inFlight ?? 0}`,
+                    `<strong>Waiting (this node):</strong> ${s.waiting ?? 0}`,
+                    `<strong>Concurrency:</strong> ${s.concurrency ?? '—'}`,
+                    `<strong>DLQ size:</strong> ${s.dlqCount ?? 0}`
+                ].join(' &nbsp;·&nbsp; ');
+            }
+
+            cachedDlqJobs = dlqData.jobs || [];
+            renderDlqTable(filterDlqJobs(cachedDlqJobs));
+        } catch (e) {
+            showQueueError(e.message);
+        }
+    }
+
+    if (queueAdminModalEl) {
+        queueAdminModalEl.addEventListener('shown.bs.modal', () => {
+            loadQueueAdmin();
+        });
+    }
+    if (queueRefreshBtn) {
+        queueRefreshBtn.addEventListener('click', () => loadQueueAdmin());
+    }
+    if (queueAppFilter) {
+        // Live filter after 3+ characters; under 3 shows full cached list
+        queueAppFilter.addEventListener('input', () => {
+            renderDlqTable(filterDlqJobs(cachedDlqJobs));
+        });
+    }
+    if (queueDlqBody) {
+        queueDlqBody.addEventListener('click', async (e) => {
+            const retryBtn = e.target.closest('.queue-dlq-retry');
+            const discardBtn = e.target.closest('.queue-dlq-discard');
+            if (!retryBtn && !discardBtn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            // Prefer dataset (decoded); fall back to attribute
+            const jobId =
+                (retryBtn || discardBtn).dataset.id ||
+                (retryBtn || discardBtn).getAttribute('data-id');
+            if (!jobId) {
+                showQueueError('Missing job id for this action.');
+                return;
+            }
+            try {
+                showQueueError('');
+                if (retryBtn) {
+                    retryBtn.disabled = true;
+                    const res = await fetch('/glade/api/queue-dlq-retry', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jobId })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.status !== 'success') {
+                        throw new Error(data.error || `Retry failed (${res.status})`);
+                    }
+                } else if (discardBtn) {
+                    if (!confirm('Discard this dead-letter job permanently?')) return;
+                    discardBtn.disabled = true;
+                    const res = await fetch('/glade/api/queue-dlq-discard', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jobId })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.status !== 'success') {
+                        throw new Error(data.error || `Discard failed (${res.status})`);
+                    }
+                }
+                await loadQueueAdmin();
+            } catch (err) {
+                showQueueError(err.message);
+                await loadQueueAdmin();
+            }
+        });
+    }
+
     // --- Initial Load ---
     fetchAndRenderApps();
 });

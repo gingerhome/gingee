@@ -28,7 +28,10 @@ function createRedisDriver(opts) {
 
   const readyKey = () => `${prefix}ready`;
   const delayedKey = () => `${prefix}delayed`;
+  const dlqKey = () => `${prefix}dlq`;
   const jobKey = (id) => `${prefix}job:${id}`;
+  const dlqTtlSec = opts.dlqTtlSec != null ? Number(opts.dlqTtlSec) : 86400 * 14;
+  const dlqMax = opts.dlqMax != null ? Number(opts.dlqMax) : 1000;
 
   function connect() {
     const r = opts.redis || {};
@@ -161,23 +164,121 @@ function createRedisDriver(opts) {
     },
 
     async complete(jobId) {
-      if (client) await client.del(jobKey(jobId));
+      if (client) {
+        await client.del(jobKey(jobId));
+        await client.lrem(dlqKey(), 0, jobId);
+      }
+    },
+
+    /**
+     * Permanent failure → DLQ list + job hash.
+     * @param {object} job
+     * @param {Error|string} [err]
+     */
+    async deadLetter(job, err) {
+      if (!client || !job || !job.id) return;
+      const record = {
+        ...job,
+        status: 'failed',
+        error: err ? err.message || String(err) : job.error || 'failed',
+        failedAt: Date.now()
+      };
+      delete record._timer;
+      await client.set(jobKey(record.id), JSON.stringify(record), 'EX', dlqTtlSec);
+      await client.lrem(dlqKey(), 0, record.id);
+      await client.lpush(dlqKey(), record.id);
+      await client.ltrim(dlqKey(), 0, Math.max(0, dlqMax - 1));
     },
 
     async fail(jobId) {
-      if (client) {
-        // Keep failed payload briefly for debugging
-        const raw = await client.get(jobKey(jobId));
-        if (raw) {
-          try {
-            const j = JSON.parse(raw);
-            j.status = 'failed';
-            await client.set(jobKey(jobId), JSON.stringify(j), 'EX', 86400);
-          } catch (_) {
-            await client.del(jobKey(jobId));
-          }
+      if (!client) return;
+      const raw = await client.get(jobKey(jobId));
+      if (!raw) return;
+      try {
+        const j = JSON.parse(raw);
+        await this.deadLetter(j, j.error || 'failed');
+      } catch (_) {
+        await client.del(jobKey(jobId));
+      }
+    },
+
+    async listDlq(opts = {}) {
+      if (!client) return [];
+      const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+      const appFilter = opts.appName || null;
+      const ids = await client.lrange(dlqKey(), 0, Math.max(limit * 3, 50) - 1);
+      const out = [];
+      for (const id of ids) {
+        const raw = await client.get(jobKey(id));
+        if (!raw) continue;
+        try {
+          const j = JSON.parse(raw);
+          if (appFilter && j.appName !== appFilter) continue;
+          out.push(j);
+          if (out.length >= limit) break;
+        } catch (_) {
+          /* ignore */
         }
       }
+      return out;
+    },
+
+    async getDlqJob(jobId) {
+      if (!client) return null;
+      const raw = await client.get(jobKey(jobId));
+      if (!raw) return null;
+      try {
+        const j = JSON.parse(raw);
+        return j.status === 'failed' ? j : null;
+      } catch (_) {
+        return null;
+      }
+    },
+
+    async discardDlq(jobId) {
+      if (!client) return false;
+      const n = await client.lrem(dlqKey(), 0, jobId);
+      await client.del(jobKey(jobId));
+      return n > 0;
+    },
+
+    async retryDlq(jobId, opts = {}) {
+      if (!client) return null;
+      const rec = await this.getDlqJob(jobId);
+      const raw = rec ? null : await client.get(jobKey(jobId));
+      let j = rec;
+      if (!j && raw) {
+        try {
+          j = JSON.parse(raw);
+        } catch (_) {
+          return null;
+        }
+      }
+      if (!j) return null;
+      await client.lrem(dlqKey(), 0, jobId);
+      const maxAttempts =
+        opts.maxAttempts != null
+          ? Number(opts.maxAttempts)
+          : Math.max(3, Number(j.maxAttempts) || 3);
+      return this.enqueue({
+        id: j.id,
+        appName: j.appName,
+        name: j.name,
+        script: j.script,
+        payload: j.payload,
+        attempt: 1,
+        maxAttempts,
+        backoffMs: j.backoffMs,
+        delayMs: 0,
+        createdAt: j.createdAt
+      });
+    },
+
+    async dlqSize(appName) {
+      if (!client) return 0;
+      if (!appName) return client.llen(dlqKey());
+      const list = await this.listDlq({ appName, limit: 500 });
+      return list.length;
     },
 
     async shutdown() {

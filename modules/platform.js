@@ -17,6 +17,7 @@ const audit = require('./audit.js');
 const appLogger = require('./logger.js');
 const workerManager = require('./engine/isolation/worker_manager.js');
 const websocketHub = require('./engine/websocket_hub.js');
+const queueService = require('./engine/queue_service.js');
 
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
@@ -1305,6 +1306,45 @@ async function analyzeAppBackup(appName) {
     };
 }
 
+/**
+ * Queue admin stats for Glade (privileged).
+ * @returns {Promise<object>}
+ */
+async function getQueueStats() {
+  return queueService.getAdminStats();
+}
+
+/**
+ * List dead-letter queue entries.
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @param {number} [opts.limit]
+ * @returns {Promise<object[]>}
+ */
+async function listQueueDlq(opts) {
+  return queueService.listDlq(opts || {});
+}
+
+/**
+ * Retry a DLQ job (re-enqueue attempt 1).
+ * @param {string} jobId
+ * @returns {Promise<object>}
+ */
+async function retryQueueDlqJob(jobId) {
+  if (!jobId) throw new Error('jobId is required');
+  return queueService.retryDlqJob(String(jobId));
+}
+
+/**
+ * Discard a DLQ job.
+ * @param {string} jobId
+ * @returns {Promise<boolean>}
+ */
+async function discardQueueDlqJob(jobId) {
+  if (!jobId) throw new Error('jobId is required');
+  return queueService.discardDlqJob(String(jobId));
+}
+
 module.exports = {
     listApps,
     createAppDirectory,
@@ -1325,5 +1365,9 @@ module.exports = {
     upgradeApp,
     mockUpgrade,
     rollbackApp,
-    mockRollback
+    mockRollback,
+    getQueueStats,
+    listQueueDlq,
+    retryQueueDlqJob,
+    discardQueueDlqJob
 };

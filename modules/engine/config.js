@@ -71,7 +71,8 @@ function buildDefaultConfig() {
     isolation: {
       ...ISOLATION_DEFAULTS,
       apps: [...ISOLATION_DEFAULTS.apps],
-      groups: { ...(ISOLATION_DEFAULTS.groups || {}) }
+      groups: { ...(ISOLATION_DEFAULTS.groups || {}) },
+      worker_limits: { ...(ISOLATION_DEFAULTS.worker_limits || {}) }
     },
     // WebSockets (master upgrade; apps opt in via app.json + websockets permission).
     websockets: { ...WEBSOCKET_DEFAULTS },
@@ -141,6 +142,10 @@ function mergeUserConfig(defaultConfig, userConfig) {
       groups: {
         ...(defaultConfig.isolation.groups || {}),
         ...((uc.isolation && uc.isolation.groups) || {})
+      },
+      worker_limits: {
+        ...(defaultConfig.isolation.worker_limits || {}),
+        ...((uc.isolation && uc.isolation.worker_limits) || {})
       }
     },
     websockets: {

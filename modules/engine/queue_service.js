@@ -390,14 +390,14 @@ async function failOrRetry(job, err) {
     } catch (e) {
       log().error(`[queue] retry enqueue failed: ${e.message}`);
       try {
-        await driver.fail(job.id);
+        await moveToDlq(job, e);
       } catch (_) {
         /* ignore */
       }
     }
   } else {
     try {
-      await driver.fail(job.id);
+      await moveToDlq(job, err);
       metrics.inc('gingee_queue_jobs_failed_total', {
         app: job.appName,
         job: job.name
@@ -409,6 +409,116 @@ async function failOrRetry(job, err) {
       `[queue] Job '${job.name}' id=${job.id} permanently failed after ${attempt} attempt(s): ${err.message}`
     );
   }
+}
+
+/**
+ * @param {object} job
+ * @param {Error|string} err
+ */
+async function moveToDlq(job, err) {
+  if (!driver) return;
+  if (typeof driver.deadLetter === 'function') {
+    await driver.deadLetter(job, err);
+  } else if (typeof driver.fail === 'function') {
+    await driver.fail(job.id);
+  }
+  try {
+    metrics.inc('gingee_queue_dlq_total', { app: job.appName || 'unknown', job: job.name || 'unknown' });
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+// --- Admin / Glade APIs (privileged platform only) ---
+
+/**
+ * @returns {Promise<object>}
+ */
+async function getAdminStats() {
+  const base = getStats();
+  let dlqCount = 0;
+  if (driver && typeof driver.dlqSize === 'function') {
+    try {
+      dlqCount = await driver.dlqSize();
+    } catch (_) {
+      dlqCount = 0;
+    }
+  }
+  return {
+    ...base,
+    dlqCount,
+    default_attempts: serverConfig.default_attempts,
+    default_backoff_ms: serverConfig.default_backoff_ms
+  };
+}
+
+/**
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @param {number} [opts.limit]
+ * @returns {Promise<object[]>}
+ */
+async function listDlq(opts = {}) {
+  if (!driver || typeof driver.listDlq !== 'function') return [];
+  return driver.listDlq(opts);
+}
+
+/**
+ * @param {string} jobId
+ * @returns {Promise<object|null>}
+ */
+async function getDlqJob(jobId) {
+  if (!driver || typeof driver.getDlqJob !== 'function') return null;
+  return driver.getDlqJob(jobId);
+}
+
+/**
+ * Re-enqueue a dead-lettered job (attempt reset to 1).
+ * @param {string} jobId
+ * @returns {Promise<object>}
+ */
+async function retryDlqJob(jobId) {
+  if (!isEnabled() || !driver) {
+    throw new Error('Queue is disabled or not started.');
+  }
+  if (typeof driver.retryDlq !== 'function') {
+    throw new Error('Queue driver does not support DLQ retry.');
+  }
+  // Fresh attempt budget so admin retry is useful even if original maxAttempts was 1
+  const result = await driver.retryDlq(jobId, {
+    maxAttempts: serverConfig.default_attempts || 3
+  });
+  if (!result) {
+    throw new Error(`DLQ job not found: ${jobId}`);
+  }
+  try {
+    metrics.inc('gingee_queue_dlq_retry_total', { app: result.appName || 'unknown' });
+  } catch (_) {
+    /* ignore */
+  }
+  log().info(`[queue] DLQ retry id=${jobId} app=${result.appName} job=${result.name}`);
+  return result;
+}
+
+/**
+ * Remove a job from the DLQ without re-running.
+ * @param {string} jobId
+ * @returns {Promise<boolean>}
+ */
+async function discardDlqJob(jobId) {
+  if (!driver || typeof driver.discardDlq !== 'function') {
+    throw new Error('Queue driver does not support DLQ discard.');
+  }
+  const ok = await driver.discardDlq(jobId);
+  if (ok) {
+    try {
+      metrics.inc('gingee_queue_dlq_discard_total', {});
+    } catch (_) {
+      /* ignore */
+    }
+    log().info(`[queue] DLQ discarded id=${jobId}`);
+  }
+  return ok;
 }
 
 async function shutdown() {
@@ -442,6 +552,11 @@ module.exports = {
   resolveJobScript,
   shutdown,
   getStats,
+  getAdminStats,
+  listDlq,
+  getDlqJob,
+  retryDlqJob,
+  discardDlqJob,
   /** test helper: process without delay */
   _processOne: processOne,
   _getDriver: () => driver,

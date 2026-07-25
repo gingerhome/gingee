@@ -64,7 +64,7 @@ These are the core architectural features that define the Gingee development exp
     Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
 
 -   **Optional feature packages:**
-    Heavy or specialized npm packages ship as **`optionalDependencies`**: non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
+    Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
 
 -   **Process isolation (opt-in):**
     With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, and worker-side re-init of `ai` / `email` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
@@ -73,7 +73,7 @@ These are the core architectural features that define the Gingee development exp
     Bidirectional real-time connections on the same public HTTP(S) port (`ws` library). Declare `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, then use `require('websockets')` for rooms/broadcast. Multi-tenant apps should use `tenantRoom(tenantId, name)`. Connections terminate on the **master** (not isolation workers). Prefer SSE for one-shot AI token streams. Sample app: **`ginchat`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets`.
 
 -   **Background job queue (`queue` module):**
-    Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff. CRON schedules may use `target.type: "queue"` to enqueue instead of running heavy work inline. See [Server Config](./server-config.md) → `queue`.
+    Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** top menu **Queue / DLQ** lists failed jobs (app filter after 3+ letters) with **Retry** (fresh attempt budget) / **Discard**. CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
@@ -109,7 +109,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 ### Data Processing & Generation
 
 *   **`image`**
-    A high-performance module for server-side image manipulation. Wraps the `sharp` library to provide a secure, chainable API for resizing, filtering, and format conversion.
+    A high-performance module for server-side image manipulation. Wraps the optional `sharp` package to provide a secure, chainable API for resizing, filtering, and format conversion. Install `sharp` (or install without `--omit=optional`) when using this module.
 *   **`html`**
     A server-side web scraping and parsing module. Wraps `cheerio` to load and query HTML from strings, files, or remote URLs.
 *   **`qrcode`**

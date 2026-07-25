@@ -19,9 +19,9 @@ This phase is focused on adding major new modules that unlock entirely new categ
 -   **CRON Scheduler** *(v1 shipped: declarative `app.json` schedules; server gate `scheduler.enabled` default off)*
     -   **Next:** Redis leader election for multi-node, runtime API / “Run now” in Glade, optional handoff to `queue`.
 
--   **Job Queues & Background Processing (`queue` Module)** *(v1 shipped)*
-    -   **Done:** `require('queue').add`, memory + redis drivers (ioredis), concurrency, retries/backoff, `$g.queue` in handlers, `queue` permission, CRON `target.type: "queue"`, metrics.
-    -   **Later:** Glade “Run now” / job UI, dead-letter admin, BullMQ-class priorities/rate limits if needed.
+-   **Job Queues & Background Processing (`queue` Module)** *(v1 + Glade DLQ shipped)*
+    -   **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** top-nav **Queue / DLQ** (list, filter, retry with fresh attempts, discard).
+    -   **Later:** Glade “Run now” / live waiting jobs, priorities/rate limits if needed.
 
 -   **Third-Party Service Adapters**
     -   **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.
@@ -47,9 +47,9 @@ This phase is focused on adding features essential for running massive, high-tra
     -   **Done:** Engine `/metrics` Prometheus scrape (localhost-only by default, optional bearer), counters/histograms for scripts, limits rejects, egress denies, scheduler runs; JSONL `audit` for permissions/lifecycle. See `gingee.json` → `metrics` / `audit`.
     -   **Later:** Richer dashboards, distributed metrics under clustering, optional OpenTelemetry.
 
--   **Process isolation** *(P1 product baseline shipped)*
-    -   **Done:** Opt-in workers (IPC), master listen ports, privileged apps in-process, **buffered + SSE** over IPC (incl. AI), **isolation groups** vs solo `apps`, **auto-restart** with backoff/`restart_max`, worker **ai/email** re-init from app config.
-    -   **Later:** Scheduler-in-worker, OS resource limits (cgroups/Job Objects), multi-node worker placement.
+-   **Process isolation** *(P1 baseline + P2 worker_limits shipped)*
+    -   **Done:** Opt-in workers (IPC), master listen ports, privileged apps in-process, **buffered + SSE** over IPC (incl. AI), **isolation groups** vs solo `apps`, **auto-restart** with backoff/`restart_max`, worker **ai/email** re-init, **`isolation.worker_limits`** (V8 `max_old_space_mb`, priority, UV threadpool, Linux `prlimit` best-effort for `max_rss_mb`).
+    -   **Later:** Scheduler-in-worker, full cgroups v2 / Windows Job Objects integration, multi-node worker placement.
 
 -   **Community Plugin System**
     -   **Goal:** Allow the community to build, publish, and share their own Gingee app modules.

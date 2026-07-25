@@ -116,9 +116,9 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log), opt-in **process isolation**, and **WebSocket** connection limits (`websockets`).
--   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, startup scripts, and middleware.
--   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
+-   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log), opt-in **process isolation**, **WebSocket** limits (`websockets`), and the **background queue** (`queue` driver memory/redis).
+-   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
+-   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.
@@ -840,12 +840,32 @@ Each line is one JSON object, for example:
 
 **Per-app:** `handler` (required), optional `path`, `auth`, `allowed_origins`. Module: `require('websockets')` → `toRoom`, `toApp`, `tenantRoom`. Sample: `web/ginchat/`.
 
+### queue
+
+- **Type:** `object` (optional)
+- **Description:** Background **job queue**. Apps enqueue work with `require('queue').add(name, payload)`; handlers live under `box/jobs/{name}.js` (or paths mapped in `app.json` → `queue.jobs`). Requires the **`queue`** permission. Default driver is **memory** (single process, not durable). Use **redis** for multi-node shared work and durable jobs.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `enabled` | `true` | When `false`, enqueue and processing are off. |
+| `driver` | `"memory"` | `"memory"` or `"redis"`. |
+| `concurrency` | `5` | Max jobs running at once on this node. |
+| `default_attempts` | `3` | Retries after handler failure (exponential backoff). |
+| `default_backoff_ms` | `1000` | Base delay between retries. |
+| `jobs_dir` | `"jobs"` | Default folder under `box/` for job scripts. |
+| `redis` | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`. |
+
+**CRON → queue:** schedule target `"type": "queue", "job": "nightly"` enqueues instead of running heavy work inline (needs `scheduler` + `queue` permissions).
+
+**Admin (Glade):** top menu **Queue / DLQ** — list dead-letter jobs, app filter (3+ letters), **Retry** (attempt 1 + fresh `default_attempts` budget), **Discard**. Memory DLQ is process-local; Redis DLQ is durable (TTL ~14 days).
+
 ### Optional npm feature packages
 
-Gingee keeps a **core** set of required dependencies (engine, SQLite, sharp image, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
+Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
 
 | Feature | Packages |
 | :--- | :--- |
+| Image processing (`require('image')`) | `sharp` |
 | PostgreSQL / MySQL / MSSQL / Oracle | `pg`, `mysql2`, `mssql`, `oracledb` |
 | Charts / canvas barcodes / dashboard | `chartjs-node-canvas`, `canvas` |
 | PDF | `pdfmake` |
@@ -1031,7 +1051,7 @@ After a successful login, you are taken to the main Glade dashboard. This is you
 
 The dashboard consists of two main components:
 
-1.  **The Header:** Contains the Glade title and a **Logout** button to securely end your session.
+1.  **The Header:** Contains the Glade title, **Queue / DLQ** (background job dead-letter admin — see below), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
     -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
     -   **Version:** The version number, as specified in the app's own `app.json` file.
@@ -1127,6 +1147,17 @@ This is a destructive action that will permanently remove an application and all
 4.  Click the **Confirm** button. Glade will gracefully shut down the application's services, revoke its permissions, clear its caches, and delete its entire directory from the server.
 
 ![Glade App Delete](./images/7.glade-app-delete.png)
+
+### Queue / Dead Letter Queue (DLQ)
+
+The top navigation bar includes a **Queue / DLQ** control (next to About / Logout). It opens an admin panel for the engine background job system (`gingee.json` → `queue`):
+
+1. **Stats** — driver (memory/redis), in-flight and waiting counts on this node, DLQ size.
+2. **Dead-letter list** — jobs that exhausted retries (error message, app, attempts). Type **3+ letters** in the app filter to search by app name (live filter).
+3. **Retry** — re-enqueues the job with attempt **1** and a **fresh attempt budget** (server `queue.default_attempts`, default 3) so the job is not stuck failing once and returning to DLQ immediately.
+4. **Discard** — removes the job from the DLQ without re-running.
+
+Actions are plain text links (bold on hover). Memory-driver DLQ entries are lost if the Gingee process restarts; Redis-driver DLQ is durable (with TTL). See [Server Config](./server-config.md) → `queue`.
 
 ### Audit trail (server-side)
 
@@ -1343,6 +1374,20 @@ Optional **tightening** of server `gingee.json` → `limits` for this app only (
 
 See [Server Config](./server-config.md) for full field list and defaults. Use this to protect a noisy app from monopolizing the process (lower concurrency) or to fail faster than the server default.
 
+### Queue (`queue` object, optional)
+
+Optional job name → script map for the background queue. Handlers default to `box/jobs/{name}.js` if unmapped. Requires the **`queue`** permission and server `queue.enabled` (default true).
+
+```json
+"queue": {
+  "jobs": {
+    "send-welcome": { "script": "jobs/send_welcome.js" }
+  }
+}
+```
+
+Enqueue from scripts: `require('queue').add('send-welcome', payload)`. Exhausted retries → **DLQ** (Glade **Queue / DLQ**). See [Server Config](./server-config.md) → `queue`.
+
 ### Isolation (`isolation` string, optional)
 
 Opt-in **process isolation** for this app’s **server scripts** (not static files). Only takes effect when the server has `gingee.json` → `isolation.mode: "process"`. Privileged apps (e.g. Glade) always stay in-process regardless of this flag.
@@ -1360,7 +1405,7 @@ Opt-in **process isolation** for this app’s **server scripts** (not static fil
 
 ### Schedules (`schedules` array, optional)
 
-Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**.
+Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**. Queue targets also require **`queue`**.
 
 Each entry:
 
@@ -1370,9 +1415,9 @@ Each entry:
 | `cron` | yes | CRON expression (standard 5-field; seconds supported by engine dialect) |
 | `timezone` | no | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`) |
 | `enabled` | no | Default `true`. Set `false` to keep the definition without registering |
-| `timeout_ms` | no | Default `300000` (script) / `60000` (url) |
+| `timeout_ms` | no | Default `300000` (script) / `60000` (url) / `30000` (queue enqueue) |
 | `overlap` | no | Only `"skip"` in v1 (skip if previous run still active) |
-| `payload` | no | Passed as `$g.request.body` for **script** targets |
+| `payload` | no | Passed as `$g.request.body` for **script** targets; default payload for **queue** targets |
 | `target` | yes | See below |
 
 **`target` for scripts** (path is relative to the app’s `box/` folder only):
@@ -1399,6 +1444,14 @@ Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual
 
 `url` must be absolute `http:` or `https:`. The engine performs the outbound call (app needs `httpclient`). URLs are checked against server **egress** policy at registration and again when the job fires (default `protected` mode blocks private/loopback/metadata). See [Server Config](./server-config.md) → `egress`.
 
+**`target` for queue** (enqueue a background job — multi-node safe when `queue.driver` is `redis`):
+
+```json
+"target": { "type": "queue", "job": "nightly_cleanup", "payload": { "mode": "full" } }
+```
+
+The schedule only **enqueues**; the `queue` worker runs `box/jobs/nightly_cleanup.js` (or a mapped script). App needs **`queue`** + **`scheduler`**.
+
 **Example:**
 
 ```json
@@ -1409,6 +1462,11 @@ Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual
     "timezone": "UTC",
     "payload": { "mode": "full" },
     "target": { "type": "script", "path": "jobs/cleanup.js" }
+  },
+  {
+    "name": "nightly_via_queue",
+    "cron": "0 3 * * *",
+    "target": { "type": "queue", "job": "nightly_cleanup" }
   },
   {
     "name": "partner_ping",
@@ -2064,6 +2122,19 @@ Or Docker/K8s file mounts:
 
 Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
 
+### Background jobs (`queue`, optional)
+
+1. Grant the **`queue`** permission.
+2. Add a handler at `box/jobs/my-job.js` (or map names in `app.json` → `queue.jobs`).
+3. Enqueue from a server script:
+
+```javascript
+const queue = require('queue');
+await queue.add('my-job', { userId: 42 }, { delayMs: 0, attempts: 3 });
+```
+
+Handlers receive `$g.queue` (`id`, `payload`, `attempt`). Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. Jobs that exhaust retries land in the **DLQ**; operators manage them in **Glade → top menu Queue / DLQ** (retry / discard). See [Server Config](./server-config.md) → `queue` and [Glade Admin](./glade-admin.md).
+
 ### Process isolation (optional)
 
 If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process via `app.json` `"isolation": "process"`, server `isolation.apps` (solo), or `isolation.groups` (shared). HTTP still enters on the same server port. **Buffered** and **SSE** (including AI) work over IPC; workers re-init `ai` / `email` from app config. Prefer `await gingee(...)`. Privileged apps such as Glade never use workers. Details: [Server Config](./server-config.md) → `isolation`.
@@ -2488,7 +2559,8 @@ This is the definitive list of all permission keys available in Gingee.
 | **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
 | **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
 | **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. |
-| **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/` or outbound URL). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json`. | **High.** The app can wake itself on a timer to run privileged sandbox code or (with `httpclient`) call external URLs unattended. |
+| **queue** | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`. | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. |
+| **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json`. | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended. |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets). | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts. |
 | **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
 | **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
@@ -2508,7 +2580,7 @@ This is the definitive list of all permission keys available in Gingee.
 
 **Audience:** Server operators, app packagers, security reviewers, and contributors.
 
-**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `isolation`, `box`), [Concepts](./concepts.md).
+**Related:** [Permissions Guide](./permissions-guide.md), [Server Config](./server-config.md) (`limits`, `scheduler`, `egress`, `secrets`, `metrics`, `audit`, `isolation`, `websockets`, `queue`, `box`), [Concepts](./concepts.md).
 
 ---
 
@@ -2728,7 +2800,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 2. Handle missing **optional** permissions gracefully.
 3. Use **leading `/`** on `fs` paths when multiple scripts must share BOX-root files (scheduled jobs vs HTTP handlers).
 4. Do not store long-lived secrets in client-visible responses.
-5. Respect `$g.request.signal` / timeouts for long work; design heavy jobs for scheduler or future queues.
+5. Respect `$g.request.signal` / timeouts for long work; offload heavy work with `require('queue')` or scheduler `target.type: "queue"`.
 6. Never assume another app’s BOX or server `settings/` is readable.
 
 ---
@@ -2743,11 +2815,11 @@ Gingee does **not** currently claim:
 - Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops in the **master** process  
-- OS-level resource quotas on workers (cgroups / Job Objects) without external orchestration  
+- Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)  
 
-These may appear on the roadmap (queues, cluster, OpenTelemetry, OS resource limits); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (cluster, OpenTelemetry, multi-node WS fan-out, deeper OS quotas); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), and **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE over IPC; auto-restart with backoff; public HTTP still on the master; privileged apps stay in-process) — see [Server Config](./server-config.md). These improve observability, non-repudiation, and crash containment for opted-in apps; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** (`audit`), **process isolation** (`isolation`, incl. `worker_limits`), **WebSockets**, and **background queue** (`queue` — memory/redis, retries, DLQ, Glade Queue/DLQ admin, CRON handoff) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -2760,7 +2832,7 @@ These may appear on the roadmap (queues, cluster, OpenTelemetry, OS resource lim
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, and opt-in process isolation — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
+**Related P0/P1/P2 (implemented separately):** `limits`, egress, secrets, metrics, audit, process isolation (incl. worker_limits), WebSockets, and **queue** (incl. DLQ + Glade admin) — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
 
 ---
 
@@ -3151,7 +3223,7 @@ These are the core architectural features that define the Gingee development exp
     Bidirectional realtime on the public HTTP(S) port. Configure `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, use `require('websockets')` for rooms/broadcast. Multi-tenant: `tenantRoom(tenantId, name)`. Master-owned (not isolation workers). Sample: **`ginchat`** (`/ginchat/`).
 
 *   **CRON Scheduler**
-    Apps declare recurring jobs in `app.json` → `schedules` (script path under `box/` or absolute external URL). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`); enable it on **one** node in multi-server deployments. Requires the `scheduler` permission (and `httpclient` for URL targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
+    Apps declare recurring jobs in `app.json` → `schedules` (script under `box/`, absolute external URL, or **`type: "queue"`** handoff). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`); enable carefully in multi-server deployments (queue targets + redis are multi-node-safe). Requires the `scheduler` permission (`httpclient` for URL targets; `queue` for queue targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
 
 *   **Request & Outbound Limits**
     Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
@@ -3169,13 +3241,16 @@ These are the core architectural features that define the Gingee development exp
     Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
 
 -   **Optional feature packages:**
-    Heavy or specialized npm packages ship as **`optionalDependencies`**: non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
+    Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
 
 -   **Process isolation (opt-in):**
     With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps stay in-process. Supports **buffered** and **SSE** (incl. AI), **solo workers** or **groups**, **auto-restart**, and worker-side `ai` / `email` re-init. See [Server Config](./server-config.md) → `isolation`.
 
 -   **WebSockets (opt-in):**
     Master-owned realtime on the public port; `app.json` → `websockets` + `websockets` permission; `require('websockets')` rooms/broadcast; sample **`ginchat`**. See [Server Config](./server-config.md) → `websockets`.
+
+-   **Background job queue (`queue` module):**
+    Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue`. Drivers: **memory** (default) or **redis**. Retries with backoff; exhausted jobs go to **DLQ**. **Glade** top menu **Queue / DLQ** lists failed jobs (app filter after 3+ letters) with **Retry** (fresh attempt budget) / **Discard**. CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

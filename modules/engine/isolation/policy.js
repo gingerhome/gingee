@@ -7,6 +7,8 @@
 /**
  * Isolation section defaults.
  */
+const { WORKER_LIMITS_DEFAULTS } = require('./resource_limits.js');
+
 const ISOLATION_DEFAULTS = {
   /** off = all in-process (default). process = allow workers per policy. */
   mode: 'off',
@@ -30,7 +32,12 @@ const ISOLATION_DEFAULTS = {
   restart_delay_ms: 500,
   restart_backoff_max_ms: 30000,
   /** After this many ms ready without crash, restart count resets */
-  restart_stable_ms: 60000
+  restart_stable_ms: 60000,
+  /**
+   * OS / V8 resource limits applied to each isolation worker process.
+   * See resource_limits.js — null fields mean Node/OS defaults.
+   */
+  worker_limits: { ...WORKER_LIMITS_DEFAULTS }
 };
 
 /**
@@ -136,5 +143,6 @@ module.exports = {
   resolveWorkerKey,
   appsForWorker,
   restartDelayMs,
-  ISOLATION_DEFAULTS
+  ISOLATION_DEFAULTS,
+  WORKER_LIMITS_DEFAULTS
 };

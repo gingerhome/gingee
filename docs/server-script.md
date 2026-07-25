@@ -23,7 +23,7 @@ This unified structure ensures that every piece of executable code runs within t
 
 ## Types of Scripts in Gingee
 
-While the structure is the same, the purpose of a script and the context it runs in can differ. There are four types of scripts you can create (plus WebSocket handlers, which use a slightly different entry signature).
+While the structure is the same, the purpose of a script and the context it runs in can differ. There are four types of scripts you can create, plus **WebSocket handlers** (different entry signature) and **queue job handlers** (same `gingee()` pattern, `$g.queue` context).
 
 ### 1. Server Scripts (API Endpoints)
 
@@ -122,6 +122,29 @@ module.exports = async function (socket, ctx) {
 ```
 
 See [Server Config](./server-config.md) → `websockets` and [App Structure](./app-structure.md).
+
+### 5. Queue Job Handlers (Background work)
+
+Deferred jobs use the same `module.exports` + `gingee()` pattern as HTTP scripts. Place handlers under `box/jobs/{name}.js` (or map names in `app.json` → `queue.jobs`). Grant the **`queue`** permission; enqueue with `require('queue').add(name, payload)`.
+
+-   **Purpose:** Work that should not block an HTTP response (email, AI, cleanup, multi-node-safe CRON handoff).
+-   **Execution:** The engine dequeues jobs (memory or redis driver) and runs the handler in the app sandbox.
+-   **`$g` Context:**
+    *   **`$g.queue`:** `{ id, name, payload, attempt }` for the current job.
+    *   **Available:** `$g.log`, `$g.app`, and other modules per granted permissions.
+    *   There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators retry or discard DLQ entries in **Glade → Queue / DLQ**.
+
+**Example (`box/jobs/send-welcome.js`):**
+```javascript
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const { payload, attempt, id } = $g.queue;
+    // … do work …
+  });
+};
+```
+
+See [Server Config](./server-config.md) → `queue`, [App Developer Guide](./app-developer-guide.md), and [Glade Admin](./glade-admin.md).
 
 ---
 

@@ -36,7 +36,7 @@ After a successful login, you are taken to the main Glade dashboard. This is you
 
 The dashboard consists of two main components:
 
-1.  **The Header:** Contains the Glade title and a **Logout** button to securely end your session.
+1.  **The Header:** Contains the Glade title, **Queue / DLQ** (background job dead-letter admin — see below), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
     -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
     -   **Version:** The version number, as specified in the app's own `app.json` file.
@@ -132,6 +132,17 @@ This is a destructive action that will permanently remove an application and all
 4.  Click the **Confirm** button. Glade will gracefully shut down the application's services, revoke its permissions, clear its caches, and delete its entire directory from the server.
 
 ![Glade App Delete](./images/7.glade-app-delete.png)
+
+### Queue / Dead Letter Queue (DLQ)
+
+The top navigation bar includes a **Queue / DLQ** control (next to About / Logout). It opens an admin panel for the engine background job system (`gingee.json` → `queue`):
+
+1. **Stats** — driver (memory/redis), in-flight and waiting counts on this node, DLQ size.
+2. **Dead-letter list** — jobs that exhausted retries (error message, app, attempts). Type **3+ letters** in the app filter to search by app name (live filter).
+3. **Retry** — re-enqueues the job with attempt **1** and a **fresh attempt budget** (server `queue.default_attempts`, default 3) so the job is not stuck failing once and returning to DLQ immediately.
+4. **Discard** — removes the job from the DLQ without re-running.
+
+Actions are plain text links (bold on hover). Memory-driver DLQ entries are lost if the Gingee process restarts; Redis-driver DLQ is durable (with TTL). See [Server Config](./server-config.md) → `queue`.
 
 ### Audit trail (server-side)
 

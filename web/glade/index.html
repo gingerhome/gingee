@@ -28,7 +28,11 @@
                     class="d-inline-block align-text-top">
                 Glade Dashboard
             </a>
-            <div class="d-flex">
+            <div class="d-flex align-items-center">
+                <button id="queueAdminButton" class="btn btn-outline-light text-dark ms-2" type="button"
+                    data-bs-toggle="modal" data-bs-target="#queueAdminModal" title="Background queue and dead-letter jobs">
+                    Queue / DLQ
+                </button>
                 <button id="aboutButton" class="btn btn-outline-light text-dark ms-2">About</button>
                 <button id="logoutButton" class="btn btn-outline-light text-dark ms-2">Logout</button>
             </div>
@@ -72,6 +76,59 @@
             </div>
         </div>
     </main>
+
+    <!-- Queue / DLQ Admin Modal -->
+    <div class="modal fade" id="queueAdminModal" tabindex="-1" aria-labelledby="queueAdminModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="queueAdminModalLabel">Background Queue &amp; Dead Letter Queue</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="queue-admin-error" class="alert alert-danger d-none"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div id="queue-stats-panel" class="small text-muted">Loading stats…</div>
+                        <button type="button" class="queue-action-link" id="queue-refresh-btn">Refresh</button>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small mb-0" for="queue-dlq-app-filter">Filter by app</label>
+                            <input type="text" class="form-control form-control-sm" id="queue-dlq-app-filter"
+                                placeholder="Type 3+ letters to search app name" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="queue-dlq-table">
+                            <thead>
+                                <tr>
+                                    <th>Job ID</th>
+                                    <th>App</th>
+                                    <th>Name</th>
+                                    <th>Attempts</th>
+                                    <th>Failed at</th>
+                                    <th>Error</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="queue-dlq-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">No dead-letter jobs</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="small text-muted mb-0">
+                        Dead-letter jobs exhausted retries. <strong>Retry</strong> re-enqueues with attempt 1;
+                        <strong>Discard</strong> removes the entry. Memory DLQ is lost on server restart; Redis DLQ is durable.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Confirmation Modal (for Delete, Rollback, etc.) -->
     <div class="modal fade" id="confirmationModal" tabindex="-1">

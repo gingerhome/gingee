@@ -245,7 +245,8 @@ async function initializeApps(config, logger, webPath) {
 
 module.exports = {
   initializeApps,
-  /** @private test helper */
+  /** @private */
   _initializeOneApp: initializeOneApp,
+  /** @private */
   _loadJsonFile: loadJsonFile
 };

@@ -331,6 +331,33 @@ Each line is one JSON object, for example:
 | `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
 | `restart_backoff_max_ms` | `30000` | Cap on backoff delay. |
 | `restart_stable_ms` | `60000` | After this long ready without crash, restart counter resets. |
+| `worker_limits` | see below | V8 / OS resource caps applied to each isolation **worker** process. |
+
+#### isolation.worker_limits
+
+Applied when a worker is forked (`isolation.mode: "process"`). All fields default to `null` (no forced cap).
+
+| Key | Default | Platform | Meaning |
+| :--- | :--- | :--- | :--- |
+| `max_old_space_mb` | `null` | All | V8 old-space heap cap (`--max-old-space-size`). When the heap hits the limit the worker dies and auto-restart may bring it back. |
+| `max_semi_space_mb` | `null` | All | V8 young-generation size (`--max-semi-space-size`). |
+| `uv_threadpool_size` | `null` | All | Sets `UV_THREADPOOL_SIZE` in the worker env. |
+| `priority` | `null` | All | `"low"` \| `"normal"` \| `"high"` — `os.setPriority` after spawn (may require privileges for `"high"` on Unix). |
+| `max_rss_mb` | `null` | **Linux** | Best-effort address-space ceiling via `prlimit --as` if installed. **Ignored on Windows** (log warning); use Docker/Job Objects at the orchestrator for hard RSS caps. |
+
+```json
+"isolation": {
+  "mode": "process",
+  "apps": ["untrusted-app"],
+  "worker_limits": {
+    "max_old_space_mb": 512,
+    "priority": "low",
+    "max_rss_mb": 768
+  }
+}
+```
+
+**Honesty:** These are **worker process** limits, not hostile multi-tenant hard isolation. Full **cgroups v2** / **Windows Job Objects** remain the orchestrator’s job for production multi-tenant. `max_old_space_mb` is the portable, always-on V8 cap.
 
 **Per-app** (`app.json`): `"isolation": "process"` or `"isolation": "inprocess"`.
 
@@ -469,14 +496,17 @@ await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
 
 **CRON → queue (multi-node friendly):** schedule target `"type": "queue", "job": "nightly"` enqueues instead of running the heavy work inline. App needs both `scheduler` and `queue` permissions; server needs `scheduler.enabled` and `queue.enabled`.
 
-**Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, histogram `gingee_queue_job_duration_seconds`.
+**Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, `gingee_queue_dlq_total` / `_retry_total` / `_discard_total`, histogram `gingee_queue_job_duration_seconds`.
+
+**Admin (Glade):** top menu **Queue / DLQ**. Lists dead-letter jobs (exhausted retries); app filter (3+ character live search); **Retry** re-enqueues with attempt 1 and a fresh `default_attempts` budget; **Discard** removes the entry. APIs: `platform.getQueueStats` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (also `/glade/api/queue-*`). Memory DLQ is process-local; Redis DLQ is durable (TTL ~14 days, capped list).
 
 ### Optional npm feature packages
 
-Gingee keeps a **core** set of required dependencies (engine, SQLite, sharp image, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
+Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
 
 | Feature | Packages |
 | :--- | :--- |
+| Image processing (`require('image')`) | `sharp` |
 | PostgreSQL / MySQL / MSSQL / Oracle | `pg`, `mysql2`, `mssql`, `oracledb` |
 | Charts / canvas barcodes / dashboard | `chartjs-node-canvas`, `canvas` |
 | PDF | `pdfmake` |
@@ -486,10 +516,10 @@ Gingee keeps a **core** set of required dependencies (engine, SQLite, sharp imag
 **Install behavior (npm):**
 
 - Default `npm install` **still attempts** optional packages (full batteries when builds succeed).
-- If an optional package **fails to compile** (common for Oracle / canvas), install **continues** — core Gingee still works.
-- **Slim install:** `npm install --omit=optional`, then add only what you need, e.g. `npm install pg @sendgrid/mail`.
+- If an optional package **fails to compile** (common for Oracle / canvas; less often `sharp`), install **continues** — core Gingee still works.
+- **Slim install:** `npm install --omit=optional`, then add only what you need, e.g. `npm install sharp pg @sendgrid/mail`.
 
-Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals.
+Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals. Image ops need `sharp` installed (or a full/default install that includes optionals).
 
 ### max_body_size
 - **Type:** `string`
