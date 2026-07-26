@@ -15,7 +15,8 @@
 		"enabled": true
 	},
 	"box": {
-		"allowed_modules": []
+		"allowed_modules": [],
+		"allow_dynamic_code": false
 	},
 	"web_root": "./web",
 	"cache": {

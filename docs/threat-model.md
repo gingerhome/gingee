@@ -109,7 +109,9 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 - Host **`process`** is not available (throws if referenced) — primary defense against reading host/`process.env` secrets
 - Sandbox **`global` / `globalThis`** point at the sandbox object only
-- **`eval` / `new Function` string codegen** is **allowed by default** so common BOX-vendored UMD libraries (e.g. Handlebars) load; generated code still runs in the same vm and **does not regain host `process`**. Set `box.allow_code_generation: false` for stricter lockdown when those libs are not needed.
+- **`eval` / `new Function` dynamic code** defaults to **allowed** at server level for Instant Time to Joy; production can set `box.allow_dynamic_code: false` and let individual apps **opt in** via `app.json` → `allow_dynamic_code: true` (explicit app setting wins). Generated code still runs in the same vm and **does not regain host `process`**. Legacy key: `allow_code_generation`.
+- **Path jails** use `realpath` of existing ancestors (`resolveRealPath` / `isPathInside`) so symlink escapes from a writable box are rejected.
+- **Egress DNS** is checked and **pinned at connect** (`lookup`) to reduce rebinding between policy DNS and TCP connect; redirects re-validate each hop.
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
 
 **Still shared across all apps on the instance:**
@@ -169,7 +171,8 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 | Category | Example | Cooperative posture |
 | :--- | :--- | :--- |
-| **S**poofing | Forged admin session on Glade | App-level auth (JWT etc.); harden Glade credentials; TLS |
+| **S**poofing | Forged admin session on Glade | Harden Glade credentials (set at **`gingee-cli init`**); TLS; session cookie `Path=/glade` + `SameSite=Strict` + `Secure` on HTTPS; **login rate limit** (IP + username) |
+| **C**SRF / same-host | Sibling app XSS calling `/glade/api/*` with credentials | Glade **CSRF** (`X-CSRF-Token` + `glade_csrf` cookie); Origin/Referer checks; prefer **dedicated Glade host/port** |
 | **T**ampering | Modified `permissions.json` on disk | OS file permissions; restrict who can write `settings/` |
 | **R**epudiation | “Who granted `httpclient`?” | Append-only JSONL **`audit`** log (`permission.set`, lifecycle events) + process logs; keep file history on `settings/permissions.json` |
 | **I**nformation disclosure | App data leakage via another app | Path jail + no cross-app API by default; not RAM isolation |
@@ -204,7 +207,9 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 5. Keep **`scheduler.enabled`** false except on the designated scheduler node, **or** enable on all nodes with `scheduler.coordination.driver: "redis"` and shared `scheduler.redis` (NTP-aligned clocks recommended).
 5b. Treat **Glade Logs** as admin-only: server and app log files may contain secrets or payloads; do not expose Glade publicly.
 6. Prefer **Redis** for cache when running more than one node.
-7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.
+7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.  
+7b. **Glade CSRF:** Mutating Glade APIs require `X-CSRF-Token` (session-bound; double-submit cookie `glade_csrf` Path=/glade). Same-site sibling apps cannot read that cookie. For hostile multi-app hosts, run Glade on a **separate host/port** and set `GLADE_ALLOWED_ORIGINS` in Glade `app.json` `env` if needed.  
+7c. **Glade login rate limit:** Failed logins are throttled by IP and username (cache-backed; default 5 fails / 15 minutes → 429). Password is set at **`gingee-cli init`** — rotate with `reset-pwd` if compromised (see [Glade Admin](./glade-admin.md)).
 8. Treat **`app.json` secrets** as sensitive; restrict backups and who can download `.gin` exports.
 9. Leave **`box.allowed_modules`** empty unless you fully understand the escape hatch.
 10. Review every new `.gin`’s `pmft.json` before production grant.
@@ -236,15 +241,15 @@ Gingee does **not** currently claim:
 
 - Full hostile multi-tenant isolation on one host (even with process isolation)  
 - Formal verification of the sandbox  
-- Built-in WAF, CSRF framework, or global end-user SSO  
-- Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
+- Built-in WAF or global end-user SSO (Glade admin has **CSRF + Origin** checks; app authors still own their own CSRF)  
+- Perfect SSRF immunity in every edge case (baseline `egress` + **connect-time DNS pin** is on by default; orchestrator network policy still required for hostile tenants)  
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops in the **master** process  
 - Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)  
 
 These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE; auto-restart; **`worker_limits`**), **opt-in WebSockets** on the master (permission-gated; multi-tenant rooms; optional **Redis fan-out**), **scheduler** with optional Redis **coordination**, and a **background job queue** (`queue` — memory/redis, retries, DLQ, Glade live jobs + DLQ admin, CRON handoff, Glade **Schedules / Run now**) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE; auto-restart; **`worker_limits`**; cancel IPC on request timeout), **opt-in WebSockets** on the master (permission-gated; multi-tenant rooms; optional **Redis fan-out**), **scheduler** with optional Redis **coordination** and abort-on-timeout, **egress** with DNS connect pin, **path jails with realpath**, and a **background job queue** (`queue` — memory/redis, retries, DLQ, visibility reclaim, Glade live jobs + DLQ admin) — see [Server Config](./server-config.md). Glade admin has **CSRF**, **login rate limit**, and session cookie hardening. These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 

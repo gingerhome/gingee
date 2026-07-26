@@ -162,6 +162,11 @@ An object that configures the HTTP and HTTPS servers.
     - `"memory"`: Uses a fast, dependency-free, in-process memory cache. Perfect for local development or single-node deployments. This cache is cleared on every server restart.
     - `"redis"`: Uses an external Redis server, enabling a shared, distributed cache for multi-node, horizontally-scaled deployments.
 
+- **`cache.fail_closed`** (boolean, optional):
+
+  - **Default:** `true` when `provider` is `"redis"`; ignored for memory.
+  - **Description:** If Redis cannot be reached at boot and `fail_closed` is **true**, **server startup fails** (no silent in-process memory cache). Set to **`false`** only for local convenience — multi-node deployments would otherwise get **node-local sessions** and split-brain cache.
+
 - **`cache.prefix`** (string, optional):
 
   - **Description:** A global prefix that will be prepended to all cache keys. This is highly recommended when using a shared Redis instance to prevent key collisions with other applications.
@@ -175,6 +180,7 @@ An object that configures the HTTP and HTTPS servers.
 ```json
 "cache": {
   "provider": "redis",
+  "fail_closed": true,
   "prefix": "gingee:",
   "redis": {
     "url": "env:REDIS_URL"
@@ -306,12 +312,14 @@ Or without a URL:
 | :--- | :--- | :--- |
 | `mode` | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
 | `https_only` | `false` | When `true`, reject `http:` URLs. |
-| `dns_check` | `true` | In `protected` mode, resolve hostnames and deny if any address is blocked. |
+| `dns_check` | `true` | Resolve hostnames and deny if any address is blocked (`protected` and `allowlist`). |
 | `max_redirects` | `3` | Max HTTP redirects; **each hop is re-validated**. |
 | `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true` | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`. |
 | `allow_hosts` | `[]` | Exact host or `*.example.com` patterns (exceptions / allowlist entries). |
 | `allow_cidrs` | `[]` | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access. |
 | `deny_hosts` / `deny_cidrs` | `[]` | Extra denials. |
+
+**Connect pin (DNS rebinding):** When DNS validation yields addresses (or the URL uses a literal IP), `httpclient` and scheduler URL jobs attach a **pinned `lookup`** so TCP connect uses only those pre-checked addresses. Redirect hops are re-resolved, re-checked, and re-pinned.
 
 **Examples:**
 
@@ -371,7 +379,7 @@ curl -s http://127.0.0.1:7070/metrics
 ### audit
 
 - **Type:** `object` (optional)
-- **Description:** Append-only **JSONL** audit trail for privileged platform actions: permission changes and app lifecycle (install, upgrade, reload, delete, rollback, register). Written by the engine when Glade / `platform` APIs mutate state—not request-level access logs.
+- **Description:** Append-only **JSONL** audit trail for privileged platform actions. Written by the engine when Glade / `platform` APIs mutate state or access sensitive ops data—not full request-level access logs.
 
 | Key | Default | Meaning |
 | :--- | :--- | :--- |
@@ -386,10 +394,20 @@ Each line is one JSON object, for example:
 
 | Field | Meaning |
 | :--- | :--- |
-| `event` | Stable name: `permission.set`, `app.install`, `app.upgrade`, `app.reload`, `app.delete`, `app.rollback`, `app.register` |
+| `event` | Stable event name (see table below) |
 | `actor` | Privileged app that performed the action when available; otherwise `system` |
-| `app` | Target application name |
-| `details` | Event-specific payload (previous/granted permissions, versions, etc.) |
+| `app` | Target application name (when applicable) |
+| `details` | Event-specific payload (no raw log line bodies) |
+
+| Event | When |
+| :--- | :--- |
+| `permission.set` | Permissions saved for an app |
+| `app.install` / `app.upgrade` / `app.reload` / `app.delete` / `app.rollback` / `app.register` | App lifecycle |
+| `scheduler.run_now` | Glade **Run now** (force schedule; bypasses multi-node coordination) |
+| `queue.dlq.retry` | DLQ job re-enqueued |
+| `queue.dlq.discard` | DLQ job discarded |
+| `logs.list` | Log file list (scope + count) |
+| `logs.read` | Log file tail/read (file name, filters, line counts — **not** line content) |
 
 ### isolation
 
@@ -403,7 +421,8 @@ Each line is one JSON object, for example:
 | `apps` | `[]` | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`. |
 | `groups` | `{}` | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`. |
 | `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
-| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. |
+| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. On timeout the master sends **`cancel_request` IPC**, ends the client with **504**, and aborts the worker-side `AbortSignal` (cooperative cancel for `httpclient` / long work). |
+| `kill_worker_on_request_timeout` | `false` | When `true`, also **SIGTERM** the worker after cancel (other in-flight requests on that worker die). Prefer cooperative cancel unless you need a hard kill. |
 | `auto_restart` | `true` | Restart workers after unexpected exit (not after intentional stop/reload). |
 | `restart_max` | `10` | Max automatic restarts before staying down until next request/reload. |
 | `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
@@ -458,6 +477,7 @@ If an app appears in both `apps` and a group, the **group wins** (one shared wor
 - Workers re-initialize process-local adapters (`ai`, `email`) from the app config snapshot so `app.json` AI/email config works in isolated apps (permissions still required).
 - **Groups** share one Node worker (density within a trust set); not hostile multi-tenant isolation.
 - Unexpected worker exit triggers **auto-restart** with backoff (unless disabled or `restart_max` exceeded).
+- **Request timeout:** master cancels via IPC + AbortSignal; optional `kill_worker_on_request_timeout` for hard kill.
 
 ```json
 "isolation": {
@@ -563,16 +583,24 @@ Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**
 | `default_attempts` | `3` | Retries after handler failure (exponential backoff). |
 | `default_backoff_ms` | `1000` | Base delay between retries. |
 | `jobs_dir` | `"jobs"` | Default folder under `box/` for job scripts. |
+| `visibility_timeout_ms` | `300000` | **Redis only:** claim lease (ms). If a worker dies mid-job, the claim is reclaimed after this and the job returns to the ready list. Long handlers should finish within this window (lease is refreshed when processing starts). |
+| `shutdown_drain_ms` | `30000` | Graceful shutdown: stop claiming, return local wait-queue claims to the driver, wait up to this many ms for in-flight jobs, then force-release remaining claims and disconnect. |
+| `fail_closed` | `true` | When `driver` is `"redis"` and Redis is unreachable at boot: **`true`** aborts queue init (server boot fails) — no silent memory fallback. Set **`false`** only for local dev (multi-node would otherwise split jobs across node-local memory queues). |
 | `redis` | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`. |
 
 ```json
 "queue": {
   "enabled": true,
   "driver": "redis",
+  "fail_closed": true,
   "concurrency": 10,
+  "visibility_timeout_ms": 300000,
+  "shutdown_drain_ms": 30000,
   "redis": { "url": "env:REDIS_URL", "key_prefix": "gingee:queue:" }
 }
 ```
+
+**Redis durability notes:** Jobs use a ready list + delayed ZSET + **processing ZSET** (visibility leases). Claims are leased; crash/OOM of a node reclaims expired leases. Graceful process exit drains local wait/active claims back to Redis so other nodes can run them. **Fail-closed** is the default for redis driver so a dead Redis cannot silently partition the fleet onto per-node memory queues. Memory driver is still process-local and not crash-durable.
 
 **App (`app.json` optional):**
 
@@ -606,7 +634,9 @@ await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
 
 **Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, `gingee_queue_dlq_total` / `_retry_total` / `_discard_total`, histogram `gingee_queue_job_duration_seconds`.
 
-**Admin (Glade):** top menu **Queue / DLQ** — **Live jobs** (running/waiting on this node + pending/delayed in the driver; optional auto-refresh) and **DLQ** (retry/discard). App filter (3+ letters). APIs: `getQueueStats` / `listQueueLiveJobs` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (`/glade/api/queue-*`). Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared.
+**Admin (Glade):** top menu **Queue / DLQ** — **Live jobs** (running/waiting on this node + pending/delayed/processing in the driver; optional auto-refresh) and **DLQ** (retry/discard). App filter (3+ letters). APIs: `getQueueStats` / `listQueueLiveJobs` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (`/glade/api/queue-*`). Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared.
+
+**DLQ atomicity (Redis):** discard and retry use **Lua scripts** so concurrent Glade/admin actions cannot double-enqueue or delete a live job hash that is not on the DLQ. Memory driver claims DLQ entries synchronously (no await between check and remove) before re-enqueue.
 
 ### Optional npm feature packages
 
@@ -662,15 +692,24 @@ An object that configures the server's logger.
 - **Type:** `object`
 - **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
 - **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
-- **`allow_code_generation`** (boolean, optional):
+- **`allow_dynamic_code`** (boolean, optional):
   - **Default:** `true` (Instant Time to Joy — many UMD/minified libs such as Handlebars need `new Function` at load time).
   - When `true`, string `eval` / `Function` work **inside the app vm only**. Host **`process` remains unavailable**; apps cannot read `process.env`.
-  - Set to `false` for a stricter lockdown when you do not load such libraries (disables string codegen in the sandbox).
-- **Example (stricter):**
+  - Set to `false` as a **server default** (recommended for production lockdown).
+  - **App-level override:** each app may set `allow_dynamic_code` in **`app.json`** (or nested `box.allow_dynamic_code`). An **explicit app value wins** over the server default — so an app can **opt in** (`true`) for Handlebars/UMD, or **opt out** (`false`) even when the server default is `true`.
+  - **Legacy:** `allow_code_generation` is still honored if `allow_dynamic_code` is unset.
+- **Example (production default off; only needed apps opt in):**
 ```json
 "box": {
   "allowed_modules": [],
-  "allow_code_generation": false
+  "allow_dynamic_code": false
+}
+```
+```json
+// web/tests/box/app.json (needs external UMD lib)
+{
+  "name": "tests",
+  "allow_dynamic_code": true
 }
 ```
 

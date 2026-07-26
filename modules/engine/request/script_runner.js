@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const limits = require('../../limits.js');
 const metrics = require('../../metrics.js');
+const { resolveAllowDynamicCodeForApp } = require('../../gbox.js');
 const { executeScript } = require('./execute_script.js');
 
 /**
@@ -124,7 +125,7 @@ async function runServerScript(opts) {
       useCache,
       logger,
       globalConfig: config,
-      allowCodeGeneration: !config.box || config.box.allow_code_generation !== false
+      allowDynamicCode: resolveAllowDynamicCodeForApp(config.box, app.config)
     };
 
     await executeScript({

@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const metrics = require('../../metrics.js');
+const { confineScriptPath } = require('./path_confine.js');
 
 /**
  * Apply default_app rewrite for `/`.
@@ -74,6 +75,7 @@ function resolveApp(req, apps, config, logger) {
 
 /**
  * Resolve script path via routes.json or file-based routing.
+ * Scripts must resolve under app.appBoxPath (path confinement).
  */
 function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
   let routeParams = null;
@@ -86,9 +88,16 @@ function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
       if (req.method === route.method || route.method === 'ALL') {
         const matchResult = route.matcher(requestPath);
         if (matchResult) {
-          targetScriptPath = path.join(app.appBoxPath, route.script);
-          routeParams = matchResult.params;
-          targetScriptFolder = path.dirname(targetScriptPath);
+          // Prefer pre-resolved absolute path from app_registry when present
+          const confined =
+            route.scriptPath ||
+            confineScriptPath(app.appBoxPath, route.script);
+          if (confined) {
+            targetScriptPath = confined;
+            routeParams = matchResult.params;
+            targetScriptFolder = path.dirname(targetScriptPath);
+          }
+          // If route script escapes the box, treat as no match (do not run outside box)
           break;
         }
       }
@@ -96,8 +105,13 @@ function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
   }
 
   if (!targetScriptPath && !path.extname(requestPath)) {
-    const potentialScriptPath = path.join(app.appBoxPath, ...urlParts.slice(1)) + '.js';
-    if (fs.existsSync(potentialScriptPath)) {
+    // File-based routing: /app/foo/bar → box/foo/bar.js (confined)
+    const potentialScriptPath = confineScriptPath(
+      app.appBoxPath,
+      urlParts.slice(1),
+      { appendJs: true }
+    );
+    if (potentialScriptPath && fs.existsSync(potentialScriptPath)) {
       targetScriptPath = potentialScriptPath;
       targetScriptFolder = path.dirname(targetScriptPath);
     }

@@ -320,15 +320,122 @@ function isIpAllowed(ip) {
 }
 
 /**
+ * Family number for a literal IP (4 or 6).
+ * @private
+ * @param {string} ip
+ * @returns {number}
+ */
+function ipFamily(ip) {
+  const u = unwrapIp(ip);
+  if (u) return u.family;
+  return net.isIPv6(ip) ? 6 : 4;
+}
+
+/**
+ * Normalize DNS / pin address records to `{ address, family }[]`.
+ * @private
+ * @param {Array|object|string} records
+ * @returns {{ address: string, family: number }[]}
+ */
+function normalizeAddressList(records) {
+  if (!records) return [];
+  const list = Array.isArray(records) ? records : [records];
+  const out = [];
+  for (const rec of list) {
+    if (typeof rec === 'string') {
+      out.push({ address: rec, family: ipFamily(rec) });
+    } else if (rec && rec.address) {
+      const fam =
+        rec.family === 4 || rec.family === 6 ? rec.family : ipFamily(rec.address);
+      out.push({ address: String(rec.address), family: fam });
+    }
+  }
+  return out;
+}
+
+/**
+ * Create a Node-style `lookup` that only returns pre-validated addresses.
+ * Prevents DNS rebinding between policy check and TCP connect (H13).
+ *
+ * @param {{ address: string, family: number }[]} addresses
+ * @returns {function}
+ */
+function createPinnedLookup(addresses) {
+  const pinned = normalizeAddressList(addresses);
+  return function pinnedLookup(hostname, options, callback) {
+    if (typeof options === 'function') {
+      callback = options;
+      options = {};
+    }
+    if (typeof callback !== 'function') {
+      // Rare promise-style callers — not used by Node http, but be safe.
+      return Promise.reject(new Error('EGRESS_DENIED: pinned lookup requires callback'));
+    }
+    if (!pinned.length) {
+      const err = new Error('EGRESS_DENIED: no pinned addresses for connect');
+      err.code = 'EGRESS_DENIED';
+      err.reason = 'PIN_EMPTY';
+      return callback(err);
+    }
+
+    const wantFamily = options && options.family;
+    let list = pinned;
+    if (wantFamily === 4 || wantFamily === 6) {
+      list = pinned.filter((a) => a.family === wantFamily);
+      if (!list.length) {
+        const err = new Error(
+          `EGRESS_DENIED: no pinned address for IPv${wantFamily}`
+        );
+        err.code = 'EGRESS_DENIED';
+        err.reason = 'PIN_FAMILY';
+        return callback(err);
+      }
+    }
+
+    if (options && options.all) {
+      return callback(
+        null,
+        list.map((a) => ({ address: a.address, family: a.family }))
+      );
+    }
+    const pick = list[0];
+    return callback(null, pick.address, pick.family);
+  };
+}
+
+/**
+ * Attach connect-time DNS pin onto an axios / http request config when
+ * `assertUrlAllowed` returned validated addresses.
+ *
+ * @param {object} axiosConfig
+ * @param {{ ok?: boolean, addresses?: Array }|null} allowedResult
+ * @returns {object} same config (mutated)
+ */
+function applyConnectPin(axiosConfig, allowedResult) {
+  if (
+    axiosConfig &&
+    allowedResult &&
+    allowedResult.ok !== false &&
+    Array.isArray(allowedResult.addresses) &&
+    allowedResult.addresses.length > 0
+  ) {
+    axiosConfig.lookup = createPinnedLookup(allowedResult.addresses);
+  }
+  return axiosConfig;
+}
+
+/**
  * Assert a URL is allowed under egress policy.
+ * On success, may include `addresses` — validated IPs to pin at connect (H13).
+ *
  * @param {string} urlString
  * @param {object} [options]
  * @param {boolean} [options.skipDns]
- * @returns {Promise<{ ok: true, url: string, host: string } | { ok: false, code: string, message: string, reason: string }>}
+ * @returns {Promise<{ ok: true, url: string, host: string, addresses: Array|null } | { ok: false, code: string, message: string, reason: string }>}
  */
 async function assertUrlAllowed(urlString, options = {}) {
   if (config.mode === 'off') {
-    return { ok: true, url: String(urlString), host: null };
+    return { ok: true, url: String(urlString), host: null, addresses: null };
   }
 
   let parsed;
@@ -368,6 +475,9 @@ async function assertUrlAllowed(urlString, options = {}) {
     return deny('BLOCKED_METADATA', `Metadata host blocked: ${host}`);
   }
 
+  /** @type {{ address: string, family: number }[]|null} */
+  let addresses = null;
+
   // Literal IP hostname
   if (net.isIP(host)) {
     // Link-local metadata IP always blocked when block_metadata or block_link_local
@@ -382,6 +492,7 @@ async function assertUrlAllowed(urlString, options = {}) {
     if (!ipCheck.ok) {
       return deny(ipCheck.reason, `IP not allowed: ${host} (${ipCheck.reason})`);
     }
+    addresses = [{ address: host, family: ipFamily(host) }];
   }
 
   // Allowlist mode
@@ -407,24 +518,27 @@ async function assertUrlAllowed(urlString, options = {}) {
     }
   }
 
-  // Protected mode: DNS check for hostnames
+  // DNS check + pin for hostnames (protected and allowlist) when dns_check is on.
+  // Pinning the validated A/AAAA records closes TOCTOU rebinding at connect (H13).
   if (
-    config.mode === 'protected' &&
+    (config.mode === 'protected' || config.mode === 'allowlist') &&
     config.dns_check &&
     !options.skipDns &&
     !net.isIP(host)
   ) {
     const dnsResult = await resolveAndCheckHost(host, options.syncDns === true);
     if (!dnsResult.ok) return dnsResult;
+    addresses = dnsResult.addresses || null;
   }
 
-  return { ok: true, url: parsed.toString(), host };
+  return { ok: true, url: parsed.toString(), host, addresses };
 }
 
 /**
  * @private
  * @param {string} host
  * @param {boolean} sync
+ * @returns {Promise<{ ok: true, addresses: Array } | { ok: false, code: string, message: string, reason: string }>}
  */
 async function resolveAndCheckHost(host, sync) {
   try {
@@ -439,8 +553,13 @@ async function resolveAndCheckHost(host, sync) {
     if (!records || records.length === 0) {
       return deny('DNS_EMPTY', `DNS lookup returned no addresses for ${host}`);
     }
+    const addresses = [];
     for (const rec of records) {
       const address = typeof rec === 'string' ? rec : rec.address;
+      const family =
+        typeof rec === 'object' && (rec.family === 4 || rec.family === 6)
+          ? rec.family
+          : ipFamily(address);
       const cls = classifyIp(address);
       if (config.block_metadata && cls.kind === 'link_local') {
         return deny(
@@ -455,8 +574,9 @@ async function resolveAndCheckHost(host, sync) {
           `Host ${host} resolves to blocked address ${address} (${ipCheck.reason})`
         );
       }
+      addresses.push({ address, family });
     }
-    return { ok: true };
+    return { ok: true, addresses };
   } catch (e) {
     return deny('DNS_FAIL', `DNS lookup failed for ${host}: ${e.message}`);
   }
@@ -559,6 +679,8 @@ function beforeRedirect(options /*, responseDetails */) {
       err.reason = ipCheck.reason;
       throw err;
     }
+    // Pin redirect connect to the validated literal IP (H13).
+    options.lookup = createPinnedLookup([{ address: host, family: ipFamily(host) }]);
   } else if (config.mode === 'allowlist') {
     if (!config.allow_hosts.some((p) => hostMatchesPattern(host, p))) {
       const err = new Error(`EGRESS_DENIED: redirect host not allowlisted ${host}`);
@@ -566,12 +688,24 @@ function beforeRedirect(options /*, responseDetails */) {
       err.reason = 'ALLOWLIST';
       throw err;
     }
-  } else if (config.mode === 'protected' && config.dns_check) {
+  }
+
+  // DNS check + pin for hostname redirects (protected and allowlist when dns_check).
+  if (
+    !net.isIP(host) &&
+    (config.mode === 'protected' || config.mode === 'allowlist') &&
+    config.dns_check
+  ) {
     try {
       const records = dns.lookupSync(host, { all: true, verbatim: true });
       const list = Array.isArray(records) ? records : [records];
+      const addresses = [];
       for (const rec of list) {
         const address = typeof rec === 'string' ? rec : rec.address;
+        const family =
+          typeof rec === 'object' && (rec.family === 4 || rec.family === 6)
+            ? rec.family
+            : ipFamily(address);
         const ipCheck = isIpAllowed(address);
         if (!ipCheck.ok) {
           const err = new Error(
@@ -581,7 +715,10 @@ function beforeRedirect(options /*, responseDetails */) {
           err.reason = ipCheck.reason;
           throw err;
         }
+        addresses.push({ address, family });
       }
+      // Pin redirect hop to the just-validated addresses (H13).
+      options.lookup = createPinnedLookup(addresses);
     } catch (e) {
       if (e.code === 'EGRESS_DENIED') throw e;
       const err = new Error(`EGRESS_DENIED: redirect DNS fail ${host}: ${e.message}`);
@@ -622,6 +759,8 @@ module.exports = {
   assertUrlAllowedNoDns,
   getMaxRedirects,
   beforeRedirect,
+  createPinnedLookup,
+  applyConnectPin,
   _resetForTests,
   // private test helpers
   _isMetadataHost: isMetadataHost,

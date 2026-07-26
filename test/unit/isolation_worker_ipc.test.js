@@ -71,7 +71,7 @@ function baseConfig(extraIso = {}) {
       ...extraIso
     },
     privileged_apps: ['glade'],
-    box: { allowed_modules: [], allow_code_generation: true },
+    box: { allowed_modules: [], allow_dynamic_code: true },
     max_body_size: '1mb'
   };
 }
@@ -375,4 +375,100 @@ module.exports = async function() {
     const stats = workerManager.getWorkerStats();
     expect(stats.find((s) => s.workerKey === 'app:demo')).toBeUndefined();
   }, 15000);
+
+  // --- M4: request timeout cancels worker work ---
+  test('request timeout sends cancel_request and returns 504 without hanging', async () => {
+    const app = writeApp(tmpRoot, 'slow', {
+      'hang.js': `
+module.exports = async function() {
+  gingee(async ($g) => {
+    // Busy-wait longer than master request_timeout_ms
+    const end = Date.now() + 8000;
+    while (Date.now() < end) {
+      if ($g.request && $g.request.signal && $g.request.signal.aborted) {
+        return; // cooperative cancel (M4)
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    $g.response.send({ late: true }, 200, 'application/json');
+  });
+};
+`
+    });
+
+    const cfg = baseConfig({
+      apps: ['slow'],
+      request_timeout_ms: 400,
+      kill_worker_on_request_timeout: false
+    });
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    workerManager.init(cfg, logger, path.join(tmpRoot, 'web'));
+    workerManager.setAppsRegistry({ slow: app });
+    await workerManager.startWorker(app, cfg);
+
+    const handle = workerManager._workers.get('app:slow');
+    expect(handle).toBeTruthy();
+    const sendSpy = jest.spyOn(handle.child, 'send');
+
+    const { res, chunks } = mockRes();
+    await expect(
+      workerManager.executeOnWorker({
+        app,
+        config: cfg,
+        req: { method: 'GET', url: '/slow/hang', headers: { host: 'localhost' } },
+        res,
+        scriptPath: path.join(app.appBoxPath, 'hang.js'),
+        routeParams: {},
+        maxBodySize: '1mb',
+        useCache: false,
+        logger
+      })
+    ).rejects.toThrow(/timed out/i);
+
+    // Client got 504 from cancelWorkerRequest
+    expect(res.statusCode).toBe(504);
+    expect(res.end).toHaveBeenCalled();
+    const body = Buffer.concat(chunks).toString('utf8');
+    expect(body).toMatch(/GATEWAY_TIMEOUT|timed out/i);
+
+    // Master sent cancel_request IPC
+    const cancelMsgs = sendSpy.mock.calls
+      .map((c) => c[0])
+      .filter((m) => m && m.type === 'cancel_request');
+    expect(cancelMsgs.length).toBeGreaterThanOrEqual(1);
+    expect(cancelMsgs[0].requestId).toBeTruthy();
+
+    // Worker should still be alive (kill_worker_on_request_timeout=false)
+    expect(handle.child.killed).toBeFalsy();
+    sendSpy.mockRestore();
+  }, 30000);
+
+  test('cancelWorkerRequest ends open response and marks cancelled id', () => {
+    const { res } = mockRes();
+    const send = jest.fn();
+    const handle = {
+      workerKey: 'app:test',
+      child: { send, killed: false, kill: jest.fn() },
+      pending: new Map(),
+      streams: new Map([['rid-1', { res, started: false }]]),
+      cancelledIds: new Set()
+    };
+    const timer = setTimeout(() => {}, 99999);
+    handle.pending.set('rid-1', { resolve: jest.fn(), reject: jest.fn(), timer });
+
+    workerManager.cancelWorkerRequest(handle, 'rid-1', {
+      timeoutMs: 1000,
+      reason: 'test cancel'
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'cancel_request', requestId: 'rid-1' })
+    );
+    expect(handle.pending.has('rid-1')).toBe(false);
+    expect(handle.streams.has('rid-1')).toBe(false);
+    expect(handle.cancelledIds.has('rid-1')).toBe(true);
+    expect(res.statusCode).toBe(504);
+    expect(res.end).toHaveBeenCalled();
+    clearTimeout(timer);
+  });
 });

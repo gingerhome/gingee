@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Main Function to Fetch and Render Apps ---
     async function fetchAndRenderApps() {
         try {
-            const response = await fetch('/glade/api/apps', { credentials: 'include' });
+            const response = await GladeCsrf.fetch('/glade/api/apps', { credentials: 'include' });
 
             if (response.status === 401) {
                 // Session expired or invalid, redirect to login
@@ -87,16 +87,30 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             apps.forEach(app => {
                 const row = document.createElement('tr');
-                const appName = app.name;
+                const appName = app.name != null ? String(app.name) : '';
+                const safeName = escapeHtml(appName);
+                const safeVersion = escapeHtml(app.version);
+                const isReserved =
+                    typeof GladeInstallModalMode !== 'undefined' &&
+                    GladeInstallModalMode.isReservedAppName
+                        ? GladeInstallModalMode.isReservedAppName(appName)
+                        : String(appName).toLowerCase() === 'glade';
+                const uninstallItem = isReserved
+                    ? `<li title="The Glade admin app cannot be uninstalled"><span class="dropdown-item text-muted disabled" style="pointer-events:none;opacity:0.6;">
+                                    <div class="btn-mark bg-secondary"></div>Uninstall (protected)
+                                </span></li>`
+                    : `<li title="Uninstall App"><a class="dropdown-item text-danger action-delete" href="#" data-app="${safeName}">
+                                    <div class="btn-mark bg-danger"></div>Uninstall
+                                </a></li>`;
                 row.innerHTML = `
-                    <td>${appName}</td>
-                    <td><span>${app.version}</span></td>
+                    <td>${safeName}</td>
+                    <td><span>${safeVersion}</span></td>
                     <td class="text-end actions-group">
                         <!-- Primary, standalone actions with original styling -->
-                        <button title="Launch App" class="btn btn-transparent btn-sm action-launch" data-app="${appName}">
+                        <button title="Launch App" class="btn btn-transparent btn-sm action-launch" data-app="${safeName}">
                             <div class="btn-mark bg-info"></div>Launch
                         </button>
-                        <button title="Edit Permissions" class="btn btn-transparent btn-sm action-permissions" data-bs-toggle="modal" data-bs-target="#permissionsModal" data-app="${appName}">
+                        <button title="Edit Permissions" class="btn btn-transparent btn-sm action-permissions" data-bs-toggle="modal" data-bs-target="#permissionsModal" data-app="${safeName}">
                             <div class="btn-mark bg-warning"></div>Permissions
                         </button>
                         
@@ -106,23 +120,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                 More Actions
                             </button>
                             <ul class="dropdown-menu">
-                                <li title="Reload App"><a class="dropdown-item action-reload" href="#" data-app="${appName}">
+                                <li title="Reload App"><a class="dropdown-item action-reload" href="#" data-app="${safeName}">
                                     <div class="btn-mark bg-info"></div>Reload
                                 </a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li title="Download App Package (.gin)"><a class="dropdown-item action-package" href="#" data-app="${appName}">
+                                <li title="Download App Package (.gin)"><a class="dropdown-item action-package" href="#" data-app="${safeName}">
                                     <div class="btn-mark bg-info"></div>Download
                                 </a></li>
-                                <li title="Upgrade App"><a class="dropdown-item action-upgrade" href="#" data-bs-toggle="modal" data-bs-target="#installModal" data-app="${appName}">
+                                <li title="Upgrade App"><a class="dropdown-item action-upgrade" href="#" data-bs-toggle="modal" data-bs-target="#installModal" data-app="${safeName}">
                                     <div class="btn-mark bg-success"></div>Upgrade
                                 </a></li>
-                                <li title="Rollback App"><a class="dropdown-item action-rollback" href="#" data-app="${appName}">
+                                <li title="Rollback App"><a class="dropdown-item action-rollback" href="#" data-app="${safeName}">
                                     <div class="btn-mark bg-warning"></div>Rollback
                                 </a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li title="Uninstall App"><a class="dropdown-item text-danger action-delete" href="#" data-app="${appName}">
-                                    <div class="btn-mark bg-danger"></div>Uninstall
-                                </a></li>
+                                ${uninstallItem}
                             </ul>
                         </div>
                     </td>
@@ -139,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     logoutButton.addEventListener('click', async () => {
-        await fetch('/glade/logout', { method: 'POST', credentials: 'include' });
+        await GladeCsrf.fetch('/glade/logout', { method: 'POST', credentials: 'include' });
         window.location.href = '/glade/login.html';
     });
 
@@ -167,11 +179,9 @@ document.addEventListener('DOMContentLoaded', () => {
             openPermissionsModal(appName);
         }
         else if (target.classList.contains('action-upgrade')) {
-            // Note: Modal is also triggered by data-bs-* attributes
-            installModalTitle.textContent = `Upgrade Application: ${appName}`;
-            appNameInput.value = appName;
-            appNameInput.readOnly = true;
-            installModeInput.dataset.mode = 'upgrade';
+            // Modal is opened via data-bs-toggle/target; install vs upgrade mode is
+            // applied in show.bs.modal from event.relatedTarget (action-upgrade).
+            event.preventDefault();
         }
         else if (target.classList.contains('action-reload')) {
             modalTitle.textContent = `Reload Application`;
@@ -187,6 +197,17 @@ document.addEventListener('DOMContentLoaded', () => {
             openRollbackModal(appName);
         }
         else if (target.classList.contains('action-delete')) {
+            if (
+                String(appName).toLowerCase() === 'glade' ||
+                (typeof GladeInstallModalMode !== 'undefined' &&
+                    GladeInstallModalMode.isReservedAppName &&
+                    GladeInstallModalMode.isReservedAppName(appName))
+            ) {
+                alert(
+                    `Cannot uninstall reserved application '${appName}'. The Glade control plane is protected.`
+                );
+                return;
+            }
             modalTitle.textContent = `Delete Application`;
             modalBodyText.textContent = `Are you sure you want to permanently delete the application '${appName}'? This action cannot be undone.`;
             modalConfirmButton.className = 'btn btn-danger';
@@ -282,11 +303,13 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('appName', appNameInput.value);
             formData.append('permissions', JSON.stringify(grantedPermissions));
 
-            const installOrUpgrade = installModeInput.dataset.mode; // 'install' or 'upgrade'
-            const url = installOrUpgrade === 'install' ? '/glade/api/install' : '/glade/api/upgrade';
+            // Lifecycle mode lives on dataset.mode ('install' | 'upgrade').
+            // installModeInput.value is only the wizard step (initial-upload | wizard-confirm).
+            const lifecycle = GladeInstallModalMode.getInstallLifecycleMode(installModeInput);
+            const url = GladeInstallModalMode.lifecycleApiUrl(lifecycle);
 
             // Step 5: Send the final, configured package to the server.
-            const response = await fetch(url, {
+            const response = await GladeCsrf.fetch(url, {
                 method: 'POST',
                 body: formData,
                 credentials: 'include'
@@ -294,7 +317,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.message || 'An unknown server error occurred during installation.');
+                throw new Error(
+                    errData.message ||
+                        `An unknown server error occurred during ${lifecycle}.`
+                );
             }
 
             installModal.hide();
@@ -309,15 +335,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorDiv.className = 'alert alert-danger mt-3';
                 confirmPane.appendChild(errorDiv);
             }
-            errorDiv.textContent = `Installation Failed: ${error.message}`;
+            const lifecycle = GladeInstallModalMode.getInstallLifecycleMode(installModeInput);
+            const label = lifecycle === 'upgrade' ? 'Upgrade' : 'Installation';
+            errorDiv.textContent = `${label} Failed: ${error.message}`;
         } finally {
             setInstallButtonLoading(false);
         }
     });
 
+    /**
+     * Apply install vs upgrade chrome after resetInstallModal().
+     * @param {'install'|'upgrade'} mode
+     * @param {string|null} [appName]
+     */
+    function applyInstallModalMode(mode, appName) {
+        if (mode === 'upgrade' && appName) {
+            installModalTitle.textContent = `Upgrade Application: ${appName}`;
+            appNameInput.value = appName;
+            appNameInput.readOnly = true;
+            installModeInput.dataset.mode = 'upgrade';
+            if (installButtonText) installButtonText.textContent = 'Upgrade';
+        } else {
+            installModalTitle.textContent = 'Install Application';
+            if (appNameInput) {
+                appNameInput.readOnly = false;
+            }
+            installModeInput.dataset.mode = 'install';
+            if (installButtonText) installButtonText.textContent = 'Install';
+        }
+    }
 
+    // Legacy form submit path (wizard uses installConfirmButton). Keep dataset.mode in sync.
     installForm.addEventListener('submit', async (event) => {
         event.preventDefault();
+        // If wizard confirm path is active, let the confirm button handler own the flow.
+        if (installModeInput.value === 'wizard-confirm') {
+            installConfirmButton.click();
+            return;
+        }
         setInstallButtonLoading(true);
 
         try {
@@ -330,10 +385,10 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('appName', appNameInput.value);
             formData.append('permissions', JSON.stringify(grantedPermissions));
 
-            const mode = installModeInput.value;
-            const url = mode === 'install' ? '/glade/api/install' : '/glade/api/upgrade';
+            const lifecycle = GladeInstallModalMode.getInstallLifecycleMode(installModeInput);
+            const url = GladeInstallModalMode.lifecycleApiUrl(lifecycle);
 
-            const response = await fetch(url, { method: 'POST', body: formData, credentials: 'include' });
+            const response = await GladeCsrf.fetch(url, { method: 'POST', body: formData, credentials: 'include' });
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.message || 'An unknown server error occurred.');
@@ -343,7 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchAndRenderApps();
 
         } catch (error) {
-            alert(`Installation Failed: ${error.message}`); // Simple error for now
+            const lifecycle = GladeInstallModalMode.getInstallLifecycleMode(installModeInput);
+            const label = lifecycle === 'upgrade' ? 'Upgrade' : 'Installation';
+            alert(`${label} Failed: ${error.message}`);
         } finally {
             setInstallButtonLoading(false);
         }
@@ -355,7 +412,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         hideInstallError();
 
-        if (appNameInput) appNameInput.value = '';
+        if (appNameInput) {
+            appNameInput.value = '';
+            appNameInput.readOnly = false;
+        }
         if (packageFileInput) packageFileInput.value = '';
 
         installStep1.classList.remove('d-none');
@@ -376,6 +436,10 @@ document.addEventListener('DOMContentLoaded', () => {
         wizardNextBtn.classList.add('d-none');
         installConfirmButton.classList.remove('d-none');
 
+        // Default lifecycle until show.bs.modal applies install/upgrade
+        if (installModeInput) installModeInput.dataset.mode = 'install';
+        if (installButtonText) installButtonText.textContent = 'Install';
+
         // Reset and disable tabs
         installWizardTabs.perms.show();
         document.getElementById('tab-link-db').classList.add('disabled');
@@ -385,23 +449,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('installModal').addEventListener('show.bs.modal', (event) => {
         resetInstallModal();
 
-        // Determine if we are in 'install' or 'upgrade' mode from the button that triggered the modal
-        const button = event.relatedTarget;
-        if (button && button.classList.contains('btn-upgrade')) {
-            const appName = button.dataset.app;
-            installModalTitle.textContent = `Upgrade Application: ${appName}`;
-            appNameInput.value = appName;
-            appNameInput.readOnly = true;
-            installModeInput.dataset.mode = 'upgrade';
-            installButtonText.textContent = 'Upgrade';
-        } else {
-            installModalTitle.textContent = 'Install Application';
-            appNameInput.readOnly = false;
-            installModeInput.dataset.mode = 'install';
-            installButtonText.textContent = 'Install';
-        }
+        // relatedTarget is the Install button or the Upgrade dropdown item (action-upgrade).
+        const resolved = GladeInstallModalMode.resolveInstallModalMode(event.relatedTarget);
+        applyInstallModalMode(resolved.mode, resolved.appName);
 
-        // Set the initial state for the button handler.
+        // Wizard step state (not lifecycle)
         installModeInput.value = 'initial-upload';
     });
 
@@ -424,8 +476,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Step 1 & 2: Fetch both backup analysis and current permissions concurrently
             const [analysisRes, currentPermsRes] = await Promise.all([
-                fetch(`/glade/api/analyze-backup?app=${appName}`, { credentials: 'include' }),
-                fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' })
+                GladeCsrf.fetch(`/glade/api/analyze-backup?app=${appName}`, { credentials: 'include' }),
+                GladeCsrf.fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' })
             ]);
 
             if (!analysisRes.ok || !currentPermsRes.ok) {
@@ -447,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const toGrant = [...backupMandatory].filter(p => !currentGranted.has(p));
 
             let diffHtml = `
-                <p>This will roll back the application to <strong>version ${analysis.version}</strong>.</p>
+                <p>This will roll back the application to <strong>version ${escapeHtml(analysis.version)}</strong>.</p>
                 <p>Please review the following permission changes:</p>
             `;
 
@@ -455,10 +507,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 diffHtml += '<div class="alert alert-success">No permission changes are required for this rollback.</div>';
             } else {
                 if (toGrant.length > 0) {
-                    diffHtml += '<p class="text-success"><strong>Permissions to be GRANTED:</strong> ' + toGrant.join(', ') + '</p>';
+                    diffHtml +=
+                        '<p class="text-success"><strong>Permissions to be GRANTED:</strong> ' +
+                        toGrant.map((p) => escapeHtml(p)).join(', ') +
+                        '</p>';
                 }
                 if (toRevoke.length > 0) {
-                    diffHtml += '<p class="text-danger"><strong>Permissions to be REVOKED:</strong> ' + toRevoke.join(', ') + '</p>';
+                    diffHtml +=
+                        '<p class="text-danger"><strong>Permissions to be REVOKED:</strong> ' +
+                        toRevoke.map((p) => escapeHtml(p)).join(', ') +
+                        '</p>';
                 }
             }
             diffHtml += '<p class="mt-3">Do you approve these changes and want to proceed?</p>';
@@ -470,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalConfirmButton.disabled = false;
 
         } catch (error) {
-            modalBodyText.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            modalBodyText.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -478,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setConfirmButtonLoading(true);
         try {
             // Step 5: Execute the rollback with the final, approved permission set
-            const response = await fetch('/glade/api/rollback', {
+            const response = await GladeCsrf.fetch('/glade/api/rollback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -515,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         permissionsModal.show();
 
         try {
-            const response = await fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' });
+            const response = await GladeCsrf.fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' });
             if (!response.ok) throw new Error('Failed to load permissions data.');
 
             const data = await response.json();
@@ -523,7 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderPermissionsForm(data.allPermissions, data.grantedPermissions);
         } catch (error) {
-            permissionsModalBody.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+            permissionsModalBody.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -535,13 +593,16 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const key in allPermissions) {
             const description = allPermissions[key];
             const isChecked = grantedPermissions.includes(key);
+            const safeKey = escapeHtml(key);
+            const safeDesc = escapeHtml(description);
+            const idSafe = String(key).replace(/[^a-zA-Z0-9_-]/g, '_') || 'perm';
 
             const div = document.createElement('div');
             div.className = 'form-check mb-2';
             div.innerHTML = `
-                <input class="form-check-input" type="checkbox" value="${key}" id="perm-${key}" ${isChecked ? 'checked' : ''}>
-                <label class="form-check-label" for="perm-${key}">
-                    <strong>${key}</strong>: ${description}
+                <input class="form-check-input" type="checkbox" value="${safeKey}" id="perm-${escapeHtml(idSafe)}" ${isChecked ? 'checked' : ''}>
+                <label class="form-check-label" for="perm-${escapeHtml(idSafe)}">
+                    <strong>${safeKey}</strong>: ${safeDesc}
                 </label>
             `;
             form.appendChild(div);
@@ -557,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newPermissions = Array.from(checkboxes).map(cb => cb.value);
 
         try {
-            const response = await fetch('/glade/api/set-permissions', {
+            const response = await GladeCsrf.fetch('/glade/api/set-permissions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -600,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function reloadApp(appName) {
         setConfirmButtonLoading(true);
         try {
-            const response = await fetch(`/glade/api/reload-app?app=${appName}`, { method: 'POST', credentials: 'include' });
+            const response = await GladeCsrf.fetch(`/glade/api/reload-app?app=${appName}`, { method: 'POST', credentials: 'include' });
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.message || 'Reload failed on the server.');
@@ -621,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- API Call Functions ---
     async function deleteAapp(appName) {
         try {
-            const response = await fetch(`/glade/api/delete?app=${appName}`, { method: 'DELETE', credentials: 'include' });
+            const response = await GladeCsrf.fetch(`/glade/api/delete?app=${appName}`, { method: 'DELETE', credentials: 'include' });
             if (!response.ok) throw new Error('Failed to delete application.');
             fetchAndRenderApps(); // Refresh the list
         } catch (error) {
@@ -665,11 +726,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function escapeHtml(s) {
+        if (typeof GladeEscape !== 'undefined' && GladeEscape.escapeHtml) {
+            return GladeEscape.escapeHtml(s);
+        }
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     // --- Logs Admin ---
@@ -775,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function ensureLogsAppsLoaded() {
         if (!logsApp || logsApp.options.length > 0) return;
         try {
-            const res = await fetch('/glade/api/apps', { credentials: 'include' });
+            const res = await GladeCsrf.fetch('/glade/api/apps', { credentials: 'include' });
             if (res.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -805,7 +870,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const listQs = new URLSearchParams({ scope });
             if (appName) listQs.set('appName', appName);
-            const listRes = await fetch(`/glade/api/logs-list?${listQs}`, { credentials: 'include' });
+            const listRes = await GladeCsrf.fetch(`/glade/api/logs-list?${listQs}`, { credentials: 'include' });
             if (listRes.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -845,7 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 readQs.set('q', logsSearch.value.trim());
             }
 
-            const readRes = await fetch(`/glade/api/logs-read?${readQs}`, { credentials: 'include' });
+            const readRes = await GladeCsrf.fetch(`/glade/api/logs-read?${readQs}`, { credentials: 'include' });
             if (readRes.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -1026,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showScheduleError('');
         showScheduleInfo('');
         try {
-            const res = await fetch('/glade/api/schedule-list', { credentials: 'include' });
+            const res = await GladeCsrf.fetch('/glade/api/schedule-list', { credentials: 'include' });
             if (res.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -1086,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScheduleError('');
                 showScheduleInfo('');
                 runBtn.disabled = true;
-                const res = await fetch('/glade/api/schedule-run', {
+                const res = await GladeCsrf.fetch('/glade/api/schedule-run', {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
@@ -1218,9 +1283,9 @@ document.addEventListener('DOMContentLoaded', () => {
         showQueueError('');
         try {
             const [statsRes, liveRes, dlqRes] = await Promise.all([
-                fetch('/glade/api/queue-stats', { credentials: 'include' }),
-                fetch('/glade/api/queue-live-list?limit=200', { credentials: 'include' }),
-                fetch('/glade/api/queue-dlq-list?limit=200', { credentials: 'include' })
+                GladeCsrf.fetch('/glade/api/queue-stats', { credentials: 'include' }),
+                GladeCsrf.fetch('/glade/api/queue-live-list?limit=200', { credentials: 'include' }),
+                GladeCsrf.fetch('/glade/api/queue-dlq-list?limit=200', { credentials: 'include' })
             ]);
             if (statsRes.status === 401 || liveRes.status === 401 || dlqRes.status === 401) {
                 window.location.href = '/glade/login.html';
@@ -1318,7 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showQueueError('');
                 if (retryBtn) {
                     retryBtn.disabled = true;
-                    const res = await fetch('/glade/api/queue-dlq-retry', {
+                    const res = await GladeCsrf.fetch('/glade/api/queue-dlq-retry', {
                         method: 'POST',
                         credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },
@@ -1331,7 +1396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (discardBtn) {
                     if (!confirm('Discard this dead-letter job permanently?')) return;
                     discardBtn.disabled = true;
-                    const res = await fetch('/glade/api/queue-dlq-discard', {
+                    const res = await GladeCsrf.fetch('/glade/api/queue-dlq-discard', {
                         method: 'POST',
                         credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },

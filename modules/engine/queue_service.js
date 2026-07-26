@@ -7,7 +7,7 @@
 const path = require('path');
 const fs = require('fs');
 const { als } = require('../gingee.js');
-const { runInGBox } = require('../gbox.js');
+const { runInGBox, resolveAllowDynamicCodeForApp } = require('../gbox.js');
 const { isPathInside } = require('../internal_utils.js');
 const metrics = require('../metrics.js');
 const { createMemoryDriver } = require('../queue_drivers/memory.js');
@@ -23,6 +23,19 @@ const DEFAULTS = {
   default_backoff_ms: 1000,
   /** Default script dir under box/ when job name has no mapping */
   jobs_dir: 'jobs',
+  /**
+   * Redis claim lease (ms). Stale processing entries are reclaimed after this.
+   * Long-running jobs should complete within this window (extendVisibility is called at start).
+   */
+  visibility_timeout_ms: 300000,
+  /** Max wait for in-flight jobs on graceful shutdown (ms). */
+  shutdown_drain_ms: 30000,
+  /**
+   * When driver is "redis" and Redis cannot be reached:
+   * - true (default): do **not** fall back to memory; init throws (server boot fails).
+   * - false: log error and fall back to in-process memory (dev convenience only; breaks multi-node).
+   */
+  fail_closed: true,
   redis: {
     url: null,
     host: '127.0.0.1',
@@ -32,6 +45,18 @@ const DEFAULTS = {
     key_prefix: 'gingee:queue:'
   }
 };
+
+/**
+ * @param {*} v
+ * @param {boolean} defaultVal
+ * @returns {boolean}
+ */
+function parseFailClosed(v, defaultVal) {
+  if (v === undefined || v === null || v === '') return defaultVal;
+  if (v === true || v === 'true' || v === 1 || v === '1') return true;
+  if (v === false || v === 'false' || v === 0 || v === '0') return false;
+  return defaultVal;
+}
 
 /** @type {object} */
 let serverConfig = { ...DEFAULTS, redis: { ...DEFAULTS.redis } };
@@ -71,6 +96,8 @@ async function initServer(cfg, logger, globalConfig) {
   serverLogger = logger || console;
   globalConfigRef = globalConfig || null;
   const c = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : {};
+  const visMs = Number(c.visibility_timeout_ms);
+  const drainMs = Number(c.shutdown_drain_ms);
   serverConfig = {
     enabled: c.enabled !== false,
     driver: (c.driver && String(c.driver).toLowerCase()) || DEFAULTS.driver,
@@ -78,6 +105,12 @@ async function initServer(cfg, logger, globalConfig) {
     default_attempts: positiveInt(c.default_attempts, DEFAULTS.default_attempts),
     default_backoff_ms: positiveInt(c.default_backoff_ms, DEFAULTS.default_backoff_ms),
     jobs_dir: (c.jobs_dir && String(c.jobs_dir).trim()) || DEFAULTS.jobs_dir,
+    visibility_timeout_ms:
+      Number.isFinite(visMs) && visMs >= 1000 ? Math.floor(visMs) : DEFAULTS.visibility_timeout_ms,
+    shutdown_drain_ms:
+      Number.isFinite(drainMs) && drainMs >= 0 ? Math.floor(drainMs) : DEFAULTS.shutdown_drain_ms,
+    // Redis: fail closed by default (no silent memory split-brain)
+    fail_closed: parseFailClosed(c.fail_closed, DEFAULTS.fail_closed),
     redis: {
       ...DEFAULTS.redis,
       ...(c.redis && typeof c.redis === 'object' ? c.redis : {})
@@ -86,12 +119,18 @@ async function initServer(cfg, logger, globalConfig) {
 
   if (driver) {
     try {
-      await driver.shutdown();
+      await shutdown({ force: true, drainMs: 0 });
     } catch (_) {
       /* ignore */
     }
     driver = null;
   }
+
+  // Reset local runtime state for re-init
+  waitQueue.length = 0;
+  activeJobs.clear();
+  inFlight = 0;
+  processing = false;
 
   if (!serverConfig.enabled) {
     log().info('[queue] Disabled (queue.enabled is false).');
@@ -108,13 +147,28 @@ async function initServer(cfg, logger, globalConfig) {
       driver = createRedisDriver({
         redis: serverConfig.redis,
         keyPrefix: serverConfig.redis.key_prefix || DEFAULTS.redis.key_prefix,
+        visibilityTimeoutMs: serverConfig.visibility_timeout_ms,
         onReady,
         logger: log()
       });
       await driver.start();
-      log().info('[queue] Redis driver started');
+      log().info(
+        `[queue] Redis driver started visibility_timeout_ms=${serverConfig.visibility_timeout_ms} fail_closed=${serverConfig.fail_closed}`
+      );
     } catch (e) {
-      log().error(`[queue] Redis driver failed (${e.message}); falling back to memory`);
+      driver = null;
+      if (serverConfig.fail_closed !== false) {
+        const err = new Error(
+          `[queue] Redis driver failed and fail_closed=true (no memory fallback): ${e.message}`
+        );
+        err.code = 'QUEUE_REDIS_FAIL_CLOSED';
+        err.cause = e;
+        log().error(err.message);
+        throw err;
+      }
+      log().error(
+        `[queue] Redis driver failed (${e.message}); fail_closed=false — falling back to memory (NOT multi-node safe)`
+      );
       driver = createMemoryDriver({ onReady, logger: log() });
       await driver.start();
     }
@@ -125,7 +179,7 @@ async function initServer(cfg, logger, globalConfig) {
   }
 
   log().info(
-    `[queue] enabled driver=${driver.name} concurrency=${serverConfig.concurrency}`
+    `[queue] enabled driver=${driver.name} concurrency=${serverConfig.concurrency} drain_ms=${serverConfig.shutdown_drain_ms}`
   );
 }
 
@@ -249,7 +303,7 @@ async function runPump() {
       processOne(job)
         .catch((e) => log().error(`[queue] process error: ${e.message}`))
         .finally(() => {
-          inFlight--;
+          inFlight = Math.max(0, inFlight - 1);
           activeJobs.delete(job.id);
           pump();
         });
@@ -266,6 +320,15 @@ async function runPump() {
  * @param {object} job
  */
 async function processOne(job) {
+  // Refresh redis visibility lease for long-running handlers
+  if (driver && typeof driver.extendVisibility === 'function') {
+    try {
+      await driver.extendVisibility(job.id);
+    } catch (e) {
+      log().warn(`[queue] extendVisibility failed id=${job.id}: ${e.message}`);
+    }
+  }
+
   const app = appsRegistry && appsRegistry[job.appName];
   if (!app) {
     log().error(`[queue] No app '${job.appName}' for job ${job.id}; dropping.`);
@@ -281,6 +344,7 @@ async function processOne(job) {
     log().warn(`[queue] App '${app.name}' in maintenance; delaying job ${job.id}`);
     try {
       // Same attempt; short delay until app is out of maintenance
+      // enqueue clears processing claim and re-schedules
       await driver.enqueue({
         ...job,
         delayMs: 2000,
@@ -326,7 +390,7 @@ async function processOne(job) {
     useCache: true,
     logger: app.logger || log(),
     globalConfig: cfg,
-    allowCodeGeneration: !cfg.box || cfg.box.allow_code_generation !== false
+    allowDynamicCode: resolveAllowDynamicCodeForApp(cfg.box, app.config)
   };
 
   const started = Date.now();
@@ -456,11 +520,13 @@ async function getAdminStats() {
   }
   let pending = null;
   let delayed = null;
+  let processingCount = null;
   if (driver && typeof driver.pendingCounts === 'function') {
     try {
       const c = await driver.pendingCounts();
       pending = c.pending;
       delayed = c.delayed;
+      processingCount = c.processing != null ? c.processing : null;
     } catch (_) {
       /* ignore */
     }
@@ -472,6 +538,10 @@ async function getAdminStats() {
     pendingCount: pending,
     /** Driver-level delayed count */
     delayedCount: delayed,
+    /** Redis processing ZSET (claimed leases); null for memory */
+    processingCount,
+    visibility_timeout_ms: serverConfig.visibility_timeout_ms,
+    shutdown_drain_ms: serverConfig.shutdown_drain_ms,
     default_attempts: serverConfig.default_attempts,
     default_backoff_ms: serverConfig.default_backoff_ms
   };
@@ -605,9 +675,82 @@ async function discardDlqJob(jobId) {
   return ok;
 }
 
-async function shutdown() {
-  waitQueue.length = 0;
+/**
+ * Graceful shutdown:
+ * 1. Stop claiming new jobs
+ * 2. Return waitQueue claims to the driver (redis ready list)
+ * 3. Wait up to drainMs for in-flight handlers
+ * 4. Force-release remaining active claims
+ * 5. Disconnect driver
+ *
+ * @param {object} [opts]
+ * @param {number} [opts.drainMs] - override shutdown_drain_ms
+ * @param {boolean} [opts.force] - skip drain wait (tests / re-init)
+ */
+async function shutdown(opts = {}) {
+  const drainMs =
+    opts.drainMs != null
+      ? Math.max(0, Number(opts.drainMs) || 0)
+      : serverConfig.shutdown_drain_ms != null
+        ? serverConfig.shutdown_drain_ms
+        : DEFAULTS.shutdown_drain_ms;
+  const force = opts.force === true;
+
+  // 1) Stop new claims
+  if (driver && typeof driver.stopConsuming === 'function') {
+    try {
+      await driver.stopConsuming();
+    } catch (e) {
+      log().warn(`[queue] stopConsuming: ${e.message}`);
+    }
+  }
+
+  // 2) Drain local wait queue back to driver (do not drop redis claims)
+  const pendingLocal = waitQueue.splice(0, waitQueue.length);
+  for (const job of pendingLocal) {
+    try {
+      if (driver && typeof driver.releaseClaim === 'function') {
+        await driver.releaseClaim(job);
+      }
+    } catch (e) {
+      log().error(`[queue] releaseClaim waitQueue id=${job && job.id}: ${e.message}`);
+    }
+  }
+
+  // 3) Wait for in-flight handlers
+  if (!force && drainMs > 0 && inFlight > 0) {
+    log().info(`[queue] Draining ${inFlight} in-flight job(s) (max ${drainMs}ms)...`);
+    const start = Date.now();
+    while (inFlight > 0 && Date.now() - start < drainMs) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    if (inFlight > 0) {
+      log().warn(
+        `[queue] Drain timeout with ${inFlight} job(s) still running; releasing claims`
+      );
+    }
+  }
+
+  // 4) Force-release any remaining active claims so another node can reclaim
+  const stillActive = [...activeJobs.values()];
+  for (const job of stillActive) {
+    try {
+      if (driver && typeof driver.releaseClaim === 'function') {
+        await driver.releaseClaim(job);
+      }
+    } catch (e) {
+      log().error(`[queue] releaseClaim active id=${job && job.id}: ${e.message}`);
+    }
+  }
   activeJobs.clear();
+  // Note: inFlight may still be > 0 if handlers haven't finished after drain timeout;
+  // processOne finally clamps. Force re-init zeros counters in initServer.
+  if (force) {
+    inFlight = 0;
+  }
+  processing = false;
+
+  // 5) Disconnect driver
   if (driver) {
     try {
       await driver.shutdown();

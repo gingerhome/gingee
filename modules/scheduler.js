@@ -3,7 +3,7 @@ const fs = require('fs');
 const { Cron } = require('croner');
 const axios = require('axios');
 const { als } = require('./gingee.js');
-const { runInGBox } = require('./gbox.js');
+const { runInGBox, resolveAllowDynamicCodeForApp } = require('./gbox.js');
 const { isPathInside } = require('./internal_utils.js');
 const egress = require('./egress.js');
 const {
@@ -271,10 +271,10 @@ async function executeScriptJob(app, job, runMeta) {
     useCache: true,
     logger: app.logger || log(),
     globalConfig: globalConfigRef,
-    allowCodeGeneration:
-      !globalConfigRef ||
-      !globalConfigRef.box ||
-      globalConfigRef.box.allow_code_generation !== false
+    allowDynamicCode: resolveAllowDynamicCodeForApp(
+      globalConfigRef && globalConfigRef.box,
+      app && app.config
+    )
   };
 
   const scheduleMeta = {
@@ -288,6 +288,9 @@ async function executeScriptJob(app, job, runMeta) {
     path: job.target.path
   };
 
+  const signal = runMeta && runMeta.signal;
+  const abortController = runMeta && runMeta.abortController;
+
   await als.run(
     {
       appName: app.name,
@@ -298,9 +301,18 @@ async function executeScriptJob(app, job, runMeta) {
       scriptFolder: path.dirname(fullScriptPath),
       isSchedule: true,
       scheduleMeta,
-      schedulePayload: job.payload !== undefined ? job.payload : null
+      schedulePayload: job.payload !== undefined ? job.payload : null,
+      // Cooperative cancel for schedule timeout (M5) — httpclient respects requestAbortSignal.
+      requestAbortSignal: signal || null,
+      requestAbortController: abortController || null,
+      requestDeadline:
+        job.timeout_ms != null ? Date.now() + Number(job.timeout_ms) : null,
+      requestStartedAt: Date.now()
     },
     async () => {
+      if (signal && signal.aborted) {
+        throw new Error(`Schedule job '${job.name}' aborted before start`);
+      }
       const scriptModule = runInGBox(fullScriptPath, gBoxConfig);
       if (typeof scriptModule !== 'function') {
         throw new Error(`Scheduled script ${job.target.path} did not export a function.`);
@@ -352,12 +364,17 @@ async function executeQueueJob(app, job, runMeta) {
   return result;
 }
 
-async function executeUrlJob(app, job) {
+async function executeUrlJob(app, job, runMeta) {
   const perms = granted(app);
   if (!perms.includes('httpclient')) {
     throw new Error(
       `Schedule '${job.name}' URL target requires the "httpclient" permission for app '${app.name}'.`
     );
+  }
+
+  const signal = runMeta && runMeta.signal;
+  if (signal && signal.aborted) {
+    throw new Error(`Schedule job '${job.name}' aborted before URL fetch`);
   }
 
   const allowed = await egress.assertUrlAllowed(job.target.url);
@@ -378,8 +395,12 @@ async function executeUrlJob(app, job) {
     maxRedirects: egress.getMaxRedirects(),
     beforeRedirect: egress.beforeRedirect,
     responseType: 'text',
-    transitional: { clarifyTimeoutError: true }
+    transitional: { clarifyTimeoutError: true },
+    // M5: abort in-flight axios when schedule times out.
+    ...(signal ? { signal } : {})
   };
+  // Pin TCP connect to policy-validated addresses (H13).
+  egress.applyConnectPin(config, allowed);
 
   if (job.target.body !== undefined && method !== 'GET' && method !== 'HEAD') {
     if (
@@ -498,33 +519,66 @@ async function runJob(app, runtime, opts) {
 
   let timeoutHandle = null;
   let timedOut = false;
+  // M5: abort cooperative work (URL axios / script httpclient) on timeout.
+  const abortController = new AbortController();
+  runtime.abortController = abortController;
+
+  const runMeta = {
+    runId,
+    scheduledAt,
+    signal: abortController.signal,
+    abortController
+  };
 
   const work = (async () => {
     if (job.target.type === 'script') {
-      await executeScriptJob(app, job, { runId, scheduledAt });
+      await executeScriptJob(app, job, runMeta);
     } else if (job.target.type === 'queue') {
-      await executeQueueJob(app, job, { runId, scheduledAt });
+      await executeQueueJob(app, job, runMeta);
     } else {
-      await executeUrlJob(app, job);
+      await executeUrlJob(app, job, runMeta);
     }
   })();
 
   const timeoutPromise = new Promise((_, reject) => {
     timeoutHandle = setTimeout(() => {
       timedOut = true;
+      try {
+        if (!abortController.signal.aborted) {
+          abortController.abort(
+            new Error(`Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`)
+          );
+        }
+      } catch (_) {
+        try {
+          abortController.abort();
+        } catch (__) {
+          /* ignore */
+        }
+      }
       reject(new Error(`Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`));
     }, job.timeout_ms);
   });
 
   try {
     await Promise.race([work, timeoutPromise]);
-    runtime.lastStatus = 'ok';
-    runtime.lastFinishedAt = new Date().toISOString();
-    logger.info(
-      `[scheduler] Job '${job.name}' for app '${app.name}' completed successfully.`
-    );
+    // If abort won a race with a still-resolving work promise, prefer timeout status.
+    if (timedOut || abortController.signal.aborted) {
+      runtime.lastStatus = 'timeout';
+      runtime.lastError = `Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`;
+      runtime.lastFinishedAt = new Date().toISOString();
+      logger.error(
+        `[scheduler] Job '${job.name}' for app '${app.name}' failed: ${runtime.lastError}`
+      );
+    } else {
+      runtime.lastStatus = 'ok';
+      runtime.lastFinishedAt = new Date().toISOString();
+      logger.info(
+        `[scheduler] Job '${job.name}' for app '${app.name}' completed successfully.`
+      );
+    }
   } catch (err) {
-    runtime.lastStatus = timedOut ? 'timeout' : 'error';
+    runtime.lastStatus = timedOut || abortController.signal.aborted ? 'timeout' : 'error';
     runtime.lastError = err.message || String(err);
     runtime.lastFinishedAt = new Date().toISOString();
     logger.error(
@@ -536,12 +590,14 @@ async function runJob(app, runtime, opts) {
   }
 
   // Wait for underlying work to settle so overlap protection stays accurate.
+  // Abort should make URL/httpclient stop promptly; scripts still cooperate via signal.
   try {
     await work;
   } catch (_) {
     /* already logged if this was the race winner */
   }
   runtime.running = false;
+  runtime.abortController = null;
 }
 
 /**

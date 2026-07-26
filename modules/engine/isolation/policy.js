@@ -24,6 +24,12 @@ const ISOLATION_DEFAULTS = {
   worker_ready_timeout_ms: 15000,
   /** Master waits this long for a worker HTTP result (buffered) */
   request_timeout_ms: 120000,
+  /**
+   * When a worker HTTP request times out, master always sends `cancel_request` IPC.
+   * If true, also SIGTERM the worker process (aggressive; other in-flight requests die).
+   * Default false — cooperative cancel via AbortSignal in the worker is preferred (M4).
+   */
+  kill_worker_on_request_timeout: false,
   /** Auto-restart workers after unexpected exit */
   auto_restart: true,
   /** Max automatic restarts before giving up (reset after stable period) */

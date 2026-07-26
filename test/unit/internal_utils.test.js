@@ -1,7 +1,10 @@
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { als } = require('../../modules/gingee');
 const {
     resolveSecurePath,
+    resolveRealPath,
     SCOPES,
     isPathInside,
     loadOptional
@@ -62,6 +65,85 @@ describe('internal_utils.js - isPathInside', () => {
         const nested = 'c:\\project\\web\\app1\\box\\file.js';
         expect(isPathInside(nested, boundary)).toBe(true);
         expect(isPathInside('c:\\project\\web\\app10\\box\\file.js', boundary)).toBe(false);
+    });
+});
+
+describe('internal_utils.js - realpath jails (H12)', () => {
+    let tmpRoot;
+    let jail;
+    let outside;
+
+    beforeEach(() => {
+        tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gingee-jail-'));
+        jail = path.join(tmpRoot, 'jail');
+        outside = path.join(tmpRoot, 'outside');
+        fs.mkdirSync(jail, { recursive: true });
+        fs.mkdirSync(outside, { recursive: true });
+        fs.writeFileSync(path.join(outside, 'secret.txt'), 'top-secret');
+        fs.writeFileSync(path.join(jail, 'ok.txt'), 'safe');
+    });
+
+    afterEach(() => {
+        try {
+            fs.rmSync(tmpRoot, { recursive: true, force: true });
+        } catch (_) {
+            /* best-effort cleanup */
+        }
+    });
+
+    test('resolveRealPath expands intermediate symlinks for missing leaf', () => {
+        // Skip if platform cannot create symlinks without elevation (older Windows).
+        const linkDir = path.join(jail, 'escape');
+        try {
+            fs.symlinkSync(outside, linkDir, 'dir');
+        } catch (e) {
+            if (e.code === 'EPERM' || e.code === 'EACCES' || e.code === 'ENOTSUP') {
+                return;
+            }
+            throw e;
+        }
+        const missingLeaf = path.join(linkDir, 'nope.txt');
+        const real = resolveRealPath(missingLeaf);
+        expect(real).toBe(path.join(fs.realpathSync(outside), 'nope.txt'));
+        expect(isPathInside(missingLeaf, jail)).toBe(false);
+    });
+
+    test('isPathInside rejects symlink that points outside the jail', () => {
+        const linkPath = path.join(jail, 'evil_link');
+        try {
+            fs.symlinkSync(path.join(outside, 'secret.txt'), linkPath, 'file');
+        } catch (e) {
+            if (e.code === 'EPERM' || e.code === 'EACCES' || e.code === 'ENOTSUP') {
+                return;
+            }
+            throw e;
+        }
+        // Lexical path looks inside jail; realpath is outside.
+        expect(linkPath.startsWith(jail)).toBe(true);
+        expect(isPathInside(linkPath, jail)).toBe(false);
+        expect(isPathInside(path.join(jail, 'ok.txt'), jail)).toBe(true);
+    });
+
+    test('isPathInside rejects directory symlink escape even for non-existent child', () => {
+        const linkDir = path.join(jail, 'out_dir');
+        try {
+            fs.symlinkSync(outside, linkDir, 'dir');
+        } catch (e) {
+            if (e.code === 'EPERM' || e.code === 'EACCES' || e.code === 'ENOTSUP') {
+                return;
+            }
+            throw e;
+        }
+        expect(isPathInside(path.join(linkDir, 'secret.txt'), jail)).toBe(false);
+        expect(isPathInside(path.join(linkDir, 'nested', 'x.bin'), jail)).toBe(false);
+    });
+
+    test('isPathInside still allows normal nested files under a real jail', () => {
+        const nested = path.join(jail, 'sub', 'a.txt');
+        fs.mkdirSync(path.dirname(nested), { recursive: true });
+        fs.writeFileSync(nested, 'ok');
+        expect(isPathInside(nested, jail)).toBe(true);
+        expect(isPathInside(path.join(jail, 'sub', 'new-file.dat'), jail)).toBe(true);
     });
 });
 

@@ -135,15 +135,13 @@ function resolvedFileRoots() {
 }
 
 /**
- * Ensure candidate path is under an allowed root (isPathInside-style).
+ * Ensure candidate path is under an allowed root (realpath-aware isPathInside).
  * @private
  */
 function isUnderRoot(candidate, root) {
-  const c = path.resolve(candidate);
-  const r = path.resolve(root);
-  if (c === r) return true;
-  const prefix = r.endsWith(path.sep) ? r : r + path.sep;
-  return c.startsWith(prefix);
+  // Shared jail helper: lexical sibling-prefix safe + symlink realpath (H12).
+  const { isPathInside } = require('./internal_utils.js');
+  return isPathInside(candidate, root);
 }
 
 /**

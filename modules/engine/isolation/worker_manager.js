@@ -20,6 +20,8 @@ const {
   describeLimits
 } = require('./resource_limits.js');
 const { projectRoot } = require('../paths.js');
+const { allowDynamicCodeFromBox } = require('../../gbox.js');
+// Server default still passed at worker init; per-request apps re-resolve in app_worker
 
 /** workerKey → handle */
 /** @type {Map<string, object>} */
@@ -138,7 +140,7 @@ function buildInitPayload(workerKey, cfg, appNames) {
     privilegedApps: Array.isArray(cfg.privileged_apps) ? [...cfg.privileged_apps] : [],
     allowedBuiltinModules:
       cfg.box && Array.isArray(cfg.box.allowed_modules) ? [...cfg.box.allowed_modules] : [],
-    allowCodeGeneration: !cfg.box || cfg.box.allow_code_generation !== false,
+    allowDynamicCode: allowDynamicCodeFromBox(cfg.box),
     // Pass module defaults so the worker can re-init ai/email adapters
     // (process-local maps are empty in the child after fork).
     globalConfig: {
@@ -311,8 +313,9 @@ function onWorkerMessage(handle, msg) {
     return;
   }
 
-  // Streaming frames
+  // Streaming frames (ignore after master cancel/timeout — M4)
   if (msg.type === 'stream_start' && msg.requestId) {
+    if (isRequestCancelled(handle, msg.requestId)) return;
     const stream = handle.streams.get(msg.requestId);
     if (!stream || !stream.res || stream.res.headersSent) return;
     try {
@@ -331,6 +334,7 @@ function onWorkerMessage(handle, msg) {
   }
 
   if (msg.type === 'stream_chunk' && msg.requestId) {
+    if (isRequestCancelled(handle, msg.requestId)) return;
     const stream = handle.streams.get(msg.requestId);
     if (!stream || !stream.res) return;
     try {
@@ -343,6 +347,10 @@ function onWorkerMessage(handle, msg) {
   }
 
   if (msg.type === 'stream_end' && msg.requestId) {
+    if (isRequestCancelled(handle, msg.requestId)) {
+      handle.streams.delete(msg.requestId);
+      return;
+    }
     const stream = handle.streams.get(msg.requestId);
     const pending = handle.pending.get(msg.requestId);
     if (stream && stream.res && !stream.res.writableEnded) {
@@ -362,6 +370,10 @@ function onWorkerMessage(handle, msg) {
   }
 
   if (msg.type === 'stream_error' && msg.requestId) {
+    if (isRequestCancelled(handle, msg.requestId)) {
+      handle.streams.delete(msg.requestId);
+      return;
+    }
     const stream = handle.streams.get(msg.requestId);
     if (stream && stream.res && !stream.res.headersSent) {
       try {
@@ -389,6 +401,10 @@ function onWorkerMessage(handle, msg) {
   }
 
   if (msg.type === 'http_result' && msg.requestId) {
+    if (isRequestCancelled(handle, msg.requestId)) {
+      handle.streams.delete(msg.requestId);
+      return;
+    }
     // If stream frames already started, stream_end owns completion (ignore buffered result).
     // Streams map always has a slot per request; only `started` means real SSE path.
     const stream = handle.streams.get(msg.requestId);
@@ -402,6 +418,96 @@ function onWorkerMessage(handle, msg) {
     handle.streams.delete(msg.requestId);
     pending.resolve(msg);
   }
+}
+
+/**
+ * Cancel a single in-flight worker request on the master side (M4).
+ * Sends cancel IPC, ends the client response if still open, drops pending/stream
+ * bookkeeping, and optionally kills the worker process.
+ *
+ * @param {object} handle
+ * @param {string} requestId
+ * @param {object} [opts]
+ * @param {number} [opts.timeoutMs]
+ * @param {object} [opts.res] - original ServerResponse (fallback if stream map empty)
+ * @param {string} [opts.reason]
+ */
+function cancelWorkerRequest(handle, requestId, opts = {}) {
+  const reason = opts.reason || 'request cancelled';
+  const timeoutMs = opts.timeoutMs;
+  const pending = handle.pending.get(requestId);
+  if (pending && pending.timer) {
+    clearTimeout(pending.timer);
+  }
+  handle.pending.delete(requestId);
+
+  // Cooperative cancel: tell worker to abort ALS AbortSignal for this requestId.
+  try {
+    if (handle.child && typeof handle.child.send === 'function' && !handle.child.killed) {
+      handle.child.send({ type: 'cancel_request', requestId, reason });
+    }
+  } catch (e) {
+    log().warn(
+      `[isolation] Failed to send cancel_request for ${requestId}: ${e.message}`
+    );
+  }
+
+  const stream = handle.streams.get(requestId);
+  const res = (stream && stream.res) || opts.res || null;
+  if (res && !res.writableEnded) {
+    try {
+      if (!res.headersSent) {
+        res.statusCode = 504;
+        res.setHeader('Content-Type', 'text/plain');
+        res.end(
+          `GATEWAY_TIMEOUT - ${reason}${timeoutMs != null ? ` (${timeoutMs}ms)` : ''}`
+        );
+      } else {
+        res.end();
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  handle.streams.delete(requestId);
+
+  // Remember cancelled ids so late stream frames / results are ignored cleanly.
+  if (!handle.cancelledIds) handle.cancelledIds = new Set();
+  handle.cancelledIds.add(requestId);
+  // Bound memory: drop after a grace period
+  const dropTimer = setTimeout(() => {
+    try {
+      handle.cancelledIds && handle.cancelledIds.delete(requestId);
+    } catch (_) {
+      /* ignore */
+    }
+  }, 60000);
+  if (typeof dropTimer.unref === 'function') dropTimer.unref();
+
+  // Optional hard kill (other in-flight requests on this worker die too).
+  const iso = isolationOpts();
+  if (iso.kill_worker_on_request_timeout === true) {
+    log().warn(
+      `[isolation] kill_worker_on_request_timeout: terminating worker '${handle.workerKey}' after cancel ${requestId}`
+    );
+    try {
+      if (handle.child && !handle.child.killed) {
+        handle.child.kill('SIGTERM');
+      }
+    } catch (e) {
+      log().error(`[isolation] Failed to kill worker on timeout: ${e.message}`);
+    }
+  }
+}
+
+/**
+ * True if this request was cancelled/timed out on the master.
+ * @param {object} handle
+ * @param {string} requestId
+ * @returns {boolean}
+ */
+function isRequestCancelled(handle, requestId) {
+  return !!(handle.cancelledIds && handle.cancelledIds.has(requestId));
 }
 
 function failPending(handle, err) {
@@ -664,8 +770,12 @@ async function executeOnWorker(opts) {
 
   const resultMsg = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      handle.pending.delete(requestId);
-      handle.streams.delete(requestId);
+      // M4: cancel in-flight worker work; do not leave orphaned script running forever.
+      cancelWorkerRequest(handle, requestId, {
+        timeoutMs,
+        res,
+        reason: `Worker request timed out after ${timeoutMs}ms`
+      });
       reject(new Error(`Worker request timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
@@ -682,7 +792,9 @@ async function executeOnWorker(opts) {
       bodyBase64: body.length ? body.toString('base64') : '',
       routeParams: routeParams || {},
       maxBodySize: maxBodySize || '25mb',
-      useCache: useCache !== false
+      useCache: useCache !== false,
+      // Worker uses this for waitForResponseSettle / AbortSignal budget (capped by master).
+      timeoutMs
     };
 
     try {
@@ -771,6 +883,7 @@ module.exports = {
   stopWorker,
   ensureWorker,
   executeOnWorker,
+  cancelWorkerRequest,
   shutdownAll,
   getWorkerStats,
   readRequestBody,

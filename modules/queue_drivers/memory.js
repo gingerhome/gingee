@@ -26,11 +26,21 @@ function createMemoryDriver(opts) {
   const dlqOrder = [];
   let closed = false;
 
+  let consuming = true;
+
+  function clearJobTimer(job) {
+    if (job && job._timer) {
+      clearTimeout(job._timer);
+      job._timer = null;
+    }
+  }
+
   function schedule(job) {
     if (closed) return;
+    clearJobTimer(job);
     const delay = Math.max(0, (job.runAt || 0) - Date.now());
     const timer = setTimeout(() => {
-      if (closed) return;
+      if (closed || !consuming) return;
       job.status = 'waiting';
       try {
         onReady(job);
@@ -55,15 +65,68 @@ function createMemoryDriver(opts) {
     }
   }
 
+  /**
+   * Claim a DLQ entry without await (atomic under Node's single-threaded model).
+   * @param {string} jobId
+   * @returns {object|null}
+   */
+  function claimDlq(jobId) {
+    const rec = dlq.get(jobId);
+    if (!rec) return null;
+    dlq.delete(jobId);
+    const idx = dlqOrder.indexOf(jobId);
+    if (idx >= 0) dlqOrder.splice(idx, 1);
+    return rec;
+  }
+
   return {
     name: 'memory',
 
     async start() {
-      /* no-op */
+      closed = false;
+      consuming = true;
+    },
+
+    /** Stop delivering new jobs to onReady (graceful shutdown). */
+    async stopConsuming() {
+      consuming = false;
+    },
+
+    /**
+     * Return a claimed job to the ready path (wait-queue drain).
+     * @param {object|string} jobOrId
+     */
+    async releaseClaim(jobOrId) {
+      const id = typeof jobOrId === 'string' ? jobOrId : jobOrId && jobOrId.id;
+      if (!id) return false;
+      let job = jobs.get(id);
+      if (!job && typeof jobOrId === 'object' && jobOrId) {
+        job = { ...jobOrId };
+        jobs.set(id, job);
+      }
+      if (!job || job.status === 'failed') return false;
+      clearJobTimer(job);
+      job.status = 'delayed';
+      job.runAt = Date.now();
+      // If still consuming, re-schedule; if shutting down, leave in map for next process only if not closed
+      if (!closed && consuming) {
+        schedule(job);
+      } else if (!closed) {
+        // stopConsuming but not fully closed — keep job in map; not auto-fired until restart or start
+        jobs.set(id, job);
+      }
+      return true;
+    },
+
+    async extendVisibility() {
+      // Memory has no lease model
+      return true;
     },
 
     async enqueue(jobInput) {
       const id = jobInput.id || randomUUID();
+      const existing = jobs.get(id);
+      if (existing) clearJobTimer(existing);
       const job = {
         id,
         appName: jobInput.appName,
@@ -91,11 +154,15 @@ function createMemoryDriver(opts) {
     },
 
     async retry(job) {
+      const existing = jobs.get(job.id);
+      if (existing) clearJobTimer(existing);
       const next = {
         ...job,
         attempt: (job.attempt || 1) + 1,
         status: 'delayed',
-        runAt: Date.now() + (job.backoffMs || 1000) * Math.pow(2, Math.max(0, (job.attempt || 1) - 1)),
+        runAt:
+          Date.now() +
+          (job.backoffMs || 1000) * Math.pow(2, Math.max(0, (job.attempt || 1) - 1)),
         _timer: null,
         error: null,
         failedAt: null
@@ -108,7 +175,7 @@ function createMemoryDriver(opts) {
     async complete(jobId) {
       const j = jobs.get(jobId);
       if (j) {
-        if (j._timer) clearTimeout(j._timer);
+        clearJobTimer(j);
         jobs.delete(jobId);
       }
     },
@@ -121,7 +188,7 @@ function createMemoryDriver(opts) {
     async deadLetter(job, err) {
       if (!job || !job.id) return;
       const existing = jobs.get(job.id);
-      if (existing && existing._timer) clearTimeout(existing._timer);
+      if (existing) clearJobTimer(existing);
       jobs.delete(job.id);
 
       const record = sanitize({
@@ -162,22 +229,20 @@ function createMemoryDriver(opts) {
     },
 
     async discardDlq(jobId) {
-      if (!dlq.has(jobId)) return false;
-      dlq.delete(jobId);
-      const idx = dlqOrder.indexOf(jobId);
-      if (idx >= 0) dlqOrder.splice(idx, 1);
-      return true;
+      // Claim-or-miss; no await between check and delete
+      return claimDlq(jobId) != null;
     },
 
     /**
-     * Remove from DLQ and re-enqueue with attempt 1.
+     * Atomically claim from DLQ then re-enqueue (attempt 1).
+     * Concurrent retries: second caller gets null after first claims.
      * @param {string} jobId
+     * @param {object} [opts]
      * @returns {Promise<object|null>} enqueue result
      */
     async retryDlq(jobId, opts = {}) {
-      const rec = dlq.get(jobId);
+      const rec = claimDlq(jobId);
       if (!rec) return null;
-      await this.discardDlq(jobId);
       // Admin retry: fresh attempt budget (not stuck at the exhausted maxAttempts: 1)
       const maxAttempts =
         opts.maxAttempts != null
@@ -249,10 +314,12 @@ function createMemoryDriver(opts) {
     },
 
     async shutdown() {
+      consuming = false;
       closed = true;
       for (const j of jobs.values()) {
-        if (j._timer) clearTimeout(j._timer);
+        clearJobTimer(j);
       }
+      // Memory is not durable — clear in-process state after drain (service waits for in-flight first)
       jobs.clear();
       dlq.clear();
       dlqOrder.length = 0;

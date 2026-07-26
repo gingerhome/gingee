@@ -10,7 +10,7 @@ const path = require('path');
 const { URL } = require('url');
 const { WebSocketServer, WebSocket } = require('ws');
 const { als } = require('../gingee.js');
-const { runInGBox } = require('../gbox.js');
+const { runInGBox, resolveAllowDynamicCodeForApp } = require('../gbox.js');
 const { isPathInside } = require('../internal_utils.js');
 const metrics = require('../metrics.js');
 const {
@@ -279,7 +279,7 @@ async function registerApp(app, globalConfig) {
     useCache: true,
     logger: app.logger || log(),
     globalConfig: cfg,
-    allowCodeGeneration: !cfg.box || cfg.box.allow_code_generation !== false
+    allowDynamicCode: resolveAllowDynamicCodeForApp(cfg.box, app.config)
   };
 
   let handlerFn;

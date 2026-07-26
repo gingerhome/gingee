@@ -41,12 +41,113 @@ const ALL_PERMISSIONS = {
     "queue": "Allows the app to enqueue background jobs via require('queue') and run box/jobs handlers."
 };
 
+/** Safe app directory names only (no path separators, no `..`). */
+const SAFE_APP_NAME_RE = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * App names that must never be uninstalled via the public delete API.
+ * Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true }).
+ */
+const RESERVED_DELETE_APP_NAMES = new Set(['glade']);
+
 /**
  * @module platform
  * @description A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps. 
  * To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.
  * <b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
  */
+
+/**
+ * Validate an application name used in filesystem paths and platform APIs.
+ * Rejects empty names, whitespace, path separators, `..`, and other unsafe forms.
+ * When ALS context has `webPath`, also verifies `webPath/appName` stays under web root.
+ *
+ * @param {string} appName
+ * @returns {string} trimmed validated name (same as input after trim check — no silent trim)
+ * @throws {Error} if invalid
+ */
+function assertSafeAppName(appName) {
+    if (appName == null || typeof appName !== 'string') {
+        throw new Error('Invalid app name: name is required and must be a string.');
+    }
+    // Reject untrimmed input so callers cannot sneak spaces around a safe core
+    if (appName !== appName.trim() || appName.length === 0) {
+        throw new Error('Invalid app name: empty or whitespace-padded names are not allowed.');
+    }
+    if (!SAFE_APP_NAME_RE.test(appName)) {
+        throw new Error(
+            'Invalid app name: only letters, numbers, underscore, and hyphen are allowed (no path separators).'
+        );
+    }
+    if (appName === '.' || appName === '..') {
+        throw new Error('Invalid app name.');
+    }
+
+    // Defense-in-depth: resolved path under web root when context is available
+    try {
+        const ctx = getContext();
+        if (ctx && ctx.webPath) {
+            const webRoot = path.resolve(ctx.webPath);
+            const dest = path.resolve(webRoot, appName);
+            if (!isPathInside(dest, webRoot)) {
+                throw new Error('Invalid app name: path escapes web root.');
+            }
+        }
+    } catch (e) {
+        if (e && e.message && String(e.message).startsWith('Invalid app name')) {
+            throw e;
+        }
+        // No ALS context (unit tests of pure validation) — regex is sufficient
+    }
+
+    return appName;
+}
+
+/**
+ * True if this app must not be deleted via the public delete API.
+ * Always includes `glade`; also includes names listed in gingee.json `privileged_apps`.
+ *
+ * @param {string} appName - already safe name
+ * @returns {boolean}
+ */
+function isReservedForDelete(appName) {
+    const name = String(appName || '');
+    if (RESERVED_DELETE_APP_NAMES.has(name.toLowerCase())) {
+        return true;
+    }
+    try {
+        const ctx = getContext();
+        const privileged =
+            (ctx &&
+                ctx.globalConfig &&
+                Array.isArray(ctx.globalConfig.privileged_apps) &&
+                ctx.globalConfig.privileged_apps) ||
+            [];
+        if (privileged.includes(name)) {
+            return true;
+        }
+    } catch (_) {
+        /* no context */
+    }
+    return false;
+}
+
+/**
+ * Ensure app may be uninstalled (not glade / not privileged_apps).
+ * @param {string} appName
+ * @returns {string} safe name
+ * @throws {Error}
+ */
+function assertAppDeletable(appName) {
+    const name = assertSafeAppName(appName);
+    if (isReservedForDelete(name)) {
+        throw new Error(
+            `Cannot delete reserved application '${name}'. ` +
+                'The admin control plane and privileged apps are protected from uninstall.'
+        );
+    }
+    return name;
+}
 
 
 /**
@@ -55,6 +156,7 @@ const ALL_PERMISSIONS = {
  */
 
 async function _writePermissionsToFile(appName, permissionsArray) {
+    appName = assertSafeAppName(appName);
     const { projectRoot, logger } = getContext();
     const permissionsFilePath = path.join(projectRoot, 'settings', 'permissions.json');
     
@@ -136,14 +238,20 @@ function _loadAndCacheAppConfig(appConfigPath) {
  * @private
  */
 function _resolveSecureAppPath(appName, filePath) {
+    const name = assertSafeAppName(appName);
     const { webPath, logger } = getContext();
-    const appDir = path.join(webPath, appName);
+    const appDir = path.join(webPath, name);
 
     if (!nodeFs.existsSync(appDir)) {
-        throw new Error(`Application '${appName}' does not exist.`);
+        throw new Error(`Application '${name}' does not exist.`);
     }
 
-    const appBasePath = appDir;
+    const appBasePath = path.resolve(appDir);
+    // Ensure app root itself is under web (prefix-sibling safe)
+    if (!isPathInside(appBasePath, path.resolve(webPath))) {
+        throw new Error(`Security Error: Application path for '${name}' is outside the web root.`);
+    }
+
     let finalFilePath = filePath;
 
     if (filePath.startsWith('/')) {
@@ -152,7 +260,7 @@ function _resolveSecureAppPath(appName, filePath) {
 
         // If the path starts with the target app's name, strip it for convenience.
         // e.g., writeFile('app1', '/app1/box/file.txt') -> 'box/file.txt'
-        if (firstSegment === appName) {
+        if (firstSegment === name) {
             finalFilePath = path.join(...pathSegments.slice(1));
         } else {
             // If it starts with just '/', treat it as relative to the app's web root.
@@ -165,7 +273,7 @@ function _resolveSecureAppPath(appName, filePath) {
     const resolvedPath = path.resolve(targetPath);
     // isPathInside rejects sibling prefix escapes (app1 vs app10), unlike String.startsWith.
     if (!isPathInside(resolvedPath, appBasePath)) {
-        logger.error(`Path Traversal Error: Attempted access to '${filePath}' is outside of app '${appName}' directory.`);
+        logger.error(`Path Traversal Error: Attempted access to '${filePath}' is outside of app '${name}' directory.`);
         throw new Error(`Path Traversal Error: Access is forbidden.`);
     }
     return resolvedPath;
@@ -267,6 +375,7 @@ async function _scanPackage(packageBuffer) {
  * @param {string} appName - The name of the app to upgrade.
  */
 async function _createUpgradePlan(appName, packageBuffer) {
+    appName = assertSafeAppName(appName);
     const { allApps } = getContext();
     const app = allApps[appName];
     if (!app) throw new Error(`Target app '${appName}' does not exist.`);
@@ -372,9 +481,7 @@ function listApps() {
  */
 function createAppDirectory(appName) {
     const { webPath } = getContext();
-    if (!appName || !/^[a-zA-Z0-9_-]+$/.test(appName)) {
-        throw new Error("Invalid app name provided.");
-    }
+    appName = assertSafeAppName(appName);
 
     const appBasePath = path.join(webPath, appName);
     if (nodeFs.existsSync(appBasePath)) {
@@ -453,6 +560,7 @@ function readFile(appName, relativePath, encoding = 'utf8') {
  */
 async function registerNewApp(appName, permissionsArray) {
     const { allApps, webPath, logger, globalConfig } = getContext();
+    appName = assertSafeAppName(appName);
     if (allApps[appName]) throw new Error("App already registered.");
 
     const appWebPath = path.join(webPath, appName);
@@ -514,6 +622,7 @@ async function registerNewApp(appName, permissionsArray) {
  */
 async function reloadApp(appName) {
     const { allApps, webPath, transpileCache, staticFileCache, logger, globalConfig } = getContext();
+    appName = assertSafeAppName(appName);
     if (!allApps[appName]) {
         throw new Error(`Cannot reload: App '${appName}' does not exist.`);
     }
@@ -613,8 +722,18 @@ async function reloadApp(appName) {
  * const result = platform.deleteApp('myApp');
  * console.log(result); // true if deleted successfully
  */
-async function deleteApp(appName) {
+/**
+ * @param {string} appName
+ * @param {object} [options]
+ * @param {boolean} [options.allowReserved=false] - when true, allow deleting glade/privileged
+ *   apps (used only by upgrade/rollback internal flow). Public Glade uninstall must leave this false.
+ */
+async function deleteApp(appName, options = {}) {
     const { allApps, webPath, staticFileCache, transpileCache, logger } = getContext();
+    appName = assertSafeAppName(appName);
+    if (!options.allowReserved) {
+        assertAppDeletable(appName);
+    }
     let app = allApps[appName];
     if (!app) {
         throw new Error(`Cannot delete: App '${appName}' does not exist or is not registered.`);
@@ -710,6 +829,7 @@ async function deleteApp(appName) {
  */
 async function unzipToApp(appName, relativePath, zipBuffer) {
     const { allApps, logger } = getContext();
+    appName = assertSafeAppName(appName);
     if (!allApps[appName]) {
         throw new Error(`Cannot unzip: App '${appName}' does not exist.`);
     }
@@ -789,6 +909,7 @@ async function unzipToApp(appName, relativePath, zipBuffer) {
  */
 async function zipApp(appName) {
     const { allApps, logger } = getContext();
+    appName = assertSafeAppName(appName);
     if (!allApps[appName]) {
         throw new Error(`Cannot zip: App '${appName}' does not exist.`);
     }
@@ -825,6 +946,7 @@ async function zipApp(appName) {
  */
 async function packageApp(appName) {
     const { allApps } = getContext();
+    appName = assertSafeAppName(appName);
     const app = allApps[appName];
     if (!app) {
         throw new Error(`Cannot package: App '${appName}' does not exist.`);
@@ -894,6 +1016,7 @@ async function packageApp(appName) {
  * console.log(upgradePlan); // { action: 'Upgrade', fromVersion: '1.0.0', toVersion: '2.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
  */
 async function mockUpgrade(appName, packageBuffer) {
+    appName = assertSafeAppName(appName);
     return _createUpgradePlan(appName, packageBuffer);
 }
 
@@ -910,8 +1033,13 @@ async function mockUpgrade(appName, packageBuffer) {
  * console.log(backups);
  */
 function listBackups(appName) {
+    appName = assertSafeAppName(appName);
     const { projectRoot } = getContext();
-    const backupDir = path.join(projectRoot, 'backups', appName);
+    const backupsRoot = path.resolve(projectRoot, 'backups');
+    const backupDir = path.resolve(backupsRoot, appName);
+    if (!isPathInside(backupDir, backupsRoot)) {
+        throw new Error('Invalid app name for backups path.');
+    }
     if (!nodeFs.existsSync(backupDir)) return [];
     return nodeFs.readdirSync(backupDir)
         .filter(f => f.endsWith('.gin'))
@@ -932,6 +1060,7 @@ function listBackups(appName) {
  * console.log(rollbackPlan); // { action: 'Rollback', fromVersion: '2.0.0', toVersion: '1.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
  */
 async function mockRollback(appName) {
+    appName = assertSafeAppName(appName);
     const backups = listBackups(appName);
     if (backups.length === 0) throw new Error(`No backups found for app '${appName}'.`);
 
@@ -961,14 +1090,19 @@ async function mockRollback(appName) {
  */
 async function installApp(appName, packageBuffer, grantedPermissions) {
     const { allApps, webPath, logger } = getContext();
+    appName = assertSafeAppName(appName);
 
     // Pre-flight Check: Ensure the app does not already exist.
     if (allApps[appName]) {
         throw new Error(`Installation failed: An app named '${appName}' already exists.`);
     }
 
-    // Securely extract the contents
-    const appDestPath = path.join(webPath, appName);
+    // Securely extract the contents under web root only
+    const webRoot = path.resolve(webPath);
+    const appDestPath = path.resolve(webRoot, appName);
+    if (!isPathInside(appDestPath, webRoot)) {
+        throw new Error('Installation failed: destination path escapes web root.');
+    }
     await _unzipBufferToPath(packageBuffer, appDestPath);
 
     // Register the new app to make it live.
@@ -1004,6 +1138,7 @@ async function installApp(appName, packageBuffer, grantedPermissions) {
  */
 async function upgradeApp(appName, packageBuffer, grantedPermissions, options = { backup: true }) {
     const { projectRoot, allApps, logger } = getContext();
+    appName = assertSafeAppName(appName);
     const app = allApps[appName];
     if (!app) {
         throw new Error('Application does not registered');
@@ -1016,7 +1151,11 @@ async function upgradeApp(appName, packageBuffer, grantedPermissions, options = 
         const plan = await _createUpgradePlan(appName, packageBuffer);
         // 1. Backup
         if (options.backup) {
-            const backupDir = path.join(projectRoot, 'backups', appName);
+            const backupsRoot = path.resolve(projectRoot, 'backups');
+            const backupDir = path.resolve(backupsRoot, appName);
+            if (!isPathInside(backupDir, backupsRoot)) {
+                throw new Error('Invalid backup path for app.');
+            }
             if (!nodeFs.existsSync(backupDir)) nodeFs.mkdirSync(backupDir, { recursive: true });
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const backupFileName = `${appName}_v${app.config.version}_${timestamp}.gin`;
@@ -1036,7 +1175,8 @@ async function upgradeApp(appName, packageBuffer, grantedPermissions, options = 
             }
         }
 
-        await deleteApp(appName);
+        // allowReserved: upgrade must replace even reserved apps (e.g. glade) in-place
+        await deleteApp(appName, { allowReserved: true });
         await installApp(appName, packageBuffer, grantedPermissions);
 
         if (plan.files.preserved.length > 0) {
@@ -1083,6 +1223,7 @@ async function upgradeApp(appName, packageBuffer, grantedPermissions, options = 
  * console.log(result); // true if rolled back successfully
  */
 async function rollbackApp(appName, grantedPermissions) {
+    appName = assertSafeAppName(appName);
     const backups = listBackups(appName);
     if (backups.length === 0) throw new Error(`No backups found for app '${appName}'.`);
 
@@ -1119,6 +1260,7 @@ async function rollbackApp(appName, grantedPermissions) {
  */
 async function installFromBackup(appName, backupVersion = 'latest') {
     const { projectRoot, logger, allApps } = getContext();
+    appName = assertSafeAppName(appName);
     let grantedPermissions = [];
     if(allApps[appName] && allApps[appName].grantedPermissions) {
         grantedPermissions = allApps[appName].grantedPermissions;
@@ -1163,6 +1305,7 @@ async function installFromBackup(appName, backupVersion = 'latest') {
  */
 async function getAppPermissions(appName) {
     const { allApps } = getContext();
+    appName = assertSafeAppName(appName);
     const app = allApps[appName];
     if (!app) {
         throw new Error(`App '${appName}' not found.`);
@@ -1209,6 +1352,7 @@ async function setAppPermissions(appName, permissionsArray) {
         allApps[appName].grantedPermissions = allGrants[appName].granted; // Update in-memory representation
     }*/
 
+    appName = assertSafeAppName(appName);
     _writePermissionsToFile(appName, permissionsArray);
     await reloadApp(appName);
 
@@ -1222,6 +1366,7 @@ async function setAppPermissions(appName, permissionsArray) {
  * @returns {Promise<boolean>} A promise that resolves with a success message.
  */
 function removeAppPermissions(appName) {
+    appName = assertSafeAppName(appName);
     const { projectRoot, logger } = getContext();
     const permissionsFilePath = path.join(projectRoot, 'settings', 'permissions.json');
     if (nodeFs.existsSync(permissionsFilePath)) {
@@ -1248,6 +1393,7 @@ function removeAppPermissions(appName) {
  */
 async function analyzeAppBackup(appName) {
     const { projectRoot, logger } = getContext();
+    appName = assertSafeAppName(appName);
     const backups = listBackups(appName);
     if (backups.length === 0) {
         throw new Error(`No backups found for app '${appName}'.`);
@@ -1344,7 +1490,18 @@ async function listQueueDlq(opts) {
  */
 async function retryQueueDlqJob(jobId) {
   if (!jobId) throw new Error('jobId is required');
-  return queueService.retryDlqJob(String(jobId));
+  const id = String(jobId);
+  const result = await queueService.retryDlqJob(id);
+  audit.emit(
+    'queue.dlq.retry',
+    {
+      jobId: id,
+      jobName: result && result.name != null ? result.name : null,
+      maxAttempts: result && result.maxAttempts != null ? result.maxAttempts : null
+    },
+    { app: result && result.appName != null ? result.appName : null }
+  );
+  return result;
 }
 
 /**
@@ -1354,7 +1511,28 @@ async function retryQueueDlqJob(jobId) {
  */
 async function discardQueueDlqJob(jobId) {
   if (!jobId) throw new Error('jobId is required');
-  return queueService.discardDlqJob(String(jobId));
+  const id = String(jobId);
+  // Capture app/job name before discard removes the record
+  let meta = null;
+  try {
+    if (typeof queueService.getDlqJob === 'function') {
+      meta = await queueService.getDlqJob(id);
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  const ok = await queueService.discardDlqJob(id);
+  if (ok) {
+    audit.emit(
+      'queue.dlq.discard',
+      {
+        jobId: id,
+        jobName: meta && meta.name != null ? meta.name : null
+      },
+      { app: meta && meta.appName != null ? meta.appName : null }
+    );
+  }
+  return ok;
 }
 
 /**
@@ -1366,25 +1544,57 @@ async function discardQueueDlqJob(jobId) {
  */
 function listLogFiles(opts) {
   const { projectRoot, webPath } = getContext();
-  return logViewer.listLogFiles({
-    ...(opts || {}),
+  const o = opts || {};
+  if (o.scope === 'app' || (o.appName != null && String(o.appName).trim())) {
+    o.appName = assertSafeAppName(String(o.appName).trim());
+  }
+  const result = logViewer.listLogFiles({
+    ...o,
     projectRoot,
     webPath
   });
+  audit.emit(
+    'logs.list',
+    {
+      scope: result.scope || o.scope || 'server',
+      fileCount: Array.isArray(result.files) ? result.files.length : 0
+    },
+    { app: result.appName || o.appName || null }
+  );
+  return result;
 }
 
 /**
  * Tail-read a log file (privileged / Glade).
+ * Does not write log line content into the audit trail (metadata only).
  * @param {object} [opts]
  * @returns {object}
  */
 function readLogFile(opts) {
   const { projectRoot, webPath } = getContext();
-  return logViewer.readLogFile({
-    ...(opts || {}),
+  const o = opts || {};
+  if (o.scope === 'app' || (o.appName != null && String(o.appName).trim())) {
+    o.appName = assertSafeAppName(String(o.appName).trim());
+  }
+  const result = logViewer.readLogFile({
+    ...o,
     projectRoot,
     webPath
   });
+  audit.emit(
+    'logs.read',
+    {
+      scope: result.scope || o.scope || 'server',
+      file: result.file || o.file || null,
+      level: result.level || o.level || null,
+      lineCountReturned: result.lineCountReturned != null ? result.lineCountReturned : null,
+      lineCountRequested: result.lineCountRequested != null ? result.lineCountRequested : null,
+      engineOnly: !!result.engineOnly,
+      hideLogQueries: result.hideLogQueries !== false
+    },
+    { app: result.appName || o.appName || null }
+  );
+  return result;
 }
 
 /**
@@ -1403,9 +1613,15 @@ function getSchedulerStatus() {
  */
 function listSchedulerJobs(opts) {
   const o = opts || {};
+  let appName = o.appName;
+  if (appName != null && String(appName).trim()) {
+    appName = assertSafeAppName(String(appName).trim());
+  } else {
+    appName = undefined;
+  }
   return scheduler.listJobs({
-    appName: o.appName,
-    filterPartial: o.filterPartial !== false && o.appName != null
+    appName,
+    filterPartial: o.filterPartial !== false && appName != null
   });
 }
 
@@ -1418,11 +1634,32 @@ function listSchedulerJobs(opts) {
 async function runSchedulerJob(appName, jobName) {
   if (!appName) throw new Error('appName is required');
   if (!jobName) throw new Error('jobName is required');
-  return scheduler.runNow(String(appName), String(jobName));
+  appName = assertSafeAppName(String(appName));
+  const name = String(jobName);
+  const result = await scheduler.runNow(appName, name);
+  audit.emit(
+    'scheduler.run_now',
+    {
+      jobName: name,
+      force: true,
+      lastStatus: result && result.lastStatus != null ? result.lastStatus : null,
+      lastError:
+        result && result.lastError != null
+          ? String(result.lastError).slice(0, 500)
+          : null,
+      lastStartedAt: result && result.lastStartedAt != null ? result.lastStartedAt : null,
+      lastFinishedAt: result && result.lastFinishedAt != null ? result.lastFinishedAt : null
+    },
+    { app: appName }
+  );
+  return result;
 }
 
 module.exports = {
     listApps,
+    assertSafeAppName,
+    assertAppDeletable,
+    isReservedForDelete,
     createAppDirectory,
     writeFile,
     readFile,

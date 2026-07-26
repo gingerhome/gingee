@@ -21,6 +21,7 @@ const engineRoot = path.resolve(__dirname, '..', '..', '..');
 require('app-module-path').addPath(path.join(engineRoot, 'modules'));
 
 const { isPathInside } = require('../../internal_utils.js');
+const { resolveAllowDynamicCodeForApp } = require('../../gbox.js');
 const { als } = require('../../gingee.js');
 const { createGRequire, runInGBox } = require('../../gbox.js');
 const { FakeIncomingMessage, FakeServerResponse } = require('./fake_http.js');
@@ -29,6 +30,13 @@ const email = require('../../email.js');
 
 /** @type {object|null} */
 let workerState = null;
+
+/**
+ * In-flight HTTP scripts: requestId → { abortController, cancelled }
+ * Master sends `cancel_request` on timeout (M4).
+ * @type {Map<string, { abortController: AbortController, cancelled: boolean }>}
+ */
+const inflight = new Map();
 
 const workerLog = {
   info: (msg) => send({ type: 'log', level: 'info', message: String(msg) }),
@@ -40,6 +48,47 @@ function send(msg) {
   if (typeof process.send === 'function') {
     process.send(msg);
   }
+}
+
+/**
+ * Cooperative cancel for one requestId.
+ * @param {string} requestId
+ * @param {string} [reason]
+ */
+function cancelInflight(requestId, reason) {
+  const entry = inflight.get(requestId);
+  if (!entry) {
+    // Register a cancelled placeholder so a race with http_script start still aborts.
+    const ac = new AbortController();
+    try {
+      ac.abort(reason || 'cancelled');
+    } catch (_) {
+      try {
+        ac.abort();
+      } catch (__) {
+        /* ignore */
+      }
+    }
+    inflight.set(requestId, { abortController: ac, cancelled: true });
+    return;
+  }
+  entry.cancelled = true;
+  try {
+    if (!entry.abortController.signal.aborted) {
+      entry.abortController.abort(reason || 'cancelled');
+    }
+  } catch (_) {
+    try {
+      entry.abortController.abort();
+    } catch (__) {
+      /* ignore */
+    }
+  }
+}
+
+function isCancelled(requestId) {
+  const entry = inflight.get(requestId);
+  return !!(entry && entry.cancelled);
 }
 
 function ensureInit() {
@@ -64,7 +113,6 @@ async function runHttpScript(msg) {
     globalConfig,
     privilegedApps,
     allowedBuiltinModules,
-    allowCodeGeneration,
     projectRoot,
     webPath
   } = workerState;
@@ -80,6 +128,18 @@ async function runHttpScript(msg) {
   const body = msg.bodyBase64 ? Buffer.from(msg.bodyBase64, 'base64') : Buffer.alloc(0);
   const requestId = msg.requestId;
 
+  // Reuse abort controller if cancel arrived before script start; else create new.
+  let inflightEntry = inflight.get(requestId);
+  if (!inflightEntry) {
+    inflightEntry = { abortController: new AbortController(), cancelled: false };
+    inflight.set(requestId, inflightEntry);
+  }
+  const abortController = inflightEntry.abortController;
+  const timeoutMs =
+    msg.timeoutMs != null && Number.isFinite(Number(msg.timeoutMs))
+      ? Math.max(1000, Math.floor(Number(msg.timeoutMs)))
+      : 120000;
+
   const req = new FakeIncomingMessage({
     method: msg.method || 'GET',
     url: msg.url || '/',
@@ -90,6 +150,7 @@ async function runHttpScript(msg) {
   let streamMode = false;
   const res = new FakeServerResponse({
     onStreamStart: (statusCode, headers) => {
+      if (isCancelled(requestId)) return;
       streamMode = true;
       send({
         type: 'stream_start',
@@ -99,6 +160,7 @@ async function runHttpScript(msg) {
       });
     },
     onStreamChunk: (buf) => {
+      if (isCancelled(requestId)) return;
       send({
         type: 'stream_chunk',
         requestId,
@@ -106,6 +168,7 @@ async function runHttpScript(msg) {
       });
     },
     onStreamEnd: () => {
+      if (isCancelled(requestId)) return;
       send({ type: 'stream_end', requestId });
     }
   });
@@ -120,7 +183,11 @@ async function runHttpScript(msg) {
     useCache: msg.useCache !== false,
     logger: workerLog,
     globalConfig,
-    allowCodeGeneration: allowCodeGeneration !== false
+    // Per-app: server floor + app.json allow_dynamic_code
+    allowDynamicCode: resolveAllowDynamicCodeForApp(
+      globalConfig && globalConfig.box,
+      app.config
+    )
   };
 
   // Build allApps view from worker members (for privileged cross-app — workers are never privileged)
@@ -146,60 +213,97 @@ async function runHttpScript(msg) {
     scriptFolder: path.dirname(scriptPath),
     staticFileCache: null,
     transpileCache: null,
-    maxBodySize: msg.maxBodySize || '25mb'
+    maxBodySize: msg.maxBodySize || '25mb',
+    // Cooperative cancel for httpclient / long work (M4)
+    requestAbortController: abortController,
+    requestAbortSignal: abortController.signal,
+    requestDeadline: Date.now() + timeoutMs,
+    requestStartedAt: Date.now()
   };
 
-  await als.run(store, async () => {
-    if (app.config.default_include) {
-      const gRequire = createGRequire(scriptPath, gBoxConfig);
-      for (const includedPath of app.config.default_include) {
-        let includeScript = gRequire(includedPath);
-        if (typeof includeScript === 'function') {
-          includeScript = await includeScript();
-        }
-        const includeStore = als.getStore();
-        if (includeStore && includeStore.$g && includeStore.$g.isCompleted) {
-          return;
+  try {
+    if (isCancelled(requestId)) {
+      return;
+    }
+
+    await als.run(store, async () => {
+      if (isCancelled(requestId) || abortController.signal.aborted) {
+        return;
+      }
+
+      if (app.config.default_include) {
+        const gRequire = createGRequire(scriptPath, gBoxConfig);
+        for (const includedPath of app.config.default_include) {
+          let includeScript = gRequire(includedPath);
+          if (typeof includeScript === 'function') {
+            includeScript = await includeScript();
+          }
+          const includeStore = als.getStore();
+          if (includeStore && includeStore.$g && includeStore.$g.isCompleted) {
+            return;
+          }
+          if (isCancelled(requestId) || abortController.signal.aborted) {
+            return;
+          }
         }
       }
-    }
 
-    const script = runInGBox(scriptPath, gBoxConfig);
-    if (typeof script === 'function') {
-      await script();
-    } else {
-      throw new Error(`Script ${scriptPath} did not export a function.`);
-    }
+      const script = runInGBox(scriptPath, gBoxConfig);
+      if (typeof script === 'function') {
+        await script();
+      } else {
+        throw new Error(`Script ${scriptPath} did not export a function.`);
+      }
 
-    // Scripts that call `gingee(...)` without await can return before $g.response
-    // finishes (common with async AI). Wait for send/endStream or timeout.
-    const storeNow = als.getStore();
-    if (storeNow && storeNow.$g && !storeNow.$g.isCompleted && !res.writableEnded) {
-      await waitForResponseSettle(res, storeNow, 120000);
-    }
-  });
-
-  // Buffered path: single http_result (stream already sent frames)
-  if (!streamMode) {
-    const result = res.toResult();
-    send({
-      type: 'http_result',
-      requestId,
-      statusCode: result.statusCode,
-      headers: result.headers,
-      bodyBase64: result.body.toString('base64')
+      // Scripts that call `gingee(...)` without await can return before $g.response
+      // finishes (common with async AI). Wait for send/endStream, cancel, or timeout.
+      const storeNow = als.getStore();
+      if (
+        storeNow &&
+        storeNow.$g &&
+        !storeNow.$g.isCompleted &&
+        !res.writableEnded &&
+        !isCancelled(requestId) &&
+        !abortController.signal.aborted
+      ) {
+        await waitForResponseSettle(res, storeNow, timeoutMs, abortController.signal);
+      }
     });
-  } else if (!res.writableEnded) {
-    // Stream started but never ended — close it
-    send({ type: 'stream_end', requestId });
+
+    // Drop result if master already cancelled/timed out (M4).
+    if (isCancelled(requestId) || abortController.signal.aborted) {
+      workerLog.info(`[worker] Request ${requestId} cancelled; suppressing result`);
+      return;
+    }
+
+    // Buffered path: single http_result (stream already sent frames)
+    if (!streamMode) {
+      const result = res.toResult();
+      send({
+        type: 'http_result',
+        requestId,
+        statusCode: result.statusCode,
+        headers: result.headers,
+        bodyBase64: result.body.toString('base64')
+      });
+    } else if (!res.writableEnded) {
+      // Stream started but never ended — close it
+      send({ type: 'stream_end', requestId });
+    }
+  } finally {
+    inflight.delete(requestId);
   }
 }
 
 /**
- * Wait until response is completed/ended (or timeout).
+ * Wait until response is completed/ended, aborted, or timeout.
  * Covers fire-and-forget `gingee(...)` without await.
+ * @param {object} res
+ * @param {object} store
+ * @param {number} maxMs
+ * @param {AbortSignal} [signal]
  */
-function waitForResponseSettle(res, store, maxMs) {
+function waitForResponseSettle(res, store, maxMs, signal) {
   return new Promise((resolve) => {
     let settled = false;
     const done = () => {
@@ -207,15 +311,33 @@ function waitForResponseSettle(res, store, maxMs) {
       settled = true;
       clearInterval(timer);
       clearTimeout(timeout);
+      if (signal && typeof signal.removeEventListener === 'function') {
+        try {
+          signal.removeEventListener('abort', onAbort);
+        } catch (_) {
+          /* ignore */
+        }
+      }
       resolve();
     };
+    const onAbort = () => done();
     const timeout = setTimeout(done, maxMs);
     const timer = setInterval(() => {
       if (res.writableEnded || (store.$g && store.$g.isCompleted)) done();
+      if (signal && signal.aborted) done();
     }, 10);
     if (typeof res.once === 'function') {
       res.once('finish', done);
       res.once('close', done);
+    }
+    if (signal) {
+      if (signal.aborted) {
+        done();
+        return;
+      }
+      if (typeof signal.addEventListener === 'function') {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
     }
   });
 }
@@ -287,7 +409,8 @@ process.on('message', async (msg) => {
         globalConfig,
         privilegedApps: msg.privilegedApps || [],
         allowedBuiltinModules: msg.allowedBuiltinModules || [],
-        allowCodeGeneration: msg.allowCodeGeneration !== false,
+        allowDynamicCode:
+          msg.allowDynamicCode !== false && msg.allowCodeGeneration !== false,
         apps: appsMap
       };
       send({ type: 'ready', workerKey: workerState.workerKey, apps: [...appsMap.keys()] });
@@ -299,10 +422,23 @@ process.on('message', async (msg) => {
       return;
     }
 
+    if (msg.type === 'cancel_request' && msg.requestId) {
+      workerLog.info(
+        `[worker] cancel_request ${msg.requestId}${msg.reason ? `: ${msg.reason}` : ''}`
+      );
+      cancelInflight(msg.requestId, msg.reason || 'cancelled by master');
+      return;
+    }
+
     if (msg.type === 'http_script') {
       try {
         await runHttpScript(msg);
       } catch (err) {
+        // Suppress error IPC when master already cancelled (timeout).
+        if (isCancelled(msg.requestId)) {
+          inflight.delete(msg.requestId);
+          return;
+        }
         send({
           type: 'stream_error',
           requestId: msg.requestId,
@@ -319,6 +455,7 @@ process.on('message', async (msg) => {
           ).toString('base64'),
           error: err.message || String(err)
         });
+        inflight.delete(msg.requestId);
       }
       return;
     }

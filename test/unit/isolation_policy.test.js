@@ -11,6 +11,7 @@ describe('isolation policy', () => {
     expect(ISOLATION_DEFAULTS.mode).toBe('off');
     expect(ISOLATION_DEFAULTS.auto_restart).toBe(true);
     expect(ISOLATION_DEFAULTS.restart_max).toBe(10);
+    expect(ISOLATION_DEFAULTS.kill_worker_on_request_timeout).toBe(false);
   });
 
   test('mode off never isolates', () => {

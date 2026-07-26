@@ -22,6 +22,7 @@ const gdev = require('../gdev.js');
 const { projectRoot } = require('./paths.js');
 const workerManager = require('./isolation/worker_manager.js');
 const { loadJsonFile } = require('../internal_utils.js');
+const { confineScriptPath } = require('./request/path_confine.js');
 
 /**
  * Initialize a single app directory. Throws on fatal config errors for that app.
@@ -91,9 +92,18 @@ async function initializeOneApp(appName, webPath, config, logger) {
       app.compiledRoutes = [];
       if (routesConfig && Array.isArray(routesConfig.routes)) {
         for (const route of routesConfig.routes) {
+          const scriptPath = confineScriptPath(appBoxPath, route.script);
+          if (!scriptPath) {
+            logger.error(
+              `Skipping route '${route.path || '?'}' for app '${appName}': ` +
+                `script path escapes box or is invalid (${route.script}).`
+            );
+            continue;
+          }
           app.compiledRoutes.push({
             method: route.method ? route.method.toUpperCase() : 'GET',
             script: route.script,
+            scriptPath,
             matcher: match(route.path, { decode: decodeURIComponent })
           });
         }
