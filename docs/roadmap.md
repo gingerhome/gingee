@@ -17,8 +17,8 @@ This phase is focused on adding major new modules that unlock entirely new categ
     -   **Later:** Optional isolation bridge, Glade connection admin UI, presence directory.
 
 -   **CRON Scheduler** *(v1 + Redis coordination shipped)*
-    -   **Done:** Declarative `app.json` schedules; server gate `scheduler.enabled` (default off); targets script/url/queue; **Redis multi-node coordination** (`coordination.driver: "redis"` + sibling `scheduler.redis` like queue/cache; strategies `tick` / `leader`, fail-closed).
-    -   **Next:** Runtime API / “Run now” in Glade, richer schedule admin.
+    -   **Done:** Declarative `app.json` schedules; server gate `scheduler.enabled` (default off); targets script/url/queue; **Redis multi-node coordination** (`coordination.driver: "redis"` + sibling `scheduler.redis`); **Glade Schedules / Run now** (list + force-run).
+    -   **Next:** Richer schedule admin (edit enable/disable, history).
 
 -   **Job Queues & Background Processing (`queue` Module)** *(v1 + Glade DLQ shipped)*
     -   **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** top-nav **Queue / DLQ** (list, filter, retry with fresh attempts, discard).

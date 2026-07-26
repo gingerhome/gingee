@@ -664,6 +664,177 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // --- Schedules / Run now Admin ---
+    const scheduleStatsPanel = document.getElementById('schedule-stats-panel');
+    const scheduleTableBody = document.getElementById('schedule-table-body');
+    const scheduleAdminError = document.getElementById('schedule-admin-error');
+    const scheduleAdminInfo = document.getElementById('schedule-admin-info');
+    const scheduleRefreshBtn = document.getElementById('schedule-refresh-btn');
+    const scheduleAppFilter = document.getElementById('schedule-app-filter');
+    const scheduleAdminModalEl = document.getElementById('scheduleAdminModal');
+    let cachedScheduleJobs = [];
+
+    function showScheduleError(msg) {
+        if (!scheduleAdminError) return;
+        scheduleAdminError.textContent = msg || '';
+        scheduleAdminError.classList.toggle('d-none', !msg);
+    }
+
+    function showScheduleInfo(msg) {
+        if (!scheduleAdminInfo) return;
+        scheduleAdminInfo.textContent = msg || '';
+        scheduleAdminInfo.classList.toggle('d-none', !msg);
+    }
+
+    function filterScheduleJobs(jobs) {
+        const q = (scheduleAppFilter && scheduleAppFilter.value.trim().toLowerCase()) || '';
+        if (q.length < 3) return jobs;
+        return jobs.filter((j) => String(j.appName || '').toLowerCase().includes(q));
+    }
+
+    function renderScheduleTable(jobs) {
+        if (!scheduleTableBody) return;
+        if (!jobs || jobs.length === 0) {
+            const q = (scheduleAppFilter && scheduleAppFilter.value.trim()) || '';
+            const emptyMsg =
+                q.length >= 3
+                    ? `No schedules matching “${escapeHtml(q)}”`
+                    : 'No registered schedules on this node';
+            scheduleTableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">${emptyMsg}</td></tr>`;
+            return;
+        }
+        scheduleTableBody.innerHTML = jobs
+            .map((j) => {
+                const next = j.nextRunAt ? new Date(j.nextRunAt).toLocaleString() : '—';
+                const status = j.running
+                    ? 'running'
+                    : j.lastStatus != null
+                      ? String(j.lastStatus)
+                      : '—';
+                const statusClass =
+                    status === 'ok'
+                        ? 'text-success'
+                        : status === 'error' || status === 'timeout'
+                          ? 'text-danger'
+                          : status === 'running'
+                            ? 'text-primary'
+                            : 'text-muted';
+                const errTitle = j.lastError ? escapeHtml(j.lastError) : '';
+                const app = escapeHtml(j.appName);
+                const name = escapeHtml(j.name);
+                return `<tr>
+                        <td>${app}</td>
+                        <td class="font-monospace small">${name}</td>
+                        <td class="small font-monospace">${escapeHtml(j.cron)} <span class="text-muted">${escapeHtml(j.timezone || '')}</span></td>
+                        <td class="small">${escapeHtml(j.targetSummary || j.targetType || '—')}</td>
+                        <td class="small">${escapeHtml(next)}</td>
+                        <td class="small ${statusClass}" title="${errTitle}">${escapeHtml(status)}</td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="queue-action-link schedule-run-now"
+                                data-app="${app}" data-job="${name}"
+                                ${j.running ? 'disabled' : ''}
+                                title="Run this job immediately on this node">Run now</button>
+                        </td>
+                    </tr>`;
+            })
+            .join('');
+    }
+
+    async function loadScheduleAdmin() {
+        showScheduleError('');
+        showScheduleInfo('');
+        try {
+            const res = await fetch('/glade/api/schedule-list', { credentials: 'include' });
+            if (res.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const data = await res.json();
+            if (data.status !== 'success') throw new Error(data.error || 'Failed to load schedules');
+
+            const s = data.statusInfo || {};
+            if (scheduleStatsPanel) {
+                scheduleStatsPanel.innerHTML = [
+                    `<strong>Scheduler:</strong> ${s.enabled ? 'enabled' : 'disabled'}`,
+                    `<strong>Timezone:</strong> ${escapeHtml(s.timezone || 'UTC')}`,
+                    `<strong>Coordination:</strong> ${escapeHtml((s.coordination && s.coordination.driver) || 'none')}`,
+                    `<strong>Jobs:</strong> ${s.jobCount ?? 0}`,
+                    `<strong>Running:</strong> ${s.runningCount ?? 0}`
+                ].join(' &nbsp;·&nbsp; ');
+            }
+            if (!s.enabled) {
+                showScheduleInfo(
+                    'Scheduler is disabled on this node (scheduler.enabled is false). No jobs are registered; enable it in gingee.json and restart to use Run now.'
+                );
+            }
+
+            cachedScheduleJobs = data.jobs || [];
+            renderScheduleTable(filterScheduleJobs(cachedScheduleJobs));
+        } catch (e) {
+            showScheduleError(e.message);
+        }
+    }
+
+    if (scheduleAdminModalEl) {
+        scheduleAdminModalEl.addEventListener('shown.bs.modal', () => {
+            loadScheduleAdmin();
+        });
+    }
+    if (scheduleRefreshBtn) {
+        scheduleRefreshBtn.addEventListener('click', () => loadScheduleAdmin());
+    }
+    if (scheduleAppFilter) {
+        scheduleAppFilter.addEventListener('input', () => {
+            renderScheduleTable(filterScheduleJobs(cachedScheduleJobs));
+        });
+    }
+    if (scheduleTableBody) {
+        scheduleTableBody.addEventListener('click', async (e) => {
+            const runBtn = e.target.closest('.schedule-run-now');
+            if (!runBtn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const appName = runBtn.dataset.app || runBtn.getAttribute('data-app');
+            const jobName = runBtn.dataset.job || runBtn.getAttribute('data-job');
+            if (!appName || !jobName) {
+                showScheduleError('Missing app or job name.');
+                return;
+            }
+            try {
+                showScheduleError('');
+                showScheduleInfo('');
+                runBtn.disabled = true;
+                const res = await fetch('/glade/api/schedule-run', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ appName, jobName })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.status !== 'success') {
+                    throw new Error(data.error || `Run now failed (${res.status})`);
+                }
+                const r = data.result || {};
+                showScheduleInfo(
+                    `Ran ${appName}/${jobName} → ${r.lastStatus || 'done'}` +
+                        (r.lastError ? ` (${r.lastError})` : '')
+                );
+                await loadScheduleAdmin();
+            } catch (err) {
+                showScheduleError(err.message);
+                await loadScheduleAdmin();
+            }
+        });
+    }
+
     // --- Queue / DLQ Admin ---
     const queueStatsPanel = document.getElementById('queue-stats-panel');
     const queueDlqBody = document.getElementById('queue-dlq-body');
@@ -678,14 +849,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!queueAdminError) return;
         queueAdminError.textContent = msg || '';
         queueAdminError.classList.toggle('d-none', !msg);
-    }
-
-    function escapeHtml(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
     }
 
     function filterDlqJobs(jobs) {

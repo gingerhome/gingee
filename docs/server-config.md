@@ -269,6 +269,7 @@ Or without a URL:
 - Metrics status labels include `skipped_coordination`, `skipped_not_leader`, `skipped_coord_error` on `gingee_scheduler_job_runs_total`.
 - Prefer **`strategy: "tick"`** for fleets; use **`leader`** when you want a single active scheduler process with automatic failover.
 - Legacy `coordination.mode` / nested `coordination.redis` still merge for compatibility; prefer `driver` + sibling `redis`.
+- **Glade:** top menu **Schedules** lists jobs on this node and supports **Run now** (force run; bypasses coordination). See [Glade Admin](./glade-admin.md).
 
 ### limits
 

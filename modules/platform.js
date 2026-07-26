@@ -1345,6 +1345,40 @@ async function discardQueueDlqJob(jobId) {
   return queueService.discardDlqJob(String(jobId));
 }
 
+/**
+ * Scheduler admin status for Glade (privileged).
+ * @returns {object}
+ */
+function getSchedulerStatus() {
+  return scheduler.getAdminStatus();
+}
+
+/**
+ * List registered CRON jobs on this node (privileged).
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @returns {Array<object>}
+ */
+function listSchedulerJobs(opts) {
+  const o = opts || {};
+  return scheduler.listJobs({
+    appName: o.appName,
+    filterPartial: o.filterPartial !== false && o.appName != null
+  });
+}
+
+/**
+ * Force-run a registered schedule now (privileged; bypasses multi-node coordination).
+ * @param {string} appName
+ * @param {string} jobName
+ * @returns {Promise<object>}
+ */
+async function runSchedulerJob(appName, jobName) {
+  if (!appName) throw new Error('appName is required');
+  if (!jobName) throw new Error('jobName is required');
+  return scheduler.runNow(String(appName), String(jobName));
+}
+
 module.exports = {
     listApps,
     createAppDirectory,
@@ -1369,5 +1403,8 @@ module.exports = {
     getQueueStats,
     listQueueDlq,
     retryQueueDlqJob,
-    discardQueueDlqJob
+    discardQueueDlqJob,
+    getSchedulerStatus,
+    listSchedulerJobs,
+    runSchedulerJob
 };

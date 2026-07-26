@@ -304,9 +304,16 @@ describe('scheduler.js', () => {
       });
 
       await scheduler.registerApp(app);
-      await scheduler.runNow(app.name, 'marker_job');
+      const result = await scheduler.runNow(app.name, 'marker_job');
+      expect(result.lastStatus).toBe('ok');
+      expect(result.appName).toBe(app.name);
+      expect(result.name).toBe('marker_job');
       const jobs = scheduler.listJobs();
       expect(jobs[0].lastStatus).toBe('ok');
+      expect(jobs[0].targetSummary).toMatch(/script:/);
+      const status = scheduler.getAdminStatus();
+      expect(status.enabled).toBe(true);
+      expect(status.jobCount).toBe(1);
       scheduler.unregisterApp(app.name);
     });
 

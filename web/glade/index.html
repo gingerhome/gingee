@@ -29,6 +29,11 @@
                 Glade Dashboard
             </a>
             <div class="d-flex align-items-center">
+                <button id="scheduleAdminButton" class="btn btn-outline-light text-dark ms-2" type="button"
+                    data-bs-toggle="modal" data-bs-target="#scheduleAdminModal"
+                    title="Registered CRON schedules — Run now">
+                    Schedules
+                </button>
                 <button id="queueAdminButton" class="btn btn-outline-light text-dark ms-2" type="button"
                     data-bs-toggle="modal" data-bs-target="#queueAdminModal" title="Background queue and dead-letter jobs">
                     Queue / DLQ
@@ -76,6 +81,61 @@
             </div>
         </div>
     </main>
+
+    <!-- Schedules / Run now Admin Modal -->
+    <div class="modal fade" id="scheduleAdminModal" tabindex="-1" aria-labelledby="scheduleAdminModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="scheduleAdminModalLabel">CRON Schedules</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="schedule-admin-error" class="alert alert-danger d-none"></div>
+                    <div id="schedule-admin-info" class="alert alert-info d-none"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div id="schedule-stats-panel" class="small text-muted">Loading…</div>
+                        <button type="button" class="queue-action-link" id="schedule-refresh-btn">Refresh</button>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small mb-0" for="schedule-app-filter">Filter by app</label>
+                            <input type="text" class="form-control form-control-sm" id="schedule-app-filter"
+                                placeholder="Type 3+ letters to search app name" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="schedule-table">
+                            <thead>
+                                <tr>
+                                    <th>App</th>
+                                    <th>Job</th>
+                                    <th>Cron</th>
+                                    <th>Target</th>
+                                    <th>Next run</th>
+                                    <th>Last status</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schedule-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">No registered schedules</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="small text-muted mb-0">
+                        Jobs appear only when <code>scheduler.enabled</code> is true on this node and apps have
+                        granted <code>scheduler</code> with valid <code>app.json</code> schedules.
+                        <strong>Run now</strong> executes on this node immediately (bypasses multi-node coordination locks).
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Queue / DLQ Admin Modal -->
     <div class="modal fade" id="queueAdminModal" tabindex="-1" aria-labelledby="queueAdminModalLabel" aria-hidden="true">

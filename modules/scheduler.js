@@ -765,21 +765,41 @@ function shutdown() {
 }
 
 /**
- * List registered jobs (for tests / future admin UI).
+ * List registered jobs (tests / Glade admin UI).
+ * @param {object} [opts]
+ * @param {string} [opts.appName] - filter by app (substring match if filterPartial)
+ * @param {boolean} [opts.filterPartial]
  * @returns {Array<object>}
  */
-function listJobs() {
+function listJobs(opts) {
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const appFilter =
+    o.appName != null && String(o.appName).trim()
+      ? String(o.appName).trim().toLowerCase()
+      : null;
+  const partial = o.filterPartial === true;
   const out = [];
   for (const [appName, appMap] of appJobs.entries()) {
+    if (appFilter) {
+      const an = appName.toLowerCase();
+      if (partial) {
+        if (!an.includes(appFilter)) continue;
+      } else if (an !== appFilter) {
+        continue;
+      }
+    }
     for (const [jobName, runtime] of appMap.entries()) {
       const next =
         runtime.cronJob && runtime.cronJob.nextRun && runtime.cronJob.nextRun();
+      const t = runtime.def.target || {};
       out.push({
         appName,
         name: jobName,
         cron: runtime.def.cron,
         timezone: runtime.def.timezone,
-        target: runtime.def.target,
+        target: t,
+        targetType: t.type || null,
+        targetSummary: summarizeTarget(t),
         running: runtime.running,
         lastStartedAt: runtime.lastStartedAt,
         lastFinishedAt: runtime.lastFinishedAt,
@@ -789,14 +809,54 @@ function listJobs() {
       });
     }
   }
+  out.sort((a, b) => {
+    const c = a.appName.localeCompare(b.appName);
+    return c !== 0 ? c : a.name.localeCompare(b.name);
+  });
   return out;
 }
 
 /**
- * Force-run a registered job (tests / future admin "Run now").
+ * @private
+ */
+function summarizeTarget(t) {
+  if (!t || !t.type) return '—';
+  if (t.type === 'script') return `script:${t.path || '?'}`;
+  if (t.type === 'url') return `url:${t.method || 'GET'} ${t.url || '?'}`;
+  if (t.type === 'queue') return `queue:${t.job || '?'}`;
+  return String(t.type);
+}
+
+/**
+ * Admin/status snapshot for Glade.
+ * @returns {object}
+ */
+function getAdminStatus() {
+  const jobs = listJobs();
+  let running = 0;
+  for (const j of jobs) {
+    if (j.running) running++;
+  }
+  return {
+    enabled: serverConfig.enabled === true,
+    timezone: serverConfig.timezone || 'UTC',
+    coordination: {
+      driver:
+        (serverConfig.coordination && serverConfig.coordination.driver) || 'none',
+      strategy:
+        (serverConfig.coordination && serverConfig.coordination.strategy) || 'tick'
+    },
+    jobCount: jobs.length,
+    runningCount: running
+  };
+}
+
+/**
+ * Force-run a registered job (tests / Glade "Run now").
  * Bypasses multi-node coordination so an operator can always trigger a run.
  * @param {string} appName
  * @param {string} jobName
+ * @returns {Promise<object>} result status snapshot
  */
 async function runNow(appName, jobName) {
   const appMap = appJobs.get(appName);
@@ -808,6 +868,15 @@ async function runNow(appName, jobName) {
     throw new Error(`Internal error: runtime missing app for '${appName}/${jobName}'.`);
   }
   await runJob(runtime.app, runtime, { force: true });
+  return {
+    appName,
+    name: jobName,
+    lastStatus: runtime.lastStatus,
+    lastError: runtime.lastError,
+    lastStartedAt: runtime.lastStartedAt,
+    lastFinishedAt: runtime.lastFinishedAt,
+    running: runtime.running
+  };
 }
 
 /**
@@ -862,6 +931,7 @@ module.exports = {
   reinitApp,
   shutdown,
   listJobs,
+  getAdminStatus,
   runNow,
   // private test helpers
   _normalizeSchedule: normalizeSchedule,

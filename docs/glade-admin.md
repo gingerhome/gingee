@@ -36,7 +36,7 @@ After a successful login, you are taken to the main Glade dashboard. This is you
 
 The dashboard consists of two main components:
 
-1.  **The Header:** Contains the Glade title, **Queue / DLQ** (background job dead-letter admin — see below), and a **Logout** button to securely end your session.
+1.  **The Header:** Contains the Glade title, **Schedules** (CRON list + Run now), **Queue / DLQ** (dead-letter admin — see below), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
     -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
     -   **Version:** The version number, as specified in the app's own `app.json` file.
@@ -133,9 +133,20 @@ This is a destructive action that will permanently remove an application and all
 
 ![Glade App Delete](./images/7.glade-app-delete.png)
 
+### Schedules (CRON / Run now)
+
+The top navigation bar includes a **Schedules** control. It opens an admin panel for jobs registered on **this node** from `app.json` → `schedules` (only when `gingee.json` → `scheduler.enabled` is true):
+
+1. **Status** — enabled flag, default timezone, coordination driver, job count, currently running.
+2. **Job list** — app, name, cron, target summary (script / url / queue), next run, last status.
+3. **App filter** — type **3+ letters** to filter by app name (live).
+4. **Run now** — executes that job immediately on this node (bypasses multi-node coordination locks so an operator can always trigger a run). Shows last status after completion.
+
+APIs: `platform.getSchedulerStatus` / `listSchedulerJobs` / `runSchedulerJob` (also `/glade/api/schedule-list`, `/glade/api/schedule-run`). If the scheduler is disabled, the list is empty and an info banner explains why.
+
 ### Queue / Dead Letter Queue (DLQ)
 
-The top navigation bar includes a **Queue / DLQ** control (next to About / Logout). It opens an admin panel for the engine background job system (`gingee.json` → `queue`):
+The top navigation bar includes a **Queue / DLQ** control (next to Schedules / About / Logout). It opens an admin panel for the engine background job system (`gingee.json` → `queue`):
 
 1. **Stats** — driver (memory/redis), in-flight and waiting counts on this node, DLQ size.
 2. **Dead-letter list** — jobs that exhausted retries (error message, app, attempts). Type **3+ letters** in the app filter to search by app name (live filter).
