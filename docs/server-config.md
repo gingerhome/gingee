@@ -489,6 +489,36 @@ In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `
 | `idle_timeout_ms` | `300000` | Close sockets idle longer than this (activity = message or pong). |
 | `heartbeat_ms` | `30000` | Server ping interval; also drives idle checks. |
 | `default_path` | `"/ws"` | Used when an app omits `websockets.path`. Full URL is `/{appName}{path}`. |
+| `fanout` | see below | Multi-node room/app broadcast (optional). |
+| `redis` | see below | Connection for fan-out when `fanout.driver` is `"redis"` (same fields as `queue.redis`). |
+
+#### websockets.fanout (multi-node)
+
+Without fan-out, `require('websockets').toRoom` / `toApp` only reach sockets on **this** process. With Redis pub/sub, every Gingee master delivers to its local members of the room.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `driver` | `"none"` | `"none"` (single-node) or `"redis"` (pub/sub fan-out). |
+| `node_id` | `hostname:pid` | Origin id so a node ignores its own publishes. |
+
+#### websockets.redis
+
+Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**: `url` or `host`/`port`/`password`/`db`, plus `key_prefix` (default `"gingee:ws:"`). Channel: `{key_prefix}broadcast`.
+
+```json
+"websockets": {
+  "enabled": true,
+  "fanout": {
+    "driver": "redis"
+  },
+  "redis": {
+    "url": "env:REDIS_URL",
+    "key_prefix": "gingee:ws:"
+  }
+}
+```
+
+**Behavior:** local delivery always runs first; Redis publish is best-effort (if Redis is down, other nodes miss the message — this node still serves its sockets). Apps need no API changes.
 
 **Per-app** (`app.json`):
 
@@ -516,7 +546,7 @@ In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `
 
 **Sample app:** `web/ginchat/` — multi-tenant room chat + HTTP announce (`POST /ginchat/api/announce`). Open `/ginchat/` after granting the `websockets` permission and restarting/reloading.
 
-**Metrics:** `gingee_websocket_upgrades_total`, `gingee_websocket_connections_opened_total` / `_closed_total`, gauges `gingee_websocket_connections` and `gingee_websocket_connections_per_app`.
+**Metrics:** `gingee_websocket_upgrades_total`, `gingee_websocket_connections_opened_total` / `_closed_total`, gauges `gingee_websocket_connections` and `gingee_websocket_connections_per_app`, fan-out `gingee_websocket_fanout_publish_total` / `_receive_total`.
 
 ### queue
 

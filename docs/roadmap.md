@@ -12,9 +12,9 @@ This phase is focused on polishing the existing platform and delivering on our "
 
 This phase is focused on adding major new modules that unlock entirely new categories of applications that can be built on Gingee. [INPROGRESS]
 
--   **Real-Time Communication (`websockets` Module)** *(v1 shipped)*
-    -   **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**.
-    -   **Later:** Redis fan-out for multi-node, optional isolation bridge, Glade connection admin UI.
+-   **Real-Time Communication (`websockets` Module)** *(v1 + Redis fan-out shipped)*
+    -   **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**, **Redis multi-node fan-out** (`fanout.driver: "redis"` + sibling `websockets.redis`).
+    -   **Later:** Optional isolation bridge, Glade connection admin UI, presence directory.
 
 -   **CRON Scheduler** *(v1 + Redis coordination shipped)*
     -   **Done:** Declarative `app.json` schedules; server gate `scheduler.enabled` (default off); targets script/url/queue; **Redis multi-node coordination** (`coordination.driver: "redis"` + sibling `scheduler.redis` like queue/cache; strategies `tick` / `leader`, fail-closed).

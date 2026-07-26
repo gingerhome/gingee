@@ -13,6 +13,12 @@ const { als } = require('../gingee.js');
 const { runInGBox } = require('../gbox.js');
 const { isPathInside } = require('../internal_utils.js');
 const metrics = require('../metrics.js');
+const {
+  FANOUT_DEFAULTS,
+  REDIS_DEFAULTS,
+  normalizeFanout,
+  RedisFanout
+} = require('./websocket_fanout.js');
 
 const engineRoot = path.resolve(__dirname, '..', '..');
 
@@ -25,7 +31,13 @@ const DEFAULTS = {
   idle_timeout_ms: 300000,
   heartbeat_ms: 30000,
   /** Default relative path under /{appName} when app omits websockets.path */
-  default_path: '/ws'
+  default_path: '/ws',
+  /**
+   * Multi-node fan-out (sibling redis block, same shape as queue.redis).
+   * driver none = local rooms only; redis = pub/sub across Gingee masters.
+   */
+  fanout: { ...FANOUT_DEFAULTS },
+  redis: { ...REDIS_DEFAULTS }
 };
 
 /**
@@ -48,7 +60,9 @@ function state() {
       rooms: new Map(),
       appConnCounts: new Map(),
       nextSocketId: 1,
-      heartbeatTimer: null
+      heartbeatTimer: null,
+      /** @type {import('./websocket_fanout.js').RedisFanout|null} */
+      fanout: null
     };
   }
   return globalThis[STATE_KEY];
@@ -69,11 +83,18 @@ function positiveInt(v, fallback) {
  * @param {object} logger
  * @param {object} [globalConfig]
  */
+/**
+ * Initialize WebSocket hub (sync). Redis fan-out starts in the background when configured.
+ * @param {object|null|undefined} cfg
+ * @param {object} logger
+ * @param {object} [globalConfig]
+ */
 function initServer(cfg, logger, globalConfig) {
   const S = state();
   S.serverLogger = logger || console;
   S.globalConfigRef = globalConfig || null;
   const c = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : {};
+  const fanoutNorm = normalizeFanout(c);
   S.serverConfig = {
     enabled: c.enabled !== false,
     max_connections: positiveInt(c.max_connections, DEFAULTS.max_connections),
@@ -86,8 +107,23 @@ function initServer(cfg, logger, globalConfig) {
     heartbeat_ms: positiveInt(c.heartbeat_ms, DEFAULTS.heartbeat_ms),
     default_path: typeof c.default_path === 'string' && c.default_path
       ? normalizePath(c.default_path)
-      : DEFAULTS.default_path
+      : DEFAULTS.default_path,
+    fanout: { driver: fanoutNorm.driver },
+    redis: { ...fanoutNorm.redis }
   };
+
+  // Replace fanout bridge on re-init (tests)
+  if (S.fanout) {
+    try {
+      if (typeof S.fanout.shutdown === 'function') {
+        const p = S.fanout.shutdown();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    S.fanout = null;
+  }
 
   if (!S.serverConfig.enabled) {
     log().info('[websockets] Disabled (websockets.enabled is false).');
@@ -102,9 +138,30 @@ function initServer(cfg, logger, globalConfig) {
     S.wss.on('connection', onConnection);
   }
 
+  if (fanoutNorm.driver === 'redis') {
+    S.fanout = new RedisFanout(fanoutNorm, log(), {
+      onRoom: (appName, room, data) => {
+        sendToRoomLocal(appName, room, data, {});
+      },
+      onApp: (appName, data) => {
+        sendToAppLocal(appName, data);
+      }
+    });
+    S.fanout.start().catch((e) => {
+      log().error(
+        `[websockets] Fan-out Redis failed to start (${e.message}); multi-node broadcast degraded to local-only.`
+      );
+      S.fanout = null;
+    });
+  }
+
   startHeartbeat();
+  const fanMsg =
+    fanoutNorm.driver === 'redis'
+      ? ` fanout=redis prefix=${fanoutNorm.redis.key_prefix}`
+      : ' fanout=none (single-node rooms)';
   log().info(
-    `[websockets] enabled max_connections=${S.serverConfig.max_connections} max_per_app=${S.serverConfig.max_connections_per_app}`
+    `[websockets] enabled max_connections=${S.serverConfig.max_connections} max_per_app=${S.serverConfig.max_connections_per_app}${fanMsg}`
   );
 }
 
@@ -719,13 +776,16 @@ function leaveRoom(appName, room, socketId) {
 }
 
 /**
+ * Local-only room deliver (no Redis publish).
  * @param {string} appName
  * @param {string} room
  * @param {*} data
  * @param {object} [opts]
  * @param {string} [opts.excludeId]
+ * @returns {number} local recipients
+ * @private
  */
-function sendToRoom(appName, room, data, opts = {}) {
+function sendToRoomLocal(appName, room, data, opts = {}) {
   const S = state();
   const appRooms = S.rooms.get(appName);
   if (!appRooms || !appRooms.has(room)) return 0;
@@ -749,11 +809,29 @@ function sendToRoom(appName, room, data, opts = {}) {
 }
 
 /**
- * Broadcast to all connections of an app.
  * @param {string} appName
+ * @param {string} room
  * @param {*} data
+ * @param {object} [opts]
+ * @param {string} [opts.excludeId]
+ * @param {boolean} [opts.fromFanout] - skip re-publish when applying remote message
+ * @returns {number} local recipients (other nodes not counted)
  */
-function sendToApp(appName, data) {
+function sendToRoom(appName, room, data, opts = {}) {
+  const n = sendToRoomLocal(appName, room, data, opts);
+  const S = state();
+  if (!opts.fromFanout && S.fanout && S.fanout.enabled()) {
+    // Fan-out full room payload (excludeId is local only; remote nodes have no that socket).
+    S.fanout.publishRoom(appName, room, data).catch(() => {});
+  }
+  return n;
+}
+
+/**
+ * Local-only app broadcast.
+ * @private
+ */
+function sendToAppLocal(appName, data) {
   const S = state();
   let n = 0;
   const payload =
@@ -769,6 +847,23 @@ function sendToApp(appName, data) {
     } catch (_) {
       /* ignore */
     }
+  }
+  return n;
+}
+
+/**
+ * Broadcast to all connections of an app (local + optional multi-node fan-out).
+ * @param {string} appName
+ * @param {*} data
+ * @param {object} [opts]
+ * @param {boolean} [opts.fromFanout]
+ * @returns {number} local recipients
+ */
+function sendToApp(appName, data, opts = {}) {
+  const n = sendToAppLocal(appName, data);
+  const S = state();
+  if (!opts.fromFanout && S.fanout && S.fanout.enabled()) {
+    S.fanout.publishApp(appName, data).catch(() => {});
   }
   return n;
 }
@@ -836,6 +931,17 @@ function shutdownAll() {
   if (S.heartbeatTimer) {
     clearInterval(S.heartbeatTimer);
     S.heartbeatTimer = null;
+  }
+  if (S.fanout) {
+    try {
+      if (typeof S.fanout.shutdown === 'function') {
+        const p = S.fanout.shutdown();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    S.fanout = null;
   }
   for (const [id, entry] of [...S.sockets.entries()]) {
     try {
@@ -939,5 +1045,10 @@ module.exports = {
   /** test helpers */
   _sockets: state().sockets,
   _bindings: state().bindings,
-  _serverConfig: () => state().serverConfig
+  _serverConfig: () => state().serverConfig,
+  _setFanoutForTests: (f) => {
+    state().fanout = f;
+  },
+  _sendToRoomLocal: sendToRoomLocal,
+  _sendToAppLocal: sendToAppLocal
 };

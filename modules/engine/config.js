@@ -182,7 +182,15 @@ function mergeUserConfig(defaultConfig, userConfig) {
     },
     websockets: {
       ...defaultConfig.websockets,
-      ...(uc.websockets || {})
+      ...(uc.websockets || {}),
+      fanout: {
+        ...(defaultConfig.websockets.fanout || {}),
+        ...((uc.websockets && uc.websockets.fanout) || {})
+      },
+      redis: {
+        ...(defaultConfig.websockets.redis || {}),
+        ...((uc.websockets && uc.websockets.redis) || {})
+      }
     },
     queue: {
       ...defaultConfig.queue,

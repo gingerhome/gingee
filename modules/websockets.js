@@ -6,6 +6,10 @@
  * Connections are accepted by the **master** process (HTTP upgrade on the public port).
  * Configure handlers in <code>app.json</code> → <code>websockets</code>.
  *
+ * <b>Multi-node:</b> set <code>gingee.json</code> → <code>websockets.fanout.driver: "redis"</code>
+ * and sibling <code>websockets.redis</code> so <code>toRoom</code> / <code>toApp</code> fan out
+ * across load-balanced masters (local sockets + Redis pub/sub).
+ *
  * <b>IMPORTANT:</b> Requires the <code>websockets</code> permission.
  *
  * <b>Multi-tenant apps:</b> prefix rooms with <code>tenantRoom(tenantId, name)</code>

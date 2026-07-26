@@ -23,6 +23,19 @@ describe('engine/config', () => {
     expect(d.privileged_apps).toContain('glade');
   });
 
+  test('mergeUserConfig deep-merges websockets.fanout and websockets.redis', () => {
+    const merged = mergeUserConfig(buildDefaultConfig(), {
+      websockets: {
+        fanout: { driver: 'redis' },
+        redis: { url: 'redis://127.0.0.1:6379', key_prefix: 'g:ws:' }
+      }
+    });
+    expect(merged.websockets.fanout.driver).toBe('redis');
+    expect(merged.websockets.redis.url).toBe('redis://127.0.0.1:6379');
+    expect(merged.websockets.redis.key_prefix).toBe('g:ws:');
+    expect(merged.websockets.enabled).toBe(true);
+  });
+
   test('mergeUserConfig deep-merges scheduler.redis sibling (queue/cache pattern)', () => {
     const merged = mergeUserConfig(buildDefaultConfig(), {
       scheduler: {
