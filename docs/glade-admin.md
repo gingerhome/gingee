@@ -36,7 +36,7 @@ After a successful login, you are taken to the main Glade dashboard. This is you
 
 The dashboard consists of two main components:
 
-1.  **The Header:** Contains the Glade title, **Schedules** (CRON list + Run now), **Queue / DLQ** (live jobs + dead-letter admin — see below), and a **Logout** button to securely end your session.
+1.  **The Header:** Contains the Glade title, **Schedules**, **Queue / DLQ**, **Logs** (server + app log files), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
     -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
     -   **Version:** The version number, as specified in the app's own `app.json` file.
@@ -132,6 +132,18 @@ This is a destructive action that will permanently remove an application and all
 4.  Click the **Confirm** button. Glade will gracefully shut down the application's services, revoke its permissions, clear its caches, and delete its entire directory from the server.
 
 ![Glade App Delete](./images/7.glade-app-delete.png)
+
+### Logs (server & app files)
+
+Top nav **Logs** opens a viewer for **this Gingee process** only:
+
+1. **Scope Server** (default) — files under project `logs/gingee-YYYY-MM-DD.log`. Includes engine lines and **app-forwarded** lines (JSON field `app`). Optional **Engine only** hides forwarded app lines.
+2. **Scope App** — files under `web/<app>/box/logs/app-YYYY-MM-DD.log` for any installed app, including **glade**.
+3. **File** dropdown (`.log` only; rotated `.gz` not opened), **level** filter, **search** in the current window, default **last 100 lines**.
+4. **Hide log-viewer requests** is **on** by default — filters out noise from the Logs UI itself (`logs-list.js` / `logs-read.js` execute/reload/response lines). Uncheck to see those lines.
+5. **Auto-refresh** is **off** by default; optional 4s poll while the modal is open.
+
+APIs: `platform.listLogFiles` / `readLogFile` → `/glade/api/logs-list`, `/glade/api/logs-read`. Paths are jailed to the server logs directory and each app’s `box/logs`.
 
 ### Schedules (CRON / Run now)
 

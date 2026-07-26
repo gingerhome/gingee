@@ -648,6 +648,15 @@ An object that configures the server's logger.
   - **`period_days`** (number): The maximum number of days to keep a log file before creating a new one.
   - **`max_size_mb`** (number): The maximum size in megabytes a log file can reach before a new one is created.
 
+**On disk:**
+
+| Stream | Path | Notes |
+| :--- | :--- | :--- |
+| Server | `{project}/logs/gingee-YYYY-MM-DD.log` | JSON lines; includes engine events **and** app logs forwarded from each app logger |
+| App | `{web_root}/{app}/box/logs/app-YYYY-MM-DD.log` | JSON lines with `"app"`; app-only |
+
+**Glade:** top menu **Logs** — tail/view server or app files (default last 100 lines; path-jailed). See [Glade Admin](./glade-admin.md).
+
 ### box (Sandbox Configuration)
 
 - **Type:** `object`

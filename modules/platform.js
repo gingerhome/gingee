@@ -18,6 +18,7 @@ const appLogger = require('./logger.js');
 const workerManager = require('./engine/isolation/worker_manager.js');
 const websocketHub = require('./engine/websocket_hub.js');
 const queueService = require('./engine/queue_service.js');
+const logViewer = require('./log_viewer.js');
 
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
@@ -1357,6 +1358,36 @@ async function discardQueueDlqJob(jobId) {
 }
 
 /**
+ * List server or app log files (privileged / Glade).
+ * @param {object} [opts]
+ * @param {string} [opts.scope] - server | app
+ * @param {string} [opts.appName]
+ * @returns {object}
+ */
+function listLogFiles(opts) {
+  const { projectRoot, webPath } = getContext();
+  return logViewer.listLogFiles({
+    ...(opts || {}),
+    projectRoot,
+    webPath
+  });
+}
+
+/**
+ * Tail-read a log file (privileged / Glade).
+ * @param {object} [opts]
+ * @returns {object}
+ */
+function readLogFile(opts) {
+  const { projectRoot, webPath } = getContext();
+  return logViewer.readLogFile({
+    ...(opts || {}),
+    projectRoot,
+    webPath
+  });
+}
+
+/**
  * Scheduler admin status for Glade (privileged).
  * @returns {object}
  */
@@ -1418,5 +1449,7 @@ module.exports = {
     discardQueueDlqJob,
     getSchedulerStatus,
     listSchedulerJobs,
-    runSchedulerJob
+    runSchedulerJob,
+    listLogFiles,
+    readLogFile
 };

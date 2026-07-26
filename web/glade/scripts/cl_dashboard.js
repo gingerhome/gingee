@@ -672,6 +672,280 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/"/g, '&quot;');
     }
 
+    // --- Logs Admin ---
+    const logsAdminModalEl = document.getElementById('logsAdminModal');
+    const logsAdminError = document.getElementById('logs-admin-error');
+    const logsScope = document.getElementById('logs-scope');
+    const logsAppWrap = document.getElementById('logs-app-wrap');
+    const logsApp = document.getElementById('logs-app');
+    const logsFile = document.getElementById('logs-file');
+    const logsLevel = document.getElementById('logs-level');
+    const logsLines = document.getElementById('logs-lines');
+    const logsSearch = document.getElementById('logs-search');
+    const logsEngineOnly = document.getElementById('logs-engine-only');
+    const logsEngineOnlyWrap = document.getElementById('logs-engine-only-wrap');
+    const logsHideQueries = document.getElementById('logs-hide-queries');
+    const logsAutoRefresh = document.getElementById('logs-auto-refresh');
+    const logsRefreshBtn = document.getElementById('logs-refresh-btn');
+    const logsMeta = document.getElementById('logs-meta');
+    const logsTableBody = document.getElementById('logs-table-body');
+    let logsAutoTimer = null;
+    let logsFileList = [];
+    let logsSuppressFileChange = false;
+
+    function showLogsError(msg) {
+        if (!logsAdminError) return;
+        logsAdminError.textContent = msg || '';
+        logsAdminError.classList.toggle('d-none', !msg);
+    }
+
+    function updateLogsScopeUi() {
+        const isApp = logsScope && logsScope.value === 'app';
+        if (logsAppWrap) logsAppWrap.style.display = isApp ? '' : 'none';
+        if (logsEngineOnlyWrap) logsEngineOnlyWrap.style.display = isApp ? 'none' : '';
+    }
+
+    function populateLogsAppSelect(appNames) {
+        if (!logsApp) return;
+        const names = (appNames || []).slice().sort((a, b) => a.localeCompare(b));
+        const prev = logsApp.value;
+        logsApp.innerHTML = names
+            .map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`)
+            .join('');
+        if (prev && names.includes(prev)) logsApp.value = prev;
+        else if (names.includes('glade')) logsApp.value = 'glade';
+        else if (names.length) logsApp.value = names[0];
+    }
+
+    function populateLogsFileSelect(files, preferred) {
+        if (!logsFile) return;
+        logsFileList = files || [];
+        logsSuppressFileChange = true;
+        logsFile.innerHTML = logsFileList.length
+            ? logsFileList
+                  .map((f) => {
+                      const sz =
+                          f.size != null ? ` (${Math.max(1, Math.round(f.size / 1024))} KB)` : '';
+                      return `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}${sz}</option>`;
+                  })
+                  .join('')
+            : '<option value="">(no .log files)</option>';
+        if (preferred && logsFileList.some((f) => f.name === preferred)) {
+            logsFile.value = preferred;
+        } else if (logsFileList.length) {
+            logsFile.value = logsFileList[0].name;
+        }
+        logsSuppressFileChange = false;
+    }
+
+    function levelClass(level) {
+        const lv = (level || '').toLowerCase();
+        if (lv === 'error') return 'text-danger';
+        if (lv === 'warn' || lv === 'warning') return 'text-warning';
+        if (lv === 'info') return 'text-info';
+        return 'text-muted';
+    }
+
+    function renderLogLines(lines) {
+        if (!logsTableBody) return;
+        if (!lines || lines.length === 0) {
+            logsTableBody.innerHTML =
+                '<tr><td colspan="4" class="text-center text-muted">No log lines</td></tr>';
+            return;
+        }
+        logsTableBody.innerHTML = lines
+            .map((row) => {
+                const ts = row.ts ? String(row.ts).replace('T', ' ').replace(/Z$/, '') : '—';
+                const level = row.level || '—';
+                const app = row.app || '—';
+                const msg = row.message != null ? String(row.message) : row.raw || '';
+                return `<tr>
+                    <td class="small font-monospace text-nowrap">${escapeHtml(ts)}</td>
+                    <td class="small ${levelClass(level)}">${escapeHtml(level)}</td>
+                    <td class="small">${escapeHtml(app)}</td>
+                    <td class="small" style="white-space: pre-wrap; word-break: break-word;">${escapeHtml(msg)}</td>
+                </tr>`;
+            })
+            .join('');
+        // Scroll to bottom (newest of the window)
+        const wrap = logsTableBody.closest('.table-responsive');
+        if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    async function ensureLogsAppsLoaded() {
+        if (!logsApp || logsApp.options.length > 0) return;
+        try {
+            const res = await fetch('/glade/api/apps', { credentials: 'include' });
+            if (res.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const data = await res.json();
+            const names = (data.apps || [])
+                .map((a) => (typeof a === 'string' ? a : a.name || a.appName))
+                .filter(Boolean);
+            populateLogsAppSelect(names.length ? names : ['glade']);
+        } catch (_) {
+            populateLogsAppSelect(['glade']);
+        }
+    }
+
+    async function loadLogsListAndRead(keepFile) {
+        showLogsError('');
+        updateLogsScopeUi();
+        const scope = (logsScope && logsScope.value) || 'server';
+        if (scope === 'app') await ensureLogsAppsLoaded();
+
+        const appName = scope === 'app' && logsApp ? logsApp.value : null;
+        if (scope === 'app' && !appName) {
+            showLogsError('Select an application.');
+            return;
+        }
+
+        try {
+            const listQs = new URLSearchParams({ scope });
+            if (appName) listQs.set('appName', appName);
+            const listRes = await fetch(`/glade/api/logs-list?${listQs}`, { credentials: 'include' });
+            if (listRes.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const listData = await listRes.json();
+            if (listData.status !== 'success') {
+                throw new Error(listData.error || 'Failed to list log files');
+            }
+
+            const preferred =
+                keepFile && logsFile && logsFile.value ? logsFile.value : null;
+            populateLogsFileSelect(listData.files || [], preferred);
+
+            if (!logsFile || !logsFile.value) {
+                renderLogLines([]);
+                if (logsMeta) logsMeta.textContent = 'No log files found for this scope.';
+                return;
+            }
+
+            const readQs = new URLSearchParams({
+                scope,
+                file: logsFile.value,
+                lines: (logsLines && logsLines.value) || '100',
+                level: (logsLevel && logsLevel.value) || 'all'
+            });
+            if (appName) readQs.set('appName', appName);
+            if (logsEngineOnly && logsEngineOnly.checked && scope === 'server') {
+                readQs.set('engineOnly', 'true');
+            }
+            // Default ON: hide noise from this viewer unless unchecked
+            if (logsHideQueries && !logsHideQueries.checked) {
+                readQs.set('hideLogQueries', 'false');
+            } else {
+                readQs.set('hideLogQueries', 'true');
+            }
+            if (logsSearch && logsSearch.value.trim()) {
+                readQs.set('q', logsSearch.value.trim());
+            }
+
+            const readRes = await fetch(`/glade/api/logs-read?${readQs}`, { credentials: 'include' });
+            if (readRes.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const readData = await readRes.json();
+            if (readData.status !== 'success') {
+                throw new Error(readData.error || 'Failed to read log file');
+            }
+
+            // Keep file list in sync if API returned availableFiles
+            if (readData.availableFiles && readData.availableFiles.length) {
+                populateLogsFileSelect(readData.availableFiles, readData.file);
+            }
+
+            renderLogLines(readData.lines || []);
+            if (logsMeta) {
+                const bits = [
+                    readData.pathHint || readData.file || '',
+                    `${readData.lineCountReturned || 0} lines`,
+                    readData.fileSize != null
+                        ? `${Math.max(1, Math.round(readData.fileSize / 1024))} KB on disk`
+                        : ''
+                ];
+                if (readData.truncatedLines || readData.truncatedBytes) {
+                    bits.push('window truncated');
+                }
+                if (scope === 'server') {
+                    bits.push('includes app-forwarded lines (see App column)');
+                }
+                logsMeta.textContent = bits.filter(Boolean).join(' · ');
+            }
+        } catch (e) {
+            showLogsError(e.message);
+        }
+    }
+
+    function stopLogsAutoRefresh() {
+        if (logsAutoTimer) {
+            clearInterval(logsAutoTimer);
+            logsAutoTimer = null;
+        }
+    }
+
+    function startLogsAutoRefresh() {
+        stopLogsAutoRefresh();
+        if (!logsAutoRefresh || !logsAutoRefresh.checked) return;
+        logsAutoTimer = setInterval(() => {
+            if (logsAdminModalEl && logsAdminModalEl.classList.contains('show')) {
+                loadLogsListAndRead(true);
+            }
+        }, 4000);
+    }
+
+    if (logsAdminModalEl) {
+        logsAdminModalEl.addEventListener('shown.bs.modal', async () => {
+            updateLogsScopeUi();
+            await loadLogsListAndRead(false);
+            startLogsAutoRefresh();
+        });
+        logsAdminModalEl.addEventListener('hidden.bs.modal', () => {
+            stopLogsAutoRefresh();
+        });
+    }
+    if (logsScope) {
+        logsScope.addEventListener('change', () => {
+            updateLogsScopeUi();
+            loadLogsListAndRead(false);
+        });
+    }
+    if (logsApp) {
+        logsApp.addEventListener('change', () => loadLogsListAndRead(false));
+    }
+    if (logsFile) {
+        logsFile.addEventListener('change', () => {
+            if (!logsSuppressFileChange) loadLogsListAndRead(true);
+        });
+    }
+    if (logsLevel) logsLevel.addEventListener('change', () => loadLogsListAndRead(true));
+    if (logsLines) logsLines.addEventListener('change', () => loadLogsListAndRead(true));
+    if (logsEngineOnly) logsEngineOnly.addEventListener('change', () => loadLogsListAndRead(true));
+    if (logsHideQueries) {
+        logsHideQueries.addEventListener('change', () => loadLogsListAndRead(true));
+    }
+    if (logsSearch) {
+        let searchTimer = null;
+        logsSearch.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => loadLogsListAndRead(true), 350);
+        });
+    }
+    if (logsRefreshBtn) {
+        logsRefreshBtn.addEventListener('click', () => loadLogsListAndRead(true));
+    }
+    if (logsAutoRefresh) {
+        logsAutoRefresh.addEventListener('change', () => {
+            if (logsAutoRefresh.checked) startLogsAutoRefresh();
+            else stopLogsAutoRefresh();
+        });
+    }
+
     // --- Schedules / Run now Admin ---
     const scheduleStatsPanel = document.getElementById('schedule-stats-panel');
     const scheduleTableBody = document.getElementById('schedule-table-body');

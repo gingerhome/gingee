@@ -202,6 +202,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
 4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
 5. Keep **`scheduler.enabled`** false except on the designated scheduler node, **or** enable on all nodes with `scheduler.coordination.driver: "redis"` and shared `scheduler.redis` (NTP-aligned clocks recommended).
+5b. Treat **Glade Logs** as admin-only: server and app log files may contain secrets or payloads; do not expose Glade publicly.
 6. Prefer **Redis** for cache when running more than one node.
 7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.
 8. Treat **`app.json` secrets** as sensitive; restrict backups and who can download `.gin` exports.
