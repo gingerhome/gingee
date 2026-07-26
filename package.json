@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "gingee",
   "version": "1.0.4",
   "description": "Gingee, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
@@ -39,9 +39,11 @@
     "multi-database",
     "enterprise"
   ],
-  "author": "Google Gemini (Developer, Test Writer, Tech Writer), Vignesh Swaminathan (Architect, Tester, Reviewer)",
+  "author": "Google Gemini (Developer, Test Writer, Tech Writer), Grok (Developer, Test Writer, Tech Writer), Vignesh Swaminathan (Architect, Tester, Reviewer)",
   "contributors": [
-    "Google Gemini (GenAI Partner)"
+    "Google Gemini (GenAI Partner)",
+    "Grok (GenAI Partner)",
+    "Vignesh Swaminathan (Human Architect, Reviewer, Tester)"
   ],
   "license": "MIT",
   "engines": {
