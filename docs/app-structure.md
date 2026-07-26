@@ -246,6 +246,20 @@ Opt-in **process isolation** for this app’s **server scripts** (not static fil
 
 Buffered responses and SSE (`startStream` / `writeSSE` / `endStream`) are supported over IPC. Full server keys: [Server Config](./server-config.md) → `isolation`.
 
+### Sandbox dynamic code (`allow_dynamic_code` boolean, optional)
+
+Controls whether this app’s box scripts may use string **`eval` / `new Function`** inside the gbox vm (needed by some UMD libraries such as Handlebars).
+
+- **Default:** inherit server default (`gingee.json` → `box.allow_dynamic_code`, default `true`).
+- **Explicit app value wins:** set `"allow_dynamic_code": true` to **opt in** when the server default is `false`, or `"allow_dynamic_code": false` to lock this app down when the server default is `true`.
+- **Legacy:** `allow_code_generation` is still accepted.
+
+```json
+"allow_dynamic_code": true
+```
+
+See [Server Config](./server-config.md) → `box` and [Threat Model](./threat-model.md).
+
 ### Schedules (`schedules` array, optional)
 
 Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`; optional multi-node Redis coordination). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**. Queue targets also require **`queue`**. Operators can **Run now** from Glade **Schedules**.

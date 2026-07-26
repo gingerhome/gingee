@@ -21,7 +21,8 @@ const egress = require('./egress.js');
  *
  * <b>Egress / SSRF:</b> URLs are checked against <code>gingee.json</code> → <code>egress</code>
  * (default mode <code>protected</code> blocks private/loopback/link-local/metadata). Denied calls
- * return status 403 with <code>code: 'EGRESS_DENIED'</code>.
+ * return status 403 with <code>code: 'EGRESS_DENIED'</code>. When DNS validation yields addresses,
+ * connect uses a pinned <code>lookup</code> so resolution cannot rebind between check and TCP connect.
  *
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
@@ -211,6 +212,8 @@ async function get(url, options = {}) {
 
         const prepared = applyPlatformLimits(options);
         releaseOutbound = prepared.releaseOutbound;
+        // Pin connect to policy-validated addresses (DNS rebinding / H13).
+        egress.applyConnectPin(prepared.axiosConfig, allowed);
         const response = await axios.get(url, prepared.axiosConfig);
         const body = processBody(response.data, response.headers);
         return {
@@ -266,6 +269,8 @@ async function post(url, body, options = {}) {
             ...prepared.axiosConfig,
             headers: { 'Content-Type': postType, ...(options.headers || {}) },
         };
+        // Pin connect to policy-validated addresses (DNS rebinding / H13).
+        egress.applyConnectPin(config, allowed);
 
         let data = body;
         if (postType === POST_TYPES.JSON) data = JSON.stringify(body);

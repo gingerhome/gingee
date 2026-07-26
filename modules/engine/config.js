@@ -50,7 +50,8 @@ function buildDefaultConfig() {
       allowed_modules: [],
       // true (default): allow eval/new Function inside the vm sandbox so common UMD libs
       // (e.g. Handlebars) load. Host process is still blocked. Set false for stricter lockdown.
-      allow_code_generation: true
+      // Legacy alias: allow_code_generation (still honored if allow_dynamic_code is unset).
+      allow_dynamic_code: true
     },
     // Scheduler is off by default. Multi-node: coordination.driver "redis" + sibling redis (like queue).
     scheduler: {

@@ -24,6 +24,30 @@ When you create a new Gingee project using the `gingee-cli init` command, the Gl
 
 3.  **Accessing Glade:** By default, Gingee is configured to make Glade the `default_app`. To access it, simply navigate your browser to the root URL of your running server (e.g., `http://localhost:7070`). You will be automatically directed to the Glade login page.
 
+### Login rate limiting
+
+Failed logins are rate-limited using the server **cache** (memory or Redis), keyed by **client IP** and **username**. Defaults:
+
+| Setting | Default | Meaning |
+| :--- | ---: | :--- |
+| `LOGIN_MAX_ATTEMPTS` | `5` | Failures before lockout (per IP and per username) |
+| `LOGIN_WINDOW_SEC` | `900` | Window for counting failures (15 minutes) |
+| `LOGIN_LOCKOUT_SEC` | `900` | Lockout duration after the limit is hit |
+
+Override in `web/glade/box/app.json` → `env` if needed. When locked, `/glade/login` returns **HTTP 429** with `Retry-After` and a generic message (no username enumeration). Successful login clears counters for that IP and username.
+
+Argon2 password verification is expensive by design; rate limiting reduces online guessing and login DoS. Prefer keeping Glade off the public internet when possible.
+
+### Password rotation (not a “factory default”)
+
+Credentials are **chosen at `gingee-cli init`**, not a shared product default. Still rotate the admin password if:
+
+- The hash may have leaked (logs, backups, shared `app.json`, compromised host)
+- Staff who knew the password leave the team
+- You clone a project tree that already contains a real hash into a new environment
+
+Use `gingee-cli reset-pwd` (below) or edit `ADMIN_PASSWORD_HASH` after hashing a new password. Restart the server after changing `app.json`.
+
 ## The Dashboard View
 
 After a successful login, you are taken to the main Glade dashboard. This is your central hub for viewing and managing all applications.
@@ -186,9 +210,9 @@ This is separate from application request logs—see [Server Config](./server-co
 
 To securely end your administrative session, simply click the **Logout** button in the top-right corner of the header. This will delete your session on the server and clear the authentication cookie from your browser.
 
-### Resetting the Admin Password
+### Resetting / rotating the Admin Password
 
-If you forget your Glade password, you cannot recover it. However, if you have command-line access to the server where Gingee is running, you can securely reset it.
+The password is set during **`gingee-cli init`** (hashed with Argon2 into `ADMIN_PASSWORD_HASH`). There is no recoverable plaintext. If you forget it, or you are rotating credentials, use the CLI with host access:
 
 1.  Navigate to the root of your Gingee project directory in the terminal.
 2.  Run the following command from the `gingee-cli`:
@@ -199,3 +223,5 @@ If you forget your Glade password, you cannot recover it. However, if you have c
 4.  It will then generate a new, secure password hash.
 5.  Copy this entire hash and paste it into your `web/glade/box/app.json` file, replacing the old value for the `ADMIN_PASSWORD_HASH` key.
 6.  Restart your Gingee server. You will now be able to log in with your new password.
+
+**Note:** The hash that may appear in the Gingee **source repository** under `web/glade/` is for development only. Production projects should only use credentials produced by `init` / `reset-pwd`, never a copied repo default.

@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const { getContext } = require('./gingee.js');
 
 const SCOPES = {
@@ -15,6 +16,9 @@ const SCOPES = {
  * @private
  */
 function _normalizePath(p) {
+  if (typeof p !== 'string' || p.length === 0) {
+    return '';
+  }
   let resolved = path.resolve(p);
 
   // Drop trailing separators so "C:\app" and "C:\app\" compare equal.
@@ -35,23 +39,57 @@ function _normalizePath(p) {
 }
 
 /**
- * Returns true if `candidatePath` is the same as, or a descendant of, `boundaryPath`.
- * Safer than String.startsWith on resolved paths: rejects sibling directories that
- * only share a string prefix (e.g. `/web/app1` vs `/web/app10` or `C:\web\app1` vs
- * `C:\web\app1_evil`).
+ * Resolve a path with `realpath` on every existing ancestor.
+ * Non-existent leaf segments are re-joined under the realpath of the deepest
+ * existing parent. This closes symlink-jail escapes for paths that do not
+ * exist yet (e.g. write targets under a symlink directory).
  *
- * @param {string} candidatePath - Absolute or relative path to test.
- * @param {string} boundaryPath - Absolute or relative confinement root.
- * @returns {boolean}
+ * @param {string} p
+ * @returns {string} absolute path with intermediate symlinks expanded
  */
-function isPathInside(candidatePath, boundaryPath) {
-  if (typeof candidatePath !== 'string' || typeof boundaryPath !== 'string') {
-    return false;
+function resolveRealPath(p) {
+  if (typeof p !== 'string' || p.length === 0) {
+    return p;
   }
-  if (candidatePath.length === 0 || boundaryPath.length === 0) {
-    return false;
+  const abs = path.resolve(p);
+
+  // realpathSync may be mocked (tests) or throw; only trust a non-empty string.
+  try {
+    const rp = fs.realpathSync(abs);
+    if (typeof rp === 'string' && rp.length > 0) {
+      return rp;
+    }
+  } catch (_) {
+    /* walk ancestors */
   }
 
+  const missing = [];
+  let cur = abs;
+  while (true) {
+    const parent = path.dirname(cur);
+    if (parent === cur) {
+      // Root never existed (or inaccessible) — lexical fallback.
+      return abs;
+    }
+    missing.unshift(path.basename(cur));
+    cur = parent;
+    try {
+      const realParent = fs.realpathSync(cur);
+      if (typeof realParent === 'string' && realParent.length > 0) {
+        return path.resolve(realParent, ...missing);
+      }
+    } catch (_) {
+      /* keep walking */
+    }
+  }
+}
+
+/**
+ * Lexical containment only (no realpath). Used internally after both sides
+ * have already been realpath-expanded.
+ * @private
+ */
+function _isPathInsideLexical(candidatePath, boundaryPath) {
   const candidate = _normalizePath(candidatePath);
   const boundary = _normalizePath(boundaryPath);
 
@@ -71,8 +109,36 @@ function isPathInside(candidatePath, boundaryPath) {
 }
 
 /**
+ * Returns true if `candidatePath` is the same as, or a descendant of, `boundaryPath`.
+ * Safer than String.startsWith on resolved paths: rejects sibling directories that
+ * only share a string prefix (e.g. `/web/app1` vs `/web/app10` or `C:\web\app1` vs
+ * `C:\web\app1_evil`).
+ *
+ * Also expands symlinks via {@link resolveRealPath} so a writable jail cannot
+ * escape by planting a symlink to an outside path (H12).
+ *
+ * @param {string} candidatePath - Absolute or relative path to test.
+ * @param {string} boundaryPath - Absolute or relative confinement root.
+ * @returns {boolean}
+ */
+function isPathInside(candidatePath, boundaryPath) {
+  if (typeof candidatePath !== 'string' || typeof boundaryPath !== 'string') {
+    return false;
+  }
+  if (candidatePath.length === 0 || boundaryPath.length === 0) {
+    return false;
+  }
+
+  const candidate = resolveRealPath(candidatePath);
+  const boundary = resolveRealPath(boundaryPath);
+  return _isPathInsideLexical(candidate, boundary);
+}
+
+/**
  * A secure, internal-only path resolver.
  * Resolves BOX/WEB scoped paths and rejects anything outside the app boundary.
+ * Returns a realpath-expanded absolute path so subsequent I/O cannot re-follow
+ * intermediate symlinks differently from the jail check.
  * @private
  */
 function resolveSecurePath(scope, userPath) {
@@ -113,7 +179,8 @@ function resolveSecurePath(scope, userPath) {
     throw new Error(`Path Traversal Error: Access to '${userPath}' is forbidden!`);
   }
 
-  return resolved;
+  // Return realpath-expanded form so open/read/write uses the same jail view.
+  return resolveRealPath(resolved);
 }
 
 /**
@@ -205,6 +272,7 @@ function loadJsonFile(filePath) {
 module.exports = {
   SCOPES,
   isPathInside,
+  resolveRealPath,
   resolveSecurePath,
   loadOptional,
   requireOptional,

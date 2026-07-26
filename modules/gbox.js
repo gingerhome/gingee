@@ -84,20 +84,102 @@ function blockedHostAccess(name) {
 }
 
 /**
+ * Read a boolean flag from an object: only explicit <code>false</code> disables.
+ * Accepts new and legacy key names.
+ * @param {object|null|undefined} obj
+ * @returns {boolean|null} false if disabled, true if enabled, null if unset
+ * @private
+ */
+function _readDynamicCodeFlag(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  if (obj.allow_dynamic_code === false || obj.allow_code_generation === false) {
+    return false;
+  }
+  if (obj.allow_dynamic_code === true || obj.allow_code_generation === true) {
+    return true;
+  }
+  return null;
+}
+
+/**
+ * Whether sandbox string codegen (eval / new Function) is allowed for the server default.
+ * Prefer <code>box.allow_dynamic_code</code>; legacy <code>box.allow_code_generation</code> still honored.
+ * Default: true (Instant Time to Joy — many UMD libs need Function at load).
+ *
+ * @param {object|null|undefined} box - gingee.json box section
+ * @returns {boolean}
+ */
+function allowDynamicCodeFromBox(box) {
+  const v = _readDynamicCodeFlag(box);
+  return v !== false;
+}
+
+/**
+ * Resolve allow_dynamic_code for a specific app.
+ *
+ * Policy (explicit app wins):
+ * - If app.json sets <code>allow_dynamic_code</code> (or nested <code>box.allow_dynamic_code</code>),
+ *   that value is used — apps may opt in (<code>true</code>) or tighten (<code>false</code>).
+ * - Otherwise inherit server <code>box.allow_dynamic_code</code> (default <code>true</code>).
+ * - Legacy key <code>allow_code_generation</code> is accepted at both levels.
+ *
+ * Typical production pattern: server <code>false</code>, only apps that need UMD libs set <code>true</code>.
+ *
+ * @param {object|null|undefined} serverBox - gingee.json box
+ * @param {object|null|undefined} appConfig - app.json (app.config)
+ * @returns {boolean}
+ */
+function resolveAllowDynamicCodeForApp(serverBox, appConfig) {
+  const app = appConfig && typeof appConfig === 'object' ? appConfig : null;
+  if (app) {
+    // Top-level app.json key wins when set
+    const top = _readDynamicCodeFlag(app);
+    if (top !== null) return top;
+    // Optional nested app.json box section
+    const nested = _readDynamicCodeFlag(app.box);
+    if (nested !== null) return nested;
+  }
+  // Inherit server default (true unless server explicitly sets false)
+  return allowDynamicCodeFromBox(serverBox);
+}
+
+/**
+ * Resolve for a gBoxConfig run (server box + app config; optional per-run override).
+ * @param {object} [gBoxConfig]
+ * @returns {boolean}
+ */
+function resolveAllowDynamicCode(gBoxConfig) {
+  const cfg = gBoxConfig || {};
+  const serverBox = cfg.globalConfig && cfg.globalConfig.box;
+  const appConfig = cfg.app && cfg.app.config;
+  const appHasExplicit =
+    appConfig &&
+    (_readDynamicCodeFlag(appConfig) !== null ||
+      _readDynamicCodeFlag(appConfig.box) !== null);
+  const serverHasExplicit = serverBox && _readDynamicCodeFlag(serverBox) !== null;
+
+  // Prefer explicit server/app.json flags when present
+  if (appHasExplicit || serverHasExplicit) {
+    return resolveAllowDynamicCodeForApp(serverBox, appConfig);
+  }
+
+  // Per-run override (call sites / unit tests without config flags)
+  if (cfg.allowDynamicCode === false || cfg.allowCodeGeneration === false) return false;
+  if (cfg.allowDynamicCode === true || cfg.allowCodeGeneration === true) return true;
+
+  // Default: inherit server default (true when unset)
+  return allowDynamicCodeFromBox(serverBox);
+}
+
+/**
  * Build a vm context object without Node host privileges (no process, no real global).
  * @private
  */
 function createSandboxContext(gbox, gBoxConfig, scriptPath) {
   // Default ON for Instant Time to Joy (Handlebars and many UMD builds need Function).
-  // Host process is still absent from the sandbox; codegen alone does not restore process.env.
-  // Set box.allow_code_generation=false for stricter lockdown when no such libs are used.
-  const allowCodeGeneration =
-    gBoxConfig.allowCodeGeneration !== false &&
-    !(
-      gBoxConfig.globalConfig &&
-      gBoxConfig.globalConfig.box &&
-      gBoxConfig.globalConfig.box.allow_code_generation === false
-    );
+  // Host process is still absent from the sandbox; dynamic code alone does not restore process.env.
+  // Set box.allow_dynamic_code=false for stricter lockdown when no such libs are used.
+  const allowDynamicCode = resolveAllowDynamicCode(gBoxConfig);
 
   const sandbox = {
     module: gbox.module,
@@ -146,7 +228,7 @@ function createSandboxContext(gbox, gBoxConfig, scriptPath) {
   };
 
   // Disable eval / new Function / wasm codegen unless explicitly allowed (vendored libs).
-  if (!allowCodeGeneration) {
+  if (!allowDynamicCode) {
     contextOptions.codeGeneration = {
       strings: false,
       wasm: false
@@ -360,9 +442,9 @@ function runInGBox(scriptPath, gBoxConfig) {
       (err.message || '').includes('Code generation from strings disallowed')
     ) {
       throw new Error(
-        `Security Error: eval/Function string code generation is disabled in Gingee app scripts` +
+        `Security Error: eval/Function dynamic code generation is disabled in Gingee app scripts` +
           ` (script: ${path.basename(scriptPath)}). ` +
-          `If a trusted vendored library requires it, set box.allow_code_generation=true in gingee.json (server-wide).`
+          `If a trusted vendored library requires it, set box.allow_dynamic_code=true in gingee.json (server-wide).`
       );
     }
     throw err;
@@ -375,5 +457,8 @@ module.exports = {
   transpileCache,
   createGRequire,
   runInGBox,
-  FORBIDDEN_BUILTINS
+  FORBIDDEN_BUILTINS,
+  allowDynamicCodeFromBox,
+  resolveAllowDynamicCodeForApp,
+  resolveAllowDynamicCode
 };

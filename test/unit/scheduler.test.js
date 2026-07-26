@@ -371,6 +371,113 @@ describe('scheduler.js', () => {
       expect(scheduler.listJobs()[0].lastStatus).toBe('skipped_maintenance');
       scheduler.unregisterApp(app.name);
     });
+
+    // --- M5: schedule timeout aborts work ---
+    test('URL job timeout aborts axios via signal and marks timeout', async () => {
+      // Simulate a hung outbound call that only ends when AbortSignal fires.
+      axios.mockImplementation((config) => {
+        return new Promise((resolve, reject) => {
+          const signal = config.signal;
+          if (signal) {
+            if (signal.aborted) {
+              const err = new Error('canceled');
+              err.code = 'ERR_CANCELED';
+              reject(err);
+              return;
+            }
+            signal.addEventListener(
+              'abort',
+              () => {
+                const err = new Error('canceled');
+                err.code = 'ERR_CANCELED';
+                reject(err);
+              },
+              { once: true }
+            );
+          }
+          // Never resolve without abort — would hang the suite.
+        });
+      });
+
+      scheduler.initServer({ enabled: true }, logger, {});
+      const app = makeApp({
+        grantedPermissions: ['scheduler', 'httpclient'],
+        config: {
+          schedules: [
+            {
+              name: 'slow_url',
+              cron: '0 0 1 1 *',
+              timeout_ms: 1000,
+              target: {
+                type: 'url',
+                url: 'https://hooks.example.com/slow',
+                method: 'GET'
+              }
+            }
+          ]
+        }
+      });
+      await scheduler.registerApp(app);
+      const started = Date.now();
+      await scheduler.runNow(app.name, 'slow_url');
+      const elapsed = Date.now() - started;
+      expect(scheduler.listJobs()[0].lastStatus).toBe('timeout');
+      expect(scheduler.listJobs()[0].lastError).toMatch(/timed out/i);
+      // Should not wait the full default 60s — abort + race should finish near timeout_ms.
+      expect(elapsed).toBeLessThan(8000);
+      expect(axios).toHaveBeenCalled();
+      const call = axios.mock.calls[0][0];
+      expect(call.signal).toBeDefined();
+      expect(typeof call.signal.aborted).toBe('boolean');
+      scheduler.unregisterApp(app.name);
+    });
+
+    test('script job exposes abort signal on $g.request and times out', async () => {
+      scheduler.initServer({ enabled: true }, logger, {
+        box: { allowed_modules: [] },
+        privileged_apps: []
+      });
+
+      const scriptPath = path.join(appBoxPath, 'jobs', 'slow_script.js');
+      fs.writeFileSync(
+        scriptPath,
+        `module.exports = async function () {
+  await gingee(async ($g) => {
+    if (!$g.request || !$g.request.signal) {
+      throw new Error('missing abort signal on schedule request');
+    }
+    // Wait until aborted or long timeout
+    await new Promise((resolve, reject) => {
+      const s = $g.request.signal;
+      if (s.aborted) return resolve();
+      s.addEventListener('abort', () => resolve(), { once: true });
+      setTimeout(() => reject(new Error('signal never aborted')), 30000);
+    });
+  });
+};
+`
+      );
+
+      const app = makeApp({
+        grantedPermissions: ['scheduler'],
+        config: {
+          schedules: [
+            {
+              name: 'slow_script',
+              cron: '0 0 1 1 *',
+              timeout_ms: 1000,
+              target: { type: 'script', path: 'jobs/slow_script.js' }
+            }
+          ]
+        }
+      });
+
+      await scheduler.registerApp(app);
+      await scheduler.runNow(app.name, 'slow_script');
+      expect(scheduler.listJobs()[0].lastStatus).toBe('timeout');
+      expect(scheduler.listJobs()[0].lastError).toMatch(/timed out/i);
+      scheduler.unregisterApp(app.name);
+    }, 15000);
   });
 
   describe('multi-node coordination', () => {

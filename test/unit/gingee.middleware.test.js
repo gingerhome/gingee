@@ -123,4 +123,66 @@ describe('gingee.js - Middleware Logic', () => {
         const $g = handler.mock.calls[0][0];
         expect($g.request.body).toBe(null);
     });
+
+    // --- M1: Content-Type with parameters (charset) ---
+    test('should parse JSON when Content-Type includes charset=utf-8', async () => {
+        mockReq.url = '/test/post';
+        mockReq.method = 'POST';
+        mockReq.headers['content-type'] = 'application/json; charset=utf-8';
+        const data = '{"hello":"world"}';
+        mockReq.headers['content-length'] = `${Buffer.byteLength(data)}`;
+        mockStore.req = mockReq;
+
+        await als.run(mockStore, async () => {
+            const gingeePromise = gingee(handler);
+            mockStore.req.emit('data', Buffer.from(data));
+            mockStore.req.emit('end');
+            await gingeePromise;
+        });
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler.mock.calls[0][0].request.body).toEqual({ hello: 'world' });
+    });
+
+    test('should parse urlencoded when Content-Type includes charset', async () => {
+        mockReq.url = '/test/form';
+        mockReq.method = 'POST';
+        mockReq.headers['content-type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+        const data = 'a=1&b=two';
+        mockReq.headers['content-length'] = `${Buffer.byteLength(data)}`;
+        mockStore.req = mockReq;
+
+        await als.run(mockStore, async () => {
+            const gingeePromise = gingee(handler);
+            mockStore.req.emit('data', Buffer.from(data));
+            mockStore.req.emit('end');
+            await gingeePromise;
+        });
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler.mock.calls[0][0].request.body).toEqual({ a: '1', b: 'two' });
+    });
+
+    // --- M2: oversize body → 413 + destroy, handler not invoked ---
+    test('should respond 413 and destroy when body exceeds maxBodySize', async () => {
+        mockReq.url = '/test/big';
+        mockReq.method = 'POST';
+        mockReq.headers['content-type'] = 'application/json; charset=utf-8';
+        mockReq.headers['content-length'] = '10000';
+        mockReq.destroy = jest.fn();
+        mockStore.maxBodySize = '10b'; // 10 bytes
+        mockStore.req = mockReq;
+
+        await als.run(mockStore, async () => {
+            const gingeePromise = gingee(handler);
+            mockStore.req.emit('data', Buffer.from('{"x":"this is way too large for ten bytes"}'));
+            mockStore.req.emit('end');
+            await gingeePromise;
+        });
+
+        expect(handler).not.toHaveBeenCalled();
+        expect(mockRes.writeHead).toHaveBeenCalledWith(413, { 'Content-Type': 'text/plain' });
+        expect(mockRes.end).toHaveBeenCalledWith('Payload Too Large');
+        expect(mockReq.destroy).toHaveBeenCalled();
+    });
 });

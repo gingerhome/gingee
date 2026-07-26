@@ -122,4 +122,123 @@ describe('egress.js SSRF policy', () => {
       expect(r.reason).toBe('HTTPS_ONLY');
     });
   });
+
+  describe('connect pin (H13)', () => {
+    test('literal public IP is returned as pinned addresses', async () => {
+      const r = await egress.assertUrlAllowed('https://8.8.8.8/resolve');
+      expect(r.ok).toBe(true);
+      expect(r.addresses).toEqual([{ address: '8.8.8.8', family: 4 }]);
+    });
+
+    test('createPinnedLookup only returns the validated address', (done) => {
+      const lookup = egress.createPinnedLookup([
+        { address: '203.0.113.10', family: 4 }
+      ]);
+      lookup('evil.example', { family: 4 }, (err, address, family) => {
+        expect(err).toBeNull();
+        expect(address).toBe('203.0.113.10');
+        expect(family).toBe(4);
+        done();
+      });
+    });
+
+    test('createPinnedLookup with all:true returns the pin list', (done) => {
+      const pins = [
+        { address: '203.0.113.10', family: 4 },
+        { address: '2001:db8::1', family: 6 }
+      ];
+      const lookup = egress.createPinnedLookup(pins);
+      lookup('host.test', { all: true }, (err, list) => {
+        expect(err).toBeNull();
+        expect(list).toEqual(pins);
+        done();
+      });
+    });
+
+    test('createPinnedLookup rejects wrong family', (done) => {
+      const lookup = egress.createPinnedLookup([{ address: '203.0.113.10', family: 4 }]);
+      lookup('host.test', { family: 6 }, (err) => {
+        expect(err).toBeTruthy();
+        expect(err.code).toBe('EGRESS_DENIED');
+        expect(err.reason).toBe('PIN_FAMILY');
+        done();
+      });
+    });
+
+    test('applyConnectPin sets axios lookup from assert result', () => {
+      const cfg = {};
+      egress.applyConnectPin(cfg, {
+        ok: true,
+        addresses: [{ address: '198.51.100.1', family: 4 }]
+      });
+      expect(typeof cfg.lookup).toBe('function');
+      let seen;
+      cfg.lookup('x', {}, (err, address, family) => {
+        seen = { err, address, family };
+      });
+      expect(seen.err).toBeNull();
+      expect(seen.address).toBe('198.51.100.1');
+      expect(seen.family).toBe(4);
+    });
+
+    test('applyConnectPin is a no-op without addresses', () => {
+      const cfg = {};
+      egress.applyConnectPin(cfg, { ok: true, addresses: null });
+      expect(cfg.lookup).toBeUndefined();
+      egress.applyConnectPin(cfg, { ok: true, addresses: [] });
+      expect(cfg.lookup).toBeUndefined();
+    });
+
+    test('DNS-validated host returns pinned addresses (mocked lookup)', async () => {
+      const dns = require('dns');
+      const spy = jest.spyOn(dns.promises, 'lookup').mockResolvedValue([
+        { address: '203.0.113.55', family: 4 }
+      ]);
+      egress.initServer(
+        { mode: 'protected', dns_check: true, https_only: false },
+        logger
+      );
+      try {
+        const r = await egress.assertUrlAllowed('https://safe.example/api');
+        expect(r.ok).toBe(true);
+        expect(r.addresses).toEqual([{ address: '203.0.113.55', family: 4 }]);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    test('DNS to private IP is denied (no pin leak)', async () => {
+      const dns = require('dns');
+      const spy = jest.spyOn(dns.promises, 'lookup').mockResolvedValue([
+        { address: '10.0.0.9', family: 4 }
+      ]);
+      egress.initServer(
+        { mode: 'protected', dns_check: true, https_only: false },
+        logger
+      );
+      try {
+        const r = await egress.assertUrlAllowed('https://rebind.example/');
+        expect(r.ok).toBe(false);
+        expect(r.reason).toBe('BLOCKED_PRIVATE');
+        expect(r.addresses).toBeUndefined();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    test('beforeRedirect pins lookup for literal IP hop', () => {
+      const options = {
+        href: 'https://203.0.113.8/next',
+        protocol: 'https:',
+        hostname: '203.0.113.8'
+      };
+      egress.beforeRedirect(options);
+      expect(typeof options.lookup).toBe('function');
+      let addr;
+      options.lookup('203.0.113.8', {}, (err, address) => {
+        addr = address;
+      });
+      expect(addr).toBe('203.0.113.8');
+    });
+  });
 });

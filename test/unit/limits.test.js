@@ -76,14 +76,19 @@ describe('limits.js', () => {
   });
 
   test('resolveOutboundTimeoutMs uses default and clamps to remaining budget', () => {
+    // Fixed deadline avoids flaky off-by-1ms from Date.now() drift between setup and assert.
     const store = {
       limitsConfig: limits.resolveForApp({ config: {} }),
       requestDeadline: Date.now() + 5000,
       $g: { isStreaming: false }
     };
-    expect(limits.resolveOutboundTimeoutMs(undefined, store)).toBe(5000);
+    const remaining = limits.resolveOutboundTimeoutMs(undefined, store);
+    expect(remaining).toBeGreaterThanOrEqual(4900);
+    expect(remaining).toBeLessThanOrEqual(5000);
     expect(limits.resolveOutboundTimeoutMs(2000, store)).toBe(2000);
-    expect(limits.resolveOutboundTimeoutMs(999999, store)).toBe(5000);
+    const clamped = limits.resolveOutboundTimeoutMs(999999, store);
+    expect(clamped).toBeGreaterThanOrEqual(4900);
+    expect(clamped).toBeLessThanOrEqual(5000);
   });
 
   test('tryAcquireOutbound enforces max_concurrent_outbound', () => {

@@ -7,7 +7,7 @@
 const path = require('path');
 const fs = require('fs');
 const { als } = require('../gingee.js');
-const { runInGBox } = require('../gbox.js');
+const { runInGBox, resolveAllowDynamicCodeForApp } = require('../gbox.js');
 const { isPathInside } = require('../internal_utils.js');
 const metrics = require('../metrics.js');
 const { createMemoryDriver } = require('../queue_drivers/memory.js');
@@ -390,7 +390,7 @@ async function processOne(job) {
     useCache: true,
     logger: app.logger || log(),
     globalConfig: cfg,
-    allowCodeGeneration: !cfg.box || cfg.box.allow_code_generation !== false
+    allowDynamicCode: resolveAllowDynamicCodeForApp(cfg.box, app.config)
   };
 
   const started = Date.now();

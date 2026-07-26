@@ -72,7 +72,9 @@ function createRequestHandler(deps) {
         urlParts
       );
 
-      als.run(
+      // Await ALS so async errors surface to this try/catch (M3) instead of
+      // becoming unhandled rejections after requestHandler has returned.
+      await als.run(
         {
           globalConfig: config,
           req,

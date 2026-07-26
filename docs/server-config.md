@@ -688,15 +688,24 @@ An object that configures the server's logger.
 - **Type:** `object`
 - **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
 - **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
-- **`allow_code_generation`** (boolean, optional):
+- **`allow_dynamic_code`** (boolean, optional):
   - **Default:** `true` (Instant Time to Joy — many UMD/minified libs such as Handlebars need `new Function` at load time).
   - When `true`, string `eval` / `Function` work **inside the app vm only**. Host **`process` remains unavailable**; apps cannot read `process.env`.
-  - Set to `false` for a stricter lockdown when you do not load such libraries (disables string codegen in the sandbox).
-- **Example (stricter):**
+  - Set to `false` as a **server default** (recommended for production lockdown).
+  - **App-level override:** each app may set `allow_dynamic_code` in **`app.json`** (or nested `box.allow_dynamic_code`). An **explicit app value wins** over the server default — so an app can **opt in** (`true`) for Handlebars/UMD, or **opt out** (`false`) even when the server default is `true`.
+  - **Legacy:** `allow_code_generation` is still honored if `allow_dynamic_code` is unset.
+- **Example (production default off; only needed apps opt in):**
 ```json
 "box": {
   "allowed_modules": [],
-  "allow_code_generation": false
+  "allow_dynamic_code": false
+}
+```
+```json
+// web/tests/box/app.json (needs external UMD lib)
+{
+  "name": "tests",
+  "allow_dynamic_code": true
 }
 ```
 

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { als, getContext } = require('./gingee.js');
-const { runInGBox } = require('./gbox.js');
+const { runInGBox, resolveAllowDynamicCodeForApp } = require('./gbox.js');
 const engineRoot = path.resolve(__dirname, '..');
 
 
@@ -72,8 +72,10 @@ async function runStartupScripts(app) {
                     useCache: true, // Startup script transpilation can be cached
                     logger: app.logger,
                     globalConfig,
-                    allowCodeGeneration:
-                      !globalConfig.box || globalConfig.box.allow_code_generation !== false
+                    allowDynamicCode: resolveAllowDynamicCodeForApp(
+                      globalConfig.box,
+                      app.config
+                    )
                 };
 
                 const scriptModule = runInGBox(fullScriptPath, gBoxConfig);

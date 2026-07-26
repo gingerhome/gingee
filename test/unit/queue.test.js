@@ -97,7 +97,7 @@ module.exports = async function () {
         default_backoff_ms: 50
       },
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      { box: { allowed_modules: [], allow_code_generation: true }, privileged_apps: [] }
+      { box: { allowed_modules: [], allow_dynamic_code: true }, privileged_apps: [] }
     );
     queueService.setAppsRegistry({ qapp: app });
   });

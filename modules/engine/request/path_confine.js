@@ -5,7 +5,7 @@
  */
 
 const path = require('path');
-const { isPathInside } = require('../../internal_utils.js');
+const { isPathInside, resolveRealPath } = require('../../internal_utils.js');
 
 /**
  * True if a single path segment is unsafe to join under a confinement root.
@@ -95,7 +95,8 @@ function resolveConfinedPath(root, relativeOrSegments) {
   if (!isPathInside(candidate, rootAbs)) {
     return null;
   }
-  return candidate;
+  // Return realpath-expanded path so static/script open matches the jail check (H12).
+  return resolveRealPath(candidate);
 }
 
 /**
@@ -118,7 +119,7 @@ function confineScriptPath(appBoxPath, relativeScript, opts = {}) {
     }
     const withJs = base.endsWith('.js') ? base : `${base}.js`;
     if (!isPathInside(withJs, path.resolve(appBoxPath))) return null;
-    return withJs;
+    return resolveRealPath(withJs);
   }
   return resolveConfinedPath(appBoxPath, relativeScript);
 }

@@ -96,7 +96,9 @@ function attachScheduleContext(store) {
     cookies: {},
     query: {},
     params: {},
-    body: store.schedulePayload !== undefined ? store.schedulePayload : null
+    body: store.schedulePayload !== undefined ? store.schedulePayload : null,
+    // Cooperative cancel when schedule times out (M5).
+    signal: store.requestAbortSignal || null
   };
   store.$g.response = {
     status: 200,
@@ -387,6 +389,16 @@ function attachHttpContext(store) {
     }
   };
 
+  // Preserve cookies set by earlier default_include / middleware gingee() calls
+  // (each gingee() rebuilds $g.response; without this Set-Cookie from auth CSRF is lost).
+  const priorCookies =
+    store.$g &&
+    store.$g.response &&
+    store.$g.response.cookies &&
+    typeof store.$g.response.cookies === 'object'
+      ? { ...store.$g.response.cookies }
+      : {};
+
   const response = utils.response(res);
   store.$g.request = utils.request(store.req);
   // Cooperative cancel for outbound calls / long work.
@@ -394,6 +406,9 @@ function attachHttpContext(store) {
     store.$g.request.signal = store.requestAbortSignal;
   }
   store.$g.response = response;
+  if (Object.keys(priorCookies).length > 0) {
+    Object.assign(store.$g.response.cookies, priorCookies);
+  }
   response.send = response.send.bind(response);
   response.startStream = response.startStream.bind(response);
   response.write = response.write.bind(response);

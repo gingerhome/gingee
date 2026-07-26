@@ -126,11 +126,11 @@ module.exports = async function (socket, ctx) {
         heartbeat_ms: 10000
       },
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      { box: { allowed_modules: [], allow_code_generation: true }, privileged_apps: [] }
+      { box: { allowed_modules: [], allow_dynamic_code: true }, privileged_apps: [] }
     );
     hub.setAppsRegistry({ chat: app });
     const ok = await hub.registerApp(app, {
-      box: { allowed_modules: [], allow_code_generation: true },
+      box: { allowed_modules: [], allow_dynamic_code: true },
       privileged_apps: []
     });
     expect(ok).toBe(true);

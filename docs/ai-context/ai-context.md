@@ -915,7 +915,7 @@ An object that configures the server's logger.
 - **Type:** `object`
 - **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
 - **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
-- **`allow_code_generation`** (boolean, optional):
+- **`allow_dynamic_code`** (boolean, optional):
   - **Default:** `true` (Instant Time to Joy — many UMD/minified libs such as Handlebars need `new Function` at load time).
   - When `true`, string `eval` / `Function` work **inside the app vm only**. Host **`process` remains unavailable**; apps cannot read `process.env`.
   - Set to `false` for a stricter lockdown when you do not load such libraries (disables string codegen in the sandbox).
@@ -923,7 +923,7 @@ An object that configures the server's logger.
 ```json
 "box": {
   "allowed_modules": [],
-  "allow_code_generation": false
+  "allow_dynamic_code": false
 }
 ```
 
@@ -2700,7 +2700,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 - Host **`process`** is not available (throws if referenced) — primary defense against reading host/`process.env` secrets
 - Sandbox **`global` / `globalThis`** point at the sandbox object only
-- **`eval` / `new Function` string codegen** is **allowed by default** so common BOX-vendored UMD libraries (e.g. Handlebars) load; generated code still runs in the same vm and **does not regain host `process`**. Set `box.allow_code_generation: false` for stricter lockdown when those libs are not needed.
+- **`eval` / `new Function` dynamic code** is **allowed by default** so common BOX-vendored UMD libraries (e.g. Handlebars) load; generated code still runs in the same vm and **does not regain host `process`**. Set `box.allow_dynamic_code: false` for stricter lockdown when those libs are not needed. (Legacy: `allow_code_generation`.)
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
 
 **Still shared across all apps on the instance:**

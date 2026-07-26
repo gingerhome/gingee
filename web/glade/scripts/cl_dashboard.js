@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Main Function to Fetch and Render Apps ---
     async function fetchAndRenderApps() {
         try {
-            const response = await fetch('/glade/api/apps', { credentials: 'include' });
+            const response = await GladeCsrf.fetch('/glade/api/apps', { credentials: 'include' });
 
             if (response.status === 401) {
                 // Session expired or invalid, redirect to login
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     logoutButton.addEventListener('click', async () => {
-        await fetch('/glade/logout', { method: 'POST', credentials: 'include' });
+        await GladeCsrf.fetch('/glade/logout', { method: 'POST', credentials: 'include' });
         window.location.href = '/glade/login.html';
     });
 
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = GladeInstallModalMode.lifecycleApiUrl(lifecycle);
 
             // Step 5: Send the final, configured package to the server.
-            const response = await fetch(url, {
+            const response = await GladeCsrf.fetch(url, {
                 method: 'POST',
                 body: formData,
                 credentials: 'include'
@@ -388,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lifecycle = GladeInstallModalMode.getInstallLifecycleMode(installModeInput);
             const url = GladeInstallModalMode.lifecycleApiUrl(lifecycle);
 
-            const response = await fetch(url, { method: 'POST', body: formData, credentials: 'include' });
+            const response = await GladeCsrf.fetch(url, { method: 'POST', body: formData, credentials: 'include' });
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.message || 'An unknown server error occurred.');
@@ -476,8 +476,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Step 1 & 2: Fetch both backup analysis and current permissions concurrently
             const [analysisRes, currentPermsRes] = await Promise.all([
-                fetch(`/glade/api/analyze-backup?app=${appName}`, { credentials: 'include' }),
-                fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' })
+                GladeCsrf.fetch(`/glade/api/analyze-backup?app=${appName}`, { credentials: 'include' }),
+                GladeCsrf.fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' })
             ]);
 
             if (!analysisRes.ok || !currentPermsRes.ok) {
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setConfirmButtonLoading(true);
         try {
             // Step 5: Execute the rollback with the final, approved permission set
-            const response = await fetch('/glade/api/rollback', {
+            const response = await GladeCsrf.fetch('/glade/api/rollback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -573,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         permissionsModal.show();
 
         try {
-            const response = await fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' });
+            const response = await GladeCsrf.fetch(`/glade/api/get-permissions?app=${appName}`, { credentials: 'include' });
             if (!response.ok) throw new Error('Failed to load permissions data.');
 
             const data = await response.json();
@@ -618,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newPermissions = Array.from(checkboxes).map(cb => cb.value);
 
         try {
-            const response = await fetch('/glade/api/set-permissions', {
+            const response = await GladeCsrf.fetch('/glade/api/set-permissions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -661,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function reloadApp(appName) {
         setConfirmButtonLoading(true);
         try {
-            const response = await fetch(`/glade/api/reload-app?app=${appName}`, { method: 'POST', credentials: 'include' });
+            const response = await GladeCsrf.fetch(`/glade/api/reload-app?app=${appName}`, { method: 'POST', credentials: 'include' });
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.message || 'Reload failed on the server.');
@@ -682,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- API Call Functions ---
     async function deleteAapp(appName) {
         try {
-            const response = await fetch(`/glade/api/delete?app=${appName}`, { method: 'DELETE', credentials: 'include' });
+            const response = await GladeCsrf.fetch(`/glade/api/delete?app=${appName}`, { method: 'DELETE', credentials: 'include' });
             if (!response.ok) throw new Error('Failed to delete application.');
             fetchAndRenderApps(); // Refresh the list
         } catch (error) {
@@ -840,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function ensureLogsAppsLoaded() {
         if (!logsApp || logsApp.options.length > 0) return;
         try {
-            const res = await fetch('/glade/api/apps', { credentials: 'include' });
+            const res = await GladeCsrf.fetch('/glade/api/apps', { credentials: 'include' });
             if (res.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -870,7 +870,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const listQs = new URLSearchParams({ scope });
             if (appName) listQs.set('appName', appName);
-            const listRes = await fetch(`/glade/api/logs-list?${listQs}`, { credentials: 'include' });
+            const listRes = await GladeCsrf.fetch(`/glade/api/logs-list?${listQs}`, { credentials: 'include' });
             if (listRes.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -910,7 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 readQs.set('q', logsSearch.value.trim());
             }
 
-            const readRes = await fetch(`/glade/api/logs-read?${readQs}`, { credentials: 'include' });
+            const readRes = await GladeCsrf.fetch(`/glade/api/logs-read?${readQs}`, { credentials: 'include' });
             if (readRes.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -1091,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showScheduleError('');
         showScheduleInfo('');
         try {
-            const res = await fetch('/glade/api/schedule-list', { credentials: 'include' });
+            const res = await GladeCsrf.fetch('/glade/api/schedule-list', { credentials: 'include' });
             if (res.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
@@ -1151,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScheduleError('');
                 showScheduleInfo('');
                 runBtn.disabled = true;
-                const res = await fetch('/glade/api/schedule-run', {
+                const res = await GladeCsrf.fetch('/glade/api/schedule-run', {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
@@ -1283,9 +1283,9 @@ document.addEventListener('DOMContentLoaded', () => {
         showQueueError('');
         try {
             const [statsRes, liveRes, dlqRes] = await Promise.all([
-                fetch('/glade/api/queue-stats', { credentials: 'include' }),
-                fetch('/glade/api/queue-live-list?limit=200', { credentials: 'include' }),
-                fetch('/glade/api/queue-dlq-list?limit=200', { credentials: 'include' })
+                GladeCsrf.fetch('/glade/api/queue-stats', { credentials: 'include' }),
+                GladeCsrf.fetch('/glade/api/queue-live-list?limit=200', { credentials: 'include' }),
+                GladeCsrf.fetch('/glade/api/queue-dlq-list?limit=200', { credentials: 'include' })
             ]);
             if (statsRes.status === 401 || liveRes.status === 401 || dlqRes.status === 401) {
                 window.location.href = '/glade/login.html';
@@ -1383,7 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showQueueError('');
                 if (retryBtn) {
                     retryBtn.disabled = true;
-                    const res = await fetch('/glade/api/queue-dlq-retry', {
+                    const res = await GladeCsrf.fetch('/glade/api/queue-dlq-retry', {
                         method: 'POST',
                         credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },
@@ -1396,7 +1396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (discardBtn) {
                     if (!confirm('Discard this dead-letter job permanently?')) return;
                     discardBtn.disabled = true;
-                    const res = await fetch('/glade/api/queue-dlq-discard', {
+                    const res = await GladeCsrf.fetch('/glade/api/queue-dlq-discard', {
                         method: 'POST',
                         credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },

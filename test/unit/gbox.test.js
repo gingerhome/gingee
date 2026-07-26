@@ -1,7 +1,11 @@
 const path = require('path');
 const fs = require('fs');
 const { als } = require('../../modules/gingee');
-const { runInGBox } = require('../../modules/gbox');
+const {
+    runInGBox,
+    resolveAllowDynamicCodeForApp,
+    allowDynamicCodeFromBox
+} = require('../../modules/gbox');
 
 // Mock dependencies
 // Mock the fs module at the top level
@@ -240,7 +244,7 @@ describe('gbox.js - Sandbox Execution', () => {
         });
     });
 
-    test('allow_code_generation false disables Function string codegen', () => {
+    test('allow_dynamic_code false disables Function string codegen', () => {
         als.run(mockAlsStore, () => {
             const scriptContent = `
                 module.exports = function () {
@@ -249,10 +253,109 @@ describe('gbox.js - Sandbox Execution', () => {
             `;
             fs.readFileSync.mockReturnValue(scriptContent);
             fs.existsSync.mockReturnValue(false);
-            const cfg = { ...mockGBoxConfig, allowCodeGeneration: false };
+            const cfg = { ...mockGBoxConfig, allowDynamicCode: false };
 
             const mod = runInGBox('/project/web/test_app/box/script.js', cfg);
-            expect(() => mod()).toThrow(/Security Error|Code generation|disallowed/i);
+            expect(() => mod()).toThrow(/Security Error|Code generation|disallowed|dynamic code/i);
+        });
+    });
+
+    test('legacy allow_code_generation false still disables dynamic code', () => {
+        als.run(mockAlsStore, () => {
+            const scriptContent = `
+                module.exports = function () {
+                    return new Function('return 1')();
+                };
+            `;
+            fs.readFileSync.mockReturnValue(scriptContent);
+            fs.existsSync.mockReturnValue(false);
+            const cfg = {
+                ...mockGBoxConfig,
+                globalConfig: {
+                    ...mockGBoxConfig.globalConfig,
+                    box: { allow_code_generation: false }
+                }
+            };
+
+            const mod = runInGBox('/project/web/test_app/box/script.js', cfg);
+            expect(() => mod()).toThrow(/Security Error|Code generation|disallowed|dynamic code/i);
+        });
+    });
+
+    test('resolveAllowDynamicCodeForApp: explicit app wins over server default', () => {
+        expect(resolveAllowDynamicCodeForApp({}, {})).toBe(true);
+        expect(resolveAllowDynamicCodeForApp({ allow_dynamic_code: true }, {})).toBe(true);
+        // App can tighten when server is true
+        expect(
+            resolveAllowDynamicCodeForApp({ allow_dynamic_code: true }, { allow_dynamic_code: false })
+        ).toBe(false);
+        // App can opt in when server is false (production pattern)
+        expect(
+            resolveAllowDynamicCodeForApp({ allow_dynamic_code: false }, { allow_dynamic_code: true })
+        ).toBe(true);
+        // Nested app.box key
+        expect(
+            resolveAllowDynamicCodeForApp({ allow_dynamic_code: false }, {
+                box: { allow_dynamic_code: true }
+            })
+        ).toBe(true);
+        expect(
+            resolveAllowDynamicCodeForApp({}, { box: { allow_dynamic_code: false } })
+        ).toBe(false);
+        expect(allowDynamicCodeFromBox({ allow_dynamic_code: false })).toBe(false);
+    });
+
+    test('app.json allow_dynamic_code false disables Function when server allows', () => {
+        als.run(mockAlsStore, () => {
+            const scriptContent = `
+                module.exports = function () {
+                    return new Function('return 1')();
+                };
+            `;
+            fs.readFileSync.mockReturnValue(scriptContent);
+            fs.existsSync.mockReturnValue(false);
+            const cfg = {
+                ...mockGBoxConfig,
+                app: {
+                    id: 'test_app',
+                    config: { allow_dynamic_code: false },
+                    grantedPermissions: []
+                },
+                globalConfig: {
+                    ...mockGBoxConfig.globalConfig,
+                    box: { allow_dynamic_code: true }
+                }
+            };
+
+            const mod = runInGBox('/project/web/test_app/box/script.js', cfg);
+            expect(() => mod()).toThrow(/Security Error|Code generation|disallowed|dynamic code/i);
+        });
+    });
+
+    test('app.json allow_dynamic_code true enables Function when server disables', () => {
+        als.run(mockAlsStore, () => {
+            const scriptContent = `
+                module.exports = function () {
+                    return new Function('return 99')();
+                };
+            `;
+            fs.readFileSync.mockReturnValue(scriptContent);
+            fs.existsSync.mockReturnValue(false);
+            const cfg = {
+                ...mockGBoxConfig,
+                app: {
+                    id: 'test_app',
+                    config: { allow_dynamic_code: true },
+                    grantedPermissions: []
+                },
+                globalConfig: {
+                    ...mockGBoxConfig.globalConfig,
+                    box: { allow_dynamic_code: false }
+                }
+            };
+
+            const mod = runInGBox('/project/web/test_app/box/script.js', cfg);
+            expect(mod()).toBe(99);
         });
     });
 
