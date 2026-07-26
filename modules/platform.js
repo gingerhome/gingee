@@ -17,6 +17,8 @@ const audit = require('./audit.js');
 const appLogger = require('./logger.js');
 const workerManager = require('./engine/isolation/worker_manager.js');
 const websocketHub = require('./engine/websocket_hub.js');
+const queueService = require('./engine/queue_service.js');
+const logViewer = require('./log_viewer.js');
 
 const { match } = require('path-to-regexp');
 const { loadPermissionsForApp, runStartupScripts } = require('./gapp_start.js');
@@ -1305,6 +1307,120 @@ async function analyzeAppBackup(appName) {
     };
 }
 
+/**
+ * Queue admin stats for Glade (privileged).
+ * @returns {Promise<object>}
+ */
+async function getQueueStats() {
+  return queueService.getAdminStats();
+}
+
+/**
+ * Live queue jobs (running/waiting on this node + pending/delayed in driver).
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @param {number} [opts.limit]
+ * @returns {Promise<object[]>}
+ */
+async function listQueueLiveJobs(opts) {
+  return queueService.listLiveJobs(opts || {});
+}
+
+/**
+ * List dead-letter queue entries.
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @param {number} [opts.limit]
+ * @returns {Promise<object[]>}
+ */
+async function listQueueDlq(opts) {
+  return queueService.listDlq(opts || {});
+}
+
+/**
+ * Retry a DLQ job (re-enqueue attempt 1).
+ * @param {string} jobId
+ * @returns {Promise<object>}
+ */
+async function retryQueueDlqJob(jobId) {
+  if (!jobId) throw new Error('jobId is required');
+  return queueService.retryDlqJob(String(jobId));
+}
+
+/**
+ * Discard a DLQ job.
+ * @param {string} jobId
+ * @returns {Promise<boolean>}
+ */
+async function discardQueueDlqJob(jobId) {
+  if (!jobId) throw new Error('jobId is required');
+  return queueService.discardDlqJob(String(jobId));
+}
+
+/**
+ * List server or app log files (privileged / Glade).
+ * @param {object} [opts]
+ * @param {string} [opts.scope] - server | app
+ * @param {string} [opts.appName]
+ * @returns {object}
+ */
+function listLogFiles(opts) {
+  const { projectRoot, webPath } = getContext();
+  return logViewer.listLogFiles({
+    ...(opts || {}),
+    projectRoot,
+    webPath
+  });
+}
+
+/**
+ * Tail-read a log file (privileged / Glade).
+ * @param {object} [opts]
+ * @returns {object}
+ */
+function readLogFile(opts) {
+  const { projectRoot, webPath } = getContext();
+  return logViewer.readLogFile({
+    ...(opts || {}),
+    projectRoot,
+    webPath
+  });
+}
+
+/**
+ * Scheduler admin status for Glade (privileged).
+ * @returns {object}
+ */
+function getSchedulerStatus() {
+  return scheduler.getAdminStatus();
+}
+
+/**
+ * List registered CRON jobs on this node (privileged).
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @returns {Array<object>}
+ */
+function listSchedulerJobs(opts) {
+  const o = opts || {};
+  return scheduler.listJobs({
+    appName: o.appName,
+    filterPartial: o.filterPartial !== false && o.appName != null
+  });
+}
+
+/**
+ * Force-run a registered schedule now (privileged; bypasses multi-node coordination).
+ * @param {string} appName
+ * @param {string} jobName
+ * @returns {Promise<object>}
+ */
+async function runSchedulerJob(appName, jobName) {
+  if (!appName) throw new Error('appName is required');
+  if (!jobName) throw new Error('jobName is required');
+  return scheduler.runNow(String(appName), String(jobName));
+}
+
 module.exports = {
     listApps,
     createAppDirectory,
@@ -1325,5 +1441,15 @@ module.exports = {
     upgradeApp,
     mockUpgrade,
     rollbackApp,
-    mockRollback
+    mockRollback,
+    getQueueStats,
+    listQueueLiveJobs,
+    listQueueDlq,
+    retryQueueDlqJob,
+    discardQueueDlqJob,
+    getSchedulerStatus,
+    listSchedulerJobs,
+    runSchedulerJob,
+    listLogFiles,
+    readLogFile
 };

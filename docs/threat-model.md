@@ -100,7 +100,7 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 | **Privileged apps** | `privileged_apps` + restricted `platform` / engine modules | Anyone who can edit `gingee.json` is root-equivalent for the platform |
 | **Permission consent** | `pmft.json` + Glade / CLI + `settings/permissions.json` | Human factor; over-grant is common under time pressure |
 | **Request / outbound limits** | `limits` (concurrency, timeouts) | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin |
-| **Scheduler gate** | `scheduler.enabled` default off; one-node ops model | Prevents multi-node double-fire; does not prove job code is safe |
+| **Scheduler gate** | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
 | **Explicit high-risk capabilities** | `httpclient`, `email`, `ai`, `scheduler`, `platform` | Once granted, full capability within that API |
 
 ### 6.2 Soft sandbox reality (`gbox`)
@@ -201,7 +201,8 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 4. Set **`limits`** appropriately; do not disable timeouts without a reason.
 4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
 4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
-5. Keep **`scheduler.enabled`** false except on the designated scheduler node.
+5. Keep **`scheduler.enabled`** false except on the designated scheduler node, **or** enable on all nodes with `scheduler.coordination.driver: "redis"` and shared `scheduler.redis` (NTP-aligned clocks recommended).
+5b. Treat **Glade Logs** as admin-only: server and app log files may contain secrets or payloads; do not expose Glade publicly.
 6. Prefer **Redis** for cache when running more than one node.
 7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.
 8. Treat **`app.json` secrets** as sensitive; restrict backups and who can download `.gin` exports.
@@ -224,7 +225,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 2. Handle missing **optional** permissions gracefully.
 3. Use **leading `/`** on `fs` paths when multiple scripts must share BOX-root files (scheduled jobs vs HTTP handlers).
 4. Do not store long-lived secrets in client-visible responses.
-5. Respect `$g.request.signal` / timeouts for long work; offload heavy work to the **queue** (`require('queue')`) or scheduler → `target.type: "queue"`.
+5. Respect `$g.request.signal` / timeouts for long work; offload heavy work with `require('queue')` or scheduler `target.type: "queue"`.
 6. Never assume another app’s BOX or server `settings/` is readable.
 
 ---
@@ -239,11 +240,11 @@ Gingee does **not** currently claim:
 - Perfect SSRF immunity under DNS rebinding (baseline `egress` policy is on by default; orchestrator network policy still required for hostile tenants)  
 - Multi-tenant billing isolation or noisy-neighbor SLAs  
 - Guaranteed preemption of malicious infinite loops in the **master** process  
-- OS-level resource quotas on workers (cgroups / Job Objects) without external orchestration  
+- Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)  
 
-These may appear on the roadmap (cluster, OpenTelemetry, OS resource limits, multi-node WS fan-out); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE over IPC; auto-restart), **opt-in WebSockets** on the master (permission-gated; multi-tenant room prefixes are app-owned), and a **background job queue** (`queue` — memory or redis drivers, retries, CRON handoff) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE; auto-restart; **`worker_limits`**), **opt-in WebSockets** on the master (permission-gated; multi-tenant rooms; optional **Redis fan-out**), **scheduler** with optional Redis **coordination**, and a **background job queue** (`queue` — memory/redis, retries, DLQ, Glade live jobs + DLQ admin, CRON handoff, Glade **Schedules / Run now**) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -256,7 +257,7 @@ These may appear on the roadmap (cluster, OpenTelemetry, OS resource limits, mul
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, and **opt-in process isolation** (solo or group workers; buffered + SSE; auto-restart) — see [Server Config](./server-config.md) and the [critical assessment](../dev-docs/gingee-critical-assessment.md). That reduces **availability** abuse under cooperative load and improves crash containment for opted-in apps; it is not a substitute for full tenant isolation.
+**Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, process isolation (incl. **worker_limits**), WebSockets (incl. Redis fan-out), scheduler Redis coordination, and background **queue** (incl. DLQ + live jobs Glade admin) — see [Server Config](./server-config.md) and the [critical assessment](../dev-docs/gingee-critical-assessment.md). That reduces **availability** abuse under cooperative load and improves crash containment for opted-in apps; it is not a substitute for full tenant isolation.
 
 ---
 

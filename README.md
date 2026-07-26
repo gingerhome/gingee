@@ -56,20 +56,20 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
   - **Multi-Database Support:** Write your code once and deploy against PostgreSQL, SQLite, MySQL, MSSQL, and Oracle, with a consistent API. SQLite is always installed; other drivers are **optional dependencies** (install fails soft if a native build fails).
   - **Rich Standard Library:** A comprehensive suite of sandboxed modules for common tasks, including `crypto`, `image` processing, `pdf` generation, `db` access, `httpclient`, transactional `email` (SendGrid / console), and generative `ai` (Gemini / mock, streaming chat, multimodal, document parse, moderation).
   - **Streamed Responses:** Progressive output (e.g. SSE for AI tokens) via `$g.response.startStream` / `writeSSE` / `endStream`.
-  - **WebSockets (opt-in):** Master-owned realtime connections on the public HTTP(S) port (`app.json` → `websockets` + `websockets` permission); rooms/broadcast via `require('websockets')`. Sample: **`ginchat`**.
-  - **Background queue:** `require('queue').add` with memory or Redis drivers, retries, and box job handlers (`queue` permission). CRON can target `type: "queue"` for multi-node-safe schedules.
-  - **CRON Scheduler:** App-declared schedules in `app.json` (script, URL, or queue job); server gate `scheduler.enabled` (default off; enable carefully when load balancing).
+  - **WebSockets (opt-in):** Master-owned realtime on the public HTTP(S) port (`app.json` → `websockets` + permission); rooms/broadcast via `require('websockets')`. Multi-node: `websockets.fanout.driver: "redis"` + sibling `websockets.redis`. Sample: **`ginchat`**.
+  - **Background queue:** `require('queue').add` with memory or Redis drivers, retries, DLQ, and box job handlers. Glade **Queue / DLQ**: live jobs (running/waiting/pending/delayed) + DLQ retry/discard. CRON can target `type: "queue"`.
+  - **CRON Scheduler:** App-declared schedules in `app.json` (script, URL, or queue job); `scheduler.enabled` (default off); optional Redis coordination; Glade **Schedules** with **Run now**.
   - **Request & Outbound Limits:** Concurrency caps, request/stream timeouts, and default `httpclient` timeouts via `gingee.json` → `limits`.
   - **Egress / SSRF policy:** Default-protected outbound URL checks on `httpclient` and scheduler URL jobs (`gingee.json` → `egress`).
   - **Config secrets:** `env:VAR` / `file:…` references in JSON config, resolved by the engine (apps still cannot read host `process.env`).
-  - **Prometheus Metrics:** Engine-scoped `/metrics` scrape endpoint (default localhost-only; optional bearer token) for HTTP scripts, limits, egress, scheduler, and WebSocket series.
+  - **Prometheus Metrics:** Engine-scoped `/metrics` scrape endpoint (default localhost-only; optional bearer token) for HTTP scripts, limits, egress, scheduler, WebSocket (incl. fan-out), and queue/DLQ series.
   - **Audit Trail:** Append-only JSONL log of permission changes and app lifecycle events (`gingee.json` → `audit`, default `logs/audit.jsonl`).
   - **Process isolation (opt-in):** Selected apps can run server scripts in a child process (`isolation.mode: "process"`); public ports stay on the master. Privileged apps stay in-process; buffered + SSE over IPC; groups and auto-restart supported.
   - **Application Startup Hooks:** Define `startup_scripts` to automatically run database migrations or seed data when your app is installed or upgraded.
   - **Application Middleware:** Define `default_include` to automatically inject scripts in front of all API end points of the app. Enabling easy authentication, policies, role management etc.
 
 - **Full Lifecycle & Automation**
-  - **Glade Admin UI:** A built-in, secure web panel for managing the entire application lifecycle (install, upgrade, rollback, delete, manage permissions) with no command line needed.
+  - **Glade Admin UI:** Built-in web panel for app lifecycle (install, upgrade, rollback, delete, permissions), **Schedules / Run now**, and **Queue / DLQ** (live jobs + dead letter).
   - **Interactive Installers:** Both the CLI and the Glade UI feature intelligent installers that read an app's requirements, prompt the admin for permission consent, and guide them through database configuration.
   - **Automated Deployments:** All lifecycle commands in the CLI can be run non-interactively using a preset file, making it perfect for CI/CD pipelines.
   - **Automatic Maintenance Mode:** The server automatically puts an application into a `503 Service Unavailable` state during critical lifecycle events to ensure data integrity.

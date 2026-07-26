@@ -19,11 +19,14 @@
 	},
 	"web_root": "./web",
 	"cache": {
-		"provider": "redis",
+		"provider": "memory",
+		"prefix": "gingee:",
 		"redis": {
+			"url": null,
 			"host": "127.0.0.1",
 			"port": 6379,
-			"password": null
+			"password": null,
+			"db": 0
 		}
 	},
 	"default_app": "glade",
@@ -37,7 +40,20 @@
 	},
 	"scheduler": {
 		"enabled": false,
-		"timezone": "UTC"
+		"timezone": "UTC",
+		"coordination": {
+			"driver": "none",
+			"strategy": "tick",
+			"lock_ttl_ms": 300000
+		},
+		"redis": {
+			"url": null,
+			"host": "127.0.0.1",
+			"port": 6379,
+			"password": null,
+			"db": 0,
+			"key_prefix": "gingee:scheduler:"
+		}
 	},
 	"limits": {
 		"request_timeout_ms": 30000,
@@ -97,7 +113,18 @@
 		"max_message_bytes": 65536,
 		"idle_timeout_ms": 300000,
 		"heartbeat_ms": 30000,
-		"default_path": "/ws"
+		"default_path": "/ws",
+		"fanout": {
+			"driver": "none"
+		},
+		"redis": {
+			"url": null,
+			"host": "127.0.0.1",
+			"port": 6379,
+			"password": null,
+			"db": 0,
+			"key_prefix": "gingee:ws:"
+		}
 	},
 	"queue": {
 		"enabled": true,

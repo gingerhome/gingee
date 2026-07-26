@@ -1,13 +1,24 @@
-const sharp = require('sharp');
 const fs = require('./fs.js'); // Our secure fs module
+const { loadOptional } = require('./internal_utils.js');
 
 /**
  * @module image
  * @description A module for image processing using the [Sharp]{@link https://sharp.pixelplumbing.com/} library.
  * It provides a simple and secure way to manipulate images, including resizing, rotating, flipping, and more.
+ * <b>Optional dependency:</b> requires <code>sharp</code> (package.json optionalDependencies).
+ * Install without <code>--omit=optional</code>, or <code>npm install sharp</code>.
  * <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
+
+/**
+ * Lazy-load optional sharp once per module instance (Jest resetModules-safe).
+ * @private
+ * @returns {function} sharp constructor
+ */
+function getSharp() {
+    return loadOptional(() => require('sharp'), 'sharp', 'Image processing (image module)');
+}
 
 /**
  * A secure wrapper class for the  [Sharp]{@link https://sharp.pixelplumbing.com/} image processing library.
@@ -216,7 +227,8 @@ function loadFromFile(scope, filePath, options = {}) {
         throw new Error("Invalid scope provided. Use fs.BOX or fs.WEB.");
     }
     const imageBuffer = fs.readFileSync(scope || fs.BOX, filePath, options);
-    let sharpInstance = sharp(imageBuffer);
+    const sharp = getSharp();
+    const sharpInstance = sharp(imageBuffer);
 
     return new ImageProcessor(sharpInstance);
 }
@@ -238,6 +250,7 @@ function loadFromBuffer(buffer) {
     if (!Buffer.isBuffer(buffer)) {
         throw new Error("Invalid input: loadFromBuffer requires a Buffer.");
     }
+    const sharp = getSharp();
     const sharpInstance = sharp(buffer);
     return new ImageProcessor(sharpInstance);
 }

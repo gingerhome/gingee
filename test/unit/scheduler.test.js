@@ -304,9 +304,16 @@ describe('scheduler.js', () => {
       });
 
       await scheduler.registerApp(app);
-      await scheduler.runNow(app.name, 'marker_job');
+      const result = await scheduler.runNow(app.name, 'marker_job');
+      expect(result.lastStatus).toBe('ok');
+      expect(result.appName).toBe(app.name);
+      expect(result.name).toBe('marker_job');
       const jobs = scheduler.listJobs();
       expect(jobs[0].lastStatus).toBe('ok');
+      expect(jobs[0].targetSummary).toMatch(/script:/);
+      const status = scheduler.getAdminStatus();
+      expect(status.enabled).toBe(true);
+      expect(status.jobCount).toBe(1);
       scheduler.unregisterApp(app.name);
     });
 
@@ -363,6 +370,117 @@ describe('scheduler.js', () => {
       await scheduler.runNow(app.name, 'm');
       expect(scheduler.listJobs()[0].lastStatus).toBe('skipped_maintenance');
       scheduler.unregisterApp(app.name);
+    });
+  });
+
+  describe('multi-node coordination', () => {
+    test('initServer stores coordination.driver + sibling redis', () => {
+      scheduler.initServer(
+        {
+          enabled: true,
+          coordination: {
+            driver: 'redis',
+            strategy: 'tick',
+            node_id: 'test-node'
+          },
+          redis: { key_prefix: 'gingee:scheduler:test:', url: 'redis://127.0.0.1:6379' }
+        },
+        logger,
+        {}
+      );
+      const cfg = scheduler._getServerConfig();
+      expect(cfg.coordination.driver).toBe('redis');
+      expect(cfg.coordination.strategy).toBe('tick');
+      expect(cfg.coordination.node_id).toBe('test-node');
+      expect(cfg.redis.key_prefix).toBe('gingee:scheduler:test:');
+      expect(cfg.redis.url).toBe('redis://127.0.0.1:6379');
+    });
+
+    test('_runJob skips when coordinator denies (not force)', async () => {
+      scheduler.initServer({ enabled: true }, logger, {
+        box: { allowed_modules: [] },
+        privileged_apps: []
+      });
+      fs.writeFileSync(
+        path.join(appBoxPath, 'jobs', 'c.js'),
+        'module.exports = async function(){ throw new Error("should not run"); };'
+      );
+      const app = makeApp({
+        grantedPermissions: ['scheduler'],
+        config: {
+          schedules: [
+            {
+              name: 'coord_job',
+              cron: '0 0 1 1 *',
+              target: { type: 'script', path: 'jobs/c.js' }
+            }
+          ]
+        }
+      });
+      await scheduler.registerApp(app);
+
+      scheduler._setCoordinatorForTests({
+        enabled: () => true,
+        tryAllowRun: async () => ({ allow: false, reason: 'tick_held' })
+      });
+
+      const runtime = {
+        app,
+        def: {
+          name: 'coord_job',
+          cron: '0 0 1 1 *',
+          timezone: 'UTC',
+          timeout_ms: 5000,
+          overlap: 'skip',
+          payload: {},
+          target: { type: 'script', path: 'jobs/c.js' }
+        },
+        running: false,
+        lastStatus: null,
+        lastError: null,
+        cronJob: null
+      };
+
+      await scheduler._runJob(app, runtime);
+      expect(runtime.lastStatus).toBe('skipped_coordination');
+
+      // runNow forces past coordination
+      await scheduler.runNow(app.name, 'coord_job');
+      // script throws — status error, not skipped_coordination
+      expect(scheduler.listJobs()[0].lastStatus).toBe('error');
+
+      scheduler._setCoordinatorForTests(null);
+      scheduler.unregisterApp(app.name);
+    });
+
+    test('_runJob fail-closed on redis_error', async () => {
+      scheduler.initServer({ enabled: true }, logger, {});
+      const app = makeApp({ name: 'a2' });
+      const runtime = {
+        app,
+        def: {
+          name: 'j',
+          cron: '* * * * *',
+          timezone: 'UTC',
+          timeout_ms: 1000,
+          target: { type: 'script', path: 'jobs/x.js' }
+        },
+        running: false,
+        lastStatus: null,
+        lastError: null
+      };
+      scheduler._setCoordinatorForTests({
+        enabled: () => true,
+        tryAllowRun: async () => ({
+          allow: false,
+          reason: 'redis_error',
+          detail: 'ECONNREFUSED'
+        })
+      });
+      await scheduler._runJob(app, runtime);
+      expect(runtime.lastStatus).toBe('skipped_coord_error');
+      expect(runtime.lastError).toMatch(/ECONNREFUSED/);
+      scheduler._setCoordinatorForTests(null);
     });
   });
 });

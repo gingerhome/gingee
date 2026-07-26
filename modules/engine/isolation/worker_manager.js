@@ -13,19 +13,29 @@ const {
   restartDelayMs,
   ISOLATION_DEFAULTS
 } = require('./policy.js');
+const {
+  normalizeWorkerLimits,
+  buildWorkerEnv,
+  applyAfterSpawn,
+  describeLimits
+} = require('./resource_limits.js');
 const { projectRoot } = require('../paths.js');
 
+/** workerKey → handle */
 /** @type {Map<string, object>} */
-const workers = new Map(); // workerKey → handle
+const workers = new Map();
 
+/** appName → workerKey */
 /** @type {Map<string, string>} */
-const appWorkerKeys = new Map(); // appName → workerKey
+const appWorkerKeys = new Map();
 
+/** appName → last known app snapshot for restarts */
 /** @type {Map<string, object>} */
-const appSnapshots = new Map(); // appName → last known app snapshot for restarts
+const appSnapshots = new Map();
 
+/** workerKey → pending restart timer */
 /** @type {Map<string, object>} */
-const restartTimers = new Map(); // workerKey → pending restart timer
+const restartTimers = new Map();
 
 /** @type {object|null} */
 let serverConfig = null;
@@ -33,8 +43,9 @@ let serverConfig = null;
 let serverLogger = null;
 /** @type {string} */
 let webPathResolved = '';
+/** full apps registry for group membership */
 /** @type {object|null} */
-let appsRegistry = null; // full apps registry for group membership
+let appsRegistry = null;
 
 /**
  * @param {object} config
@@ -62,14 +73,19 @@ function log() {
 }
 
 function isolationOpts() {
+  const raw = (serverConfig && serverConfig.isolation) || {};
   return {
     ...ISOLATION_DEFAULTS,
-    ...((serverConfig && serverConfig.isolation) || {}),
+    ...raw,
     groups: {
       ...ISOLATION_DEFAULTS.groups,
-      ...((serverConfig && serverConfig.isolation && serverConfig.isolation.groups) || {})
+      ...(raw.groups || {})
     },
-    apps: (serverConfig && serverConfig.isolation && serverConfig.isolation.apps) || ISOLATION_DEFAULTS.apps
+    apps: Array.isArray(raw.apps) ? raw.apps : ISOLATION_DEFAULTS.apps,
+    worker_limits: normalizeWorkerLimits({
+      ...ISOLATION_DEFAULTS.worker_limits,
+      ...(raw.worker_limits || {})
+    })
   };
 }
 
@@ -175,15 +191,21 @@ function startWorker(app, config, options = {}) {
   const workerScript = path.join(__dirname, 'app_worker.js');
   const opts = isolationOpts();
   const readyTimeout = opts.worker_ready_timeout_ms || ISOLATION_DEFAULTS.worker_ready_timeout_ms;
+  const workerLimits = opts.worker_limits || normalizeWorkerLimits({});
 
   const child = fork(workerScript, [], {
     stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-    env: {
-      ...process.env,
+    env: buildWorkerEnv(process.env, workerLimits, {
       GINGEE_WORKER: '1',
       GINGEE_WORKER_KEY: workerKey
-    }
+    })
   });
+
+  // Priority + optional Linux RSS (prlimit) — best-effort
+  applyAfterSpawn(child, workerLimits, log(), workerKey);
+  log().info(
+    `[isolation] Worker spawn '${workerKey}' limits: ${describeLimits(workerLimits)}`
+  );
 
   const handle = {
     child,
@@ -194,7 +216,8 @@ function startWorker(app, config, options = {}) {
     streams: new Map(),
     restarts: options.fromRestart ? prevRestarts + 1 : 0,
     stopping: false,
-    readySince: null
+    readySince: null,
+    workerLimits
   };
 
   workers.set(workerKey, handle);
@@ -733,7 +756,8 @@ function getWorkerStats() {
       pid: h.child && h.child.pid,
       ready: h.ready,
       pending: h.pending.size,
-      restarts: h.restarts
+      restarts: h.restarts,
+      workerLimits: h.workerLimits || null
     });
   }
   return out;

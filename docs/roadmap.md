@@ -12,16 +12,17 @@ This phase is focused on polishing the existing platform and delivering on our "
 
 This phase is focused on adding major new modules that unlock entirely new categories of applications that can be built on Gingee. [INPROGRESS]
 
--   **Real-Time Communication (`websockets` Module)** *(v1 shipped)*
-    -   **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**.
-    -   **Later:** Redis fan-out for multi-node, optional isolation bridge, Glade connection admin UI.
+-   **Real-Time Communication (`websockets` Module)** *(v1 + Redis fan-out shipped)*
+    -   **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**, **Redis multi-node fan-out** (`fanout.driver: "redis"` + sibling `websockets.redis`).
+    -   **Later:** Optional isolation bridge, Glade connection admin UI, presence directory.
 
--   **CRON Scheduler** *(v1 shipped: declarative `app.json` schedules; server gate `scheduler.enabled` default off)*
-    -   **Next:** Redis leader election for multi-node, runtime API / “Run now” in Glade, optional handoff to `queue`.
+-   **CRON Scheduler** *(v1 + Redis coordination shipped)*
+    -   **Done:** Declarative `app.json` schedules; server gate `scheduler.enabled` (default off); targets script/url/queue; **Redis multi-node coordination** (`coordination.driver: "redis"` + sibling `scheduler.redis`); **Glade Schedules / Run now** (list + force-run).
+    -   **Next:** Richer schedule admin (edit enable/disable, history).
 
--   **Job Queues & Background Processing (`queue` Module)** *(v1 shipped)*
-    -   **Done:** `require('queue').add`, memory + redis drivers (ioredis), concurrency, retries/backoff, `$g.queue` in handlers, `queue` permission, CRON `target.type: "queue"`, metrics.
-    -   **Later:** Glade “Run now” / job UI, dead-letter admin, BullMQ-class priorities/rate limits if needed.
+-   **Job Queues & Background Processing (`queue` Module)** *(v1 + Glade DLQ shipped)*
+    -   **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** live jobs view + DLQ admin (filter, auto-refresh, retry/discard).
+    -   **Later:** Priorities/rate limits if needed.
 
 -   **Third-Party Service Adapters**
     -   **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.
@@ -47,9 +48,9 @@ This phase is focused on adding features essential for running massive, high-tra
     -   **Done:** Engine `/metrics` Prometheus scrape (localhost-only by default, optional bearer), counters/histograms for scripts, limits rejects, egress denies, scheduler runs; JSONL `audit` for permissions/lifecycle. See `gingee.json` → `metrics` / `audit`.
     -   **Later:** Richer dashboards, distributed metrics under clustering, optional OpenTelemetry.
 
--   **Process isolation** *(P1 product baseline shipped)*
-    -   **Done:** Opt-in workers (IPC), master listen ports, privileged apps in-process, **buffered + SSE** over IPC (incl. AI), **isolation groups** vs solo `apps`, **auto-restart** with backoff/`restart_max`, worker **ai/email** re-init from app config.
-    -   **Later:** Scheduler-in-worker, OS resource limits (cgroups/Job Objects), multi-node worker placement.
+-   **Process isolation** *(P1 baseline + P2 worker_limits shipped)*
+    -   **Done:** Opt-in workers (IPC), master listen ports, privileged apps in-process, **buffered + SSE** over IPC (incl. AI), **isolation groups** vs solo `apps`, **auto-restart** with backoff/`restart_max`, worker **ai/email** re-init, **`isolation.worker_limits`** (V8 `max_old_space_mb`, priority, UV threadpool, Linux `prlimit` best-effort for `max_rss_mb`).
+    -   **Later:** Scheduler-in-worker, full cgroups v2 / Windows Job Objects integration, multi-node worker placement.
 
 -   **Community Plugin System**
     -   **Goal:** Allow the community to build, publish, and share their own Gingee app modules.

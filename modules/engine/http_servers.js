@@ -39,7 +39,7 @@ function handleServerError(error, port, protocol, logger) {
  * @param {string} options.projectRoot
  * @param {function} options.reqHandler - (req, res) => void
  * @param {function} [options.onServer] - (server, protocol) => void after create, before listen
- * @returns {{ httpServer: object|null, httpsServer: object|null }}
+ * @returns {{ httpServer: object|null, httpsServer: object|null }} HTTP/HTTPS server instances (or null if disabled)
  */
 function startHttpServers({ config, logger, projectRoot, reqHandler, onServer }) {
   let httpServer = null;

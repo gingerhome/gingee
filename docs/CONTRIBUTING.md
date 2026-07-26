@@ -36,6 +36,11 @@ Here's the workflow for submitting a code contribution:
     *   Adhere to the existing code style (we use Prettier for automatic formatting).
     *   **Add or update tests** that cover your changes. This is non-negotiable. All code must be verifiable.
     *   **Update documentation** (JSDoc comments in the code, and any relevant `.md` files in the `/docs` folder).
+    *   **JSDoc (classic) constraints** — `npm run docs` uses JSDoc, not TypeScript. Avoid:
+        - TypeScript-only types such as `import('http').Server` or `NodeJS.Timeout` in `@param` / `@returns` / `@type` (use `object`, `function`, plain `{Map<string, object>}`, etc., and put the Node/library type name in the description text).
+        - Values after `@private` (write `/** @private */` only; put “test helper” in a separate comment line if needed).
+        - Descriptions on the same line as `@type {…}` (put the description on the line above the `@type` tag).
+        Run `npm run docs` (or at least `npx jsdoc -c .jsdoc.json`) before opening a PR that touches module JSDoc.
 
 4.  **The "Prompt Log" (For AI-Assisted Contributions)**
     > If you collaborated with a Generative AI to produce your solution, we ask that you document this unique process.

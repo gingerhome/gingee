@@ -23,7 +23,8 @@ Here is a comprehensive breakdown of all available properties.
     "redis": {
       "host": "127.0.0.1",
       "port": 6379,
-      "password": null
+      "password": null,
+      "db": 0
     }
   },
   "email": {
@@ -34,7 +35,17 @@ Here is a comprehensive breakdown of all available properties.
   },
   "scheduler": {
     "enabled": false,
-    "timezone": "UTC"
+    "timezone": "UTC",
+    "coordination": {
+      "driver": "none",
+      "strategy": "tick"
+    },
+    "redis": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "password": null,
+      "key_prefix": "gingee:scheduler:"
+    }
   },
   "limits": {
     "request_timeout_ms": 30000,
@@ -157,10 +168,34 @@ An object that configures the HTTP and HTTPS servers.
   - **Example:** `"prefix": "my-prod-gingee:"`
 
 - **`cache.redis`** (object, optional):
-  - **Description:** Contains the connection details, used only when `provider` is set to `"redis"`.
-  - **`host`** (string): The hostname or IP address of your Redis server.
-  - **`port`** (number): The port of your Redis server.
-  - **`password`** (string | null): The password for your Redis server, or `null` if none is set.
+  - **Description:** Connection details used only when `provider` is `"redis"`. **Same field set as `queue.redis` / `scheduler.redis`.**
+  - **`url`** (string, optional): Redis URL (literal or `env:` / `file:` secret ref). When set, used instead of host/port.
+  - **`host`** / **`port`** / **`password`** / **`db`**: Classic connection fields (defaults `127.0.0.1` / `6379` / none / `0`).
+
+```json
+"cache": {
+  "provider": "redis",
+  "prefix": "gingee:",
+  "redis": {
+    "url": "env:REDIS_URL"
+  }
+}
+```
+
+Or without a URL:
+
+```json
+"cache": {
+  "provider": "redis",
+  "prefix": "gingee:",
+  "redis": {
+    "host": "127.0.0.1",
+    "port": 6379,
+    "password": null,
+    "db": 0
+  }
+}
+```
 
 ### email
 
@@ -189,10 +224,53 @@ An object that configures the HTTP and HTTPS servers.
   - **Default:** `false`
   - When `false`, this node does **not** register or fire any schedules (safe default for multi-server load-balanced fleets).
   - When `true`, this node registers schedules for all installed apps that have the `scheduler` permission and valid `schedules` entries.
-  - **Multi-server:** for `"script"` / `"url"` targets, enable on **at most one** node. For `"queue"` targets with a shared Redis queue, every node may run the scheduler **or** only one — jobs still process once via the queue.
+  - **Multi-server without coordination:** for `"script"` / `"url"` targets, enable on **at most one** node. For `"queue"` targets with a shared Redis queue, every node may run the scheduler **or** only one — workers still process each enqueued job once (enqueue may multi-fire without coordination).
+  - **Multi-server with Redis coordination:** set `coordination.driver: "redis"` and configure sibling **`scheduler.redis`** (same connection shape as `queue.redis` / `cache.redis`); enable the scheduler on **every** node — only one node runs each occurrence.
 - **`timezone`** (string, optional):
   - **Default:** `"UTC"`
   - Default IANA timezone for jobs that omit `timezone` in `app.json`.
+- **`coordination`** (object, optional): multi-node single-fire policy (does **not** hold Redis connection fields — those live on sibling **`redis`**, matching queue/cache).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `driver` | `"none"` | `"none"` (ops designates one scheduler node) or `"redis"` (distributed coordination). Same idea as `queue.driver` / `cache.provider`. |
+| `strategy` | `"tick"` | **`tick`**: per app+job+fire-slot lock (recommended HA). **`leader`**: one global leader lease; only the leader runs any schedule. |
+| `lock_ttl_ms` | `300000` | Lock / leader lease TTL (ms). Leader renews at ~ttl/3. |
+| `slot_granularity_ms` | `10000` | Tick slot bucket when planned fire time is unavailable (absorbs small clock skew). |
+| `node_id` | `hostname:pid` | Identity stored in Redis lock values. |
+
+- **`redis`** (object, optional): connection details used when `coordination.driver` is `"redis"`. **Same fields as `queue.redis` / `cache.redis`.**
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `url` | `null` | Redis URL (e.g. `env:REDIS_URL`). When set, used instead of host/port. |
+| `host` / `port` / `password` / `db` | `127.0.0.1` / `6379` / `null` / `0` | Classic connection fields. |
+| `key_prefix` | `"gingee:scheduler:"` | Namespace for lock keys (use a dedicated prefix; do not share `gingee:queue:`). |
+
+```json
+"scheduler": {
+  "enabled": true,
+  "timezone": "UTC",
+  "coordination": {
+    "driver": "redis",
+    "strategy": "tick",
+    "lock_ttl_ms": 300000
+  },
+  "redis": {
+    "url": "env:REDIS_URL",
+    "key_prefix": "gingee:scheduler:"
+  }
+}
+```
+
+**Behavior notes:**
+
+- Coordination is **fail-closed**: if Redis is down, the job is **skipped** (`skipped_coord_error`) rather than double-firing.
+- Admin **Run now** / internal `force` runs **bypass** coordination so operators can always trigger a job.
+- Metrics status labels include `skipped_coordination`, `skipped_not_leader`, `skipped_coord_error` on `gingee_scheduler_job_runs_total`.
+- Prefer **`strategy: "tick"`** for fleets; use **`leader`** when you want a single active scheduler process with automatic failover.
+- Legacy `coordination.mode` / nested `coordination.redis` still merge for compatibility; prefer `driver` + sibling `redis`.
+- **Glade:** top menu **Schedules** lists jobs on this node and supports **Run now** (force run; bypasses coordination). See [Glade Admin](./glade-admin.md).
 
 ### limits
 
@@ -331,6 +409,33 @@ Each line is one JSON object, for example:
 | `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
 | `restart_backoff_max_ms` | `30000` | Cap on backoff delay. |
 | `restart_stable_ms` | `60000` | After this long ready without crash, restart counter resets. |
+| `worker_limits` | see below | V8 / OS resource caps applied to each isolation **worker** process. |
+
+#### isolation.worker_limits
+
+Applied when a worker is forked (`isolation.mode: "process"`). All fields default to `null` (no forced cap).
+
+| Key | Default | Platform | Meaning |
+| :--- | :--- | :--- | :--- |
+| `max_old_space_mb` | `null` | All | V8 old-space heap cap (`--max-old-space-size`). When the heap hits the limit the worker dies and auto-restart may bring it back. |
+| `max_semi_space_mb` | `null` | All | V8 young-generation size (`--max-semi-space-size`). |
+| `uv_threadpool_size` | `null` | All | Sets `UV_THREADPOOL_SIZE` in the worker env. |
+| `priority` | `null` | All | `"low"` \| `"normal"` \| `"high"` — `os.setPriority` after spawn (may require privileges for `"high"` on Unix). |
+| `max_rss_mb` | `null` | **Linux** | Best-effort address-space ceiling via `prlimit --as` if installed. **Ignored on Windows** (log warning); use Docker/Job Objects at the orchestrator for hard RSS caps. |
+
+```json
+"isolation": {
+  "mode": "process",
+  "apps": ["untrusted-app"],
+  "worker_limits": {
+    "max_old_space_mb": 512,
+    "priority": "low",
+    "max_rss_mb": 768
+  }
+}
+```
+
+**Honesty:** These are **worker process** limits, not hostile multi-tenant hard isolation. Full **cgroups v2** / **Windows Job Objects** remain the orchestrator’s job for production multi-tenant. `max_old_space_mb` is the portable, always-on V8 cap.
 
 **Per-app** (`app.json`): `"isolation": "process"` or `"isolation": "inprocess"`.
 
@@ -386,6 +491,36 @@ In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `
 | `idle_timeout_ms` | `300000` | Close sockets idle longer than this (activity = message or pong). |
 | `heartbeat_ms` | `30000` | Server ping interval; also drives idle checks. |
 | `default_path` | `"/ws"` | Used when an app omits `websockets.path`. Full URL is `/{appName}{path}`. |
+| `fanout` | see below | Multi-node room/app broadcast (optional). |
+| `redis` | see below | Connection for fan-out when `fanout.driver` is `"redis"` (same fields as `queue.redis`). |
+
+#### websockets.fanout (multi-node)
+
+Without fan-out, `require('websockets').toRoom` / `toApp` only reach sockets on **this** process. With Redis pub/sub, every Gingee master delivers to its local members of the room.
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `driver` | `"none"` | `"none"` (single-node) or `"redis"` (pub/sub fan-out). |
+| `node_id` | `hostname:pid` | Origin id so a node ignores its own publishes. |
+
+#### websockets.redis
+
+Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**: `url` or `host`/`port`/`password`/`db`, plus `key_prefix` (default `"gingee:ws:"`). Channel: `{key_prefix}broadcast`.
+
+```json
+"websockets": {
+  "enabled": true,
+  "fanout": {
+    "driver": "redis"
+  },
+  "redis": {
+    "url": "env:REDIS_URL",
+    "key_prefix": "gingee:ws:"
+  }
+}
+```
+
+**Behavior:** local delivery always runs first; Redis publish is best-effort (if Redis is down, other nodes miss the message — this node still serves its sockets). Apps need no API changes.
 
 **Per-app** (`app.json`):
 
@@ -413,7 +548,7 @@ In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `
 
 **Sample app:** `web/ginchat/` — multi-tenant room chat + HTTP announce (`POST /ginchat/api/announce`). Open `/ginchat/` after granting the `websockets` permission and restarting/reloading.
 
-**Metrics:** `gingee_websocket_upgrades_total`, `gingee_websocket_connections_opened_total` / `_closed_total`, gauges `gingee_websocket_connections` and `gingee_websocket_connections_per_app`.
+**Metrics:** `gingee_websocket_upgrades_total`, `gingee_websocket_connections_opened_total` / `_closed_total`, gauges `gingee_websocket_connections` and `gingee_websocket_connections_per_app`, fan-out `gingee_websocket_fanout_publish_total` / `_receive_total`.
 
 ### queue
 
@@ -469,14 +604,17 @@ await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
 
 **CRON → queue (multi-node friendly):** schedule target `"type": "queue", "job": "nightly"` enqueues instead of running the heavy work inline. App needs both `scheduler` and `queue` permissions; server needs `scheduler.enabled` and `queue.enabled`.
 
-**Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, histogram `gingee_queue_job_duration_seconds`.
+**Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, `gingee_queue_dlq_total` / `_retry_total` / `_discard_total`, histogram `gingee_queue_job_duration_seconds`.
+
+**Admin (Glade):** top menu **Queue / DLQ** — **Live jobs** (running/waiting on this node + pending/delayed in the driver; optional auto-refresh) and **DLQ** (retry/discard). App filter (3+ letters). APIs: `getQueueStats` / `listQueueLiveJobs` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (`/glade/api/queue-*`). Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared.
 
 ### Optional npm feature packages
 
-Gingee keeps a **core** set of required dependencies (engine, SQLite, sharp image, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
+Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
 
 | Feature | Packages |
 | :--- | :--- |
+| Image processing (`require('image')`) | `sharp` |
 | PostgreSQL / MySQL / MSSQL / Oracle | `pg`, `mysql2`, `mssql`, `oracledb` |
 | Charts / canvas barcodes / dashboard | `chartjs-node-canvas`, `canvas` |
 | PDF | `pdfmake` |
@@ -486,10 +624,10 @@ Gingee keeps a **core** set of required dependencies (engine, SQLite, sharp imag
 **Install behavior (npm):**
 
 - Default `npm install` **still attempts** optional packages (full batteries when builds succeed).
-- If an optional package **fails to compile** (common for Oracle / canvas), install **continues** — core Gingee still works.
-- **Slim install:** `npm install --omit=optional`, then add only what you need, e.g. `npm install pg @sendgrid/mail`.
+- If an optional package **fails to compile** (common for Oracle / canvas; less often `sharp`), install **continues** — core Gingee still works.
+- **Slim install:** `npm install --omit=optional`, then add only what you need, e.g. `npm install sharp pg @sendgrid/mail`.
 
-Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals.
+Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals. Image ops need `sharp` installed (or a full/default install that includes optionals).
 
 ### max_body_size
 - **Type:** `string`
@@ -509,6 +647,15 @@ An object that configures the server's logger.
 - **`rotation`** (object): Configures log file rotation to prevent log files from growing infinitely.
   - **`period_days`** (number): The maximum number of days to keep a log file before creating a new one.
   - **`max_size_mb`** (number): The maximum size in megabytes a log file can reach before a new one is created.
+
+**On disk:**
+
+| Stream | Path | Notes |
+| :--- | :--- | :--- |
+| Server | `{project}/logs/gingee-YYYY-MM-DD.log` | JSON lines; includes engine events **and** app logs forwarded from each app logger |
+| App | `{web_root}/{app}/box/logs/app-YYYY-MM-DD.log` | JSON lines with `"app"`; app-only |
+
+**Glade:** top menu **Logs** — tail/view server or app files (default last 100 lines; path-jailed). See [Glade Admin](./glade-admin.md).
 
 ### box (Sandbox Configuration)
 

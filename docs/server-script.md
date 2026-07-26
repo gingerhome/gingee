@@ -23,7 +23,7 @@ This unified structure ensures that every piece of executable code runs within t
 
 ## Types of Scripts in Gingee
 
-While the structure is the same, the purpose of a script and the context it runs in can differ. There are four types of scripts you can create (plus WebSocket handlers, which use a slightly different entry signature).
+While the structure is the same, the purpose of a script and the context it runs in can differ. There are four types of scripts you can create, plus **WebSocket handlers** (different entry signature) and **queue job handlers** (same `gingee()` pattern, `$g.queue` context).
 
 ### 1. Server Scripts (API Endpoints)
 
@@ -123,27 +123,28 @@ module.exports = async function (socket, ctx) {
 
 See [Server Config](./server-config.md) → `websockets` and [App Structure](./app-structure.md).
 
-### 5. Queue job handlers (background)
+### 5. Queue Job Handlers (Background work)
 
-Deferred work uses the same `module.exports = async function () { await gingee(…) }` pattern as server scripts, but is **not** triggered by HTTP.
+Deferred jobs use the same `module.exports` + `gingee()` pattern as HTTP scripts. Place handlers under `box/jobs/{name}.js` (or map names in `app.json` → `queue.jobs`). Grant the **`queue`** permission; enqueue with `require('queue').add(name, payload)`.
 
--   **Purpose:** Emails, reports, slow AI, cleanup — anything that should not block a request.
--   **Execution:** Enqueued with `require('queue').add(name, payload)` (permission **`queue`**). Default script path: `box/jobs/{name}.js`.
--   **`$g` context:** Non-HTTP. `$g.request.method` is `"QUEUE"`. **`$g.queue`** holds `{ id, name, payload, attempt, maxAttempts }`. `$g.response.send(...)` records a result in logs only.
--   **Retries:** On throw, the engine retries up to `attempts` with backoff (see server `queue` config).
--   **CRON:** Prefer `schedules[].target.type: "queue"` so multi-node CRON only enqueues once (with Redis).
+-   **Purpose:** Work that should not block an HTTP response (email, AI, cleanup, multi-node-safe CRON handoff).
+-   **Execution:** The engine dequeues jobs (memory or redis driver) and runs the handler in the app sandbox.
+-   **`$g` Context:**
+    *   **`$g.queue`:** `{ id, name, payload, attempt }` for the current job.
+    *   **Available:** `$g.log`, `$g.app`, and other modules per granted permissions.
+    *   There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators use **Glade → Queue / DLQ** for live jobs and DLQ retry/discard.
 
 **Example (`box/jobs/send-welcome.js`):**
 ```javascript
 module.exports = async function () {
   await gingee(async ($g) => {
     const { payload, attempt, id } = $g.queue;
-    // long work…
+    // … do work …
   });
 };
 ```
 
-See [Server Config](./server-config.md) → `queue` and [App Developer Guide](./app-developer-guide.md).
+See [Server Config](./server-config.md) → `queue`, [App Developer Guide](./app-developer-guide.md), and [Glade Admin](./glade-admin.md).
 
 ---
 

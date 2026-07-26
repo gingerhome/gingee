@@ -664,6 +664,692 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // --- Logs Admin ---
+    const logsAdminModalEl = document.getElementById('logsAdminModal');
+    const logsAdminError = document.getElementById('logs-admin-error');
+    const logsScope = document.getElementById('logs-scope');
+    const logsAppWrap = document.getElementById('logs-app-wrap');
+    const logsApp = document.getElementById('logs-app');
+    const logsFile = document.getElementById('logs-file');
+    const logsLevel = document.getElementById('logs-level');
+    const logsLines = document.getElementById('logs-lines');
+    const logsSearch = document.getElementById('logs-search');
+    const logsEngineOnly = document.getElementById('logs-engine-only');
+    const logsEngineOnlyWrap = document.getElementById('logs-engine-only-wrap');
+    const logsHideQueries = document.getElementById('logs-hide-queries');
+    const logsAutoRefresh = document.getElementById('logs-auto-refresh');
+    const logsRefreshBtn = document.getElementById('logs-refresh-btn');
+    const logsMeta = document.getElementById('logs-meta');
+    const logsTableBody = document.getElementById('logs-table-body');
+    let logsAutoTimer = null;
+    let logsFileList = [];
+    let logsSuppressFileChange = false;
+
+    function showLogsError(msg) {
+        if (!logsAdminError) return;
+        logsAdminError.textContent = msg || '';
+        logsAdminError.classList.toggle('d-none', !msg);
+    }
+
+    function updateLogsScopeUi() {
+        const isApp = logsScope && logsScope.value === 'app';
+        if (logsAppWrap) logsAppWrap.style.display = isApp ? '' : 'none';
+        if (logsEngineOnlyWrap) logsEngineOnlyWrap.style.display = isApp ? 'none' : '';
+    }
+
+    function populateLogsAppSelect(appNames) {
+        if (!logsApp) return;
+        const names = (appNames || []).slice().sort((a, b) => a.localeCompare(b));
+        const prev = logsApp.value;
+        logsApp.innerHTML = names
+            .map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`)
+            .join('');
+        if (prev && names.includes(prev)) logsApp.value = prev;
+        else if (names.includes('glade')) logsApp.value = 'glade';
+        else if (names.length) logsApp.value = names[0];
+    }
+
+    function populateLogsFileSelect(files, preferred) {
+        if (!logsFile) return;
+        logsFileList = files || [];
+        logsSuppressFileChange = true;
+        logsFile.innerHTML = logsFileList.length
+            ? logsFileList
+                  .map((f) => {
+                      const sz =
+                          f.size != null ? ` (${Math.max(1, Math.round(f.size / 1024))} KB)` : '';
+                      return `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}${sz}</option>`;
+                  })
+                  .join('')
+            : '<option value="">(no .log files)</option>';
+        if (preferred && logsFileList.some((f) => f.name === preferred)) {
+            logsFile.value = preferred;
+        } else if (logsFileList.length) {
+            logsFile.value = logsFileList[0].name;
+        }
+        logsSuppressFileChange = false;
+    }
+
+    function levelClass(level) {
+        const lv = (level || '').toLowerCase();
+        if (lv === 'error') return 'text-danger';
+        if (lv === 'warn' || lv === 'warning') return 'text-warning';
+        if (lv === 'info') return 'text-info';
+        return 'text-muted';
+    }
+
+    function renderLogLines(lines) {
+        if (!logsTableBody) return;
+        if (!lines || lines.length === 0) {
+            logsTableBody.innerHTML =
+                '<tr><td colspan="4" class="text-center text-muted">No log lines</td></tr>';
+            return;
+        }
+        logsTableBody.innerHTML = lines
+            .map((row) => {
+                const ts = row.ts ? String(row.ts).replace('T', ' ').replace(/Z$/, '') : '—';
+                const level = row.level || '—';
+                const app = row.app || '—';
+                const msg = row.message != null ? String(row.message) : row.raw || '';
+                return `<tr>
+                    <td class="small font-monospace text-nowrap">${escapeHtml(ts)}</td>
+                    <td class="small ${levelClass(level)}">${escapeHtml(level)}</td>
+                    <td class="small">${escapeHtml(app)}</td>
+                    <td class="small" style="white-space: pre-wrap; word-break: break-word;">${escapeHtml(msg)}</td>
+                </tr>`;
+            })
+            .join('');
+        // Scroll to bottom (newest of the window)
+        const wrap = logsTableBody.closest('.table-responsive');
+        if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    async function ensureLogsAppsLoaded() {
+        if (!logsApp || logsApp.options.length > 0) return;
+        try {
+            const res = await fetch('/glade/api/apps', { credentials: 'include' });
+            if (res.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const data = await res.json();
+            const names = (data.apps || [])
+                .map((a) => (typeof a === 'string' ? a : a.name || a.appName))
+                .filter(Boolean);
+            populateLogsAppSelect(names.length ? names : ['glade']);
+        } catch (_) {
+            populateLogsAppSelect(['glade']);
+        }
+    }
+
+    async function loadLogsListAndRead(keepFile) {
+        showLogsError('');
+        updateLogsScopeUi();
+        const scope = (logsScope && logsScope.value) || 'server';
+        if (scope === 'app') await ensureLogsAppsLoaded();
+
+        const appName = scope === 'app' && logsApp ? logsApp.value : null;
+        if (scope === 'app' && !appName) {
+            showLogsError('Select an application.');
+            return;
+        }
+
+        try {
+            const listQs = new URLSearchParams({ scope });
+            if (appName) listQs.set('appName', appName);
+            const listRes = await fetch(`/glade/api/logs-list?${listQs}`, { credentials: 'include' });
+            if (listRes.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const listData = await listRes.json();
+            if (listData.status !== 'success') {
+                throw new Error(listData.error || 'Failed to list log files');
+            }
+
+            const preferred =
+                keepFile && logsFile && logsFile.value ? logsFile.value : null;
+            populateLogsFileSelect(listData.files || [], preferred);
+
+            if (!logsFile || !logsFile.value) {
+                renderLogLines([]);
+                if (logsMeta) logsMeta.textContent = 'No log files found for this scope.';
+                return;
+            }
+
+            const readQs = new URLSearchParams({
+                scope,
+                file: logsFile.value,
+                lines: (logsLines && logsLines.value) || '100',
+                level: (logsLevel && logsLevel.value) || 'all'
+            });
+            if (appName) readQs.set('appName', appName);
+            if (logsEngineOnly && logsEngineOnly.checked && scope === 'server') {
+                readQs.set('engineOnly', 'true');
+            }
+            // Default ON: hide noise from this viewer unless unchecked
+            if (logsHideQueries && !logsHideQueries.checked) {
+                readQs.set('hideLogQueries', 'false');
+            } else {
+                readQs.set('hideLogQueries', 'true');
+            }
+            if (logsSearch && logsSearch.value.trim()) {
+                readQs.set('q', logsSearch.value.trim());
+            }
+
+            const readRes = await fetch(`/glade/api/logs-read?${readQs}`, { credentials: 'include' });
+            if (readRes.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const readData = await readRes.json();
+            if (readData.status !== 'success') {
+                throw new Error(readData.error || 'Failed to read log file');
+            }
+
+            // Keep file list in sync if API returned availableFiles
+            if (readData.availableFiles && readData.availableFiles.length) {
+                populateLogsFileSelect(readData.availableFiles, readData.file);
+            }
+
+            renderLogLines(readData.lines || []);
+            if (logsMeta) {
+                const bits = [
+                    readData.pathHint || readData.file || '',
+                    `${readData.lineCountReturned || 0} lines`,
+                    readData.fileSize != null
+                        ? `${Math.max(1, Math.round(readData.fileSize / 1024))} KB on disk`
+                        : ''
+                ];
+                if (readData.truncatedLines || readData.truncatedBytes) {
+                    bits.push('window truncated');
+                }
+                if (scope === 'server') {
+                    bits.push('includes app-forwarded lines (see App column)');
+                }
+                logsMeta.textContent = bits.filter(Boolean).join(' · ');
+            }
+        } catch (e) {
+            showLogsError(e.message);
+        }
+    }
+
+    function stopLogsAutoRefresh() {
+        if (logsAutoTimer) {
+            clearInterval(logsAutoTimer);
+            logsAutoTimer = null;
+        }
+    }
+
+    function startLogsAutoRefresh() {
+        stopLogsAutoRefresh();
+        if (!logsAutoRefresh || !logsAutoRefresh.checked) return;
+        logsAutoTimer = setInterval(() => {
+            if (logsAdminModalEl && logsAdminModalEl.classList.contains('show')) {
+                loadLogsListAndRead(true);
+            }
+        }, 4000);
+    }
+
+    if (logsAdminModalEl) {
+        logsAdminModalEl.addEventListener('shown.bs.modal', async () => {
+            updateLogsScopeUi();
+            await loadLogsListAndRead(false);
+            startLogsAutoRefresh();
+        });
+        logsAdminModalEl.addEventListener('hidden.bs.modal', () => {
+            stopLogsAutoRefresh();
+        });
+    }
+    if (logsScope) {
+        logsScope.addEventListener('change', () => {
+            updateLogsScopeUi();
+            loadLogsListAndRead(false);
+        });
+    }
+    if (logsApp) {
+        logsApp.addEventListener('change', () => loadLogsListAndRead(false));
+    }
+    if (logsFile) {
+        logsFile.addEventListener('change', () => {
+            if (!logsSuppressFileChange) loadLogsListAndRead(true);
+        });
+    }
+    if (logsLevel) logsLevel.addEventListener('change', () => loadLogsListAndRead(true));
+    if (logsLines) logsLines.addEventListener('change', () => loadLogsListAndRead(true));
+    if (logsEngineOnly) logsEngineOnly.addEventListener('change', () => loadLogsListAndRead(true));
+    if (logsHideQueries) {
+        logsHideQueries.addEventListener('change', () => loadLogsListAndRead(true));
+    }
+    if (logsSearch) {
+        let searchTimer = null;
+        logsSearch.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => loadLogsListAndRead(true), 350);
+        });
+    }
+    if (logsRefreshBtn) {
+        logsRefreshBtn.addEventListener('click', () => loadLogsListAndRead(true));
+    }
+    if (logsAutoRefresh) {
+        logsAutoRefresh.addEventListener('change', () => {
+            if (logsAutoRefresh.checked) startLogsAutoRefresh();
+            else stopLogsAutoRefresh();
+        });
+    }
+
+    // --- Schedules / Run now Admin ---
+    const scheduleStatsPanel = document.getElementById('schedule-stats-panel');
+    const scheduleTableBody = document.getElementById('schedule-table-body');
+    const scheduleAdminError = document.getElementById('schedule-admin-error');
+    const scheduleAdminInfo = document.getElementById('schedule-admin-info');
+    const scheduleRefreshBtn = document.getElementById('schedule-refresh-btn');
+    const scheduleAppFilter = document.getElementById('schedule-app-filter');
+    const scheduleAdminModalEl = document.getElementById('scheduleAdminModal');
+    let cachedScheduleJobs = [];
+
+    function showScheduleError(msg) {
+        if (!scheduleAdminError) return;
+        scheduleAdminError.textContent = msg || '';
+        scheduleAdminError.classList.toggle('d-none', !msg);
+    }
+
+    function showScheduleInfo(msg) {
+        if (!scheduleAdminInfo) return;
+        scheduleAdminInfo.textContent = msg || '';
+        scheduleAdminInfo.classList.toggle('d-none', !msg);
+    }
+
+    function filterScheduleJobs(jobs) {
+        const q = (scheduleAppFilter && scheduleAppFilter.value.trim().toLowerCase()) || '';
+        if (q.length < 3) return jobs;
+        return jobs.filter((j) => String(j.appName || '').toLowerCase().includes(q));
+    }
+
+    function renderScheduleTable(jobs) {
+        if (!scheduleTableBody) return;
+        if (!jobs || jobs.length === 0) {
+            const q = (scheduleAppFilter && scheduleAppFilter.value.trim()) || '';
+            const emptyMsg =
+                q.length >= 3
+                    ? `No schedules matching “${escapeHtml(q)}”`
+                    : 'No registered schedules on this node';
+            scheduleTableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">${emptyMsg}</td></tr>`;
+            return;
+        }
+        scheduleTableBody.innerHTML = jobs
+            .map((j) => {
+                const next = j.nextRunAt ? new Date(j.nextRunAt).toLocaleString() : '—';
+                const status = j.running
+                    ? 'running'
+                    : j.lastStatus != null
+                      ? String(j.lastStatus)
+                      : '—';
+                const statusClass =
+                    status === 'ok'
+                        ? 'text-success'
+                        : status === 'error' || status === 'timeout'
+                          ? 'text-danger'
+                          : status === 'running'
+                            ? 'text-primary'
+                            : 'text-muted';
+                const errTitle = j.lastError ? escapeHtml(j.lastError) : '';
+                const app = escapeHtml(j.appName);
+                const name = escapeHtml(j.name);
+                return `<tr>
+                        <td>${app}</td>
+                        <td class="font-monospace small">${name}</td>
+                        <td class="small font-monospace">${escapeHtml(j.cron)} <span class="text-muted">${escapeHtml(j.timezone || '')}</span></td>
+                        <td class="small">${escapeHtml(j.targetSummary || j.targetType || '—')}</td>
+                        <td class="small">${escapeHtml(next)}</td>
+                        <td class="small ${statusClass}" title="${errTitle}">${escapeHtml(status)}</td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="queue-action-link schedule-run-now"
+                                data-app="${app}" data-job="${name}"
+                                ${j.running ? 'disabled' : ''}
+                                title="Run this job immediately on this node">Run now</button>
+                        </td>
+                    </tr>`;
+            })
+            .join('');
+    }
+
+    async function loadScheduleAdmin() {
+        showScheduleError('');
+        showScheduleInfo('');
+        try {
+            const res = await fetch('/glade/api/schedule-list', { credentials: 'include' });
+            if (res.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const data = await res.json();
+            if (data.status !== 'success') throw new Error(data.error || 'Failed to load schedules');
+
+            const s = data.statusInfo || {};
+            if (scheduleStatsPanel) {
+                scheduleStatsPanel.innerHTML = [
+                    `<strong>Scheduler:</strong> ${s.enabled ? 'enabled' : 'disabled'}`,
+                    `<strong>Timezone:</strong> ${escapeHtml(s.timezone || 'UTC')}`,
+                    `<strong>Coordination:</strong> ${escapeHtml((s.coordination && s.coordination.driver) || 'none')}`,
+                    `<strong>Jobs:</strong> ${s.jobCount ?? 0}`,
+                    `<strong>Running:</strong> ${s.runningCount ?? 0}`
+                ].join(' &nbsp;·&nbsp; ');
+            }
+            if (!s.enabled) {
+                showScheduleInfo(
+                    'Scheduler is disabled on this node (scheduler.enabled is false). No jobs are registered; enable it in gingee.json and restart to use Run now.'
+                );
+            }
+
+            cachedScheduleJobs = data.jobs || [];
+            renderScheduleTable(filterScheduleJobs(cachedScheduleJobs));
+        } catch (e) {
+            showScheduleError(e.message);
+        }
+    }
+
+    if (scheduleAdminModalEl) {
+        scheduleAdminModalEl.addEventListener('shown.bs.modal', () => {
+            loadScheduleAdmin();
+        });
+    }
+    if (scheduleRefreshBtn) {
+        scheduleRefreshBtn.addEventListener('click', () => loadScheduleAdmin());
+    }
+    if (scheduleAppFilter) {
+        scheduleAppFilter.addEventListener('input', () => {
+            renderScheduleTable(filterScheduleJobs(cachedScheduleJobs));
+        });
+    }
+    if (scheduleTableBody) {
+        scheduleTableBody.addEventListener('click', async (e) => {
+            const runBtn = e.target.closest('.schedule-run-now');
+            if (!runBtn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const appName = runBtn.dataset.app || runBtn.getAttribute('data-app');
+            const jobName = runBtn.dataset.job || runBtn.getAttribute('data-job');
+            if (!appName || !jobName) {
+                showScheduleError('Missing app or job name.');
+                return;
+            }
+            try {
+                showScheduleError('');
+                showScheduleInfo('');
+                runBtn.disabled = true;
+                const res = await fetch('/glade/api/schedule-run', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ appName, jobName })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.status !== 'success') {
+                    throw new Error(data.error || `Run now failed (${res.status})`);
+                }
+                const r = data.result || {};
+                showScheduleInfo(
+                    `Ran ${appName}/${jobName} → ${r.lastStatus || 'done'}` +
+                        (r.lastError ? ` (${r.lastError})` : '')
+                );
+                await loadScheduleAdmin();
+            } catch (err) {
+                showScheduleError(err.message);
+                await loadScheduleAdmin();
+            }
+        });
+    }
+
+    // --- Queue live + DLQ Admin ---
+    const queueStatsPanel = document.getElementById('queue-stats-panel');
+    const queueLiveBody = document.getElementById('queue-live-body');
+    const queueDlqBody = document.getElementById('queue-dlq-body');
+    const queueAdminError = document.getElementById('queue-admin-error');
+    const queueRefreshBtn = document.getElementById('queue-refresh-btn');
+    const queueLiveRefresh = document.getElementById('queue-live-refresh');
+    const queueAppFilter = document.getElementById('queue-dlq-app-filter');
+    const queueAdminModalEl = document.getElementById('queueAdminModal');
+    let cachedDlqJobs = [];
+    let cachedLiveJobs = [];
+    let queueAutoTimer = null;
+
+    function showQueueError(msg) {
+        if (!queueAdminError) return;
+        queueAdminError.textContent = msg || '';
+        queueAdminError.classList.toggle('d-none', !msg);
+    }
+
+    function filterQueueJobsByApp(jobs) {
+        const q = (queueAppFilter && queueAppFilter.value.trim().toLowerCase()) || '';
+        if (q.length < 3) return jobs;
+        return jobs.filter((j) => String(j.appName || '').toLowerCase().includes(q));
+    }
+
+    function formatRunAt(j) {
+        if (j.startedAt) return new Date(j.startedAt).toLocaleString();
+        if (j.runAt) return new Date(j.runAt).toLocaleString();
+        if (j.createdAt) return new Date(j.createdAt).toLocaleString();
+        return '—';
+    }
+
+    function stateBadgeClass(state) {
+        if (state === 'running') return 'text-primary';
+        if (state === 'waiting') return 'text-info';
+        if (state === 'delayed') return 'text-warning';
+        if (state === 'pending') return 'text-secondary';
+        return 'text-muted';
+    }
+
+    function renderLiveTable(jobs) {
+        if (!queueLiveBody) return;
+        if (!jobs || jobs.length === 0) {
+            const q = (queueAppFilter && queueAppFilter.value.trim()) || '';
+            const emptyMsg =
+                q.length >= 3
+                    ? `No live jobs matching “${escapeHtml(q)}”`
+                    : 'No live jobs';
+            queueLiveBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">${emptyMsg}</td></tr>`;
+            return;
+        }
+        queueLiveBody.innerHTML = jobs
+            .map((j) => {
+                const id = escapeHtml(j.id);
+                const state = j.state || '—';
+                return `<tr>
+                        <td class="font-monospace small" title="${id}">${id.slice(0, 12)}…</td>
+                        <td>${escapeHtml(j.appName)}</td>
+                        <td>${escapeHtml(j.name)}</td>
+                        <td class="small ${stateBadgeClass(state)}">${escapeHtml(state)}</td>
+                        <td>${escapeHtml(j.attempt)}/${escapeHtml(j.maxAttempts)}</td>
+                        <td class="small">${escapeHtml(formatRunAt(j))}</td>
+                        <td class="small text-muted">${escapeHtml(j.scope || '—')}</td>
+                    </tr>`;
+            })
+            .join('');
+    }
+
+    function renderDlqTable(jobs) {
+        if (!queueDlqBody) return;
+        if (!jobs || jobs.length === 0) {
+            const q = (queueAppFilter && queueAppFilter.value.trim()) || '';
+            const emptyMsg =
+                q.length >= 3
+                    ? `No dead-letter jobs matching “${escapeHtml(q)}”`
+                    : 'No dead-letter jobs';
+            queueDlqBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">${emptyMsg}</td></tr>`;
+            return;
+        }
+        queueDlqBody.innerHTML = jobs
+            .map((j) => {
+                const failedAt = j.failedAt ? new Date(j.failedAt).toLocaleString() : '—';
+                const err = j.error ? String(j.error).slice(0, 120) : '—';
+                const id = escapeHtml(j.id);
+                return `<tr>
+                        <td class="font-monospace small">${id.slice(0, 12)}…</td>
+                        <td>${escapeHtml(j.appName)}</td>
+                        <td>${escapeHtml(j.name)}</td>
+                        <td>${escapeHtml(j.attempt)}/${escapeHtml(j.maxAttempts)}</td>
+                        <td class="small">${escapeHtml(failedAt)}</td>
+                        <td class="small text-danger" title="${escapeHtml(j.error || '')}">${escapeHtml(err)}</td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="queue-action-link queue-dlq-retry" data-id="${id}" title="Re-enqueue with a fresh attempt budget">Retry</button>
+                            <button type="button" class="queue-action-link queue-dlq-discard" data-id="${id}" title="Remove from dead-letter queue">Discard</button>
+                        </td>
+                    </tr>`;
+            })
+            .join('');
+    }
+
+    function applyQueueFilters() {
+        renderLiveTable(filterQueueJobsByApp(cachedLiveJobs));
+        renderDlqTable(filterQueueJobsByApp(cachedDlqJobs));
+    }
+
+    async function loadQueueAdmin() {
+        showQueueError('');
+        try {
+            const [statsRes, liveRes, dlqRes] = await Promise.all([
+                fetch('/glade/api/queue-stats', { credentials: 'include' }),
+                fetch('/glade/api/queue-live-list?limit=200', { credentials: 'include' }),
+                fetch('/glade/api/queue-dlq-list?limit=200', { credentials: 'include' })
+            ]);
+            if (statsRes.status === 401 || liveRes.status === 401 || dlqRes.status === 401) {
+                window.location.href = '/glade/login.html';
+                return;
+            }
+            const statsData = await statsRes.json();
+            const liveData = await liveRes.json();
+            const dlqData = await dlqRes.json();
+            if (statsData.status !== 'success') throw new Error(statsData.error || 'Failed to load queue stats');
+            if (liveData.status !== 'success') throw new Error(liveData.error || 'Failed to load live jobs');
+            if (dlqData.status !== 'success') throw new Error(dlqData.error || 'Failed to load DLQ');
+
+            const s = statsData.stats || {};
+            if (queueStatsPanel) {
+                const parts = [
+                    `<strong>Enabled:</strong> ${s.enabled ? 'yes' : 'no'}`,
+                    `<strong>Driver:</strong> ${escapeHtml(s.driver || '—')}`,
+                    `<strong>In flight:</strong> ${s.inFlight ?? 0}`,
+                    `<strong>Waiting (node):</strong> ${s.waiting ?? 0}`,
+                    `<strong>Concurrency:</strong> ${s.concurrency ?? '—'}`
+                ];
+                if (s.pendingCount != null) {
+                    parts.push(`<strong>Pending (driver):</strong> ${s.pendingCount}`);
+                }
+                if (s.delayedCount != null) {
+                    parts.push(`<strong>Delayed:</strong> ${s.delayedCount}`);
+                }
+                parts.push(`<strong>DLQ:</strong> ${s.dlqCount ?? 0}`);
+                queueStatsPanel.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+            }
+
+            cachedLiveJobs = liveData.jobs || [];
+            cachedDlqJobs = dlqData.jobs || [];
+            applyQueueFilters();
+        } catch (e) {
+            showQueueError(e.message);
+        }
+    }
+
+    function stopQueueAutoRefresh() {
+        if (queueAutoTimer) {
+            clearInterval(queueAutoTimer);
+            queueAutoTimer = null;
+        }
+    }
+
+    function startQueueAutoRefresh() {
+        stopQueueAutoRefresh();
+        if (!queueLiveRefresh || !queueLiveRefresh.checked) return;
+        queueAutoTimer = setInterval(() => {
+            if (queueAdminModalEl && queueAdminModalEl.classList.contains('show')) {
+                loadQueueAdmin();
+            }
+        }, 3000);
+    }
+
+    if (queueAdminModalEl) {
+        queueAdminModalEl.addEventListener('shown.bs.modal', () => {
+            loadQueueAdmin();
+            startQueueAutoRefresh();
+        });
+        queueAdminModalEl.addEventListener('hidden.bs.modal', () => {
+            stopQueueAutoRefresh();
+        });
+    }
+    if (queueRefreshBtn) {
+        queueRefreshBtn.addEventListener('click', () => loadQueueAdmin());
+    }
+    if (queueLiveRefresh) {
+        queueLiveRefresh.addEventListener('change', () => {
+            if (queueLiveRefresh.checked) startQueueAutoRefresh();
+            else stopQueueAutoRefresh();
+        });
+    }
+    if (queueAppFilter) {
+        queueAppFilter.addEventListener('input', () => {
+            applyQueueFilters();
+        });
+    }
+    if (queueDlqBody) {
+        queueDlqBody.addEventListener('click', async (e) => {
+            const retryBtn = e.target.closest('.queue-dlq-retry');
+            const discardBtn = e.target.closest('.queue-dlq-discard');
+            if (!retryBtn && !discardBtn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const jobId =
+                (retryBtn || discardBtn).dataset.id ||
+                (retryBtn || discardBtn).getAttribute('data-id');
+            if (!jobId) {
+                showQueueError('Missing job id for this action.');
+                return;
+            }
+            try {
+                showQueueError('');
+                if (retryBtn) {
+                    retryBtn.disabled = true;
+                    const res = await fetch('/glade/api/queue-dlq-retry', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jobId })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.status !== 'success') {
+                        throw new Error(data.error || `Retry failed (${res.status})`);
+                    }
+                } else if (discardBtn) {
+                    if (!confirm('Discard this dead-letter job permanently?')) return;
+                    discardBtn.disabled = true;
+                    const res = await fetch('/glade/api/queue-dlq-discard', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jobId })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.status !== 'success') {
+                        throw new Error(data.error || `Discard failed (${res.status})`);
+                    }
+                }
+                await loadQueueAdmin();
+            } catch (err) {
+                showQueueError(err.message);
+                await loadQueueAdmin();
+            }
+        });
+    }
+
     // --- Initial Load ---
     fetchAndRenderApps();
 });

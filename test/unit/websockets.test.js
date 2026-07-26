@@ -11,6 +11,10 @@ const { als } = require('../../modules/gingee');
 const websockets = require('../../modules/websockets');
 
 describe('websocket hub helpers', () => {
+  afterEach(() => {
+    hub.shutdownAll();
+  });
+
   test('normalizePath and fullPathFor', () => {
     expect(hub.normalizePath('ws')).toBe('/ws');
     expect(hub.normalizePath('/ws/')).toBe('/ws');
@@ -29,6 +33,26 @@ describe('websocket hub helpers', () => {
     expect(hub.tenantRoom('acme', 'lobby')).toBe('t:acme:lobby');
     expect(hub.assertRoomTenant('t:acme:lobby', 'acme')).toBe(true);
     expect(() => hub.assertRoomTenant('t:other:lobby', 'acme')).toThrow(/tenant/);
+  });
+
+  test('sendToRoom publishes fan-out when bridge enabled', async () => {
+    const published = [];
+    hub.initServer(
+      { enabled: true, fanout: { driver: 'none' } },
+      { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+      {}
+    );
+    hub._setFanoutForTests({
+      enabled: () => true,
+      publishRoom: async (app, room, data) => {
+        published.push({ app, room, data });
+      },
+      publishApp: async () => {},
+      shutdown: async () => {}
+    });
+    hub.sendToRoom('chat', 'lobby', { type: 'x' });
+    await new Promise((r) => setImmediate(r));
+    expect(published).toEqual([{ app: 'chat', room: 'lobby', data: { type: 'x' } }]);
   });
 });
 
