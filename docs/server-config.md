@@ -312,12 +312,14 @@ Or without a URL:
 | :--- | :--- | :--- |
 | `mode` | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
 | `https_only` | `false` | When `true`, reject `http:` URLs. |
-| `dns_check` | `true` | In `protected` mode, resolve hostnames and deny if any address is blocked. |
+| `dns_check` | `true` | Resolve hostnames and deny if any address is blocked (`protected` and `allowlist`). |
 | `max_redirects` | `3` | Max HTTP redirects; **each hop is re-validated**. |
 | `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true` | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`. |
 | `allow_hosts` | `[]` | Exact host or `*.example.com` patterns (exceptions / allowlist entries). |
 | `allow_cidrs` | `[]` | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access. |
 | `deny_hosts` / `deny_cidrs` | `[]` | Extra denials. |
+
+**Connect pin (DNS rebinding):** When DNS validation yields addresses (or the URL uses a literal IP), `httpclient` and scheduler URL jobs attach a **pinned `lookup`** so TCP connect uses only those pre-checked addresses. Redirect hops are re-resolved, re-checked, and re-pinned.
 
 **Examples:**
 
@@ -419,7 +421,8 @@ Each line is one JSON object, for example:
 | `apps` | `[]` | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`. |
 | `groups` | `{}` | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`. |
 | `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
-| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. |
+| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. On timeout the master sends **`cancel_request` IPC**, ends the client with **504**, and aborts the worker-side `AbortSignal` (cooperative cancel for `httpclient` / long work). |
+| `kill_worker_on_request_timeout` | `false` | When `true`, also **SIGTERM** the worker after cancel (other in-flight requests on that worker die). Prefer cooperative cancel unless you need a hard kill. |
 | `auto_restart` | `true` | Restart workers after unexpected exit (not after intentional stop/reload). |
 | `restart_max` | `10` | Max automatic restarts before staying down until next request/reload. |
 | `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
@@ -474,6 +477,7 @@ If an app appears in both `apps` and a group, the **group wins** (one shared wor
 - Workers re-initialize process-local adapters (`ai`, `email`) from the app config snapshot so `app.json` AI/email config works in isolated apps (permissions still required).
 - **Groups** share one Node worker (density within a trust set); not hostile multi-tenant isolation.
 - Unexpected worker exit triggers **auto-restart** with backoff (unless disabled or `restart_max` exceeded).
+- **Request timeout:** master cancels via IPC + AbortSignal; optional `kill_worker_on_request_timeout` for hard kill.
 
 ```json
 "isolation": {
