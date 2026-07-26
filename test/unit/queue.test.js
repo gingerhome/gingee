@@ -150,6 +150,14 @@ module.exports = async function () {
     expect(queueService.getStats().driver).toBe('memory');
   });
 
+  test('listLiveJobs includes delayed jobs before they run', async () => {
+    const ref = await queueService.addJob(app, 'echo', { slow: true }, { delayMs: 5000 });
+    const live = await queueService.listLiveJobs({ appName: 'qapp' });
+    expect(live.some((j) => j.id === ref.id && j.state === 'delayed')).toBe(true);
+    const stats = await queueService.getAdminStats();
+    expect(stats.delayedCount).toBeGreaterThanOrEqual(1);
+  }, 10000);
+
   test('permanent failure goes to DLQ; retry and discard work', async () => {
     fs.writeFileSync(
       path.join(app.appBoxPath, 'jobs', 'always_fail.js'),

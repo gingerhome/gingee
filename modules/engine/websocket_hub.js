@@ -61,7 +61,8 @@ function state() {
       appConnCounts: new Map(),
       nextSocketId: 1,
       heartbeatTimer: null,
-      /** @type {import('./websocket_fanout.js').RedisFanout|null} */
+      /** RedisFanout instance or null */
+      /** @type {object|null} */
       fanout: null
     };
   }

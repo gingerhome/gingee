@@ -206,6 +206,48 @@ function createMemoryDriver(opts) {
       return n;
     },
 
+    /**
+     * Jobs not yet completed (delayed timers + ready). Admin / Glade live view.
+     * @param {object} [opts]
+     * @param {string} [opts.appName]
+     * @param {number} [opts.limit]
+     * @returns {Promise<object[]>}
+     */
+    async listPending(opts = {}) {
+      const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+      const appFilter = opts.appName || null;
+      const now = Date.now();
+      const out = [];
+      for (const j of jobs.values()) {
+        if (appFilter && j.appName !== appFilter) continue;
+        const runAt = j.runAt || 0;
+        const state = runAt > now ? 'delayed' : 'pending';
+        out.push(
+          sanitize({
+            ...j,
+            state,
+            scope: 'driver'
+          })
+        );
+      }
+      out.sort((a, b) => (a.runAt || 0) - (b.runAt || 0));
+      return out.slice(0, limit);
+    },
+
+    /**
+     * @returns {Promise<{ pending: number, delayed: number }>}
+     */
+    async pendingCounts() {
+      const now = Date.now();
+      let pending = 0;
+      let delayed = 0;
+      for (const j of jobs.values()) {
+        if ((j.runAt || 0) > now) delayed++;
+        else pending++;
+      }
+      return { pending, delayed };
+    },
+
     async shutdown() {
       closed = true;
       for (const j of jobs.values()) {

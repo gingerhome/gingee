@@ -201,7 +201,7 @@ function leaderKey(prefix) {
  * Build an ioredis client the same way as queue_drivers/redis.js.
  * @param {object} redisCfg - normalized redis block
  * @param {object} logger
- * @returns {import('ioredis')}
+ * @returns {object} ioredis client
  */
 function createRedisClient(redisCfg, logger) {
   const Redis = require('ioredis');
@@ -368,7 +368,7 @@ class RedisCoordinator {
    * @param {string} opts.appName
    * @param {string} opts.jobName
    * @param {object} [opts.runtime]
-   * @returns {Promise<{ allow: boolean, reason: string, detail?: string }>}
+   * @returns {Promise<object>} resolve shape: allow (boolean), reason (string), detail (string, optional)
    */
   async tryAllowRun(opts) {
     if (!this.enabled()) {

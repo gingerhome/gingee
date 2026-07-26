@@ -52,7 +52,8 @@ let serverLogger = null;
 /** @type {object|null} */
 let globalConfigRef = null;
 
-/** @type {import('./scheduler_coordination.js').RedisCoordinator|null} */
+/** RedisCoordinator instance or null */
+/** @type {object|null} */
 let coordinator = null;
 
 /**
@@ -429,7 +430,7 @@ function incRunMetric(appName, status) {
  * Run a single job once (shared by CRON tick and tests).
  * @param {object} app
  * @param {object} runtime
- * @param {{ force?: boolean }} [opts] - force skips multi-node coordination (admin / tests)
+ * @param {object} [opts] - force: true skips multi-node coordination (admin / tests)
  * @private
  */
 async function runJob(app, runtime, opts) {

@@ -35,7 +35,8 @@
                     Schedules
                 </button>
                 <button id="queueAdminButton" class="btn btn-outline-light text-dark ms-2" type="button"
-                    data-bs-toggle="modal" data-bs-target="#queueAdminModal" title="Background queue and dead-letter jobs">
+                    data-bs-toggle="modal" data-bs-target="#queueAdminModal"
+                    title="Live queue jobs and dead-letter queue">
                     Queue / DLQ
                 </button>
                 <button id="aboutButton" class="btn btn-outline-light text-dark ms-2">About</button>
@@ -142,14 +143,20 @@
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="queueAdminModalLabel">Background Queue &amp; Dead Letter Queue</h5>
+                    <h5 class="modal-title" id="queueAdminModalLabel">Background Queue</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div id="queue-admin-error" class="alert alert-danger d-none"></div>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div id="queue-stats-panel" class="small text-muted">Loading stats…</div>
-                        <button type="button" class="queue-action-link" id="queue-refresh-btn">Refresh</button>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="queue-live-refresh" checked>
+                                <label class="form-check-label small" for="queue-live-refresh">Auto-refresh</label>
+                            </div>
+                            <button type="button" class="queue-action-link" id="queue-refresh-btn">Refresh</button>
+                        </div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-4">
@@ -158,30 +165,72 @@
                                 placeholder="Type 3+ letters to search app name" autocomplete="off">
                         </div>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle" id="queue-dlq-table">
-                            <thead>
-                                <tr>
-                                    <th>Job ID</th>
-                                    <th>App</th>
-                                    <th>Name</th>
-                                    <th>Attempts</th>
-                                    <th>Failed at</th>
-                                    <th>Error</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="queue-dlq-body">
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted">No dead-letter jobs</td>
-                                </tr>
-                            </tbody>
-                        </table>
+
+                    <ul class="nav nav-tabs mb-3" id="queueAdminTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="queue-live-tab" data-bs-toggle="tab"
+                                data-bs-target="#queue-live-pane" type="button" role="tab">Live jobs</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="queue-dlq-tab" data-bs-toggle="tab"
+                                data-bs-target="#queue-dlq-pane" type="button" role="tab">Dead letter (DLQ)</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="queue-live-pane" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle" id="queue-live-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Job ID</th>
+                                            <th>App</th>
+                                            <th>Name</th>
+                                            <th>State</th>
+                                            <th>Attempt</th>
+                                            <th>Run at</th>
+                                            <th>Scope</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="queue-live-body">
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted">No live jobs</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="small text-muted mb-0">
+                                <strong>running</strong> / <strong>waiting</strong> are on <em>this node</em>.
+                                <strong>pending</strong> / <strong>delayed</strong> come from the driver
+                                (memory: local; redis: shared fleet pool). Refresh or leave auto-refresh on for a live view.
+                            </p>
+                        </div>
+                        <div class="tab-pane fade" id="queue-dlq-pane" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle" id="queue-dlq-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Job ID</th>
+                                            <th>App</th>
+                                            <th>Name</th>
+                                            <th>Attempts</th>
+                                            <th>Failed at</th>
+                                            <th>Error</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="queue-dlq-body">
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted">No dead-letter jobs</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="small text-muted mb-0">
+                                Dead-letter jobs exhausted retries. <strong>Retry</strong> re-enqueues with attempt 1;
+                                <strong>Discard</strong> removes the entry. Memory DLQ is lost on server restart; Redis DLQ is durable.
+                            </p>
+                        </div>
                     </div>
-                    <p class="small text-muted mb-0">
-                        Dead-letter jobs exhausted retries. <strong>Retry</strong> re-enqueues with attempt 1;
-                        <strong>Discard</strong> removes the entry. Memory DLQ is lost on server restart; Redis DLQ is durable.
-                    </p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

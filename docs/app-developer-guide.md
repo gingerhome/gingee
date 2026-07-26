@@ -225,7 +225,7 @@ module.exports = async function () {
 };
 ```
 
-Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. Jobs that exhaust retries land in the **DLQ**; operators manage them in **Glade → top menu Queue / DLQ** (retry / discard). See [Server Config](./server-config.md) → `queue` and [Glade Admin](./glade-admin.md).
+Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. Jobs that exhaust retries land in the **DLQ**. Operators use **Glade → Queue / DLQ**: **Live jobs** (running/waiting/pending/delayed) and **DLQ** (retry / discard). See [Server Config](./server-config.md) → `queue` and [Glade Admin](./glade-admin.md).
 
 ### WebSockets (optional)
 
@@ -258,7 +258,7 @@ module.exports = async function (socket, ctx) {
 };
 ```
 
-From an HTTP script: `require('websockets').toRoom(room, payload)`. Use **SSE** (`startStream`) for one-shot AI token streams. Full walkthrough sample: **`web/ginchat/`** (UI at `/ginchat/`). See [Server Config](./server-config.md) → `websockets` and [Server Script Guide](./server-script.md) → WebSocket handlers.
+From an HTTP script: `require('websockets').toRoom(room, payload)`. Multi-node fleets: operators set `websockets.fanout.driver: "redis"` + sibling `websockets.redis` so room/app broadcasts reach sockets on every master. Use **SSE** (`startStream`) for one-shot AI token streams. Sample: **`web/ginchat/`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets` and [Server Script Guide](./server-script.md) → WebSocket handlers.
 
 ### Process isolation (optional)
 

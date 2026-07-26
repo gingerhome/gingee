@@ -46,7 +46,7 @@ These are the core architectural features that define the Gingee development exp
     Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
 
 *   **CRON Scheduler**
-    Apps declare recurring jobs in `app.json` → `schedules` (script, URL, or **queue** handoff). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`). Multi-server: enable on one node, **or** set `scheduler.coordination.driver: "redis"` with sibling `scheduler.redis` (same connection shape as queue/cache) so every node can enable the scheduler with single-fire locks (or global leader). Requires the `scheduler` permission (`httpclient` for URL; `queue` for queue targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
+    Apps declare recurring jobs in `app.json` → `schedules` (script, URL, or **queue** handoff). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`). Multi-server: enable on one node, **or** set `scheduler.coordination.driver: "redis"` with sibling `scheduler.redis` (same connection shape as queue/cache) so every node can enable the scheduler with single-fire locks (or global leader). **Glade → Schedules** lists jobs on this node and supports **Run now**. Requires the `scheduler` permission (`httpclient` for URL; `queue` for queue targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
 
 *   **Request & Outbound Limits**
     Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
@@ -58,7 +58,7 @@ These are the core architectural features that define the Gingee development exp
     Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
 
 -   **Prometheus Metrics:**
-    Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, and process gauges—not cross-app data APIs for untrusted code.
+    Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, WebSocket upgrades/connections/fan-out, queue/DLQ counters, and process gauges—not cross-app data APIs for untrusted code.
 
 -   **Audit Trail:**
     Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
@@ -73,7 +73,7 @@ These are the core architectural features that define the Gingee development exp
     Bidirectional real-time connections on the same public HTTP(S) port (`ws` library). Declare `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, then use `require('websockets')` for rooms/broadcast. Multi-tenant apps should use `tenantRoom(tenantId, name)`. Connections terminate on the **master** (not isolation workers). **Multi-node:** set `websockets.fanout.driver: "redis"` and sibling `websockets.redis` so `toRoom` / `toApp` reach sockets on every master. Prefer SSE for one-shot AI token streams. Sample app: **`ginchat`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets`.
 
 -   **Background job queue (`queue` module):**
-    Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** top menu **Queue / DLQ** lists failed jobs (app filter after 3+ letters) with **Retry** (fresh attempt budget) / **Discard**. CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
+    Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** **Queue / DLQ**: live jobs (running/waiting/pending/delayed, auto-refresh) and DLQ (retry/discard). CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

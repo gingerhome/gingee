@@ -116,7 +116,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. It controls global settings like server ports, the central caching provider (Memory or Redis), logging policies, optional server-wide defaults for `email` and `ai`, whether the **scheduler** is enabled on this node (default off), **limits** / **egress** / **secrets**, engine **metrics** (Prometheus scrape) and **audit** (JSONL lifecycle log), opt-in **process isolation**, **WebSocket** limits (`websockets`), and the **background queue** (`queue` driver memory/redis).
+-   **`gingee.json`:** Ports, cache (memory/redis), logging, email/ai defaults, **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
 -   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
 -   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 -   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
@@ -650,15 +650,10 @@ An object that configures the HTTP and HTTPS servers.
 ### scheduler
 
 - **Type:** `object` (optional)
-- **Description:** Controls the in-process **CRON scheduler** for this Gingee node. App jobs are declared in each app’s `app.json` → `schedules` (see [App Structure](./app-structure.md)).
-- **`enabled`** (boolean):
-  - **Default:** `false`
-  - When `false`, this node does **not** register or fire any schedules (safe default for multi-server load-balanced fleets).
-  - When `true`, this node registers schedules for all installed apps that have the `scheduler` permission and valid `schedules` entries.
-  - **Multi-server:** enable on **at most one** node so jobs do not run in duplicate.
-- **`timezone`** (string, optional):
-  - **Default:** `"UTC"`
-  - Default IANA timezone for jobs that omit `timezone` in `app.json`.
+- **Description:** In-process **CRON scheduler**. Jobs from `app.json` → `schedules` (script / url / queue). See [App Structure](./app-structure.md).
+- **`enabled`** (boolean, default `false`): when true, register/fire schedules on this node.
+- **`timezone`** (string, default `"UTC"`).
+- **Multi-server:** enable on one node, **or** set `coordination.driver: "redis"` + sibling `scheduler.redis` (tick/leader locks). Glade **Schedules / Run now** lists jobs and force-runs on this node.
 
 ### limits
 
@@ -826,17 +821,17 @@ Each line is one JSON object, for example:
 ### websockets
 
 - **Type:** `object` (optional)
-- **Description:** Master-owned **WebSocket** upgrade support on the same HTTP(S) ports. Apps opt in via `app.json` → `websockets` and the **`websockets`** permission. Handlers run on the **master** (not isolation workers). Prefer SSE for one-shot streams.
+- **Description:** Master-owned **WebSocket** upgrade on public HTTP(S) ports. Apps opt in via `app.json` → `websockets` + **`websockets`** permission. Handlers run on the **master**. Prefer SSE for one-shot streams.
 
 | Key | Default | Meaning |
 | :--- | :--- | :--- |
 | `enabled` | `true` | Global kill switch |
-| `max_connections` | `10000` | Server-wide open sockets |
-| `max_connections_per_app` | `2000` | Per-app cap |
+| `max_connections` / `max_connections_per_app` | `10000` / `2000` | Connection caps |
 | `max_message_bytes` | `65536` | Max inbound message size |
-| `idle_timeout_ms` | `300000` | Idle close |
-| `heartbeat_ms` | `30000` | Ping interval |
-| `default_path` | `"/ws"` | Used when app omits path; full URL `/{appName}{path}` |
+| `idle_timeout_ms` / `heartbeat_ms` | `300000` / `30000` | Idle close / ping |
+| `default_path` | `"/ws"` | Full URL `/{appName}{path}` |
+| `fanout.driver` | `"none"` | `"redis"` for multi-node room/app broadcast |
+| `redis` | host/port/`key_prefix` | Sibling block (same shape as queue/scheduler); used when fanout is redis |
 
 **Per-app:** `handler` (required), optional `path`, `auth`, `allowed_origins`. Module: `require('websockets')` → `toRoom`, `toApp`, `tenantRoom`. Sample: `web/ginchat/`.
 
@@ -857,7 +852,7 @@ Each line is one JSON object, for example:
 
 **CRON → queue:** schedule target `"type": "queue", "job": "nightly"` enqueues instead of running heavy work inline (needs `scheduler` + `queue` permissions).
 
-**Admin (Glade):** top menu **Queue / DLQ** — list dead-letter jobs, app filter (3+ letters), **Retry** (attempt 1 + fresh `default_attempts` budget), **Discard**. Memory DLQ is process-local; Redis DLQ is durable (TTL ~14 days).
+**Admin (Glade):** top menu **Queue / DLQ** — **Live jobs** (running/waiting/pending/delayed; auto-refresh) and **DLQ** (retry/discard); app filter (3+ letters). Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared.
 
 ### Optional npm feature packages
 
@@ -1051,7 +1046,7 @@ After a successful login, you are taken to the main Glade dashboard. This is you
 
 The dashboard consists of two main components:
 
-1.  **The Header:** Contains the Glade title, **Queue / DLQ** (background job dead-letter admin — see below), and a **Logout** button to securely end your session.
+1.  **The Header:** Contains the Glade title, **Schedules** (CRON + Run now), **Queue / DLQ** (live jobs + dead letter — see below), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
     -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
     -   **Version:** The version number, as specified in the app's own `app.json` file.
@@ -1148,16 +1143,20 @@ This is a destructive action that will permanently remove an application and all
 
 ![Glade App Delete](./images/7.glade-app-delete.png)
 
-### Queue / Dead Letter Queue (DLQ)
+### Schedules (CRON / Run now)
 
-The top navigation bar includes a **Queue / DLQ** control (next to About / Logout). It opens an admin panel for the engine background job system (`gingee.json` → `queue`):
+Top nav **Schedules**: jobs registered on this node when `scheduler.enabled` is true. List cron/target/next/last status; **Run now** force-runs on this node (bypasses multi-node coordination). See [Glade Admin](./glade-admin.md).
 
-1. **Stats** — driver (memory/redis), in-flight and waiting counts on this node, DLQ size.
-2. **Dead-letter list** — jobs that exhausted retries (error message, app, attempts). Type **3+ letters** in the app filter to search by app name (live filter).
-3. **Retry** — re-enqueues the job with attempt **1** and a **fresh attempt budget** (server `queue.default_attempts`, default 3) so the job is not stuck failing once and returning to DLQ immediately.
-4. **Discard** — removes the job from the DLQ without re-running.
+### Queue / Live jobs & Dead Letter Queue (DLQ)
 
-Actions are plain text links (bold on hover). Memory-driver DLQ entries are lost if the Gingee process restarts; Redis-driver DLQ is durable (with TTL). See [Server Config](./server-config.md) → `queue`.
+Top nav **Queue / DLQ** (`gingee.json` → `queue`):
+
+1. **Stats** — driver, in-flight/waiting (this node), pending/delayed (driver), DLQ size.
+2. **Live jobs** tab — running/waiting (node) + pending/delayed (driver); optional auto-refresh.
+3. **DLQ** tab — exhausted retries; **Retry** (fresh attempt budget) / **Discard**.
+4. **App filter** — 3+ letters, live.
+
+Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared. See [Server Config](./server-config.md) → `queue`.
 
 ### Audit trail (server-side)
 
@@ -1386,7 +1385,7 @@ Optional job name → script map for the background queue. Handlers default to `
 }
 ```
 
-Enqueue from scripts: `require('queue').add('send-welcome', payload)`. Exhausted retries → **DLQ** (Glade **Queue / DLQ**). See [Server Config](./server-config.md) → `queue`.
+Enqueue from scripts: `require('queue').add('send-welcome', payload)`. Exhausted retries → **DLQ** (Glade live jobs + DLQ). See [Server Config](./server-config.md) → `queue`.
 
 ### Isolation (`isolation` string, optional)
 
@@ -2133,7 +2132,7 @@ const queue = require('queue');
 await queue.add('my-job', { userId: 42 }, { delayMs: 0, attempts: 3 });
 ```
 
-Handlers receive `$g.queue` (`id`, `payload`, `attempt`). Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. Jobs that exhaust retries land in the **DLQ**; operators manage them in **Glade → top menu Queue / DLQ** (retry / discard). See [Server Config](./server-config.md) → `queue` and [Glade Admin](./glade-admin.md).
+Handlers receive `$g.queue` (`id`, `payload`, `attempt`). Server defaults: `queue.driver: "memory"`. For multi-node production use `"redis"`. Exhausted retries → **DLQ**. Operators: **Glade → Queue / DLQ** (live jobs + DLQ retry/discard). See [Server Config](./server-config.md) → `queue` and [Glade Admin](./glade-admin.md).
 
 ### Process isolation (optional)
 
@@ -2817,9 +2816,9 @@ Gingee does **not** currently claim:
 - Guaranteed preemption of malicious infinite loops in the **master** process  
 - Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)  
 
-These may appear on the roadmap (cluster, OpenTelemetry, multi-node WS fan-out, deeper OS quotas); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** (`audit`), **process isolation** (`isolation`, incl. `worker_limits`), **WebSockets**, and **background queue** (`queue` — memory/redis, retries, DLQ, Glade Queue/DLQ admin, CRON handoff) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** **metrics**, **audit**, **isolation** (incl. `worker_limits`), **WebSockets** (optional Redis fan-out), **scheduler** (optional Redis coordination + Glade Run now), and **queue** (memory/redis, retries, DLQ, Glade live jobs + DLQ) — see [Server Config](./server-config.md).
 
 ---
 
@@ -2832,7 +2831,7 @@ These may appear on the roadmap (cluster, OpenTelemetry, multi-node WS fan-out, 
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P1/P2 (implemented separately):** `limits`, egress, secrets, metrics, audit, process isolation (incl. worker_limits), WebSockets, and **queue** (incl. DLQ + Glade admin) — see [Server Config](./server-config.md). That reduces **availability** abuse under cooperative load and improves ops visibility; it is not a substitute for full tenant isolation.
+**Related P0/P1/P2 (implemented separately):** `limits`, egress, secrets, metrics, audit, isolation (worker_limits), WebSockets (fan-out), scheduler coordination, queue (live + DLQ Glade) — see [Server Config](./server-config.md).
 
 ---
 
@@ -3250,7 +3249,7 @@ These are the core architectural features that define the Gingee development exp
     Master-owned realtime on the public port; `app.json` → `websockets` + `websockets` permission; `require('websockets')` rooms/broadcast; sample **`ginchat`**. See [Server Config](./server-config.md) → `websockets`.
 
 -   **Background job queue (`queue` module):**
-    Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue`. Drivers: **memory** (default) or **redis**. Retries with backoff; exhausted jobs go to **DLQ**. **Glade** top menu **Queue / DLQ** lists failed jobs (app filter after 3+ letters) with **Retry** (fresh attempt budget) / **Discard**. CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
+    Enqueue deferred work with `require('queue').add` (permission **`queue`**). Handlers under `box/jobs/`. Drivers memory/redis; retries; **DLQ**. **Glade** live jobs + DLQ admin. CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
 *   **Application Startup Hooks**
     Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

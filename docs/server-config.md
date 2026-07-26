@@ -23,7 +23,8 @@ Here is a comprehensive breakdown of all available properties.
     "redis": {
       "host": "127.0.0.1",
       "port": 6379,
-      "password": null
+      "password": null,
+      "db": 0
     }
   },
   "email": {
@@ -605,7 +606,7 @@ await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
 
 **Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, `gingee_queue_dlq_total` / `_retry_total` / `_discard_total`, histogram `gingee_queue_job_duration_seconds`.
 
-**Admin (Glade):** top menu **Queue / DLQ**. Lists dead-letter jobs (exhausted retries); app filter (3+ character live search); **Retry** re-enqueues with attempt 1 and a fresh `default_attempts` budget; **Discard** removes the entry. APIs: `platform.getQueueStats` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (also `/glade/api/queue-*`). Memory DLQ is process-local; Redis DLQ is durable (TTL ~14 days, capped list).
+**Admin (Glade):** top menu **Queue / DLQ** — **Live jobs** (running/waiting on this node + pending/delayed in the driver; optional auto-refresh) and **DLQ** (retry/discard). App filter (3+ letters). APIs: `getQueueStats` / `listQueueLiveJobs` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (`/glade/api/queue-*`). Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared.
 
 ### Optional npm feature packages
 

@@ -47,6 +47,9 @@ let driver = null;
 let inFlight = 0;
 /** @type {object[]} */
 const waitQueue = [];
+/** Jobs currently executing on this node (id → job snapshot) */
+/** @type {Map<string, object>} */
+const activeJobs = new Map();
 let processing = false;
 
 function log() {
@@ -237,10 +240,17 @@ async function runPump() {
     while (inFlight < serverConfig.concurrency && waitQueue.length > 0) {
       const job = waitQueue.shift();
       inFlight++;
+      activeJobs.set(job.id, {
+        ...job,
+        state: 'running',
+        scope: 'node',
+        startedAt: Date.now()
+      });
       processOne(job)
         .catch((e) => log().error(`[queue] process error: ${e.message}`))
         .finally(() => {
           inFlight--;
+          activeJobs.delete(job.id);
           pump();
         });
     }
@@ -444,12 +454,86 @@ async function getAdminStats() {
       dlqCount = 0;
     }
   }
+  let pending = null;
+  let delayed = null;
+  if (driver && typeof driver.pendingCounts === 'function') {
+    try {
+      const c = await driver.pendingCounts();
+      pending = c.pending;
+      delayed = c.delayed;
+    } catch (_) {
+      /* ignore */
+    }
+  }
   return {
     ...base,
     dlqCount,
+    /** Driver-level ready pool size (redis: shared; memory: includes not-yet-claimed) */
+    pendingCount: pending,
+    /** Driver-level delayed count */
+    delayedCount: delayed,
     default_attempts: serverConfig.default_attempts,
     default_backoff_ms: serverConfig.default_backoff_ms
   };
+}
+
+/**
+ * Live jobs: running/waiting on this node + pending/delayed in the driver.
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @param {number} [opts.limit]
+ * @returns {Promise<object[]>}
+ */
+async function listLiveJobs(opts = {}) {
+  const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+  const appFilter =
+    opts.appName != null && String(opts.appName).trim()
+      ? String(opts.appName).trim()
+      : null;
+  const seen = new Set();
+  const out = [];
+
+  function push(job) {
+    if (!job || !job.id || seen.has(job.id)) return;
+    if (appFilter && job.appName !== appFilter) return;
+    seen.add(job.id);
+    const { _timer, ...rest } = job;
+    out.push(rest);
+  }
+
+  // 1) Running on this node
+  for (const job of activeJobs.values()) {
+    push(job);
+    if (out.length >= limit) return out;
+  }
+
+  // 2) Claimed into this node's wait queue (not started)
+  for (const job of waitQueue) {
+    push({
+      ...job,
+      state: 'waiting',
+      scope: 'node'
+    });
+    if (out.length >= limit) return out;
+  }
+
+  // 3) Driver pending / delayed (memory local or redis shared)
+  if (driver && typeof driver.listPending === 'function') {
+    try {
+      const pending = await driver.listPending({
+        appName: appFilter || undefined,
+        limit: limit
+      });
+      for (const job of pending) {
+        push(job);
+        if (out.length >= limit) break;
+      }
+    } catch (e) {
+      log().error(`[queue] listPending failed: ${e.message}`);
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -523,6 +607,7 @@ async function discardDlqJob(jobId) {
 
 async function shutdown() {
   waitQueue.length = 0;
+  activeJobs.clear();
   if (driver) {
     try {
       await driver.shutdown();
@@ -554,6 +639,7 @@ module.exports = {
   getStats,
   getAdminStats,
   listDlq,
+  listLiveJobs,
   getDlqJob,
   retryDlqJob,
   discardDlqJob,

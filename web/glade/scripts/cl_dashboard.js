@@ -835,15 +835,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Queue / DLQ Admin ---
+    // --- Queue live + DLQ Admin ---
     const queueStatsPanel = document.getElementById('queue-stats-panel');
+    const queueLiveBody = document.getElementById('queue-live-body');
     const queueDlqBody = document.getElementById('queue-dlq-body');
     const queueAdminError = document.getElementById('queue-admin-error');
     const queueRefreshBtn = document.getElementById('queue-refresh-btn');
+    const queueLiveRefresh = document.getElementById('queue-live-refresh');
     const queueAppFilter = document.getElementById('queue-dlq-app-filter');
     const queueAdminModalEl = document.getElementById('queueAdminModal');
-    /** Full DLQ list from last fetch; client-filters after 3+ chars */
     let cachedDlqJobs = [];
+    let cachedLiveJobs = [];
+    let queueAutoTimer = null;
 
     function showQueueError(msg) {
         if (!queueAdminError) return;
@@ -851,10 +854,53 @@ document.addEventListener('DOMContentLoaded', () => {
         queueAdminError.classList.toggle('d-none', !msg);
     }
 
-    function filterDlqJobs(jobs) {
+    function filterQueueJobsByApp(jobs) {
         const q = (queueAppFilter && queueAppFilter.value.trim().toLowerCase()) || '';
         if (q.length < 3) return jobs;
         return jobs.filter((j) => String(j.appName || '').toLowerCase().includes(q));
+    }
+
+    function formatRunAt(j) {
+        if (j.startedAt) return new Date(j.startedAt).toLocaleString();
+        if (j.runAt) return new Date(j.runAt).toLocaleString();
+        if (j.createdAt) return new Date(j.createdAt).toLocaleString();
+        return '—';
+    }
+
+    function stateBadgeClass(state) {
+        if (state === 'running') return 'text-primary';
+        if (state === 'waiting') return 'text-info';
+        if (state === 'delayed') return 'text-warning';
+        if (state === 'pending') return 'text-secondary';
+        return 'text-muted';
+    }
+
+    function renderLiveTable(jobs) {
+        if (!queueLiveBody) return;
+        if (!jobs || jobs.length === 0) {
+            const q = (queueAppFilter && queueAppFilter.value.trim()) || '';
+            const emptyMsg =
+                q.length >= 3
+                    ? `No live jobs matching “${escapeHtml(q)}”`
+                    : 'No live jobs';
+            queueLiveBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">${emptyMsg}</td></tr>`;
+            return;
+        }
+        queueLiveBody.innerHTML = jobs
+            .map((j) => {
+                const id = escapeHtml(j.id);
+                const state = j.state || '—';
+                return `<tr>
+                        <td class="font-monospace small" title="${id}">${id.slice(0, 12)}…</td>
+                        <td>${escapeHtml(j.appName)}</td>
+                        <td>${escapeHtml(j.name)}</td>
+                        <td class="small ${stateBadgeClass(state)}">${escapeHtml(state)}</td>
+                        <td>${escapeHtml(j.attempt)}/${escapeHtml(j.maxAttempts)}</td>
+                        <td class="small">${escapeHtml(formatRunAt(j))}</td>
+                        <td class="small text-muted">${escapeHtml(j.scope || '—')}</td>
+                    </tr>`;
+            })
+            .join('');
     }
 
     function renderDlqTable(jobs) {
@@ -889,53 +935,95 @@ document.addEventListener('DOMContentLoaded', () => {
             .join('');
     }
 
+    function applyQueueFilters() {
+        renderLiveTable(filterQueueJobsByApp(cachedLiveJobs));
+        renderDlqTable(filterQueueJobsByApp(cachedDlqJobs));
+    }
+
     async function loadQueueAdmin() {
         showQueueError('');
         try {
-            const [statsRes, dlqRes] = await Promise.all([
+            const [statsRes, liveRes, dlqRes] = await Promise.all([
                 fetch('/glade/api/queue-stats', { credentials: 'include' }),
+                fetch('/glade/api/queue-live-list?limit=200', { credentials: 'include' }),
                 fetch('/glade/api/queue-dlq-list?limit=200', { credentials: 'include' })
             ]);
-            if (statsRes.status === 401 || dlqRes.status === 401) {
+            if (statsRes.status === 401 || liveRes.status === 401 || dlqRes.status === 401) {
                 window.location.href = '/glade/login.html';
                 return;
             }
             const statsData = await statsRes.json();
+            const liveData = await liveRes.json();
             const dlqData = await dlqRes.json();
             if (statsData.status !== 'success') throw new Error(statsData.error || 'Failed to load queue stats');
+            if (liveData.status !== 'success') throw new Error(liveData.error || 'Failed to load live jobs');
             if (dlqData.status !== 'success') throw new Error(dlqData.error || 'Failed to load DLQ');
 
             const s = statsData.stats || {};
             if (queueStatsPanel) {
-                queueStatsPanel.innerHTML = [
+                const parts = [
                     `<strong>Enabled:</strong> ${s.enabled ? 'yes' : 'no'}`,
                     `<strong>Driver:</strong> ${escapeHtml(s.driver || '—')}`,
                     `<strong>In flight:</strong> ${s.inFlight ?? 0}`,
-                    `<strong>Waiting (this node):</strong> ${s.waiting ?? 0}`,
-                    `<strong>Concurrency:</strong> ${s.concurrency ?? '—'}`,
-                    `<strong>DLQ size:</strong> ${s.dlqCount ?? 0}`
-                ].join(' &nbsp;·&nbsp; ');
+                    `<strong>Waiting (node):</strong> ${s.waiting ?? 0}`,
+                    `<strong>Concurrency:</strong> ${s.concurrency ?? '—'}`
+                ];
+                if (s.pendingCount != null) {
+                    parts.push(`<strong>Pending (driver):</strong> ${s.pendingCount}`);
+                }
+                if (s.delayedCount != null) {
+                    parts.push(`<strong>Delayed:</strong> ${s.delayedCount}`);
+                }
+                parts.push(`<strong>DLQ:</strong> ${s.dlqCount ?? 0}`);
+                queueStatsPanel.innerHTML = parts.join(' &nbsp;·&nbsp; ');
             }
 
+            cachedLiveJobs = liveData.jobs || [];
             cachedDlqJobs = dlqData.jobs || [];
-            renderDlqTable(filterDlqJobs(cachedDlqJobs));
+            applyQueueFilters();
         } catch (e) {
             showQueueError(e.message);
         }
     }
 
+    function stopQueueAutoRefresh() {
+        if (queueAutoTimer) {
+            clearInterval(queueAutoTimer);
+            queueAutoTimer = null;
+        }
+    }
+
+    function startQueueAutoRefresh() {
+        stopQueueAutoRefresh();
+        if (!queueLiveRefresh || !queueLiveRefresh.checked) return;
+        queueAutoTimer = setInterval(() => {
+            if (queueAdminModalEl && queueAdminModalEl.classList.contains('show')) {
+                loadQueueAdmin();
+            }
+        }, 3000);
+    }
+
     if (queueAdminModalEl) {
         queueAdminModalEl.addEventListener('shown.bs.modal', () => {
             loadQueueAdmin();
+            startQueueAutoRefresh();
+        });
+        queueAdminModalEl.addEventListener('hidden.bs.modal', () => {
+            stopQueueAutoRefresh();
         });
     }
     if (queueRefreshBtn) {
         queueRefreshBtn.addEventListener('click', () => loadQueueAdmin());
     }
+    if (queueLiveRefresh) {
+        queueLiveRefresh.addEventListener('change', () => {
+            if (queueLiveRefresh.checked) startQueueAutoRefresh();
+            else stopQueueAutoRefresh();
+        });
+    }
     if (queueAppFilter) {
-        // Live filter after 3+ characters; under 3 shows full cached list
         queueAppFilter.addEventListener('input', () => {
-            renderDlqTable(filterDlqJobs(cachedDlqJobs));
+            applyQueueFilters();
         });
     }
     if (queueDlqBody) {
@@ -945,7 +1033,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!retryBtn && !discardBtn) return;
             e.preventDefault();
             e.stopPropagation();
-            // Prefer dataset (decoded); fall back to attribute
             const jobId =
                 (retryBtn || discardBtn).dataset.id ||
                 (retryBtn || discardBtn).getAttribute('data-id');

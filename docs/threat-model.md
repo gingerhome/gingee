@@ -241,9 +241,9 @@ Gingee does **not** currently claim:
 - Guaranteed preemption of malicious infinite loops in the **master** process  
 - Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)  
 
-These may appear on the roadmap (cluster, OpenTelemetry, multi-node WS fan-out, deeper OS quotas); until shipped and documented, treat them as **absent**.
+These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
 
-**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE; auto-restart; **`worker_limits`** for V8 heap / priority / best-effort Linux `prlimit`), **opt-in WebSockets** on the master (permission-gated; multi-tenant room prefixes are app-owned; optional **Redis fan-out** for multi-node rooms), and a **background job queue** (`queue` — memory or redis drivers, retries, DLQ, Glade **Queue / DLQ** admin, CRON handoff) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
+**Already shipped (not non-goals):** process-wide **Prometheus** scrapes (`metrics`), **JSONL audit** for permissions/lifecycle (`audit`), **opt-in process isolation** for server scripts (`isolation` — child process per app or group; buffered + SSE; auto-restart; **`worker_limits`**), **opt-in WebSockets** on the master (permission-gated; multi-tenant rooms; optional **Redis fan-out**), **scheduler** with optional Redis **coordination**, and a **background job queue** (`queue` — memory/redis, retries, DLQ, Glade live jobs + DLQ admin, CRON handoff, Glade **Schedules / Run now**) — see [Server Config](./server-config.md). These improve observability, non-repudiation, crash containment, realtime, and deferred work; they do **not** replace container-per-trust-domain for hostile multi-tenant hosting.
 
 ---
 
@@ -256,7 +256,7 @@ These may appear on the roadmap (cluster, OpenTelemetry, multi-node WS fan-out, 
 | Align operators with real controls | §§6.1, 10 |
 | Residual risk honesty | Throughout |
 
-**Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, process isolation (incl. **worker_limits**), WebSockets, and background **queue** (incl. DLQ + Glade admin) — see [Server Config](./server-config.md) and the [critical assessment](../dev-docs/gingee-critical-assessment.md). That reduces **availability** abuse under cooperative load and improves crash containment for opted-in apps; it is not a substitute for full tenant isolation.
+**Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, process isolation (incl. **worker_limits**), WebSockets (incl. Redis fan-out), scheduler Redis coordination, and background **queue** (incl. DLQ + live jobs Glade admin) — see [Server Config](./server-config.md) and the [critical assessment](../dev-docs/gingee-critical-assessment.md). That reduces **availability** abuse under cooperative load and improves crash containment for opted-in apps; it is not a substitute for full tenant isolation.
 
 ---
 

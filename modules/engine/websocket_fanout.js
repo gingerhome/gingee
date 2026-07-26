@@ -72,7 +72,7 @@ function normalizeFanout(wsConfig) {
 /**
  * @param {object} redisCfg
  * @param {object} logger
- * @returns {import('ioredis')}
+ * @returns {object} ioredis client
  */
 function createRedisClient(redisCfg, logger) {
   const Redis = require('ioredis');
@@ -316,7 +316,7 @@ class RedisFanout {
 }
 
 /**
- * @param {import('ioredis')} client
+ * @param {object} client - ioredis client
  * @returns {Promise<void>}
  */
 function waitReady(client) {

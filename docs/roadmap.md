@@ -21,8 +21,8 @@ This phase is focused on adding major new modules that unlock entirely new categ
     -   **Next:** Richer schedule admin (edit enable/disable, history).
 
 -   **Job Queues & Background Processing (`queue` Module)** *(v1 + Glade DLQ shipped)*
-    -   **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** top-nav **Queue / DLQ** (list, filter, retry with fresh attempts, discard).
-    -   **Later:** Glade “Run now” / live waiting jobs, priorities/rate limits if needed.
+    -   **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** live jobs view + DLQ admin (filter, auto-refresh, retry/discard).
+    -   **Later:** Priorities/rate limits if needed.
 
 -   **Third-Party Service Adapters**
     -   **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.

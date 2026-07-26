@@ -36,7 +36,7 @@ After a successful login, you are taken to the main Glade dashboard. This is you
 
 The dashboard consists of two main components:
 
-1.  **The Header:** Contains the Glade title, **Schedules** (CRON list + Run now), **Queue / DLQ** (dead-letter admin — see below), and a **Logout** button to securely end your session.
+1.  **The Header:** Contains the Glade title, **Schedules** (CRON list + Run now), **Queue / DLQ** (live jobs + dead-letter admin — see below), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
     -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
     -   **Version:** The version number, as specified in the app's own `app.json` file.
@@ -144,16 +144,16 @@ The top navigation bar includes a **Schedules** control. It opens an admin panel
 
 APIs: `platform.getSchedulerStatus` / `listSchedulerJobs` / `runSchedulerJob` (also `/glade/api/schedule-list`, `/glade/api/schedule-run`). If the scheduler is disabled, the list is empty and an info banner explains why.
 
-### Queue / Dead Letter Queue (DLQ)
+### Queue / Live jobs & Dead Letter Queue (DLQ)
 
 The top navigation bar includes a **Queue / DLQ** control (next to Schedules / About / Logout). It opens an admin panel for the engine background job system (`gingee.json` → `queue`):
 
-1. **Stats** — driver (memory/redis), in-flight and waiting counts on this node, DLQ size.
-2. **Dead-letter list** — jobs that exhausted retries (error message, app, attempts). Type **3+ letters** in the app filter to search by app name (live filter).
-3. **Retry** — re-enqueues the job with attempt **1** and a **fresh attempt budget** (server `queue.default_attempts`, default 3) so the job is not stuck failing once and returning to DLQ immediately.
-4. **Discard** — removes the job from the DLQ without re-running.
+1. **Stats** — driver, in-flight / waiting on this node, driver **pending** / **delayed** counts (redis = shared fleet), concurrency, DLQ size.
+2. **Live jobs** tab — running and waiting jobs on this node, plus pending/delayed in the driver. Optional **Auto-refresh** (every 3s) while the modal is open.
+3. **Dead letter (DLQ)** tab — jobs that exhausted retries. **Retry** re-enqueues with attempt **1** and a fresh `default_attempts` budget; **Discard** removes the entry.
+4. **App filter** — type **3+ letters** to filter live + DLQ tables by app name.
 
-Actions are plain text links (bold on hover). Memory-driver DLQ entries are lost if the Gingee process restarts; Redis-driver DLQ is durable (with TTL). See [Server Config](./server-config.md) → `queue`.
+State legend: **running** / **waiting** = this node; **pending** / **delayed** = driver pool (memory local; redis shared). Memory DLQ is lost on restart; Redis DLQ is durable (TTL). APIs: `platform.getQueueStats` / `listQueueLiveJobs` / `listQueueDlq` / … (`/glade/api/queue-*`). See [Server Config](./server-config.md) → `queue`.
 
 ### Audit trail (server-side)
 

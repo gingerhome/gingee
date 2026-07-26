@@ -132,7 +132,7 @@ Deferred jobs use the same `module.exports` + `gingee()` pattern as HTTP scripts
 -   **`$g` Context:**
     *   **`$g.queue`:** `{ id, name, payload, attempt }` for the current job.
     *   **Available:** `$g.log`, `$g.app`, and other modules per granted permissions.
-    *   There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators retry or discard DLQ entries in **Glade → Queue / DLQ**.
+    *   There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators use **Glade → Queue / DLQ** for live jobs and DLQ retry/discard.
 
 **Example (`box/jobs/send-welcome.js`):**
 ```javascript

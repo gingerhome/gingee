@@ -1315,6 +1315,17 @@ async function getQueueStats() {
 }
 
 /**
+ * Live queue jobs (running/waiting on this node + pending/delayed in driver).
+ * @param {object} [opts]
+ * @param {string} [opts.appName]
+ * @param {number} [opts.limit]
+ * @returns {Promise<object[]>}
+ */
+async function listQueueLiveJobs(opts) {
+  return queueService.listLiveJobs(opts || {});
+}
+
+/**
  * List dead-letter queue entries.
  * @param {object} [opts]
  * @param {string} [opts.appName]
@@ -1401,6 +1412,7 @@ module.exports = {
     rollbackApp,
     mockRollback,
     getQueueStats,
+    listQueueLiveJobs,
     listQueueDlq,
     retryQueueDlqJob,
     discardQueueDlqJob,

@@ -195,7 +195,7 @@ Optional job name → script map for the background queue. Handlers default to `
 }
 ```
 
-Enqueue from scripts: `require('queue').add('send-welcome', payload)`. See [Server Config](./server-config.md) → `queue`.
+Enqueue from scripts: `require('queue').add('send-welcome', payload)`. Exhausted retries → **DLQ**; operators use **Glade → Queue / DLQ** (live jobs + retry/discard). See [Server Config](./server-config.md) → `queue`.
 
 ### WebSockets (`websockets` object, optional)
 
@@ -224,7 +224,7 @@ module.exports = async function (socket, ctx) {
 };
 ```
 
-From HTTP scripts: `require('websockets').toRoom('lobby', payload)`. Multi-tenant: use `tenantRoom(tenantId, 'lobby')`. Sample: **`web/ginchat/`**. Full server keys: [Server Config](./server-config.md) → `websockets`.
+From HTTP scripts: `require('websockets').toRoom('lobby', payload)`. Multi-tenant: use `tenantRoom(tenantId, 'lobby')`. Multi-node masters: operator sets `websockets.fanout.driver: "redis"` + sibling `websockets.redis`. Sample: **`web/ginchat/`**. Full server keys: [Server Config](./server-config.md) → `websockets`.
 
 ### Isolation (`isolation` string, optional)
 
@@ -248,7 +248,7 @@ Buffered responses and SSE (`startStream` / `writeSSE` / `endStream`) are suppor
 
 ### Schedules (`schedules` array, optional)
 
-Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**. Queue targets also require **`queue`**.
+Declarative CRON jobs for this app. Registered only when **`gingee.json` → `scheduler.enabled` is `true`** on this node (default `false`; optional multi-node Redis coordination). The app must be granted the **`scheduler`** permission. URL targets also require **`httpclient`**. Queue targets also require **`queue`**. Operators can **Run now** from Glade **Schedules**.
 
 Each entry:
 
