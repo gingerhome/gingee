@@ -56,30 +56,33 @@ The generated `web/my-spa/box/app.json` is the key to enabling SPA mode:
 }
 ```
 
-*   `"type": "SPA"`: Tells the Gingee engine to use the SPA routing logic.
-*   `"mode": "development"`: **Crucial for development.** This activates the dev server proxy. Switch this to `"production"` when you are ready to build and deploy.
-*   `"spa.dev_server_proxy"`: The URL of your frontend's dev server. You may need to change the port to match your tooling (e.g., `http://localhost:4200` for Angular).
-*   `"spa.build_path"`: The path to your compiled frontend assets, relative to the app's root (`web/my-spa/`). **`./dist`** is a common default.
-*   `"spa.fallback_path"`: The entry point file for your SPA, located inside the `build_path`.
+- `"type": "SPA"`: Tells the Gingee engine to use the SPA routing logic.
+- `"mode": "development"`: **Crucial for development.** This activates the dev server proxy. Switch this to `"production"` when you are ready to build and deploy.
+- `"spa.dev_server_proxy"`: The URL of your frontend's dev server. You may need to change the port to match your tooling (e.g., `http://localhost:4200` for Angular).
+- `"spa.build_path"`: The path to your compiled frontend assets, relative to the app's root (`web/my-spa/`). **`./dist`** is a common default.
+- `"spa.fallback_path"`: The entry point file for your SPA, located inside the `build_path`.
 
 ### Chapter 3: Setting Up Your Frontend
 
-Gingee is framework-agnostic. You can now use the official CLI for your chosen framework to initialize your project *inside* the `web/my-spa/` directory.
+Gingee is framework-agnostic. You can now use the official CLI for your chosen framework to initialize your project _inside_ the `web/my-spa/` directory.
 
 **Example using Vite + React + TypeScript:**
 
 1.  **Navigate into your app's directory:**
+
     ```bash
     cd web/my-spa
     ```
 
 2.  **Initialize the Vite project in the current folder:**
+
     ```bash
     # The '.' tells Vite to use the current directory
     npm create vite@latest
     ```
 
 3.  **Install frontend dependencies:**
+
     ```bash
     npm install
     ```
@@ -89,14 +92,14 @@ Gingee is framework-agnostic. You can now use the official CLI for your chosen f
 
     ```javascript
     // File: web/my-spa/vite.config.js
-    import { defineConfig } from 'vite'
-    import react from '@vitejs/plugin-react'
+    import { defineConfig } from "vite";
+    import react from "@vitejs/plugin-react";
 
     export default defineConfig({
       plugins: [react()],
       // This ensures all asset paths are correctly prefixed with /my-spa/
-      base: '/my-spa/', 
-    })
+      base: "/my-spa/",
+    });
     ```
 
 ### Chapter 4: The Unified Development Experience
@@ -141,7 +144,7 @@ Declare all the Gingee modules your backend API needs. See Permissions Guide [MD
 // File: web/my-spa/box/pmft.json
 {
   "permissions": {
-    "mandatory": [ "db"],
+    "mandatory": ["db"],
     "optional": []
   }
 }
@@ -153,10 +156,7 @@ Specify which files to include in the final `.gin` package. **Crucially, you mus
 ```json
 // File: web/my-spa/box/.gpkg
 {
-  "include": [
-    "box/**/*",
-    "dist/**/*"
-  ],
+  "include": ["box/**/*", "dist/**/*"],
   "exclude": [
     "src",
     "node_modules",

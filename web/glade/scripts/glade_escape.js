@@ -3,24 +3,24 @@
  * Shared by cl_dashboard.js and cl_packconfig.js.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) {
+  if (typeof module === "object" && module.exports) {
     module.exports = factory();
   } else {
     root.GladeEscape = factory();
   }
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function () {
   /**
    * Escape text for HTML body content and double-quoted attributes.
    * @param {*} s
    * @returns {string}
    */
   function escapeHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   /**
@@ -34,6 +34,6 @@
 
   return {
     escapeHtml,
-    escapeAttr
+    escapeAttr,
   };
 });

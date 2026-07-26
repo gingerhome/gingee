@@ -6,9 +6,9 @@
  * Behavior must match the pre-extract gingee() middleware exactly.
  */
 
-const path = require('path');
-const { URL } = require('url');
-const limits = require('../../limits.js');
+const path = require("path");
+const { URL } = require("url");
+const limits = require("../../limits.js");
 
 /**
  * Populate store.$g with log, app, limits, and either schedule or HTTP request/response.
@@ -27,7 +27,7 @@ function initializeGContext(store) {
     name: store.app.config.name,
     version: store.app.config.version,
     description: store.app.config.description,
-    env: store.app.config.env
+    env: store.app.config.env,
   };
   store.$g.request = null;
   store.$g.response = null;
@@ -45,7 +45,7 @@ function initializeGContext(store) {
       get signal() {
         return store.requestAbortSignal || null;
       },
-      config: store.limitsConfig || null
+      config: store.limitsConfig || null,
     };
   }
 
@@ -84,13 +84,13 @@ function attachScheduleContext(store) {
     scheduledAt: scheduleMeta.scheduledAt || null,
     attempt: scheduleMeta.attempt || 1,
     targetType: scheduleMeta.targetType || null,
-    path: scheduleMeta.path || null
+    path: scheduleMeta.path || null,
   };
   store.$g.request = {
-    protocol: 'schedule',
+    protocol: "schedule",
     hostname: null,
-    method: 'SCHEDULE',
-    path: scheduleMeta.path || `/schedule/${scheduleMeta.name || 'job'}`,
+    method: "SCHEDULE",
+    path: scheduleMeta.path || `/schedule/${scheduleMeta.name || "job"}`,
     url: null,
     headers: {},
     cookies: {},
@@ -98,15 +98,17 @@ function attachScheduleContext(store) {
     params: {},
     body: store.schedulePayload !== undefined ? store.schedulePayload : null,
     // Cooperative cancel when schedule times out (M5).
-    signal: store.requestAbortSignal || null
+    signal: store.requestAbortSignal || null,
   };
   store.$g.response = {
     status: 200,
-    headers: { 'Content-Type': 'text/plain' },
+    headers: { "Content-Type": "text/plain" },
     cookies: {},
     body: null,
     startStream: () => {
-      store.logger.warn('response.startStream() is not supported in schedule context.');
+      store.logger.warn(
+        "response.startStream() is not supported in schedule context.",
+      );
     },
     write: () => {},
     writeSSE: () => {},
@@ -117,7 +119,7 @@ function attachScheduleContext(store) {
     send: (data, status, contentType) => {
       if (store.$g && store.$g.isCompleted) {
         store.logger.warn(
-          `response.send() called multiple times in schedule context from '${path.basename(store.scriptPath)}' — ignored.`
+          `response.send() called multiple times in schedule context from '${path.basename(store.scriptPath)}' — ignored.`,
         );
         return;
       }
@@ -126,10 +128,12 @@ function attachScheduleContext(store) {
       store.$g.scheduleResult = {
         data,
         status: status || 200,
-        contentType: contentType || null
+        contentType: contentType || null,
       };
-      store.logger.info(`Schedule job response recorded by: ${store.$g.completedBy}`);
-    }
+      store.logger.info(
+        `Schedule job response recorded by: ${store.$g.completedBy}`,
+      );
+    },
   };
 }
 
@@ -143,28 +147,30 @@ function attachQueueContext(store) {
     name: q.name || null,
     payload: q.payload !== undefined ? q.payload : store.queuePayload,
     attempt: q.attempt || 1,
-    maxAttempts: q.maxAttempts || 1
+    maxAttempts: q.maxAttempts || 1,
   };
   store.$g.schedule = null;
   store.$g.request = {
-    protocol: 'queue',
+    protocol: "queue",
     hostname: null,
-    method: 'QUEUE',
-    path: q.name ? `/queue/${q.name}` : '/queue',
+    method: "QUEUE",
+    path: q.name ? `/queue/${q.name}` : "/queue",
     url: null,
     headers: {},
     cookies: {},
     query: {},
     params: {},
-    body: store.$g.queue.payload
+    body: store.$g.queue.payload,
   };
   store.$g.response = {
     status: 200,
-    headers: { 'Content-Type': 'text/plain' },
+    headers: { "Content-Type": "text/plain" },
     cookies: {},
     body: null,
     startStream: () => {
-      store.logger.warn('response.startStream() is not supported in queue context.');
+      store.logger.warn(
+        "response.startStream() is not supported in queue context.",
+      );
     },
     write: () => {},
     writeSSE: () => {},
@@ -175,7 +181,7 @@ function attachQueueContext(store) {
     send: (data, status, contentType) => {
       if (store.$g && store.$g.isCompleted) {
         store.logger.warn(
-          `response.send() called multiple times in queue context from '${path.basename(store.scriptPath)}' — ignored.`
+          `response.send() called multiple times in queue context from '${path.basename(store.scriptPath)}' — ignored.`,
         );
         return;
       }
@@ -184,10 +190,12 @@ function attachQueueContext(store) {
       store.$g.queueResult = {
         data,
         status: status || 200,
-        contentType: contentType || null
+        contentType: contentType || null,
       };
-      store.logger.info(`Queue job response recorded by: ${store.$g.completedBy}`);
-    }
+      store.logger.info(
+        `Queue job response recorded by: ${store.$g.completedBy}`,
+      );
+    },
   };
 }
 
@@ -204,12 +212,12 @@ function attachHttpContext(store) {
 
       if (!cookieHeader) return list;
 
-      cookieHeader.split(';').forEach(function (cookie) {
-        let [name, ...rest] = cookie.split('=');
+      cookieHeader.split(";").forEach(function (cookie) {
+        let [name, ...rest] = cookie.split("=");
         name = name?.trim();
         if (!name) return;
 
-        const value = rest.join('=').trim();
+        const value = rest.join("=").trim();
         if (!value) return;
 
         list[name] = decodeURIComponent(value);
@@ -224,11 +232,13 @@ function attachHttpContext(store) {
         (req.socket && req.socket.encrypted) ||
         (req.connection && req.connection.encrypted)
       );
-      const xf = req.headers && (req.headers['x-forwarded-proto'] || req.headers['X-Forwarded-Proto']);
+      const xf =
+        req.headers &&
+        (req.headers["x-forwarded-proto"] || req.headers["X-Forwarded-Proto"]);
       const forwardedHttps =
-        xf && String(xf).split(',')[0].trim().toLowerCase() === 'https';
+        xf && String(xf).split(",")[0].trim().toLowerCase() === "https";
       const isHttps = sockEncrypted || forwardedHttps;
-      const protocol = isHttps ? 'https' : 'http';
+      const protocol = isHttps ? "https" : "http";
       const fullUrl = new URL(req.url, `${protocol}://${req.headers.host}`);
 
       return {
@@ -241,7 +251,7 @@ function attachHttpContext(store) {
         cookies: utils.parseCookies(req),
         query: Object.fromEntries(fullUrl.searchParams),
         params: store.routeParams || {},
-        body: req.body
+        body: req.body,
       };
     },
 
@@ -249,7 +259,7 @@ function attachHttpContext(store) {
       return {
         status: 200,
         headers: {
-          'Content-Type': 'text/plain'
+          "Content-Type": "text/plain",
         },
         cookies: {},
         body: null,
@@ -260,7 +270,9 @@ function attachHttpContext(store) {
          */
         startStream: (status, contentType, extraHeaders) => {
           if (store.$g && store.$g.isCompleted) {
-            store.logger.warn(`response.startStream() ignored; response already completed.`);
+            store.logger.warn(
+              `response.startStream() ignored; response already completed.`,
+            );
             return;
           }
           if (store.$g && store.$g.isStreaming) {
@@ -276,31 +288,31 @@ function attachHttpContext(store) {
           let headerKeys = Object.keys(response.headers);
           if (headerKeys.length > 0) {
             headerKeys.forEach((key) => {
-              if (String(key).toLowerCase() === 'content-type') return;
+              if (String(key).toLowerCase() === "content-type") return;
               resInner.setHeader(key, response.headers[key]);
             });
           }
-          if (extraHeaders && typeof extraHeaders === 'object') {
+          if (extraHeaders && typeof extraHeaders === "object") {
             Object.keys(extraHeaders).forEach((key) => {
               resInner.setHeader(key, extraHeaders[key]);
             });
           }
 
-          const ct = contentType || 'text/event-stream; charset=utf-8';
-          resInner.setHeader('Content-Type', ct);
-          resInner.setHeader('Cache-Control', 'no-cache, no-transform');
-          resInner.setHeader('Connection', 'keep-alive');
-          resInner.setHeader('X-Accel-Buffering', 'no');
+          const ct = contentType || "text/event-stream; charset=utf-8";
+          resInner.setHeader("Content-Type", ct);
+          resInner.setHeader("Cache-Control", "no-cache, no-transform");
+          resInner.setHeader("Connection", "keep-alive");
+          resInner.setHeader("X-Accel-Buffering", "no");
 
           let cookieKeys = Object.keys(response.cookies);
           if (cookieKeys.length > 0) {
             var cookieStrings = cookieKeys.map((key) => {
               return `${key}=${response.cookies[key]}`;
             });
-            resInner.setHeader('Set-Cookie', cookieStrings);
+            resInner.setHeader("Set-Cookie", cookieStrings);
           }
 
-          if (typeof resInner.flushHeaders === 'function') {
+          if (typeof resInner.flushHeaders === "function") {
             resInner.flushHeaders();
           }
 
@@ -310,11 +322,14 @@ function attachHttpContext(store) {
 
         /** Write a raw chunk to an open stream. */
         write: (chunk) => {
-          if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted) return;
+          if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted)
+            return;
           if (chunk === undefined || chunk === null) return;
           limits.touchStream(store);
           resInner.write(
-            typeof chunk === 'string' || Buffer.isBuffer(chunk) ? chunk : String(chunk)
+            typeof chunk === "string" || Buffer.isBuffer(chunk)
+              ? chunk
+              : String(chunk),
           );
         },
 
@@ -322,9 +337,11 @@ function attachHttpContext(store) {
          * Write one Server-Sent Event data line (JSON-serialized if object).
          */
         writeSSE: (payload) => {
-          if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted) return;
+          if (!store.$g || !store.$g.isStreaming || store.$g.isCompleted)
+            return;
           limits.touchStream(store);
-          const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
+          const data =
+            typeof payload === "string" ? payload : JSON.stringify(payload);
           resInner.write(`data: ${data}\n\n`);
         },
 
@@ -341,12 +358,14 @@ function attachHttpContext(store) {
         send: (data, status, contentType) => {
           if (store.$g && store.$g.isCompleted) {
             store.logger.warn(
-              `response.send() called multiple times. Original call from '${store.$g.completedBy}'. New call from '${path.basename(store.scriptPath)}' ignored.`
+              `response.send() called multiple times. Original call from '${store.$g.completedBy}'. New call from '${path.basename(store.scriptPath)}' ignored.`,
             );
             return;
           }
           if (store.$g && store.$g.isStreaming) {
-            store.logger.warn(`response.send() ignored; stream already started. Use endStream().`);
+            store.logger.warn(
+              `response.send() ignored; stream already started. Use endStream().`,
+            );
             return;
           }
           store.$g.isCompleted = true;
@@ -368,25 +387,25 @@ function attachHttpContext(store) {
             var cookieStrings = cookieKeys.map((key) => {
               return `${key}=${response.cookies[key]}`;
             });
-            resInner.setHeader('Set-Cookie', cookieStrings);
+            resInner.setHeader("Set-Cookie", cookieStrings);
           }
 
           if (contentType) {
-            resInner.setHeader('Content-Type', contentType);
+            resInner.setHeader("Content-Type", contentType);
           }
 
           if (data) {
             if (Buffer.isBuffer(data)) {
-              resInner.setHeader('Content-Length', data.length);
-            } else if (typeof data === 'object') {
+              resInner.setHeader("Content-Length", data.length);
+            } else if (typeof data === "object") {
               data = JSON.stringify(data);
-              resInner.setHeader('Content-Type', 'application/json');
+              resInner.setHeader("Content-Type", "application/json");
             }
           }
           resInner.end(data);
-        }
+        },
       };
-    }
+    },
   };
 
   // Preserve cookies set by earlier default_include / middleware gingee() calls
@@ -395,7 +414,7 @@ function attachHttpContext(store) {
     store.$g &&
     store.$g.response &&
     store.$g.response.cookies &&
-    typeof store.$g.response.cookies === 'object'
+    typeof store.$g.response.cookies === "object"
       ? { ...store.$g.response.cookies }
       : {};
 
@@ -417,5 +436,5 @@ function attachHttpContext(store) {
 }
 
 module.exports = {
-  initializeGContext
+  initializeGContext,
 };

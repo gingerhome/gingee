@@ -4,27 +4,27 @@
  * Engine-internal — not for sandboxed app require.
  */
 
-const fs = require('fs');
-const { als } = require('../gingee.js');
-const email = require('../email.js');
-const ai = require('../ai.js');
-const scheduler = require('../scheduler.js');
-const limits = require('../limits.js');
-const egress = require('../egress.js');
-const metrics = require('../metrics.js');
-const audit = require('../audit.js');
-const appLogger = require('../logger.js');
-const cache = require('../cache_service.js');
-const pdf = require('../pdf.js');
-const gdev = require('../gdev.js');
-const packageJson = require('../../package.json');
-const { ensureProjectDirs } = require('./paths.js');
-const { createServerLogger } = require('./logger_setup.js');
-const { startHttpServers } = require('./http_servers.js');
-const { initializeApps } = require('./app_registry.js');
-const workerManager = require('./isolation/worker_manager.js');
-const websocketHub = require('./websocket_hub.js');
-const queueService = require('./queue_service.js');
+const fs = require("fs");
+const { als } = require("../gingee.js");
+const email = require("../email.js");
+const ai = require("../ai.js");
+const scheduler = require("../scheduler.js");
+const limits = require("../limits.js");
+const egress = require("../egress.js");
+const metrics = require("../metrics.js");
+const audit = require("../audit.js");
+const appLogger = require("../logger.js");
+const cache = require("../cache_service.js");
+const pdf = require("../pdf.js");
+const gdev = require("../gdev.js");
+const packageJson = require("../../package.json");
+const { ensureProjectDirs } = require("./paths.js");
+const { createServerLogger } = require("./logger_setup.js");
+const { startHttpServers } = require("./http_servers.js");
+const { initializeApps } = require("./app_registry.js");
+const workerManager = require("./isolation/worker_manager.js");
+const websocketHub = require("./websocket_hub.js");
+const queueService = require("./queue_service.js");
 
 /**
  * Boot the Gingee control plane and start listening.
@@ -65,7 +65,7 @@ async function startServer(options) {
   egress.initServer(config.egress, logger);
 
   // Prometheus metrics (engine /metrics; default localhost-only)
-  metrics.initServer(config.metrics, logger, packageJson.version || 'unknown');
+  metrics.initServer(config.metrics, logger, packageJson.version || "unknown");
 
   // JSONL audit trail for permissions + lifecycle
   audit.initServer(config.audit, projectRoot, logger);
@@ -82,17 +82,21 @@ async function startServer(options) {
   }
 
   if (!fs.existsSync(webPath)) {
-    console.error(`FATAL: The configured web directory does not exist at: ${webPath}`);
-    console.error("Please create the directory or correct the 'web' path in your gingee.json file.");
+    console.error(
+      `FATAL: The configured web directory does not exist at: ${webPath}`,
+    );
+    console.error(
+      "Please create the directory or correct the 'web' path in your gingee.json file.",
+    );
     process.exit(1);
   }
   logger.info(`Serving from Web root folder: ${webPath}`);
 
   // Process isolation (opt-in): init manager before apps so workers can start at register time.
   workerManager.init(config, logger, webPath);
-  if (config.isolation && config.isolation.mode === 'process') {
+  if (config.isolation && config.isolation.mode === "process") {
     logger.info(
-      `[isolation] mode=process default=${config.isolation.default || 'inprocess'}`
+      `[isolation] mode=process default=${config.isolation.default || "inprocess"}`,
     );
   }
 
@@ -110,13 +114,14 @@ async function startServer(options) {
     }
   }
 
-  const reqHandler = (req, res) => requestHandler(req, res, apps, config, logger);
+  const reqHandler = (req, res) =>
+    requestHandler(req, res, apps, config, logger);
   startHttpServers({
     config,
     logger,
     projectRoot,
     reqHandler,
-    onServer: (server) => websocketHub.attachServer(server)
+    onServer: (server) => websocketHub.attachServer(server),
   });
 
   const shutdown = () => {
@@ -142,14 +147,14 @@ async function startServer(options) {
     });
   };
 
-  process.on('exit', shutdown);
-  process.on('SIGINT', () => process.exit());
-  process.on('SIGTERM', () => process.exit());
+  process.on("exit", shutdown);
+  process.on("SIGINT", () => process.exit());
+  process.on("SIGTERM", () => process.exit());
 
   return { apps, logger };
 }
 
 module.exports = {
   startServer,
-  initializeApps
+  initializeApps,
 };

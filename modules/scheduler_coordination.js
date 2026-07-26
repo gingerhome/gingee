@@ -17,22 +17,22 @@
  * Engine-internal — not for sandboxed require.
  */
 
-const os = require('os');
+const os = require("os");
 
 /** Redis connection defaults — same field names as queue.redis / cache redis. */
 const REDIS_DEFAULTS = {
   url: null,
-  host: '127.0.0.1',
+  host: "127.0.0.1",
   port: 6379,
   password: null,
   db: 0,
-  key_prefix: 'gingee:scheduler:'
+  key_prefix: "gingee:scheduler:",
 };
 
 const COORDINATION_DEFAULTS = {
   /** none | redis — same role as queue.driver / cache.provider */
-  driver: 'none',
-  strategy: 'tick', // tick | leader
+  driver: "none",
+  strategy: "tick", // tick | leader
   /** Lock / leader lease TTL (ms). Leader renews at ttl/3. */
   lock_ttl_ms: 300000,
   /**
@@ -41,7 +41,7 @@ const COORDINATION_DEFAULTS = {
    */
   slot_granularity_ms: 10000,
   /** Stable node identity for lock values / leader (default hostname:pid). */
-  node_id: null
+  node_id: null,
 };
 
 /**
@@ -50,14 +50,14 @@ const COORDINATION_DEFAULTS = {
  * @returns {object}
  */
 function normalizeRedis(raw) {
-  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   return {
     ...REDIS_DEFAULTS,
     ...r,
     port: r.port != null ? Number(r.port) : REDIS_DEFAULTS.port,
     db: r.db != null ? Number(r.db) : REDIS_DEFAULTS.db,
     key_prefix:
-      (r.key_prefix && String(r.key_prefix)) || REDIS_DEFAULTS.key_prefix
+      (r.key_prefix && String(r.key_prefix)) || REDIS_DEFAULTS.key_prefix,
   };
 }
 
@@ -75,7 +75,9 @@ function normalizeRedis(raw) {
  */
 function normalizeCoordination(schedulerOrCoord, redisOverride) {
   const input =
-    schedulerOrCoord && typeof schedulerOrCoord === 'object' && !Array.isArray(schedulerOrCoord)
+    schedulerOrCoord &&
+    typeof schedulerOrCoord === "object" &&
+    !Array.isArray(schedulerOrCoord)
       ? schedulerOrCoord
       : {};
 
@@ -87,7 +89,7 @@ function normalizeCoordination(schedulerOrCoord, redisOverride) {
     (input.redis != null && input.driver == null && input.mode == null);
 
   const coordRaw = looksLikeScheduler
-    ? input.coordination && typeof input.coordination === 'object'
+    ? input.coordination && typeof input.coordination === "object"
       ? input.coordination
       : {}
     : input;
@@ -99,8 +101,7 @@ function normalizeCoordination(schedulerOrCoord, redisOverride) {
       : coordRaw.mode != null
         ? coordRaw.mode
         : COORDINATION_DEFAULTS.driver;
-  const driver =
-    String(driverRaw).toLowerCase() === 'redis' ? 'redis' : 'none';
+  const driver = String(driverRaw).toLowerCase() === "redis" ? "redis" : "none";
 
   const strategy =
     coordRaw.strategy != null
@@ -113,20 +114,26 @@ function normalizeCoordination(schedulerOrCoord, redisOverride) {
   // redis: top-level scheduler.redis (preferred) > override > legacy coordination.redis
   const redisMerged = {
     ...REDIS_DEFAULTS,
-    ...(coordRaw.redis && typeof coordRaw.redis === 'object' ? coordRaw.redis : {}),
-    ...(looksLikeScheduler && input.redis && typeof input.redis === 'object'
+    ...(coordRaw.redis && typeof coordRaw.redis === "object"
+      ? coordRaw.redis
+      : {}),
+    ...(looksLikeScheduler && input.redis && typeof input.redis === "object"
       ? input.redis
       : {}),
-    ...(redisOverride && typeof redisOverride === 'object' ? redisOverride : {})
+    ...(redisOverride && typeof redisOverride === "object"
+      ? redisOverride
+      : {}),
   };
 
   return {
     driver,
     // keep mode alias for any old log/test readers
     mode: driver,
-    strategy: strategy === 'leader' ? 'leader' : 'tick',
+    strategy: strategy === "leader" ? "leader" : "tick",
     lock_ttl_ms:
-      Number.isFinite(ttl) && ttl >= 1000 ? Math.floor(ttl) : COORDINATION_DEFAULTS.lock_ttl_ms,
+      Number.isFinite(ttl) && ttl >= 1000
+        ? Math.floor(ttl)
+        : COORDINATION_DEFAULTS.lock_ttl_ms,
     slot_granularity_ms:
       Number.isFinite(gran) && gran >= 1000
         ? Math.floor(gran)
@@ -135,7 +142,7 @@ function normalizeCoordination(schedulerOrCoord, redisOverride) {
       coordRaw.node_id != null && String(coordRaw.node_id).trim()
         ? String(coordRaw.node_id).trim()
         : defaultNodeId(),
-    redis: normalizeRedis(redisMerged)
+    redis: normalizeRedis(redisMerged),
   };
 }
 
@@ -158,7 +165,11 @@ function defaultNodeId() {
 function computeFireSlot(runtime, granularityMs, nowOverride) {
   let t = null;
   try {
-    if (runtime && runtime.cronJob && typeof runtime.cronJob.currentRun === 'function') {
+    if (
+      runtime &&
+      runtime.cronJob &&
+      typeof runtime.cronJob.currentRun === "function"
+    ) {
       const cur = runtime.cronJob.currentRun();
       if (cur instanceof Date && !Number.isNaN(cur.getTime())) {
         t = cur.getTime();
@@ -169,10 +180,14 @@ function computeFireSlot(runtime, granularityMs, nowOverride) {
   }
   if (t == null) {
     if (nowOverride instanceof Date) t = nowOverride.getTime();
-    else if (typeof nowOverride === 'number' && Number.isFinite(nowOverride)) t = nowOverride;
+    else if (typeof nowOverride === "number" && Number.isFinite(nowOverride))
+      t = nowOverride;
     else t = Date.now();
   }
-  const g = granularityMs > 0 ? granularityMs : COORDINATION_DEFAULTS.slot_granularity_ms;
+  const g =
+    granularityMs > 0
+      ? granularityMs
+      : COORDINATION_DEFAULTS.slot_granularity_ms;
   return String(Math.floor(t / g) * g);
 }
 
@@ -204,27 +219,27 @@ function leaderKey(prefix) {
  * @returns {object} ioredis client
  */
 function createRedisClient(redisCfg, logger) {
-  const Redis = require('ioredis');
+  const Redis = require("ioredis");
   const r = redisCfg || {};
   let client;
-  if (r.url || (typeof r === 'string' && r)) {
+  if (r.url || (typeof r === "string" && r)) {
     const url = r.url || r;
     client = new Redis(String(url), {
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
-      lazyConnect: false
+      lazyConnect: false,
     });
   } else {
     client = new Redis({
-      host: r.host || '127.0.0.1',
+      host: r.host || "127.0.0.1",
       port: r.port != null ? Number(r.port) : 6379,
       password: r.password || undefined,
       db: r.db != null ? Number(r.db) : 0,
       maxRetriesPerRequest: null,
-      enableReadyCheck: true
+      enableReadyCheck: true,
     });
   }
-  client.on('error', (err) => {
+  client.on("error", (err) => {
     (logger || console).error(`[scheduler:coord] Redis error: ${err.message}`);
   });
   return client;
@@ -241,13 +256,15 @@ class RedisCoordinator {
   constructor(options, logger) {
     // Allow passing full scheduler section or already-normalized coord
     this.cfg =
-      options && options.redis && (options.driver != null || options.mode != null)
+      options &&
+      options.redis &&
+      (options.driver != null || options.mode != null)
         ? options.driver != null || options.strategy != null
           ? {
               ...options,
               driver: options.driver || options.mode,
               mode: options.driver || options.mode,
-              redis: normalizeRedis(options.redis)
+              redis: normalizeRedis(options.redis),
             }
           : normalizeCoordination(options)
         : normalizeCoordination(options);
@@ -264,7 +281,10 @@ class RedisCoordinator {
   }
 
   enabled() {
-    return (this.cfg.driver === 'redis' || this.cfg.mode === 'redis') && !this._closed;
+    return (
+      (this.cfg.driver === "redis" || this.cfg.mode === "redis") &&
+      !this._closed
+    );
   }
 
   nodeId() {
@@ -279,14 +299,14 @@ class RedisCoordinator {
    * @private
    */
   async ensureClient() {
-    if (this._closed) throw new Error('Scheduler coordinator is shut down');
+    if (this._closed) throw new Error("Scheduler coordinator is shut down");
     if (this.client) return this.client;
     if (this._connecting) return this._connecting;
 
     this._connecting = (async () => {
       const client = createRedisClient(this.cfg.redis, this.logger);
       // Wait until ready (or fail) so first lock does not race a half-open socket.
-      if (client.status !== 'ready') {
+      if (client.status !== "ready") {
         await new Promise((resolve, reject) => {
           const onReady = () => {
             cleanup();
@@ -297,18 +317,18 @@ class RedisCoordinator {
             reject(err);
           };
           const cleanup = () => {
-            client.removeListener('ready', onReady);
-            client.removeListener('error', onError);
+            client.removeListener("ready", onReady);
+            client.removeListener("error", onError);
           };
-          client.once('ready', onReady);
-          client.once('error', onError);
+          client.once("ready", onReady);
+          client.once("error", onError);
         });
       }
       this.client = client;
       this.logger.info(
-        `[scheduler:coord] Redis connected (strategy=${this.cfg.strategy}, node=${this.cfg.node_id}, prefix=${this.cfg.redis.key_prefix})`
+        `[scheduler:coord] Redis connected (strategy=${this.cfg.strategy}, node=${this.cfg.node_id}, prefix=${this.cfg.redis.key_prefix})`,
       );
-      if (this.cfg.strategy === 'leader') {
+      if (this.cfg.strategy === "leader") {
         await this._tryBecomeLeader();
         this._startLeaderRenew();
       }
@@ -330,8 +350,8 @@ class RedisCoordinator {
     if (!client) return false;
     const key = leaderKey(this.cfg.redis.key_prefix);
     const ttl = this.cfg.lock_ttl_ms;
-    const res = await client.set(key, this.cfg.node_id, 'PX', ttl, 'NX');
-    if (res === 'OK') {
+    const res = await client.set(key, this.cfg.node_id, "PX", ttl, "NX");
+    if (res === "OK") {
       this._isLeader = true;
       this.logger.info(`[scheduler:coord] Acquired leader lease (${key})`);
       return true;
@@ -354,11 +374,13 @@ class RedisCoordinator {
     const period = Math.max(1000, Math.floor(this.cfg.lock_ttl_ms / 3));
     this._renewTimer = setInterval(() => {
       this._tryBecomeLeader().catch((e) => {
-        this.logger.error(`[scheduler:coord] Leader renew failed: ${e.message}`);
+        this.logger.error(
+          `[scheduler:coord] Leader renew failed: ${e.message}`,
+        );
         this._isLeader = false;
       });
     }, period);
-    if (typeof this._renewTimer.unref === 'function') this._renewTimer.unref();
+    if (typeof this._renewTimer.unref === "function") this._renewTimer.unref();
   }
 
   /**
@@ -372,7 +394,7 @@ class RedisCoordinator {
    */
   async tryAllowRun(opts) {
     if (!this.enabled()) {
-      return { allow: true, reason: 'none' };
+      return { allow: true, reason: "none" };
     }
 
     let client;
@@ -381,21 +403,21 @@ class RedisCoordinator {
     } catch (e) {
       return {
         allow: false,
-        reason: 'redis_error',
-        detail: e.message || String(e)
+        reason: "redis_error",
+        detail: e.message || String(e),
       };
     }
 
-    if (this.cfg.strategy === 'leader') {
+    if (this.cfg.strategy === "leader") {
       try {
         const ok = await this._tryBecomeLeader();
-        if (ok) return { allow: true, reason: 'leader' };
-        return { allow: false, reason: 'not_leader' };
+        if (ok) return { allow: true, reason: "leader" };
+        return { allow: false, reason: "not_leader" };
       } catch (e) {
         return {
           allow: false,
-          reason: 'redis_error',
-          detail: e.message || String(e)
+          reason: "redis_error",
+          detail: e.message || String(e),
         };
       }
     }
@@ -405,19 +427,25 @@ class RedisCoordinator {
       this.cfg.redis.key_prefix,
       opts.appName,
       opts.jobName,
-      slot
+      slot,
     );
     try {
-      const res = await client.set(key, this.cfg.node_id, 'PX', this.cfg.lock_ttl_ms, 'NX');
-      if (res === 'OK') {
-        return { allow: true, reason: 'tick_lock', detail: key };
+      const res = await client.set(
+        key,
+        this.cfg.node_id,
+        "PX",
+        this.cfg.lock_ttl_ms,
+        "NX",
+      );
+      if (res === "OK") {
+        return { allow: true, reason: "tick_lock", detail: key };
       }
-      return { allow: false, reason: 'tick_held', detail: key };
+      return { allow: false, reason: "tick_held", detail: key };
     } catch (e) {
       return {
         allow: false,
-        reason: 'redis_error',
-        detail: e.message || String(e)
+        reason: "redis_error",
+        detail: e.message || String(e),
       };
     }
   }
@@ -454,5 +482,5 @@ module.exports = {
   leaderKey,
   createRedisClient,
   RedisCoordinator,
-  defaultNodeId
+  defaultNodeId,
 };

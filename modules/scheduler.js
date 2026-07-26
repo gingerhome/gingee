@@ -1,18 +1,18 @@
-const path = require('path');
-const fs = require('fs');
-const { Cron } = require('croner');
-const axios = require('axios');
-const { als } = require('./gingee.js');
-const { runInGBox, resolveAllowDynamicCodeForApp } = require('./gbox.js');
-const { isPathInside } = require('./internal_utils.js');
-const egress = require('./egress.js');
+const path = require("path");
+const fs = require("fs");
+const { Cron } = require("croner");
+const axios = require("axios");
+const { als } = require("./gingee.js");
+const { runInGBox, resolveAllowDynamicCodeForApp } = require("./gbox.js");
+const { isPathInside } = require("./internal_utils.js");
+const egress = require("./egress.js");
 const {
   normalizeCoordination,
   COORDINATION_DEFAULTS,
-  RedisCoordinator
-} = require('./scheduler_coordination.js');
+  RedisCoordinator,
+} = require("./scheduler_coordination.js");
 
-const engineRoot = path.resolve(__dirname, '..');
+const engineRoot = path.resolve(__dirname, "..");
 
 /**
  * @module scheduler
@@ -42,8 +42,8 @@ const engineRoot = path.resolve(__dirname, '..');
 /** @type {{ enabled: boolean, timezone: string, coordination: object }} */
 let serverConfig = {
   enabled: false,
-  timezone: 'UTC',
-  coordination: normalizeCoordination(COORDINATION_DEFAULTS)
+  timezone: "UTC",
+  coordination: normalizeCoordination(COORDINATION_DEFAULTS),
 };
 
 /** @type {object|null} */
@@ -84,24 +84,27 @@ function granted(app) {
  * @private
  */
 function normalizeSchedule(raw, appName) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { ok: false, error: 'Schedule entry must be an object.' };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "Schedule entry must be an object." };
   }
 
-  const name = raw.name != null ? String(raw.name).trim() : '';
+  const name = raw.name != null ? String(raw.name).trim() : "";
   if (!name) {
     return { ok: false, error: 'Schedule is missing required "name".' };
   }
   if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
     return {
       ok: false,
-      error: `Schedule name '${name}' is invalid (use letters, digits, . _ -).`
+      error: `Schedule name '${name}' is invalid (use letters, digits, . _ -).`,
     };
   }
 
-  const cron = raw.cron != null ? String(raw.cron).trim() : '';
+  const cron = raw.cron != null ? String(raw.cron).trim() : "";
   if (!cron) {
-    return { ok: false, error: `Schedule '${name}' is missing required "cron".` };
+    return {
+      ok: false,
+      error: `Schedule '${name}' is missing required "cron".`,
+    };
   }
 
   try {
@@ -111,69 +114,75 @@ function normalizeSchedule(raw, appName) {
   } catch (e) {
     return {
       ok: false,
-      error: `Schedule '${name}' has invalid cron '${cron}': ${e.message}`
+      error: `Schedule '${name}' has invalid cron '${cron}': ${e.message}`,
     };
   }
 
   const target = raw.target;
-  if (!target || typeof target !== 'object' || Array.isArray(target)) {
-    return { ok: false, error: `Schedule '${name}' is missing required "target" object.` };
-  }
-
-  const type = target.type != null ? String(target.type).toLowerCase() : '';
-  if (type !== 'script' && type !== 'url' && type !== 'queue') {
+  if (!target || typeof target !== "object" || Array.isArray(target)) {
     return {
       ok: false,
-      error: `Schedule '${name}' target.type must be "script", "url", or "queue".`
+      error: `Schedule '${name}' is missing required "target" object.`,
+    };
+  }
+
+  const type = target.type != null ? String(target.type).toLowerCase() : "";
+  if (type !== "script" && type !== "url" && type !== "queue") {
+    return {
+      ok: false,
+      error: `Schedule '${name}' target.type must be "script", "url", or "queue".`,
     };
   }
 
   const normalizedTarget = { type };
 
-  if (type === 'script') {
-    const scriptPath = target.path != null ? String(target.path).trim() : '';
+  if (type === "script") {
+    const scriptPath = target.path != null ? String(target.path).trim() : "";
     if (!scriptPath) {
-      return { ok: false, error: `Schedule '${name}' script target needs "path".` };
-    }
-    if (path.isAbsolute(scriptPath) || scriptPath.includes('\0')) {
       return {
         ok: false,
-        error: `Schedule '${name}' script path must be relative to box/ (not absolute).`
+        error: `Schedule '${name}' script target needs "path".`,
       };
     }
-    const virtualRoot = path.resolve('/__gingee_box__');
+    if (path.isAbsolute(scriptPath) || scriptPath.includes("\0")) {
+      return {
+        ok: false,
+        error: `Schedule '${name}' script path must be relative to box/ (not absolute).`,
+      };
+    }
+    const virtualRoot = path.resolve("/__gingee_box__");
     const resolved = path.resolve(virtualRoot, scriptPath);
     if (!isPathInside(resolved, virtualRoot)) {
       return {
         ok: false,
-        error: `Schedule '${name}' script path escapes the app box: '${scriptPath}'.`
+        error: `Schedule '${name}' script path escapes the app box: '${scriptPath}'.`,
       };
     }
-    normalizedTarget.path = scriptPath.replace(/\\/g, '/');
-  } else if (type === 'queue') {
+    normalizedTarget.path = scriptPath.replace(/\\/g, "/");
+  } else if (type === "queue") {
     // Enqueue a background job (multi-node safe when queue.driver is redis).
     const jobName =
       (target.job != null && String(target.job).trim()) ||
       (target.name != null && String(target.name).trim()) ||
-      '';
+      "";
     if (!jobName) {
       return {
         ok: false,
-        error: `Schedule '${name}' queue target needs "job" (queue job name).`
+        error: `Schedule '${name}' queue target needs "job" (queue job name).`,
       };
     }
     normalizedTarget.job = jobName;
     if (target.script != null) {
       normalizedTarget.script = String(target.script).trim();
     }
-    if (Object.prototype.hasOwnProperty.call(target, 'payload')) {
+    if (Object.prototype.hasOwnProperty.call(target, "payload")) {
       normalizedTarget.payload = target.payload;
     }
     if (target.delayMs != null) {
       normalizedTarget.delayMs = Number(target.delayMs) || 0;
     }
   } else {
-    const url = target.url != null ? String(target.url).trim() : '';
+    const url = target.url != null ? String(target.url).trim() : "";
     if (!url) {
       return { ok: false, error: `Schedule '${name}' url target needs "url".` };
     }
@@ -181,27 +190,36 @@ function normalizeSchedule(raw, appName) {
     try {
       parsed = new URL(url);
     } catch (_) {
-      return { ok: false, error: `Schedule '${name}' has invalid absolute URL.` };
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return {
         ok: false,
-        error: `Schedule '${name}' URL must be http: or https:.`
+        error: `Schedule '${name}' has invalid absolute URL.`,
+      };
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return {
+        ok: false,
+        error: `Schedule '${name}' URL must be http: or https:.`,
       };
     }
     normalizedTarget.url = url;
-    normalizedTarget.method = (target.method || 'GET').toString().toUpperCase();
-    if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].includes(normalizedTarget.method)) {
+    normalizedTarget.method = (target.method || "GET").toString().toUpperCase();
+    if (
+      !["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"].includes(
+        normalizedTarget.method,
+      )
+    ) {
       return {
         ok: false,
-        error: `Schedule '${name}' has unsupported HTTP method '${normalizedTarget.method}'.`
+        error: `Schedule '${name}' has unsupported HTTP method '${normalizedTarget.method}'.`,
       };
     }
     normalizedTarget.headers =
-      target.headers && typeof target.headers === 'object' && !Array.isArray(target.headers)
+      target.headers &&
+      typeof target.headers === "object" &&
+      !Array.isArray(target.headers)
         ? { ...target.headers }
         : {};
-    if (Object.prototype.hasOwnProperty.call(target, 'body')) {
+    if (Object.prototype.hasOwnProperty.call(target, "body")) {
       normalizedTarget.body = target.body;
     }
   }
@@ -209,7 +227,7 @@ function normalizeSchedule(raw, appName) {
   const timezone =
     (raw.timezone && String(raw.timezone).trim()) ||
     serverConfig.timezone ||
-    'UTC';
+    "UTC";
 
   let timeout_ms;
   if (raw.timeout_ms != null) {
@@ -217,18 +235,19 @@ function normalizeSchedule(raw, appName) {
     if (!Number.isFinite(timeout_ms) || timeout_ms < 1000) {
       return {
         ok: false,
-        error: `Schedule '${name}' timeout_ms must be a number >= 1000.`
+        error: `Schedule '${name}' timeout_ms must be a number >= 1000.`,
       };
     }
   } else {
-    timeout_ms = type === 'url' ? 60000 : type === 'queue' ? 30000 : 300000;
+    timeout_ms = type === "url" ? 60000 : type === "queue" ? 30000 : 300000;
   }
 
-  const overlap = raw.overlap != null ? String(raw.overlap).toLowerCase() : 'skip';
-  if (overlap !== 'skip') {
+  const overlap =
+    raw.overlap != null ? String(raw.overlap).toLowerCase() : "skip";
+  if (overlap !== "skip") {
     return {
       ok: false,
-      error: `Schedule '${name}': only overlap "skip" is supported in v1.`
+      error: `Schedule '${name}': only overlap "skip" is supported in v1.`,
     };
   }
 
@@ -243,8 +262,8 @@ function normalizeSchedule(raw, appName) {
       timeout_ms,
       payload: raw.payload !== undefined ? raw.payload : null,
       target: normalizedTarget,
-      appName
-    }
+      appName,
+    },
   };
 }
 
@@ -264,17 +283,20 @@ async function executeScriptJob(app, job, runMeta) {
     appName: app.name,
     app,
     appBoxPath: app.appBoxPath,
-    globalModulesPath: path.join(engineRoot, 'modules'),
+    globalModulesPath: path.join(engineRoot, "modules"),
     allowedBuiltinModules:
-      (globalConfigRef && globalConfigRef.box && globalConfigRef.box.allowed_modules) || [],
+      (globalConfigRef &&
+        globalConfigRef.box &&
+        globalConfigRef.box.allowed_modules) ||
+      [],
     privilegedApps: (globalConfigRef && globalConfigRef.privileged_apps) || [],
     useCache: true,
     logger: app.logger || log(),
     globalConfig: globalConfigRef,
     allowDynamicCode: resolveAllowDynamicCodeForApp(
       globalConfigRef && globalConfigRef.box,
-      app && app.config
-    )
+      app && app.config,
+    ),
   };
 
   const scheduleMeta = {
@@ -284,8 +306,8 @@ async function executeScriptJob(app, job, runMeta) {
     runId: runMeta.runId,
     scheduledAt: runMeta.scheduledAt,
     attempt: 1,
-    targetType: 'script',
-    path: job.target.path
+    targetType: "script",
+    path: job.target.path,
   };
 
   const signal = runMeta && runMeta.signal;
@@ -307,18 +329,20 @@ async function executeScriptJob(app, job, runMeta) {
       requestAbortController: abortController || null,
       requestDeadline:
         job.timeout_ms != null ? Date.now() + Number(job.timeout_ms) : null,
-      requestStartedAt: Date.now()
+      requestStartedAt: Date.now(),
     },
     async () => {
       if (signal && signal.aborted) {
         throw new Error(`Schedule job '${job.name}' aborted before start`);
       }
       const scriptModule = runInGBox(fullScriptPath, gBoxConfig);
-      if (typeof scriptModule !== 'function') {
-        throw new Error(`Scheduled script ${job.target.path} did not export a function.`);
+      if (typeof scriptModule !== "function") {
+        throw new Error(
+          `Scheduled script ${job.target.path} did not export a function.`,
+        );
       }
       await scriptModule();
-    }
+    },
   );
 }
 
@@ -331,15 +355,15 @@ async function executeScriptJob(app, job, runMeta) {
  */
 async function executeQueueJob(app, job, runMeta) {
   const perms = granted(app);
-  if (!perms.includes('queue')) {
+  if (!perms.includes("queue")) {
     throw new Error(
-      `Schedule '${job.name}' queue target requires the "queue" permission for app '${app.name}'.`
+      `Schedule '${job.name}' queue target requires the "queue" permission for app '${app.name}'.`,
     );
   }
-  const queueService = require('./engine/queue_service.js');
+  const queueService = require("./engine/queue_service.js");
   if (!queueService.isEnabled()) {
     throw new Error(
-      `Schedule '${job.name}' cannot enqueue: server queue is disabled (queue.enabled).`
+      `Schedule '${job.name}' cannot enqueue: server queue is disabled (queue.enabled).`,
     );
   }
   const jobName = job.target.job;
@@ -351,24 +375,24 @@ async function executeQueueJob(app, job, runMeta) {
         : {
             schedule: job.name,
             runId: runMeta && runMeta.runId,
-            scheduledAt: runMeta && runMeta.scheduledAt
+            scheduledAt: runMeta && runMeta.scheduledAt,
           };
   const result = await queueService.addJob(app, jobName, payload, {
     script: job.target.script,
-    delayMs: job.target.delayMs || 0
+    delayMs: job.target.delayMs || 0,
   });
   const logger = app.logger || log();
   logger.info(
-    `[scheduler] Queue job '${job.name}' enqueued queue job '${jobName}' id=${result.id}`
+    `[scheduler] Queue job '${job.name}' enqueued queue job '${jobName}' id=${result.id}`,
   );
   return result;
 }
 
 async function executeUrlJob(app, job, runMeta) {
   const perms = granted(app);
-  if (!perms.includes('httpclient')) {
+  if (!perms.includes("httpclient")) {
     throw new Error(
-      `Schedule '${job.name}' URL target requires the "httpclient" permission for app '${app.name}'.`
+      `Schedule '${job.name}' URL target requires the "httpclient" permission for app '${app.name}'.`,
     );
   }
 
@@ -380,11 +404,11 @@ async function executeUrlJob(app, job, runMeta) {
   const allowed = await egress.assertUrlAllowed(job.target.url);
   if (!allowed.ok) {
     throw new Error(
-      `Schedule '${job.name}' egress denied (${allowed.reason}): ${allowed.message}`
+      `Schedule '${job.name}' egress denied (${allowed.reason}): ${allowed.message}`,
     );
   }
 
-  const method = job.target.method || 'GET';
+  const method = job.target.method || "GET";
   const headers = { ...(job.target.headers || {}) };
   const config = {
     method,
@@ -394,22 +418,22 @@ async function executeUrlJob(app, job, runMeta) {
     validateStatus: () => true,
     maxRedirects: egress.getMaxRedirects(),
     beforeRedirect: egress.beforeRedirect,
-    responseType: 'text',
+    responseType: "text",
     transitional: { clarifyTimeoutError: true },
     // M5: abort in-flight axios when schedule times out.
-    ...(signal ? { signal } : {})
+    ...(signal ? { signal } : {}),
   };
   // Pin TCP connect to policy-validated addresses (H13).
   egress.applyConnectPin(config, allowed);
 
-  if (job.target.body !== undefined && method !== 'GET' && method !== 'HEAD') {
+  if (job.target.body !== undefined && method !== "GET" && method !== "HEAD") {
     if (
-      typeof job.target.body === 'object' &&
+      typeof job.target.body === "object" &&
       job.target.body !== null &&
       !Buffer.isBuffer(job.target.body)
     ) {
-      if (!headers['Content-Type'] && !headers['content-type']) {
-        headers['Content-Type'] = 'application/json';
+      if (!headers["Content-Type"] && !headers["content-type"]) {
+        headers["Content-Type"] = "application/json";
       }
       config.data = job.target.body;
     } else {
@@ -420,11 +444,11 @@ async function executeUrlJob(app, job, runMeta) {
   const response = await axios(config);
   const logger = app.logger || log();
   logger.info(
-    `[scheduler] URL job '${job.name}' → ${job.target.url} status=${response.status}`
+    `[scheduler] URL job '${job.name}' → ${job.target.url} status=${response.status}`,
   );
   if (response.status >= 400) {
     throw new Error(
-      `URL job '${job.name}' returned HTTP ${response.status} from ${job.target.url}`
+      `URL job '${job.name}' returned HTTP ${response.status} from ${job.target.url}`,
     );
   }
   return { status: response.status };
@@ -437,10 +461,10 @@ async function executeUrlJob(app, job, runMeta) {
  */
 function incRunMetric(appName, status) {
   try {
-    const metrics = require('./metrics.js');
-    metrics.inc('gingee_scheduler_job_runs_total', {
+    const metrics = require("./metrics.js");
+    metrics.inc("gingee_scheduler_job_runs_total", {
       app: appName,
-      status
+      status,
     });
   } catch (_) {
     /* metrics optional */
@@ -461,20 +485,20 @@ async function runJob(app, runtime, opts) {
 
   if (app.in_maintenance) {
     logger.warn(
-      `[scheduler] Skipping job '${job.name}' for app '${app.name}': app is in maintenance.`
+      `[scheduler] Skipping job '${job.name}' for app '${app.name}': app is in maintenance.`,
     );
-    runtime.lastStatus = 'skipped_maintenance';
+    runtime.lastStatus = "skipped_maintenance";
     runtime.lastError = null;
-    incRunMetric(app.name, 'skipped_maintenance');
+    incRunMetric(app.name, "skipped_maintenance");
     return;
   }
 
   if (runtime.running) {
     logger.warn(
-      `[scheduler] Skipping job '${job.name}' for app '${app.name}': previous run still in progress (overlap=skip).`
+      `[scheduler] Skipping job '${job.name}' for app '${app.name}': previous run still in progress (overlap=skip).`,
     );
-    runtime.lastStatus = 'skipped_overlap';
-    incRunMetric(app.name, 'skipped_overlap');
+    runtime.lastStatus = "skipped_overlap";
+    incRunMetric(app.name, "skipped_overlap");
     return;
   }
 
@@ -483,27 +507,27 @@ async function runJob(app, runtime, opts) {
     const decision = await coordinator.tryAllowRun({
       appName: app.name,
       jobName: job.name,
-      runtime
+      runtime,
     });
     if (!decision.allow) {
       const status =
-        decision.reason === 'redis_error'
-          ? 'skipped_coord_error'
-          : decision.reason === 'not_leader'
-            ? 'skipped_not_leader'
-            : 'skipped_coordination';
+        decision.reason === "redis_error"
+          ? "skipped_coord_error"
+          : decision.reason === "not_leader"
+            ? "skipped_not_leader"
+            : "skipped_coordination";
       runtime.lastStatus = status;
       runtime.lastError =
-        decision.reason === 'redis_error'
-          ? decision.detail || 'redis error'
+        decision.reason === "redis_error"
+          ? decision.detail || "redis error"
           : null;
-      if (decision.reason === 'redis_error') {
+      if (decision.reason === "redis_error") {
         logger.error(
-          `[scheduler] Skipping job '${job.name}' for app '${app.name}': coordination Redis error (${decision.detail || 'unknown'}). Fail-closed.`
+          `[scheduler] Skipping job '${job.name}' for app '${app.name}': coordination Redis error (${decision.detail || "unknown"}). Fail-closed.`,
         );
       } else {
         logger.info(
-          `[scheduler] Skipping job '${job.name}' for app '${app.name}': another node holds the schedule (${decision.reason}).`
+          `[scheduler] Skipping job '${job.name}' for app '${app.name}': another node holds the schedule (${decision.reason}).`,
         );
       }
       incRunMetric(app.name, status);
@@ -527,13 +551,13 @@ async function runJob(app, runtime, opts) {
     runId,
     scheduledAt,
     signal: abortController.signal,
-    abortController
+    abortController,
   };
 
   const work = (async () => {
-    if (job.target.type === 'script') {
+    if (job.target.type === "script") {
       await executeScriptJob(app, job, runMeta);
-    } else if (job.target.type === 'queue') {
+    } else if (job.target.type === "queue") {
       await executeQueueJob(app, job, runMeta);
     } else {
       await executeUrlJob(app, job, runMeta);
@@ -546,7 +570,9 @@ async function runJob(app, runtime, opts) {
       try {
         if (!abortController.signal.aborted) {
           abortController.abort(
-            new Error(`Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`)
+            new Error(
+              `Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`,
+            ),
           );
         }
       } catch (_) {
@@ -556,7 +582,11 @@ async function runJob(app, runtime, opts) {
           /* ignore */
         }
       }
-      reject(new Error(`Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`));
+      reject(
+        new Error(
+          `Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`,
+        ),
+      );
     }, job.timeout_ms);
   });
 
@@ -564,29 +594,30 @@ async function runJob(app, runtime, opts) {
     await Promise.race([work, timeoutPromise]);
     // If abort won a race with a still-resolving work promise, prefer timeout status.
     if (timedOut || abortController.signal.aborted) {
-      runtime.lastStatus = 'timeout';
+      runtime.lastStatus = "timeout";
       runtime.lastError = `Schedule job '${job.name}' timed out after ${job.timeout_ms}ms`;
       runtime.lastFinishedAt = new Date().toISOString();
       logger.error(
-        `[scheduler] Job '${job.name}' for app '${app.name}' failed: ${runtime.lastError}`
+        `[scheduler] Job '${job.name}' for app '${app.name}' failed: ${runtime.lastError}`,
       );
     } else {
-      runtime.lastStatus = 'ok';
+      runtime.lastStatus = "ok";
       runtime.lastFinishedAt = new Date().toISOString();
       logger.info(
-        `[scheduler] Job '${job.name}' for app '${app.name}' completed successfully.`
+        `[scheduler] Job '${job.name}' for app '${app.name}' completed successfully.`,
       );
     }
   } catch (err) {
-    runtime.lastStatus = timedOut || abortController.signal.aborted ? 'timeout' : 'error';
+    runtime.lastStatus =
+      timedOut || abortController.signal.aborted ? "timeout" : "error";
     runtime.lastError = err.message || String(err);
     runtime.lastFinishedAt = new Date().toISOString();
     logger.error(
-      `[scheduler] Job '${job.name}' for app '${app.name}' failed: ${runtime.lastError}`
+      `[scheduler] Job '${job.name}' for app '${app.name}' failed: ${runtime.lastError}`,
     );
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
-    incRunMetric(app.name, runtime.lastStatus || 'unknown');
+    incRunMetric(app.name, runtime.lastStatus || "unknown");
   }
 
   // Wait for underlying work to settle so overlap protection stays accurate.
@@ -614,7 +645,7 @@ function startCronWithApp(app, job) {
     lastFinishedAt: null,
     lastStatus: null,
     lastError: null,
-    cronJob: null
+    cronJob: null,
   };
 
   const cronJob = new Cron(
@@ -622,15 +653,15 @@ function startCronWithApp(app, job) {
     {
       timezone: job.timezone,
       protect: true,
-      name: `gingee:${app.name}:${job.name}`
+      name: `gingee:${app.name}:${job.name}`,
     },
     () => {
       runJob(app, runtime).catch((err) => {
         logger.error(
-          `[scheduler] Unhandled error in job '${job.name}' (${app.name}): ${err.message}`
+          `[scheduler] Unhandled error in job '${job.name}' (${app.name}): ${err.message}`,
         );
       });
-    }
+    },
   );
 
   runtime.cronJob = cronJob;
@@ -644,7 +675,7 @@ function startCronWithApp(app, job) {
 
   const next = cronJob.nextRun();
   logger.info(
-    `[scheduler] Registered job '${job.name}' for app '${app.name}' cron='${job.cron}' tz='${job.timezone}' next=${next ? next.toISOString() : 'n/a'}`
+    `[scheduler] Registered job '${job.name}' for app '${app.name}' cron='${job.cron}' tz='${job.timezone}' next=${next ? next.toISOString() : "n/a"}`,
   );
 }
 
@@ -657,20 +688,23 @@ function startCronWithApp(app, job) {
 function initServer(config, logger, globalConfig) {
   serverLogger = logger || console;
   globalConfigRef = globalConfig || null;
-  const c = config && typeof config === 'object' && !Array.isArray(config) ? config : {};
+  const c =
+    config && typeof config === "object" && !Array.isArray(config)
+      ? config
+      : {};
   // Full scheduler section: coordination.driver + sibling redis (queue/cache pattern)
   const coordination = normalizeCoordination(c);
   serverConfig = {
     enabled: c.enabled === true,
-    timezone: (c.timezone && String(c.timezone).trim()) || 'UTC',
+    timezone: (c.timezone && String(c.timezone).trim()) || "UTC",
     coordination: {
       driver: coordination.driver,
       strategy: coordination.strategy,
       lock_ttl_ms: coordination.lock_ttl_ms,
       slot_granularity_ms: coordination.slot_granularity_ms,
-      node_id: coordination.node_id
+      node_id: coordination.node_id,
     },
-    redis: { ...coordination.redis }
+    redis: { ...coordination.redis },
   };
 
   // Tear down previous coordinator (tests / re-init)
@@ -678,21 +712,21 @@ function initServer(config, logger, globalConfig) {
     coordinator.shutdown().catch(() => {});
     coordinator = null;
   }
-  if (coordination.driver === 'redis') {
+  if (coordination.driver === "redis") {
     coordinator = new RedisCoordinator(coordination, log());
   }
 
   if (serverConfig.enabled) {
     const coordMsg =
-      coordination.driver === 'redis'
+      coordination.driver === "redis"
         ? ` coordination.driver=redis strategy=${coordination.strategy} node=${coordination.node_id} prefix=${coordination.redis.key_prefix}`
-        : ' coordination.driver=none (enable on at most one node for script/url multi-server)';
+        : " coordination.driver=none (enable on at most one node for script/url multi-server)";
     log().info(
-      `[scheduler] Enabled (default timezone: ${serverConfig.timezone}).${coordMsg} Jobs will register from app.json schedules.`
+      `[scheduler] Enabled (default timezone: ${serverConfig.timezone}).${coordMsg} Jobs will register from app.json schedules.`,
     );
   } else {
     log().info(
-      '[scheduler] Disabled (scheduler.enabled is false). No CRON jobs will run on this node.'
+      "[scheduler] Disabled (scheduler.enabled is false). No CRON jobs will run on this node.",
     );
   }
 }
@@ -714,9 +748,9 @@ async function registerApp(app) {
   }
 
   const perms = granted(app);
-  if (!perms.includes('scheduler')) {
+  if (!perms.includes("scheduler")) {
     log().error(
-      `[scheduler] App '${app.name}' declares schedules but is not granted the "scheduler" permission. Jobs not registered.`
+      `[scheduler] App '${app.name}' declares schedules but is not granted the "scheduler" permission. Jobs not registered.`,
     );
     return;
   }
@@ -731,7 +765,7 @@ async function registerApp(app) {
     const job = result.job;
     if (seen.has(job.name)) {
       log().error(
-        `[scheduler] App '${app.name}': duplicate schedule name '${job.name}' — skipping.`
+        `[scheduler] App '${app.name}': duplicate schedule name '${job.name}' — skipping.`,
       );
       continue;
     }
@@ -739,31 +773,31 @@ async function registerApp(app) {
 
     if (!job.enabled) {
       log().info(
-        `[scheduler] App '${app.name}' job '${job.name}' is disabled — not registered.`
+        `[scheduler] App '${app.name}' job '${job.name}' is disabled — not registered.`,
       );
       continue;
     }
 
-    if (job.target.type === 'queue' && !perms.includes('queue')) {
+    if (job.target.type === "queue" && !perms.includes("queue")) {
       log().error(
-        `[scheduler] App '${app.name}' job '${job.name}' is a queue target but "queue" is not granted — skipping.`
+        `[scheduler] App '${app.name}' job '${job.name}' is a queue target but "queue" is not granted — skipping.`,
       );
       continue;
     }
 
-    if (job.target.type === 'url' && !perms.includes('httpclient')) {
+    if (job.target.type === "url" && !perms.includes("httpclient")) {
       log().error(
-        `[scheduler] App '${app.name}' job '${job.name}' is a URL target but "httpclient" is not granted — skipping.`
+        `[scheduler] App '${app.name}' job '${job.name}' is a URL target but "httpclient" is not granted — skipping.`,
       );
       continue;
     }
 
-    if (job.target.type === 'url') {
+    if (job.target.type === "url") {
       // Full egress check (incl. DNS) at register; re-checked again at fire time.
       const eg = await egress.assertUrlAllowed(job.target.url);
       if (!eg.ok) {
         log().error(
-          `[scheduler] App '${app.name}' job '${job.name}' URL blocked by egress (${eg.reason}): ${eg.message}`
+          `[scheduler] App '${app.name}' job '${job.name}' URL blocked by egress (${eg.reason}): ${eg.message}`,
         );
         continue;
       }
@@ -773,7 +807,7 @@ async function registerApp(app) {
       startCronWithApp(app, job);
     } catch (e) {
       log().error(
-        `[scheduler] Failed to start job '${job.name}' for app '${app.name}': ${e.message}`
+        `[scheduler] Failed to start job '${job.name}' for app '${app.name}': ${e.message}`,
       );
     }
   }
@@ -818,7 +852,7 @@ function shutdown() {
     coordinator.shutdown().catch(() => {});
     coordinator = null;
   }
-  log().info('[scheduler] Shutdown complete.');
+  log().info("[scheduler] Shutdown complete.");
 }
 
 /**
@@ -829,7 +863,7 @@ function shutdown() {
  * @returns {Array<object>}
  */
 function listJobs(opts) {
-  const o = opts && typeof opts === 'object' ? opts : {};
+  const o = opts && typeof opts === "object" ? opts : {};
   const appFilter =
     o.appName != null && String(o.appName).trim()
       ? String(o.appName).trim().toLowerCase()
@@ -862,7 +896,7 @@ function listJobs(opts) {
         lastFinishedAt: runtime.lastFinishedAt,
         lastStatus: runtime.lastStatus,
         lastError: runtime.lastError,
-        nextRunAt: next ? next.toISOString() : null
+        nextRunAt: next ? next.toISOString() : null,
       });
     }
   }
@@ -877,10 +911,10 @@ function listJobs(opts) {
  * @private
  */
 function summarizeTarget(t) {
-  if (!t || !t.type) return '—';
-  if (t.type === 'script') return `script:${t.path || '?'}`;
-  if (t.type === 'url') return `url:${t.method || 'GET'} ${t.url || '?'}`;
-  if (t.type === 'queue') return `queue:${t.job || '?'}`;
+  if (!t || !t.type) return "—";
+  if (t.type === "script") return `script:${t.path || "?"}`;
+  if (t.type === "url") return `url:${t.method || "GET"} ${t.url || "?"}`;
+  if (t.type === "queue") return `queue:${t.job || "?"}`;
   return String(t.type);
 }
 
@@ -896,15 +930,17 @@ function getAdminStatus() {
   }
   return {
     enabled: serverConfig.enabled === true,
-    timezone: serverConfig.timezone || 'UTC',
+    timezone: serverConfig.timezone || "UTC",
     coordination: {
       driver:
-        (serverConfig.coordination && serverConfig.coordination.driver) || 'none',
+        (serverConfig.coordination && serverConfig.coordination.driver) ||
+        "none",
       strategy:
-        (serverConfig.coordination && serverConfig.coordination.strategy) || 'tick'
+        (serverConfig.coordination && serverConfig.coordination.strategy) ||
+        "tick",
     },
     jobCount: jobs.length,
-    runningCount: running
+    runningCount: running,
   };
 }
 
@@ -918,11 +954,15 @@ function getAdminStatus() {
 async function runNow(appName, jobName) {
   const appMap = appJobs.get(appName);
   if (!appMap || !appMap.has(jobName)) {
-    throw new Error(`No registered schedule '${jobName}' for app '${appName}'.`);
+    throw new Error(
+      `No registered schedule '${jobName}' for app '${appName}'.`,
+    );
   }
   const runtime = appMap.get(jobName);
   if (!runtime.app) {
-    throw new Error(`Internal error: runtime missing app for '${appName}/${jobName}'.`);
+    throw new Error(
+      `Internal error: runtime missing app for '${appName}/${jobName}'.`,
+    );
   }
   await runJob(runtime.app, runtime, { force: true });
   return {
@@ -932,7 +972,7 @@ async function runNow(appName, jobName) {
     lastError: runtime.lastError,
     lastStartedAt: runtime.lastStartedAt,
     lastFinishedAt: runtime.lastFinishedAt,
-    running: runtime.running
+    running: runtime.running,
   };
 }
 
@@ -959,15 +999,15 @@ function _resetForTests() {
   }
   serverConfig = {
     enabled: false,
-    timezone: 'UTC',
+    timezone: "UTC",
     coordination: {
       driver: COORDINATION_DEFAULTS.driver,
       strategy: COORDINATION_DEFAULTS.strategy,
       lock_ttl_ms: COORDINATION_DEFAULTS.lock_ttl_ms,
       slot_granularity_ms: COORDINATION_DEFAULTS.slot_granularity_ms,
-      node_id: null
+      node_id: null,
     },
-    redis: null
+    redis: null,
   };
   serverLogger = null;
   globalConfigRef = null;
@@ -995,8 +1035,8 @@ module.exports = {
   _resetForTests,
   _getServerConfig: () => ({
     ...serverConfig,
-    coordination: { ...serverConfig.coordination }
+    coordination: { ...serverConfig.coordination },
   }),
   _runJob: runJob,
-  _setCoordinatorForTests
+  _setCoordinatorForTests,
 };

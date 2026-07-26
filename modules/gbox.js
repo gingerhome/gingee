@@ -1,32 +1,32 @@
-const nodeFs = require('fs');
-const path = require('path');
-const vm = require('vm');
-const sucrase = require('sucrase');
-const { isPathInside } = require('./internal_utils.js');
+const nodeFs = require("fs");
+const path = require("path");
+const vm = require("vm");
+const sucrase = require("sucrase");
+const { isPathInside } = require("./internal_utils.js");
 
 // List of app modules that require a permission check
 const PROTECTED_MODULES = [
-  'ai',
-  'cache',
-  'db',
-  'email',
-  'fs',
-  'httpclient',
-  'platform',
-  'pdf',
-  'zip',
-  'image',
-  'websockets',
-  'queue'
+  "ai",
+  "cache",
+  "db",
+  "email",
+  "fs",
+  "httpclient",
+  "platform",
+  "pdf",
+  "zip",
+  "image",
+  "websockets",
+  "queue",
   // Note: 'scheduler' is engine-internal (restricted). Apps declare jobs in app.json;
   // they do not require('scheduler') in v1. The "scheduler" permission gates registration.
 ];
 
 // A whitelist of globally-allowed, safe UTILITY modules (both built-in and third-party).
 const globallyAllowedModules = [
-  'url', // built-in
-  'querystring', // built-in
-  'mime-types' // third-party
+  "url", // built-in
+  "querystring", // built-in
+  "mime-types", // third-party
 ];
 
 /**
@@ -35,42 +35,42 @@ const globallyAllowedModules = [
  * host fs is blocked because it is not on the allowed list and is not a gingee module under node:fs.
  */
 const FORBIDDEN_BUILTINS = new Set([
-  'child_process',
-  'cluster',
-  'worker_threads',
-  'vm',
-  'v8',
-  'module',
-  'inspector',
-  'repl',
-  'fs/promises',
-  'node:fs',
-  'node:fs/promises',
-  'node:child_process',
-  'node:vm',
-  'node:worker_threads',
-  'node:module',
-  'node:inspector'
+  "child_process",
+  "cluster",
+  "worker_threads",
+  "vm",
+  "v8",
+  "module",
+  "inspector",
+  "repl",
+  "fs/promises",
+  "node:fs",
+  "node:fs/promises",
+  "node:child_process",
+  "node:vm",
+  "node:worker_threads",
+  "node:module",
+  "node:inspector",
 ]);
 
 const restrictedGlobalModules = [
-  'gingee',
-  'gbox',
-  'gdev',
-  'gapp-start',
-  'cache_service',
-  'internal_utils',
-  'platform',
-  'scheduler',
-  'limits',
-  'egress',
-  'secrets',
+  "gingee",
+  "gbox",
+  "gdev",
+  "gapp-start",
+  "cache_service",
+  "internal_utils",
+  "platform",
+  "scheduler",
+  "limits",
+  "egress",
+  "secrets",
   // Engine observability/control — not for sandboxed apps (privileged only).
-  'metrics',
-  'audit'
+  "metrics",
+  "audit",
 ];
 
-const gingee = require('./gingee.js');
+const gingee = require("./gingee.js");
 const transpileCache = new Map();
 
 /**
@@ -79,7 +79,7 @@ const transpileCache = new Map();
  */
 function blockedHostAccess(name) {
   throw new Error(
-    `Security Error: '${name}' is not available in Gingee app scripts (sandbox host isolation).`
+    `Security Error: '${name}' is not available in Gingee app scripts (sandbox host isolation).`,
   );
 }
 
@@ -91,7 +91,7 @@ function blockedHostAccess(name) {
  * @private
  */
 function _readDynamicCodeFlag(obj) {
-  if (!obj || typeof obj !== 'object') return null;
+  if (!obj || typeof obj !== "object") return null;
   if (obj.allow_dynamic_code === false || obj.allow_code_generation === false) {
     return false;
   }
@@ -130,7 +130,7 @@ function allowDynamicCodeFromBox(box) {
  * @returns {boolean}
  */
 function resolveAllowDynamicCodeForApp(serverBox, appConfig) {
-  const app = appConfig && typeof appConfig === 'object' ? appConfig : null;
+  const app = appConfig && typeof appConfig === "object" ? appConfig : null;
   if (app) {
     // Top-level app.json key wins when set
     const top = _readDynamicCodeFlag(app);
@@ -156,7 +156,8 @@ function resolveAllowDynamicCode(gBoxConfig) {
     appConfig &&
     (_readDynamicCodeFlag(appConfig) !== null ||
       _readDynamicCodeFlag(appConfig.box) !== null);
-  const serverHasExplicit = serverBox && _readDynamicCodeFlag(serverBox) !== null;
+  const serverHasExplicit =
+    serverBox && _readDynamicCodeFlag(serverBox) !== null;
 
   // Prefer explicit server/app.json flags when present
   if (appHasExplicit || serverHasExplicit) {
@@ -164,8 +165,10 @@ function resolveAllowDynamicCode(gBoxConfig) {
   }
 
   // Per-run override (call sites / unit tests without config flags)
-  if (cfg.allowDynamicCode === false || cfg.allowCodeGeneration === false) return false;
-  if (cfg.allowDynamicCode === true || cfg.allowCodeGeneration === true) return true;
+  if (cfg.allowDynamicCode === false || cfg.allowCodeGeneration === false)
+    return false;
+  if (cfg.allowDynamicCode === true || cfg.allowCodeGeneration === true)
+    return true;
 
   // Default: inherit server default (true when unset)
   return allowDynamicCodeFromBox(serverBox);
@@ -199,18 +202,18 @@ function createSandboxContext(gbox, gBoxConfig, scriptPath) {
     clearInterval,
     setImmediate,
     clearImmediate,
-    queueMicrotask
+    queueMicrotask,
   };
 
-  if (typeof atob === 'function') sandbox.atob = atob;
-  if (typeof btoa === 'function') sandbox.btoa = btoa;
+  if (typeof atob === "function") sandbox.atob = atob;
+  if (typeof btoa === "function") sandbox.btoa = btoa;
 
   // Point "global" aliases at the sandbox only (not the host global).
   sandbox.global = sandbox;
   sandbox.globalThis = sandbox;
 
   // Explicit denials with clear errors (also blocks accidental free-var use).
-  for (const name of ['process', 'GLOBAL', 'root']) {
+  for (const name of ["process", "GLOBAL", "root"]) {
     Object.defineProperty(sandbox, name, {
       configurable: false,
       enumerable: false,
@@ -219,19 +222,19 @@ function createSandboxContext(gbox, gBoxConfig, scriptPath) {
       },
       set() {
         blockedHostAccess(name);
-      }
+      },
     });
   }
 
   const contextOptions = {
-    name: `gingee-gbox:${gBoxConfig.appName || 'app'}:${path.basename(scriptPath)}`
+    name: `gingee-gbox:${gBoxConfig.appName || "app"}:${path.basename(scriptPath)}`,
   };
 
   // Disable eval / new Function / wasm codegen unless explicitly allowed (vendored libs).
   if (!allowDynamicCode) {
     contextOptions.codeGeneration = {
       strings: false,
-      wasm: false
+      wasm: false,
     };
   }
 
@@ -241,25 +244,30 @@ function createSandboxContext(gbox, gBoxConfig, scriptPath) {
 // The list of safe modules is now a parameter.
 function createGRequire(callingScriptPath, gBoxConfig) {
   return function gRequire(moduleName) {
-    const rawName = String(moduleName || '');
-    const normalized = rawName.startsWith('node:') ? rawName.slice(5) : rawName;
+    const rawName = String(moduleName || "");
+    const normalized = rawName.startsWith("node:") ? rawName.slice(5) : rawName;
 
     // Check if the module is a protected module (Gingee app modules: fs, db, …)
-    if (PROTECTED_MODULES.includes(moduleName) || PROTECTED_MODULES.includes(normalized)) {
+    if (
+      PROTECTED_MODULES.includes(moduleName) ||
+      PROTECTED_MODULES.includes(normalized)
+    ) {
       const granted = gBoxConfig.app.grantedPermissions || [];
-      const key = PROTECTED_MODULES.includes(moduleName) ? moduleName : normalized;
+      const key = PROTECTED_MODULES.includes(moduleName)
+        ? moduleName
+        : normalized;
       if (!granted.includes(key)) {
         throw new Error(
-          `Security Error: The app '${gBoxConfig.app.name}' has not been granted permission to access the '${key}' module. Please grant permission in Glade or settings/permissions.json.`
+          `Security Error: The app '${gBoxConfig.app.name}' has not been granted permission to access the '${key}' module. Please grant permission in Glade or settings/permissions.json.`,
         );
       }
     }
 
     // Check if the module is a restricted module (engine control plane, etc.)
     const isEngineInternal =
-      normalized === 'engine' ||
-      normalized.startsWith('engine/') ||
-      normalized.startsWith('engine\\');
+      normalized === "engine" ||
+      normalized.startsWith("engine/") ||
+      normalized.startsWith("engine\\");
     if (
       restrictedGlobalModules.includes(moduleName) ||
       restrictedGlobalModules.includes(normalized) ||
@@ -268,30 +276,33 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       if (isEngineInternal) {
         // Never expose modules/engine/* to sandboxed apps (including privileged).
         throw new Error(
-          `Security Error: The engine module '${moduleName}' is not available to application scripts.`
+          `Security Error: The engine module '${moduleName}' is not available to application scripts.`,
         );
       }
       const { appName } = gingee.getContext(); // Get the app that is making the call.
       // Check if the current app's ID is in the privileged list.
-      if (gBoxConfig.privilegedApps && gBoxConfig.privilegedApps.includes(appName)) {
+      if (
+        gBoxConfig.privilegedApps &&
+        gBoxConfig.privilegedApps.includes(appName)
+      ) {
         // If it is, allow the require to proceed.
         return require(`./${normalized}.js`);
       } else {
         // If not, throw a hard security error.
         throw new Error(
-          `Security Error: The app '${appName}' does not have permission to access the '${moduleName}' module.`
+          `Security Error: The app '${appName}' does not have permission to access the '${moduleName}' module.`,
         );
       }
     }
 
     // --- RULE 2: Module with relative path check ---
-    if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
+    if (moduleName.startsWith("./") || moduleName.startsWith("../")) {
       const scriptDir = path.dirname(callingScriptPath);
       let targetPath = path.resolve(scriptDir, moduleName);
 
       // Append .js if no extension is provided
       if (!path.extname(targetPath)) {
-        targetPath += '.js';
+        targetPath += ".js";
       }
 
       // --- SECURITY CHECK ---
@@ -299,11 +310,15 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       // Use isPathInside (not String.startsWith) to reject sibling prefix escapes
       // e.g. box path ".../app1/box" must not allow ".../app10/box/...".
       if (!isPathInside(targetPath, gBoxConfig.appBoxPath)) {
-        throw new Error(`Path traversal detected. Access to '${moduleName}' is forbidden.`);
+        throw new Error(
+          `Path traversal detected. Access to '${moduleName}' is forbidden.`,
+        );
       }
 
       if (!nodeFs.existsSync(targetPath)) {
-        throw new Error(`Cannot find local module '${moduleName}' at resolved path: ${targetPath}`);
+        throw new Error(
+          `Cannot find local module '${moduleName}' at resolved path: ${targetPath}`,
+        );
       }
 
       // Recursively run the new script in the same sandboxed configuration.
@@ -311,13 +326,16 @@ function createGRequire(callingScriptPath, gBoxConfig) {
     }
 
     // --- RULE 2: Global `modules` Folder Check (Gingee modules, e.g. modules/fs.js) ---
-    const globalModulePath = path.join(gBoxConfig.globalModulesPath, moduleName + '.js');
+    const globalModulePath = path.join(
+      gBoxConfig.globalModulesPath,
+      moduleName + ".js",
+    );
     if (nodeFs.existsSync(globalModulePath)) {
       // Permission already checked for PROTECTED_MODULES above when applicable.
       return require(globalModulePath);
     }
     if (normalized !== moduleName) {
-      const alt = path.join(gBoxConfig.globalModulesPath, normalized + '.js');
+      const alt = path.join(gBoxConfig.globalModulesPath, normalized + ".js");
       if (nodeFs.existsSync(alt)) {
         return require(alt);
       }
@@ -330,7 +348,7 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       FORBIDDEN_BUILTINS.has(`node:${normalized}`)
     ) {
       throw new Error(
-        `Security Error: Built-in module '${moduleName}' is forbidden in Gingee app scripts.`
+        `Security Error: Built-in module '${moduleName}' is forbidden in Gingee app scripts.`,
       );
     }
 
@@ -352,13 +370,17 @@ function createGRequire(callingScriptPath, gBoxConfig) {
     if (nodeFs.existsSync(appBoxRelativePath)) {
       // We still must verify it's inside the boundary (reject path traversal / prefix tricks).
       if (!isPathInside(appBoxRelativePath, gBoxConfig.appBoxPath)) {
-        throw new Error(`Path traversal detected. Access to '${moduleName}' is forbidden.`);
+        throw new Error(
+          `Path traversal detected. Access to '${moduleName}' is forbidden.`,
+        );
       }
       return runInGBox(appBoxRelativePath, gBoxConfig);
     }
 
     // --- RULE 5: Deny ---
-    throw new Error(`Module '${moduleName}' is not allowed or could not be found.`);
+    throw new Error(
+      `Module '${moduleName}' is not allowed or could not be found.`,
+    );
   };
 }
 
@@ -368,21 +390,27 @@ function runInGBox(scriptPath, gBoxConfig) {
 
   if (gBoxConfig.useCache && transpileCache.has(scriptPath)) {
     scriptCode = transpileCache.get(scriptPath);
-    gBoxConfig.logger.info(`[CACHE HIT] for script: ${path.basename(scriptPath)}`);
+    gBoxConfig.logger.info(
+      `[CACHE HIT] for script: ${path.basename(scriptPath)}`,
+    );
   } else {
     transpileCache.delete(scriptPath); // Clear cache entry if it exists
-    const originalCode = nodeFs.readFileSync(scriptPath, 'utf8');
+    const originalCode = nodeFs.readFileSync(scriptPath, "utf8");
 
     // --- THIS IS THE NEW ESM "SNIFF TEST" ---
     // This regex looks for 'import' or 'export' at the beginning of a line (or the file)
     // or after a semicolon, which is a good indicator of a top-level statement.
-    const isEsModule = /^(import|export)\s|;s*(import|export)\s/.test(originalCode);
+    const isEsModule = /^(import|export)\s|;s*(import|export)\s/.test(
+      originalCode,
+    );
 
     if (isEsModule) {
       // If it's likely an ESM file, transpile it.
-      gBoxConfig.logger.info(`ESM detected, transpiling: ${path.basename(scriptPath)}`);
+      gBoxConfig.logger.info(
+        `ESM detected, transpiling: ${path.basename(scriptPath)}`,
+      );
       const transformed = sucrase.transform(originalCode, {
-        transforms: ['imports', 'jsx', 'typescript']
+        transforms: ["imports", "jsx", "typescript"],
       });
       scriptCode = transformed.code;
     } else {
@@ -393,7 +421,9 @@ function runInGBox(scriptPath, gBoxConfig) {
     if (gBoxConfig.useCache) {
       // Store the final code (whether transformed or not) in the cache.
       transpileCache.set(scriptPath, scriptCode);
-      gBoxConfig.logger.info(`[CACHE SET] for script: ${path.basename(scriptPath)}`);
+      gBoxConfig.logger.info(
+        `[CACHE SET] for script: ${path.basename(scriptPath)}`,
+      );
     }
   }
 
@@ -402,7 +432,7 @@ function runInGBox(scriptPath, gBoxConfig) {
     gingee: gingee.gingee,
     console: gBoxConfig.console || console,
     // Pass the list down to create the safe require function.
-    require: createGRequire(scriptPath, gBoxConfig)
+    require: createGRequire(scriptPath, gBoxConfig),
   };
 
   // Keep exports in sync if the script only assigns module.exports
@@ -427,24 +457,24 @@ function runInGBox(scriptPath, gBoxConfig) {
   try {
     vm.runInContext(wrapped, sandboxContext, {
       filename: scriptPath,
-      displayErrors: true
+      displayErrors: true,
     });
   } catch (err) {
     // Normalize codegen blocks into a clear security message
     if (
       err &&
-      err.code === 'ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG' // unlikely
+      err.code === "ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG" // unlikely
     ) {
       throw err;
     }
     if (
       err &&
-      (err.message || '').includes('Code generation from strings disallowed')
+      (err.message || "").includes("Code generation from strings disallowed")
     ) {
       throw new Error(
         `Security Error: eval/Function dynamic code generation is disabled in Gingee app scripts` +
           ` (script: ${path.basename(scriptPath)}). ` +
-          `If a trusted vendored library requires it, set box.allow_dynamic_code=true in gingee.json (server-wide).`
+          `If a trusted vendored library requires it, set box.allow_dynamic_code=true in gingee.json (server-wide).`,
       );
     }
     throw err;
@@ -460,5 +490,5 @@ module.exports = {
   FORBIDDEN_BUILTINS,
   allowDynamicCodeFromBox,
   resolveAllowDynamicCodeForApp,
-  resolveAllowDynamicCode
+  resolveAllowDynamicCode,
 };

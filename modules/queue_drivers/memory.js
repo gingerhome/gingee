@@ -4,7 +4,7 @@
  * @private
  */
 
-const { randomUUID } = require('crypto');
+const { randomUUID } = require("crypto");
 
 /**
  * @param {object} opts
@@ -41,14 +41,14 @@ function createMemoryDriver(opts) {
     const delay = Math.max(0, (job.runAt || 0) - Date.now());
     const timer = setTimeout(() => {
       if (closed || !consuming) return;
-      job.status = 'waiting';
+      job.status = "waiting";
       try {
         onReady(job);
       } catch (e) {
         log.error(`[queue:memory] onReady error: ${e.message}`);
       }
     }, delay);
-    if (typeof timer.unref === 'function') timer.unref();
+    if (typeof timer.unref === "function") timer.unref();
     job._timer = timer;
   }
 
@@ -80,7 +80,7 @@ function createMemoryDriver(opts) {
   }
 
   return {
-    name: 'memory',
+    name: "memory",
 
     async start() {
       closed = false;
@@ -97,16 +97,16 @@ function createMemoryDriver(opts) {
      * @param {object|string} jobOrId
      */
     async releaseClaim(jobOrId) {
-      const id = typeof jobOrId === 'string' ? jobOrId : jobOrId && jobOrId.id;
+      const id = typeof jobOrId === "string" ? jobOrId : jobOrId && jobOrId.id;
       if (!id) return false;
       let job = jobs.get(id);
-      if (!job && typeof jobOrId === 'object' && jobOrId) {
+      if (!job && typeof jobOrId === "object" && jobOrId) {
         job = { ...jobOrId };
         jobs.set(id, job);
       }
-      if (!job || job.status === 'failed') return false;
+      if (!job || job.status === "failed") return false;
       clearJobTimer(job);
-      job.status = 'delayed';
+      job.status = "delayed";
       job.runAt = Date.now();
       // If still consuming, re-schedule; if shutting down, leave in map for next process only if not closed
       if (!closed && consuming) {
@@ -137,10 +137,10 @@ function createMemoryDriver(opts) {
         maxAttempts: jobInput.maxAttempts || 3,
         backoffMs: jobInput.backoffMs != null ? jobInput.backoffMs : 1000,
         runAt: Date.now() + (jobInput.delayMs || 0),
-        status: 'delayed',
+        status: "delayed",
         createdAt: jobInput.createdAt || Date.now(),
         error: null,
-        failedAt: null
+        failedAt: null,
       };
       // Remove from DLQ if re-queued with same id
       if (dlq.has(id)) {
@@ -159,13 +159,14 @@ function createMemoryDriver(opts) {
       const next = {
         ...job,
         attempt: (job.attempt || 1) + 1,
-        status: 'delayed',
+        status: "delayed",
         runAt:
           Date.now() +
-          (job.backoffMs || 1000) * Math.pow(2, Math.max(0, (job.attempt || 1) - 1)),
+          (job.backoffMs || 1000) *
+            Math.pow(2, Math.max(0, (job.attempt || 1) - 1)),
         _timer: null,
         error: null,
-        failedAt: null
+        failedAt: null,
       };
       jobs.set(next.id, next);
       schedule(next);
@@ -193,9 +194,9 @@ function createMemoryDriver(opts) {
 
       const record = sanitize({
         ...job,
-        status: 'failed',
-        error: err ? err.message || String(err) : job.error || 'failed',
-        failedAt: Date.now()
+        status: "failed",
+        error: err ? err.message || String(err) : job.error || "failed",
+        failedAt: Date.now(),
       });
       dlq.set(record.id, record);
       const prev = dlqOrder.indexOf(record.id);
@@ -207,11 +208,14 @@ function createMemoryDriver(opts) {
     /** @deprecated use deadLetter */
     async fail(jobId) {
       const j = jobs.get(jobId);
-      if (j) await this.deadLetter(j, j.error || 'failed');
+      if (j) await this.deadLetter(j, j.error || "failed");
     },
 
     async listDlq(opts = {}) {
-      const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+      const limit =
+        opts.limit != null
+          ? Math.min(500, Math.max(1, Number(opts.limit)))
+          : 100;
       const appFilter = opts.appName || null;
       const out = [];
       for (const id of dlqOrder) {
@@ -258,7 +262,7 @@ function createMemoryDriver(opts) {
         maxAttempts,
         backoffMs: rec.backoffMs,
         delayMs: 0,
-        createdAt: rec.createdAt
+        createdAt: rec.createdAt,
       });
     },
 
@@ -279,20 +283,23 @@ function createMemoryDriver(opts) {
      * @returns {Promise<object[]>}
      */
     async listPending(opts = {}) {
-      const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+      const limit =
+        opts.limit != null
+          ? Math.min(500, Math.max(1, Number(opts.limit)))
+          : 100;
       const appFilter = opts.appName || null;
       const now = Date.now();
       const out = [];
       for (const j of jobs.values()) {
         if (appFilter && j.appName !== appFilter) continue;
         const runAt = j.runAt || 0;
-        const state = runAt > now ? 'delayed' : 'pending';
+        const state = runAt > now ? "delayed" : "pending";
         out.push(
           sanitize({
             ...j,
             state,
-            scope: 'driver'
-          })
+            scope: "driver",
+          }),
         );
       }
       out.sort((a, b) => (a.runAt || 0) - (b.runAt || 0));
@@ -327,7 +334,7 @@ function createMemoryDriver(opts) {
 
     size() {
       return jobs.size;
-    }
+    },
   };
 }
 

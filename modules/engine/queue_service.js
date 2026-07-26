@@ -4,25 +4,25 @@
  * Engine-internal — apps use require('queue').
  */
 
-const path = require('path');
-const fs = require('fs');
-const { als } = require('../gingee.js');
-const { runInGBox, resolveAllowDynamicCodeForApp } = require('../gbox.js');
-const { isPathInside } = require('../internal_utils.js');
-const metrics = require('../metrics.js');
-const { createMemoryDriver } = require('../queue_drivers/memory.js');
-const { createRedisDriver } = require('../queue_drivers/redis.js');
+const path = require("path");
+const fs = require("fs");
+const { als } = require("../gingee.js");
+const { runInGBox, resolveAllowDynamicCodeForApp } = require("../gbox.js");
+const { isPathInside } = require("../internal_utils.js");
+const metrics = require("../metrics.js");
+const { createMemoryDriver } = require("../queue_drivers/memory.js");
+const { createRedisDriver } = require("../queue_drivers/redis.js");
 
-const engineRoot = path.resolve(__dirname, '..', '..');
+const engineRoot = path.resolve(__dirname, "..", "..");
 
 const DEFAULTS = {
   enabled: true,
-  driver: 'memory', // memory | redis
+  driver: "memory", // memory | redis
   concurrency: 5,
   default_attempts: 3,
   default_backoff_ms: 1000,
   /** Default script dir under box/ when job name has no mapping */
-  jobs_dir: 'jobs',
+  jobs_dir: "jobs",
   /**
    * Redis claim lease (ms). Stale processing entries are reclaimed after this.
    * Long-running jobs should complete within this window (extendVisibility is called at start).
@@ -38,12 +38,12 @@ const DEFAULTS = {
   fail_closed: true,
   redis: {
     url: null,
-    host: '127.0.0.1',
+    host: "127.0.0.1",
     port: 6379,
     password: null,
     db: 0,
-    key_prefix: 'gingee:queue:'
-  }
+    key_prefix: "gingee:queue:",
+  },
 };
 
 /**
@@ -52,9 +52,9 @@ const DEFAULTS = {
  * @returns {boolean}
  */
 function parseFailClosed(v, defaultVal) {
-  if (v === undefined || v === null || v === '') return defaultVal;
-  if (v === true || v === 'true' || v === 1 || v === '1') return true;
-  if (v === false || v === 'false' || v === 0 || v === '0') return false;
+  if (v === undefined || v === null || v === "") return defaultVal;
+  if (v === true || v === "true" || v === 1 || v === "1") return true;
+  if (v === false || v === "false" || v === 0 || v === "0") return false;
   return defaultVal;
 }
 
@@ -95,26 +95,36 @@ function positiveInt(v, fallback) {
 async function initServer(cfg, logger, globalConfig) {
   serverLogger = logger || console;
   globalConfigRef = globalConfig || null;
-  const c = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : {};
+  const c = cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
   const visMs = Number(c.visibility_timeout_ms);
   const drainMs = Number(c.shutdown_drain_ms);
   serverConfig = {
     enabled: c.enabled !== false,
     driver: (c.driver && String(c.driver).toLowerCase()) || DEFAULTS.driver,
     concurrency: positiveInt(c.concurrency, DEFAULTS.concurrency),
-    default_attempts: positiveInt(c.default_attempts, DEFAULTS.default_attempts),
-    default_backoff_ms: positiveInt(c.default_backoff_ms, DEFAULTS.default_backoff_ms),
+    default_attempts: positiveInt(
+      c.default_attempts,
+      DEFAULTS.default_attempts,
+    ),
+    default_backoff_ms: positiveInt(
+      c.default_backoff_ms,
+      DEFAULTS.default_backoff_ms,
+    ),
     jobs_dir: (c.jobs_dir && String(c.jobs_dir).trim()) || DEFAULTS.jobs_dir,
     visibility_timeout_ms:
-      Number.isFinite(visMs) && visMs >= 1000 ? Math.floor(visMs) : DEFAULTS.visibility_timeout_ms,
+      Number.isFinite(visMs) && visMs >= 1000
+        ? Math.floor(visMs)
+        : DEFAULTS.visibility_timeout_ms,
     shutdown_drain_ms:
-      Number.isFinite(drainMs) && drainMs >= 0 ? Math.floor(drainMs) : DEFAULTS.shutdown_drain_ms,
+      Number.isFinite(drainMs) && drainMs >= 0
+        ? Math.floor(drainMs)
+        : DEFAULTS.shutdown_drain_ms,
     // Redis: fail closed by default (no silent memory split-brain)
     fail_closed: parseFailClosed(c.fail_closed, DEFAULTS.fail_closed),
     redis: {
       ...DEFAULTS.redis,
-      ...(c.redis && typeof c.redis === 'object' ? c.redis : {})
-    }
+      ...(c.redis && typeof c.redis === "object" ? c.redis : {}),
+    },
   };
 
   if (driver) {
@@ -133,7 +143,7 @@ async function initServer(cfg, logger, globalConfig) {
   processing = false;
 
   if (!serverConfig.enabled) {
-    log().info('[queue] Disabled (queue.enabled is false).');
+    log().info("[queue] Disabled (queue.enabled is false).");
     return;
   }
 
@@ -142,32 +152,32 @@ async function initServer(cfg, logger, globalConfig) {
     pump();
   };
 
-  if (serverConfig.driver === 'redis') {
+  if (serverConfig.driver === "redis") {
     try {
       driver = createRedisDriver({
         redis: serverConfig.redis,
         keyPrefix: serverConfig.redis.key_prefix || DEFAULTS.redis.key_prefix,
         visibilityTimeoutMs: serverConfig.visibility_timeout_ms,
         onReady,
-        logger: log()
+        logger: log(),
       });
       await driver.start();
       log().info(
-        `[queue] Redis driver started visibility_timeout_ms=${serverConfig.visibility_timeout_ms} fail_closed=${serverConfig.fail_closed}`
+        `[queue] Redis driver started visibility_timeout_ms=${serverConfig.visibility_timeout_ms} fail_closed=${serverConfig.fail_closed}`,
       );
     } catch (e) {
       driver = null;
       if (serverConfig.fail_closed !== false) {
         const err = new Error(
-          `[queue] Redis driver failed and fail_closed=true (no memory fallback): ${e.message}`
+          `[queue] Redis driver failed and fail_closed=true (no memory fallback): ${e.message}`,
         );
-        err.code = 'QUEUE_REDIS_FAIL_CLOSED';
+        err.code = "QUEUE_REDIS_FAIL_CLOSED";
         err.cause = e;
         log().error(err.message);
         throw err;
       }
       log().error(
-        `[queue] Redis driver failed (${e.message}); fail_closed=false — falling back to memory (NOT multi-node safe)`
+        `[queue] Redis driver failed (${e.message}); fail_closed=false — falling back to memory (NOT multi-node safe)`,
       );
       driver = createMemoryDriver({ onReady, logger: log() });
       await driver.start();
@@ -175,11 +185,11 @@ async function initServer(cfg, logger, globalConfig) {
   } else {
     driver = createMemoryDriver({ onReady, logger: log() });
     await driver.start();
-    log().info('[queue] Memory driver started (not durable across restarts)');
+    log().info("[queue] Memory driver started (not durable across restarts)");
   }
 
   log().info(
-    `[queue] enabled driver=${driver.name} concurrency=${serverConfig.concurrency} drain_ms=${serverConfig.shutdown_drain_ms}`
+    `[queue] enabled driver=${driver.name} concurrency=${serverConfig.concurrency} drain_ms=${serverConfig.shutdown_drain_ms}`,
   );
 }
 
@@ -202,7 +212,8 @@ function isEnabled() {
  */
 function resolveJobScript(app, jobName, scriptOverride) {
   const appQueue = (app.config && app.config.queue) || {};
-  const jobsMap = appQueue.jobs && typeof appQueue.jobs === 'object' ? appQueue.jobs : {};
+  const jobsMap =
+    appQueue.jobs && typeof appQueue.jobs === "object" ? appQueue.jobs : {};
   let rel =
     scriptOverride ||
     (jobsMap[jobName] && (jobsMap[jobName].script || jobsMap[jobName].path)) ||
@@ -210,12 +221,14 @@ function resolveJobScript(app, jobName, scriptOverride) {
 
   if (!rel) {
     // Sanitize job name for path segment
-    const safe = String(jobName).replace(/[^\w.-]/g, '_');
-    rel = path.join(serverConfig.jobs_dir || 'jobs', `${safe}.js`).replace(/\\/g, '/');
+    const safe = String(jobName).replace(/[^\w.-]/g, "_");
+    rel = path
+      .join(serverConfig.jobs_dir || "jobs", `${safe}.js`)
+      .replace(/\\/g, "/");
   }
 
-  rel = String(rel).replace(/\\/g, '/').replace(/^\/+/, '');
-  if (path.isAbsolute(rel) || rel.includes('\0') || rel.includes('..')) {
+  rel = String(rel).replace(/\\/g, "/").replace(/^\/+/, "");
+  if (path.isAbsolute(rel) || rel.includes("\0") || rel.includes("..")) {
     throw new Error(`Invalid job script path: ${rel}`);
   }
 
@@ -238,15 +251,17 @@ function resolveJobScript(app, jobName, scriptOverride) {
  */
 async function addJob(app, name, payload, options = {}) {
   if (!isEnabled()) {
-    throw new Error('Queue is disabled on this server (queue.enabled is false).');
+    throw new Error(
+      "Queue is disabled on this server (queue.enabled is false).",
+    );
   }
-  if (!app || !app.name) throw new Error('queue.add requires an app context.');
+  if (!app || !app.name) throw new Error("queue.add requires an app context.");
   if (app.in_maintenance) {
     throw new Error(`App '${app.name}' is in maintenance; cannot enqueue.`);
   }
 
-  const jobName = String(name || '').trim();
-  if (!jobName) throw new Error('queue.add requires a job name.');
+  const jobName = String(name || "").trim();
+  if (!jobName) throw new Error("queue.add requires a job name.");
 
   const { relative } = resolveJobScript(app, jobName, options.script);
 
@@ -258,7 +273,8 @@ async function addJob(app, name, payload, options = {}) {
     options.backoffMs != null
       ? positiveInt(options.backoffMs, serverConfig.default_backoff_ms)
       : serverConfig.default_backoff_ms;
-  const delayMs = options.delayMs != null ? Math.max(0, Number(options.delayMs) || 0) : 0;
+  const delayMs =
+    options.delayMs != null ? Math.max(0, Number(options.delayMs) || 0) : 0;
 
   const result = await driver.enqueue({
     appName: app.name,
@@ -268,17 +284,20 @@ async function addJob(app, name, payload, options = {}) {
     attempt: 1,
     maxAttempts,
     backoffMs,
-    delayMs
+    delayMs,
   });
 
   try {
-    metrics.inc('gingee_queue_jobs_enqueued_total', { app: app.name, job: jobName });
+    metrics.inc("gingee_queue_jobs_enqueued_total", {
+      app: app.name,
+      job: jobName,
+    });
   } catch (_) {
     /* ignore */
   }
 
   log().info(
-    `[queue] Enqueued job '${jobName}' id=${result.id} app=${app.name} delayMs=${delayMs}`
+    `[queue] Enqueued job '${jobName}' id=${result.id} app=${app.name} delayMs=${delayMs}`,
   );
   return result;
 }
@@ -296,9 +315,9 @@ async function runPump() {
       inFlight++;
       activeJobs.set(job.id, {
         ...job,
-        state: 'running',
-        scope: 'node',
-        startedAt: Date.now()
+        state: "running",
+        scope: "node",
+        startedAt: Date.now(),
       });
       processOne(job)
         .catch((e) => log().error(`[queue] process error: ${e.message}`))
@@ -321,7 +340,7 @@ async function runPump() {
  */
 async function processOne(job) {
   // Refresh redis visibility lease for long-running handlers
-  if (driver && typeof driver.extendVisibility === 'function') {
+  if (driver && typeof driver.extendVisibility === "function") {
     try {
       await driver.extendVisibility(job.id);
     } catch (e) {
@@ -341,14 +360,16 @@ async function processOne(job) {
   }
 
   if (app.in_maintenance) {
-    log().warn(`[queue] App '${app.name}' in maintenance; delaying job ${job.id}`);
+    log().warn(
+      `[queue] App '${app.name}' in maintenance; delaying job ${job.id}`,
+    );
     try {
       // Same attempt; short delay until app is out of maintenance
       // enqueue clears processing claim and re-schedules
       await driver.enqueue({
         ...job,
         delayMs: 2000,
-        attempt: job.attempt || 1
+        attempt: job.attempt || 1,
       });
     } catch (e) {
       log().error(`[queue] re-queue failed: ${e.message}`);
@@ -357,13 +378,16 @@ async function processOne(job) {
   }
 
   const perms = app.grantedPermissions || [];
-  if (!perms.includes('queue')) {
+  if (!perms.includes("queue")) {
     log().error(
-      `[queue] App '${app.name}' lost queue permission; failing job ${job.id}`
+      `[queue] App '${app.name}' lost queue permission; failing job ${job.id}`,
     );
     try {
       await driver.fail(job.id);
-      metrics.inc('gingee_queue_jobs_failed_total', { app: app.name, job: job.name });
+      metrics.inc("gingee_queue_jobs_failed_total", {
+        app: app.name,
+        job: job.name,
+      });
     } catch (_) {
       /* ignore */
     }
@@ -384,13 +408,13 @@ async function processOne(job) {
     appName: app.name,
     app,
     appBoxPath: app.appBoxPath,
-    globalModulesPath: path.join(engineRoot, 'modules'),
+    globalModulesPath: path.join(engineRoot, "modules"),
     allowedBuiltinModules: (cfg.box && cfg.box.allowed_modules) || [],
     privilegedApps: cfg.privileged_apps || [],
     useCache: true,
     logger: app.logger || log(),
     globalConfig: cfg,
-    allowDynamicCode: resolveAllowDynamicCodeForApp(cfg.box, app.config)
+    allowDynamicCode: resolveAllowDynamicCodeForApp(cfg.box, app.config),
   };
 
   const started = Date.now();
@@ -409,36 +433,41 @@ async function processOne(job) {
           name: job.name,
           payload: job.payload,
           attempt: job.attempt || 1,
-          maxAttempts: job.maxAttempts || serverConfig.default_attempts
+          maxAttempts: job.maxAttempts || serverConfig.default_attempts,
         },
-        queuePayload: job.payload
+        queuePayload: job.payload,
       },
       async () => {
         const mod = runInGBox(scriptAbs, gBoxConfig);
-        if (typeof mod !== 'function') {
-          throw new Error(`Job script ${job.script} did not export a function.`);
+        if (typeof mod !== "function") {
+          throw new Error(
+            `Job script ${job.script} did not export a function.`,
+          );
         }
         await mod();
-      }
+      },
     );
 
     await driver.complete(job.id);
     try {
-      metrics.inc('gingee_queue_jobs_completed_total', { app: app.name, job: job.name });
+      metrics.inc("gingee_queue_jobs_completed_total", {
+        app: app.name,
+        job: job.name,
+      });
       metrics.observe(
-        'gingee_queue_job_duration_seconds',
+        "gingee_queue_job_duration_seconds",
         { app: app.name, job: job.name },
-        (Date.now() - started) / 1000
+        (Date.now() - started) / 1000,
       );
     } catch (_) {
       /* ignore */
     }
     log().info(
-      `[queue] Job '${job.name}' id=${job.id} app=${app.name} completed (attempt ${job.attempt})`
+      `[queue] Job '${job.name}' id=${job.id} app=${app.name} completed (attempt ${job.attempt})`,
     );
   } catch (err) {
     log().error(
-      `[queue] Job '${job.name}' id=${job.id} app=${app.name} failed: ${err.message}`
+      `[queue] Job '${job.name}' id=${job.id} app=${app.name} failed: ${err.message}`,
     );
     await failOrRetry(job, err);
   }
@@ -454,12 +483,12 @@ async function failOrRetry(job, err) {
   if (attempt < max) {
     try {
       await driver.retry(job);
-      metrics.inc('gingee_queue_jobs_retried_total', {
+      metrics.inc("gingee_queue_jobs_retried_total", {
         app: job.appName,
-        job: job.name
+        job: job.name,
       });
       log().info(
-        `[queue] Retrying job '${job.name}' id=${job.id} attempt ${attempt + 1}/${max}`
+        `[queue] Retrying job '${job.name}' id=${job.id} attempt ${attempt + 1}/${max}`,
       );
     } catch (e) {
       log().error(`[queue] retry enqueue failed: ${e.message}`);
@@ -472,15 +501,15 @@ async function failOrRetry(job, err) {
   } else {
     try {
       await moveToDlq(job, err);
-      metrics.inc('gingee_queue_jobs_failed_total', {
+      metrics.inc("gingee_queue_jobs_failed_total", {
         app: job.appName,
-        job: job.name
+        job: job.name,
       });
     } catch (_) {
       /* ignore */
     }
     log().error(
-      `[queue] Job '${job.name}' id=${job.id} permanently failed after ${attempt} attempt(s): ${err.message}`
+      `[queue] Job '${job.name}' id=${job.id} permanently failed after ${attempt} attempt(s): ${err.message}`,
     );
   }
 }
@@ -491,13 +520,16 @@ async function failOrRetry(job, err) {
  */
 async function moveToDlq(job, err) {
   if (!driver) return;
-  if (typeof driver.deadLetter === 'function') {
+  if (typeof driver.deadLetter === "function") {
     await driver.deadLetter(job, err);
-  } else if (typeof driver.fail === 'function') {
+  } else if (typeof driver.fail === "function") {
     await driver.fail(job.id);
   }
   try {
-    metrics.inc('gingee_queue_dlq_total', { app: job.appName || 'unknown', job: job.name || 'unknown' });
+    metrics.inc("gingee_queue_dlq_total", {
+      app: job.appName || "unknown",
+      job: job.name || "unknown",
+    });
   } catch (_) {
     /* ignore */
   }
@@ -511,7 +543,7 @@ async function moveToDlq(job, err) {
 async function getAdminStats() {
   const base = getStats();
   let dlqCount = 0;
-  if (driver && typeof driver.dlqSize === 'function') {
+  if (driver && typeof driver.dlqSize === "function") {
     try {
       dlqCount = await driver.dlqSize();
     } catch (_) {
@@ -521,7 +553,7 @@ async function getAdminStats() {
   let pending = null;
   let delayed = null;
   let processingCount = null;
-  if (driver && typeof driver.pendingCounts === 'function') {
+  if (driver && typeof driver.pendingCounts === "function") {
     try {
       const c = await driver.pendingCounts();
       pending = c.pending;
@@ -543,7 +575,7 @@ async function getAdminStats() {
     visibility_timeout_ms: serverConfig.visibility_timeout_ms,
     shutdown_drain_ms: serverConfig.shutdown_drain_ms,
     default_attempts: serverConfig.default_attempts,
-    default_backoff_ms: serverConfig.default_backoff_ms
+    default_backoff_ms: serverConfig.default_backoff_ms,
   };
 }
 
@@ -555,7 +587,8 @@ async function getAdminStats() {
  * @returns {Promise<object[]>}
  */
 async function listLiveJobs(opts = {}) {
-  const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+  const limit =
+    opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
   const appFilter =
     opts.appName != null && String(opts.appName).trim()
       ? String(opts.appName).trim()
@@ -581,18 +614,18 @@ async function listLiveJobs(opts = {}) {
   for (const job of waitQueue) {
     push({
       ...job,
-      state: 'waiting',
-      scope: 'node'
+      state: "waiting",
+      scope: "node",
     });
     if (out.length >= limit) return out;
   }
 
   // 3) Driver pending / delayed (memory local or redis shared)
-  if (driver && typeof driver.listPending === 'function') {
+  if (driver && typeof driver.listPending === "function") {
     try {
       const pending = await driver.listPending({
         appName: appFilter || undefined,
-        limit: limit
+        limit: limit,
       });
       for (const job of pending) {
         push(job);
@@ -613,7 +646,7 @@ async function listLiveJobs(opts = {}) {
  * @returns {Promise<object[]>}
  */
 async function listDlq(opts = {}) {
-  if (!driver || typeof driver.listDlq !== 'function') return [];
+  if (!driver || typeof driver.listDlq !== "function") return [];
   return driver.listDlq(opts);
 }
 
@@ -622,7 +655,7 @@ async function listDlq(opts = {}) {
  * @returns {Promise<object|null>}
  */
 async function getDlqJob(jobId) {
-  if (!driver || typeof driver.getDlqJob !== 'function') return null;
+  if (!driver || typeof driver.getDlqJob !== "function") return null;
   return driver.getDlqJob(jobId);
 }
 
@@ -633,24 +666,28 @@ async function getDlqJob(jobId) {
  */
 async function retryDlqJob(jobId) {
   if (!isEnabled() || !driver) {
-    throw new Error('Queue is disabled or not started.');
+    throw new Error("Queue is disabled or not started.");
   }
-  if (typeof driver.retryDlq !== 'function') {
-    throw new Error('Queue driver does not support DLQ retry.');
+  if (typeof driver.retryDlq !== "function") {
+    throw new Error("Queue driver does not support DLQ retry.");
   }
   // Fresh attempt budget so admin retry is useful even if original maxAttempts was 1
   const result = await driver.retryDlq(jobId, {
-    maxAttempts: serverConfig.default_attempts || 3
+    maxAttempts: serverConfig.default_attempts || 3,
   });
   if (!result) {
     throw new Error(`DLQ job not found: ${jobId}`);
   }
   try {
-    metrics.inc('gingee_queue_dlq_retry_total', { app: result.appName || 'unknown' });
+    metrics.inc("gingee_queue_dlq_retry_total", {
+      app: result.appName || "unknown",
+    });
   } catch (_) {
     /* ignore */
   }
-  log().info(`[queue] DLQ retry id=${jobId} app=${result.appName} job=${result.name}`);
+  log().info(
+    `[queue] DLQ retry id=${jobId} app=${result.appName} job=${result.name}`,
+  );
   return result;
 }
 
@@ -660,13 +697,13 @@ async function retryDlqJob(jobId) {
  * @returns {Promise<boolean>}
  */
 async function discardDlqJob(jobId) {
-  if (!driver || typeof driver.discardDlq !== 'function') {
-    throw new Error('Queue driver does not support DLQ discard.');
+  if (!driver || typeof driver.discardDlq !== "function") {
+    throw new Error("Queue driver does not support DLQ discard.");
   }
   const ok = await driver.discardDlq(jobId);
   if (ok) {
     try {
-      metrics.inc('gingee_queue_dlq_discard_total', {});
+      metrics.inc("gingee_queue_dlq_discard_total", {});
     } catch (_) {
       /* ignore */
     }
@@ -697,7 +734,7 @@ async function shutdown(opts = {}) {
   const force = opts.force === true;
 
   // 1) Stop new claims
-  if (driver && typeof driver.stopConsuming === 'function') {
+  if (driver && typeof driver.stopConsuming === "function") {
     try {
       await driver.stopConsuming();
     } catch (e) {
@@ -709,24 +746,28 @@ async function shutdown(opts = {}) {
   const pendingLocal = waitQueue.splice(0, waitQueue.length);
   for (const job of pendingLocal) {
     try {
-      if (driver && typeof driver.releaseClaim === 'function') {
+      if (driver && typeof driver.releaseClaim === "function") {
         await driver.releaseClaim(job);
       }
     } catch (e) {
-      log().error(`[queue] releaseClaim waitQueue id=${job && job.id}: ${e.message}`);
+      log().error(
+        `[queue] releaseClaim waitQueue id=${job && job.id}: ${e.message}`,
+      );
     }
   }
 
   // 3) Wait for in-flight handlers
   if (!force && drainMs > 0 && inFlight > 0) {
-    log().info(`[queue] Draining ${inFlight} in-flight job(s) (max ${drainMs}ms)...`);
+    log().info(
+      `[queue] Draining ${inFlight} in-flight job(s) (max ${drainMs}ms)...`,
+    );
     const start = Date.now();
     while (inFlight > 0 && Date.now() - start < drainMs) {
       await new Promise((r) => setTimeout(r, 25));
     }
     if (inFlight > 0) {
       log().warn(
-        `[queue] Drain timeout with ${inFlight} job(s) still running; releasing claims`
+        `[queue] Drain timeout with ${inFlight} job(s) still running; releasing claims`,
       );
     }
   }
@@ -735,11 +776,13 @@ async function shutdown(opts = {}) {
   const stillActive = [...activeJobs.values()];
   for (const job of stillActive) {
     try {
-      if (driver && typeof driver.releaseClaim === 'function') {
+      if (driver && typeof driver.releaseClaim === "function") {
         await driver.releaseClaim(job);
       }
     } catch (e) {
-      log().error(`[queue] releaseClaim active id=${job && job.id}: ${e.message}`);
+      log().error(
+        `[queue] releaseClaim active id=${job && job.id}: ${e.message}`,
+      );
     }
   }
   activeJobs.clear();
@@ -767,7 +810,7 @@ function getStats() {
     driver: driver ? driver.name : null,
     inFlight,
     waiting: waitQueue.length,
-    concurrency: serverConfig.concurrency
+    concurrency: serverConfig.concurrency,
   };
 }
 
@@ -789,5 +832,5 @@ module.exports = {
   /** test helper: process without delay */
   _processOne: processOne,
   _getDriver: () => driver,
-  _setAppsRegistry: setAppsRegistry
+  _setAppsRegistry: setAppsRegistry,
 };

@@ -1,5 +1,5 @@
 // This module wraps the 'form-data' library to provide a simple factory function.
-const FormData = require('form-data');
+const FormData = require("form-data");
 
 /**
  * @module formdata
@@ -27,9 +27,9 @@ const FormData = require('form-data');
  * const headers = form.getHeaders();
  */
 function create() {
-    return new FormData();
+  return new FormData();
 }
 
 module.exports = {
-    create
+  create,
 };

@@ -14,7 +14,7 @@
 const DEFAULTS = {
   maxAttempts: 5,
   windowSec: 900,
-  lockoutSec: 900
+  lockoutSec: 900,
 };
 
 /**
@@ -22,10 +22,25 @@ const DEFAULTS = {
  * @returns {{ maxAttempts: number, windowSec: number, lockoutSec: number }}
  */
 function resolveConfig(appEnv) {
-  const env = appEnv && typeof appEnv === 'object' ? appEnv : {};
-  const maxAttempts = clampInt(env.LOGIN_MAX_ATTEMPTS, DEFAULTS.maxAttempts, 1, 100);
-  const windowSec = clampInt(env.LOGIN_WINDOW_SEC, DEFAULTS.windowSec, 30, 86400);
-  const lockoutSec = clampInt(env.LOGIN_LOCKOUT_SEC, DEFAULTS.lockoutSec, 30, 86400);
+  const env = appEnv && typeof appEnv === "object" ? appEnv : {};
+  const maxAttempts = clampInt(
+    env.LOGIN_MAX_ATTEMPTS,
+    DEFAULTS.maxAttempts,
+    1,
+    100,
+  );
+  const windowSec = clampInt(
+    env.LOGIN_WINDOW_SEC,
+    DEFAULTS.windowSec,
+    30,
+    86400,
+  );
+  const lockoutSec = clampInt(
+    env.LOGIN_LOCKOUT_SEC,
+    DEFAULTS.lockoutSec,
+    30,
+    86400,
+  );
   return { maxAttempts, windowSec, lockoutSec };
 }
 
@@ -47,22 +62,21 @@ function clampInt(raw, fallback, min, max) {
  * @returns {string}
  */
 function clientIp(request, nodeReq) {
-  const headers = (request && request.headers) || (nodeReq && nodeReq.headers) || {};
-  const xf = headers['x-forwarded-for'] || headers['X-Forwarded-For'];
+  const headers =
+    (request && request.headers) || (nodeReq && nodeReq.headers) || {};
+  const xf = headers["x-forwarded-for"] || headers["X-Forwarded-For"];
   if (xf) {
-    const first = String(xf).split(',')[0].trim();
+    const first = String(xf).split(",")[0].trim();
     if (first) return first.slice(0, 128);
   }
-  const real = headers['x-real-ip'] || headers['X-Real-IP'];
+  const real = headers["x-real-ip"] || headers["X-Real-IP"];
   if (real && String(real).trim()) return String(real).trim().slice(0, 128);
 
-  const sock =
-    (nodeReq && (nodeReq.socket || nodeReq.connection)) ||
-    null;
+  const sock = (nodeReq && (nodeReq.socket || nodeReq.connection)) || null;
   if (sock && sock.remoteAddress) {
     return String(sock.remoteAddress).slice(0, 128);
   }
-  return 'unknown';
+  return "unknown";
 }
 
 /**
@@ -71,17 +85,21 @@ function clientIp(request, nodeReq) {
  * @returns {string}
  */
 function normalizeUsername(username) {
-  return String(username || '')
-    .trim()
-    .toLowerCase()
-    .slice(0, 64) || 'empty';
+  return (
+    String(username || "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 64) || "empty"
+  );
 }
 
 /**
  * @private
  */
 function safeKeyPart(s) {
-  return String(s || 'x').replace(/[^a-zA-Z0-9_.:@-]/g, '_').slice(0, 128);
+  return String(s || "x")
+    .replace(/[^a-zA-Z0-9_.:@-]/g, "_")
+    .slice(0, 128);
 }
 
 /**
@@ -121,7 +139,7 @@ function lockKeyUser(user) {
  * @returns {number} seconds remaining (min 1 if locked)
  */
 function remainingLockSec(lockVal) {
-  if (!lockVal || typeof lockVal !== 'object') return 0;
+  if (!lockVal || typeof lockVal !== "object") return 0;
   const until = Number(lockVal.until);
   if (!Number.isFinite(until)) return 0;
   const sec = Math.ceil((until - Date.now()) / 1000);
@@ -137,10 +155,13 @@ function remainingLockSec(lockVal) {
  * @returns {Promise<{ ok: true } | { ok: false, reason: string, retryAfterSec: number, message: string }>}
  */
 async function assertLoginAllowed(cache, identity, config) {
-  const ip = identity.ip || 'unknown';
+  const ip = identity.ip || "unknown";
   const user = normalizeUsername(identity.username);
 
-  const locks = await Promise.all([cache.get(lockKeyIp(ip)), cache.get(lockKeyUser(user))]);
+  const locks = await Promise.all([
+    cache.get(lockKeyIp(ip)),
+    cache.get(lockKeyUser(user)),
+  ]);
   let retryAfter = 0;
   for (const lock of locks) {
     const rem = remainingLockSec(lock);
@@ -149,9 +170,9 @@ async function assertLoginAllowed(cache, identity, config) {
   if (retryAfter > 0) {
     return {
       ok: false,
-      reason: 'LOGIN_RATE_LIMITED',
+      reason: "LOGIN_RATE_LIMITED",
       retryAfterSec: retryAfter,
-      message: `Too many failed login attempts. Try again in ${retryAfter} seconds.`
+      message: `Too many failed login attempts. Try again in ${retryAfter} seconds.`,
     };
   }
   return { ok: true };
@@ -166,13 +187,13 @@ async function assertLoginAllowed(cache, identity, config) {
  * @returns {Promise<{ locked: boolean, attemptsIp: number, attemptsUser: number, retryAfterSec: number }>}
  */
 async function recordFailure(cache, identity, config) {
-  const ip = identity.ip || 'unknown';
+  const ip = identity.ip || "unknown";
   const user = normalizeUsername(identity.username);
   const cfg = config || DEFAULTS;
 
   const [ipCount, userCount] = await Promise.all([
     bumpCounter(cache, failKeyIp(ip), cfg.windowSec),
-    bumpCounter(cache, failKeyUser(user), cfg.windowSec)
+    bumpCounter(cache, failKeyUser(user), cfg.windowSec),
   ]);
 
   let locked = false;
@@ -195,7 +216,7 @@ async function recordFailure(cache, identity, config) {
     locked,
     attemptsIp: ipCount,
     attemptsUser: userCount,
-    retryAfterSec
+    retryAfterSec,
   };
 }
 
@@ -205,13 +226,13 @@ async function recordFailure(cache, identity, config) {
  * @param {{ ip: string, username: string }} identity
  */
 async function clearFailures(cache, identity) {
-  const ip = identity.ip || 'unknown';
+  const ip = identity.ip || "unknown";
   const user = normalizeUsername(identity.username);
   await Promise.all([
     cache.del(failKeyIp(ip)),
     cache.del(failKeyUser(user)),
     cache.del(lockKeyIp(ip)),
-    cache.del(lockKeyUser(user))
+    cache.del(lockKeyUser(user)),
   ]);
 }
 
@@ -226,8 +247,9 @@ async function bumpCounter(cache, key, ttlSec) {
   let n = 0;
   try {
     const cur = await cache.get(key);
-    if (typeof cur === 'number' && Number.isFinite(cur)) n = cur;
-    else if (cur && typeof cur === 'object' && Number.isFinite(Number(cur.n))) n = Number(cur.n);
+    if (typeof cur === "number" && Number.isFinite(cur)) n = cur;
+    else if (cur && typeof cur === "object" && Number.isFinite(Number(cur.n)))
+      n = Number(cur.n);
     else if (cur != null && Number.isFinite(Number(cur))) n = Number(cur);
   } catch (_) {
     n = 0;
@@ -251,5 +273,5 @@ module.exports = {
   failKeyUser,
   lockKeyIp,
   lockKeyUser,
-  remainingLockSec
+  remainingLockSec,
 };

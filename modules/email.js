@@ -1,5 +1,5 @@
-const { getContext } = require('./gingee.js');
-const secrets = require('./secrets.js');
+const { getContext } = require("./gingee.js");
+const secrets = require("./secrets.js");
 
 /**
  * @module email
@@ -29,7 +29,7 @@ let serverEmailConfig = null;
 function mergeEmailConfig(...parts) {
   const out = {};
   for (const part of parts) {
-    if (part && typeof part === 'object' && !Array.isArray(part)) {
+    if (part && typeof part === "object" && !Array.isArray(part)) {
       Object.assign(out, part);
     }
   }
@@ -43,14 +43,14 @@ function mergeEmailConfig(...parts) {
 function normalizeType(type) {
   if (!type) return null;
   const t = String(type).toLowerCase();
-  if (t === 'log' || t === 'logger' || t === 'dev') return 'console';
+  if (t === "log" || t === "logger" || t === "dev") return "console";
   return t;
 }
 
 // Static requires so bundlers/tests resolve the same modules (dynamic path.join require bypasses Jest mocks).
 const PROVIDERS = {
-  console: require('./email_providers/console.js'),
-  sendgrid: require('./email_providers/sendgrid.js')
+  console: require("./email_providers/console.js"),
+  sendgrid: require("./email_providers/sendgrid.js"),
 };
 
 /**
@@ -60,12 +60,16 @@ const PROVIDERS = {
 function createAdapter(config, app, logger) {
   const type = normalizeType(config && config.type);
   if (!type) {
-    throw new Error("Email config is missing 'type' (e.g. 'sendgrid' or 'console').");
+    throw new Error(
+      "Email config is missing 'type' (e.g. 'sendgrid' or 'console').",
+    );
   }
 
   const AdapterClass = PROVIDERS[type];
   if (!AdapterClass) {
-    throw new Error(`Unknown email provider '${type}'. Supported: ${Object.keys(PROVIDERS).join(', ')}`);
+    throw new Error(
+      `Unknown email provider '${type}'. Supported: ${Object.keys(PROVIDERS).join(", ")}`,
+    );
   }
 
   return new AdapterClass(config, app, logger);
@@ -76,15 +80,15 @@ function createAdapter(config, app, logger) {
  * @private
  */
 function normalizeMessage(message) {
-  if (!message || typeof message !== 'object') {
-    throw new Error('email.send requires a message object.');
+  if (!message || typeof message !== "object") {
+    throw new Error("email.send requires a message object.");
   }
 
   const to = message.to;
   if (!to || (Array.isArray(to) && to.length === 0)) {
     throw new Error("Email message requires a 'to' address.");
   }
-  if (!message.subject || String(message.subject).trim() === '') {
+  if (!message.subject || String(message.subject).trim() === "") {
     throw new Error("Email message requires a 'subject'.");
   }
   if (!message.text && !message.html) {
@@ -101,7 +105,7 @@ function normalizeMessage(message) {
     cc: message.cc,
     bcc: message.bcc,
     replyTo: message.replyTo || message.reply_to,
-    attachments: message.attachments
+    attachments: message.attachments,
   };
 }
 
@@ -112,13 +116,19 @@ function normalizeMessage(message) {
  */
 function initServer(emailConfig, logger) {
   serverEmailConfig =
-    emailConfig && typeof emailConfig === 'object' && !Array.isArray(emailConfig)
+    emailConfig &&
+    typeof emailConfig === "object" &&
+    !Array.isArray(emailConfig)
       ? { ...emailConfig }
       : null;
   if (serverEmailConfig && serverEmailConfig.type) {
-    logger.info(`[email] Server default email provider: '${normalizeType(serverEmailConfig.type)}'`);
+    logger.info(
+      `[email] Server default email provider: '${normalizeType(serverEmailConfig.type)}'`,
+    );
   } else {
-    logger.info('[email] No server-level email config; apps may set app.json email or use sendWithConfig.');
+    logger.info(
+      "[email] No server-level email config; apps may set app.json email or use sendWithConfig.",
+    );
   }
 }
 
@@ -128,11 +138,14 @@ function initServer(emailConfig, logger) {
  */
 function initApp(app, logger) {
   if (!app || !app.name) {
-    throw new Error('email.initApp requires an app with a name.');
+    throw new Error("email.initApp requires an app with a name.");
   }
 
   const appConfig =
-    app.config && app.config.email && typeof app.config.email === 'object' && !Array.isArray(app.config.email)
+    app.config &&
+    app.config.email &&
+    typeof app.config.email === "object" &&
+    !Array.isArray(app.config.email)
       ? app.config.email
       : null;
 
@@ -140,17 +153,23 @@ function initApp(app, logger) {
   if (!merged.type) {
     // No email configured for this app — that is OK until send() is called.
     emailInstances.delete(app.name);
-    logger.info(`[email] App '${app.name}' has no email type configured (server or app.json).`);
+    logger.info(
+      `[email] App '${app.name}' has no email type configured (server or app.json).`,
+    );
     return;
   }
 
   try {
     const adapter = createAdapter(merged, app, logger);
     emailInstances.set(app.name, { adapter, config: merged });
-    logger.info(`[email] Initialized email for app '${app.name}' with provider '${normalizeType(merged.type)}'`);
+    logger.info(
+      `[email] Initialized email for app '${app.name}' with provider '${normalizeType(merged.type)}'`,
+    );
   } catch (e) {
     emailInstances.delete(app.name);
-    logger.error(`[email] Failed to init email for app '${app.name}': ${e.message}`);
+    logger.error(
+      `[email] Failed to init email for app '${app.name}': ${e.message}`,
+    );
     throw e;
   }
 }
@@ -162,11 +181,14 @@ async function shutdownApp(appName, logger) {
   const entry = emailInstances.get(appName);
   if (!entry) return;
   try {
-    if (entry.adapter && typeof entry.adapter.shutdown === 'function') {
+    if (entry.adapter && typeof entry.adapter.shutdown === "function") {
       await entry.adapter.shutdown();
     }
   } catch (err) {
-    if (logger) logger.error(`[email] Error shutting down email for '${appName}': ${err.message}`);
+    if (logger)
+      logger.error(
+        `[email] Error shutting down email for '${appName}': ${err.message}`,
+      );
   }
   emailInstances.delete(appName);
 }
@@ -184,7 +206,7 @@ async function reinitApp(appName, app, logger) {
  */
 function _getAppEntry() {
   const { appName, app, logger } = getContext();
-  if (!appName) throw new Error('Email module cannot determine app context.');
+  if (!appName) throw new Error("Email module cannot determine app context.");
   return { appName, app, logger, entry: emailInstances.get(appName) };
 }
 
@@ -217,7 +239,7 @@ async function send(message) {
   const { appName, entry } = _getAppEntry();
   if (!entry || !entry.adapter) {
     throw new Error(
-      `No email configuration for app '${appName}'. Set email in app.json or gingee.json, or use email.sendWithConfig().`
+      `No email configuration for app '${appName}'. Set email in app.json or gingee.json, or use email.sendWithConfig().`,
     );
   }
   const normalized = normalizeMessage(message);
@@ -241,24 +263,39 @@ async function send(message) {
  */
 async function sendWithConfig(configOverride, message) {
   const { appName, app, logger, entry } = _getAppEntry();
-  if (!configOverride || typeof configOverride !== 'object' || Array.isArray(configOverride)) {
-    throw new Error('email.sendWithConfig requires a config object as the first argument.');
+  if (
+    !configOverride ||
+    typeof configOverride !== "object" ||
+    Array.isArray(configOverride)
+  ) {
+    throw new Error(
+      "email.sendWithConfig requires a config object as the first argument.",
+    );
   }
 
-  const baseConfig = (entry && entry.config) || mergeEmailConfig(serverEmailConfig, app && app.config && app.config.email);
+  const baseConfig =
+    (entry && entry.config) ||
+    mergeEmailConfig(serverEmailConfig, app && app.config && app.config.email);
   // Allow env:/file: refs in runtime overrides (resolved by engine, not app process.env access).
-  const effective = mergeEmailConfig(baseConfig, secrets.resolveDeep(configOverride));
+  const effective = mergeEmailConfig(
+    baseConfig,
+    secrets.resolveDeep(configOverride),
+  );
 
   if (!normalizeType(effective.type)) {
     throw new Error("email.sendWithConfig: resolved config has no 'type'.");
   }
 
-  const adapter = createAdapter(effective, app || { name: appName }, logger || console);
+  const adapter = createAdapter(
+    effective,
+    app || { name: appName },
+    logger || console,
+  );
   const normalized = normalizeMessage(message);
   try {
     return await adapter.send(normalized);
   } finally {
-    if (typeof adapter.shutdown === 'function') {
+    if (typeof adapter.shutdown === "function") {
       try {
         await adapter.shutdown();
       } catch (_) {
@@ -287,5 +324,5 @@ module.exports = {
   _resetForTests: () => {
     emailInstances.clear();
     serverEmailConfig = null;
-  }
+  },
 };

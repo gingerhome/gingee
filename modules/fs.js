@@ -1,7 +1,7 @@
-const nodeFs = require('fs');
-const nodeFsPromises = require('fs/promises');
-const path = require('path');
-const { SCOPES, resolveSecurePath } = require('./internal_utils.js');
+const nodeFs = require("fs");
+const nodeFsPromises = require("fs/promises");
+const path = require("path");
+const { SCOPES, resolveSecurePath } = require("./internal_utils.js");
 
 /**
  * @module fs
@@ -106,7 +106,11 @@ function writeJSONSync(scope, filePath, data, options) {
   const absolutePath = resolveSecurePath(scope, filePath);
   const dir = path.dirname(absolutePath);
   nodeFs.mkdirSync(dir, { recursive: true });
-  return nodeFs.writeFileSync(absolutePath, JSON.stringify(data, null, 2), options);
+  return nodeFs.writeFileSync(
+    absolutePath,
+    JSON.stringify(data, null, 2),
+    options,
+  );
 }
 
 /**
@@ -218,7 +222,7 @@ function mkdirSync(scope, dirPath) {
  * @description Synchronously removes a directory.
  * @param {string} scope - The scope to operate in (fs.BOX or fs.WEB).
  * @param {string} dirPath - The path to the directory, relative to the scope or script.
- * @param {object} [options] - Options for the removal. 
+ * @param {object} [options] - Options for the removal.
  *  - `recursive`: If true, removes the directory and its contents recursively.
  * @returns {void}
  * @throws {Error} If the directory is not empty and `recursive` is false.
@@ -266,7 +270,9 @@ function copyDirSync(sourceScope, sourcePath, destScope, destPath) {
   const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
   const destAbsolutePath = resolveSecurePath(destScope, destPath);
   // fs.cpSync handles directory creation and recursive copying.
-  return nodeFs.cpSync(sourceAbsolutePath, destAbsolutePath, { recursive: true });
+  return nodeFs.cpSync(sourceAbsolutePath, destAbsolutePath, {
+    recursive: true,
+  });
 }
 
 //ASync FS Wrapper functions
@@ -396,16 +402,20 @@ async function deleteFile(scope, filePath) {
  */
 async function moveFile(sourceScope, sourcePath, destScope, destPath) {
   if (sourceScope !== destScope) {
-    throw new Error("Security Error: rename/move operations must be within the same scope (BOX to BOX, or WEB to WEB).");
+    throw new Error(
+      "Security Error: rename/move operations must be within the same scope (BOX to BOX, or WEB to WEB).",
+    );
   }
 
   // Check if the source file exists
-  if (!await exists(sourceScope, sourcePath)) {
+  if (!(await exists(sourceScope, sourcePath))) {
     throw new Error(`Source file ${sourcePath} does not exist.`);
   }
   const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
   const destAbsolutePath = resolveSecurePath(destScope, destPath);
-  await nodeFsPromises.mkdir(path.dirname(destAbsolutePath), { recursive: true });
+  await nodeFsPromises.mkdir(path.dirname(destAbsolutePath), {
+    recursive: true,
+  });
   return nodeFsPromises.rename(sourceAbsolutePath, destAbsolutePath);
 }
 
@@ -426,13 +436,15 @@ async function moveFile(sourceScope, sourcePath, destScope, destPath) {
  */
 async function copyFile(sourceScope, sourcePath, destScope, destPath) {
   // Check if the source file exists
-  if (!await exists(sourceScope, sourcePath)) {
+  if (!(await exists(sourceScope, sourcePath))) {
     throw new Error(`Source file ${sourcePath} does not exist.`);
   }
 
   const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
   const destAbsolutePath = resolveSecurePath(destScope, destPath);
-  await nodeFsPromises.mkdir(path.dirname(destAbsolutePath), { recursive: true });
+  await nodeFsPromises.mkdir(path.dirname(destAbsolutePath), {
+    recursive: true,
+  });
   return nodeFsPromises.copyFile(sourceAbsolutePath, destAbsolutePath);
 }
 
@@ -512,7 +524,9 @@ const moveDir = moveFile; // Alias for consistency with moveFile
 async function copyDir(sourceScope, sourcePath, destScope, destPath) {
   const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
   const destAbsolutePath = resolveSecurePath(destScope, destPath);
-  return nodeFsPromises.cp(sourceAbsolutePath, destAbsolutePath, { recursive: true });
+  return nodeFsPromises.cp(sourceAbsolutePath, destAbsolutePath, {
+    recursive: true,
+  });
 }
 
 module.exports = {
@@ -557,6 +571,5 @@ module.exports = {
   mkdir,
   rmdir,
   moveDir,
-  copyDir
+  copyDir,
 };
-

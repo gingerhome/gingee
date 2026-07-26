@@ -1,4 +1,3 @@
-
 # Glade: The Gingee Admin Panel
 
 Glade is the official, web-based administration panel that is bundled with every Gingee server. It provides a simple, secure, and powerful user interface for managing the entire lifecycle of all applications running on your server instance.
@@ -12,12 +11,13 @@ When you create a new Gingee project using the `gingee-cli init` command, the Gl
 1.  **Initial Credentials:** During the `init` wizard, you are prompted for an administrator username and password. The CLI securely hashes the password using Argon2 and stores these credentials inside Glade's configuration file.
 
 2.  **Configuration File:** The credentials are saved in `web/glade/box/app.json`:
+
     ```json
     {
       "name": "glade",
       "env": {
         "ADMIN_USERNAME": "admin",
-        "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=..." 
+        "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=..."
       }
     }
     ```
@@ -28,11 +28,11 @@ When you create a new Gingee project using the `gingee-cli init` command, the Gl
 
 Failed logins are rate-limited using the server **cache** (memory or Redis), keyed by **client IP** and **username**. Defaults:
 
-| Setting | Default | Meaning |
-| :--- | ---: | :--- |
-| `LOGIN_MAX_ATTEMPTS` | `5` | Failures before lockout (per IP and per username) |
-| `LOGIN_WINDOW_SEC` | `900` | Window for counting failures (15 minutes) |
-| `LOGIN_LOCKOUT_SEC` | `900` | Lockout duration after the limit is hit |
+| Setting              | Default | Meaning                                           |
+| :------------------- | ------: | :------------------------------------------------ |
+| `LOGIN_MAX_ATTEMPTS` |     `5` | Failures before lockout (per IP and per username) |
+| `LOGIN_WINDOW_SEC`   |   `900` | Window for counting failures (15 minutes)         |
+| `LOGIN_LOCKOUT_SEC`  |   `900` | Lockout duration after the limit is hit           |
 
 Override in `web/glade/box/app.json` → `env` if needed. When locked, `/glade/login` returns **HTTP 429** with `Retry-After` and a generic message (no username enumeration). Successful login clears counters for that IP and username.
 
@@ -62,9 +62,9 @@ The dashboard consists of two main components:
 
 1.  **The Header:** Contains the Glade title, **Schedules**, **Queue / DLQ**, **Logs** (server + app log files), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
-    -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
-    -   **Version:** The version number, as specified in the app's own `app.json` file.
-    -   **Actions:** A set of buttons for performing lifecycle operations on each application.
+    - **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
+    - **Version:** The version number, as specified in the app's own `app.json` file.
+    - **Actions:** A set of buttons for performing lifecycle operations on each application.
 
 ## Core Features: Application Lifecycle Management
 
@@ -76,7 +76,7 @@ This is for deploying a new application from a package file. Glade provides an i
 
 1.  Click the green **Install** button at the top of the application list.
 2.  A modal dialog will appear, prompting for the **Application Name** and the **App Package File (.gin)**.
-3.  Upon selecting a `.gin` file, Glade analyzes the package *in your browser* and transforms the modal into a tabbed installation wizard.
+3.  Upon selecting a `.gin` file, Glade analyzes the package _in your browser_ and transforms the modal into a tabbed installation wizard.
 4.  **Permissions Tab:** The first tab will display the `mandatory` and `optional` permissions the application requires (read from its `pmft.json` manifest). You must review and consent to these permissions before proceeding.
 5.  **Configuration Tab:** If the application requires any database connections, this tab will display a form for you to enter the connection details (host, user, password, etc.). For apps with multiple database requirements, this will be displayed as a convenient accordion.
 6.  **Confirm Tab:** A final tab shows a summary of the installation.
@@ -108,7 +108,7 @@ Security is managed at the application level. You can review and change the perm
 
 ### Upgrading an Application
 
-This is for deploying a new version of an *existing* application. The process is nearly identical to a new installation, ensuring the same level of security and configuration.
+This is for deploying a new version of an _existing_ application. The process is nearly identical to a new installation, ensuring the same level of security and configuration.
 
 1.  In the application list, find the app you wish to upgrade and click its blue **Upgrade** button.
 2.  The installation wizard will appear, but the "Application Name" field will be pre-filled and read-only.

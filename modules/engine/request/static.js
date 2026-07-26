@@ -4,10 +4,10 @@
  * Engine-internal.
  */
 
-const fs = require('fs');
-const path = require('path');
-const zlib = require('zlib');
-const mimeTypes = require('mime-types');
+const fs = require("fs");
+const path = require("path");
+const zlib = require("zlib");
+const mimeTypes = require("mime-types");
 
 /**
  * @param {object} opts
@@ -22,7 +22,7 @@ async function serveStaticFile(opts) {
     cache,
     canCompress,
     logger,
-    headers
+    headers,
   } = opts;
 
   if (!path.extname(filePath)) {
@@ -36,7 +36,7 @@ async function serveStaticFile(opts) {
   let cacheEntry;
   if (useCache) {
     const isNoCachePath = serverCacheConfig.no_cache_regex.some((r) =>
-      new RegExp(r).test(req.url)
+      new RegExp(r).test(req.url),
     );
     if (isNoCachePath) {
       useCache = false;
@@ -47,27 +47,29 @@ async function serveStaticFile(opts) {
   }
 
   if (useCache && cacheEntry) {
-    headers['Content-Type'] =
+    headers["Content-Type"] =
       cacheEntry.contentType ||
       mimeTypes.contentType(path.extname(filePath)) ||
-      'application/octet-stream';
+      "application/octet-stream";
     logger.info(`[CACHE HIT] Serving static file: ${filePath}`);
 
     if (
       cacheConfig.client.enabled &&
-      !cacheConfig.client.no_cache_regex.some((r) => new RegExp(r).test(req.url))
+      !cacheConfig.client.no_cache_regex.some((r) =>
+        new RegExp(r).test(req.url),
+      )
     ) {
-      headers['Cache-Control'] = 'public, max-age=31536000';
+      headers["Cache-Control"] = "public, max-age=31536000";
     }
 
-    const content = Buffer.from(cacheEntry.content, 'base64');
+    const content = Buffer.from(cacheEntry.content, "base64");
     if (canCompress) {
       zlib.gzip(content, (err, compressedData) => {
         if (err) {
           res.writeHead(200, headers);
           res.end(content);
         } else {
-          headers['Content-Encoding'] = 'gzip';
+          headers["Content-Encoding"] = "gzip";
           res.writeHead(200, headers);
           res.end(compressedData);
         }
@@ -83,27 +85,30 @@ async function serveStaticFile(opts) {
   return new Promise((resolve) => {
     fs.readFile(filePath, (err, data) => {
       if (err) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('FILE_NOT_FOUND');
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("FILE_NOT_FOUND");
         resolve(true);
         return;
       }
       const ext = path.extname(filePath);
-      const contentType = mimeTypes.contentType(ext) || 'application/octet-stream';
-      const outHeaders = { 'Content-Type': contentType };
+      const contentType =
+        mimeTypes.contentType(ext) || "application/octet-stream";
+      const outHeaders = { "Content-Type": contentType };
 
       if (useCache) {
-        cache.set(cacheKey, { contentType, content: data.toString('base64') });
+        cache.set(cacheKey, { contentType, content: data.toString("base64") });
         logger.info(`[CACHE SET] Caching static file: ${filePath}`);
       }
 
       if (
         cacheConfig.client.enabled &&
-        !cacheConfig.client.no_cache_regex.some((r) => new RegExp(r).test(req.url))
+        !cacheConfig.client.no_cache_regex.some((r) =>
+          new RegExp(r).test(req.url),
+        )
       ) {
-        outHeaders['Cache-Control'] = 'public, max-age=31536000';
+        outHeaders["Cache-Control"] = "public, max-age=31536000";
       } else {
-        outHeaders['Cache-Control'] = 'no-store';
+        outHeaders["Cache-Control"] = "no-store";
       }
 
       if (canCompress) {
@@ -112,7 +117,7 @@ async function serveStaticFile(opts) {
             res.writeHead(200, outHeaders);
             res.end(data);
           } else {
-            outHeaders['Content-Encoding'] = 'gzip';
+            outHeaders["Content-Encoding"] = "gzip";
             res.writeHead(200, outHeaders);
             res.end(compressedData);
           }
@@ -132,24 +137,24 @@ async function serveStaticFile(opts) {
  */
 function serveDirectoryOr404(res, filePath, urlWithoutQuery, queryString) {
   if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-    const indexPath = path.join(filePath, 'index.html');
+    const indexPath = path.join(filePath, "index.html");
     if (fs.existsSync(indexPath)) {
       res.writeHead(301, {
-        Location: `${urlWithoutQuery}/index.html${queryString}`
+        Location: `${urlWithoutQuery}/index.html${queryString}`,
       });
       res.end();
     } else {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('FILE_NOT_FOUND');
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("FILE_NOT_FOUND");
     }
     return true;
   }
-  res.writeHead(404, { 'Content-Type': 'text/plain' });
-  res.end('FILE_NOT_FOUND');
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("FILE_NOT_FOUND");
   return true;
 }
 
 module.exports = {
   serveStaticFile,
-  serveDirectoryOr404
+  serveDirectoryOr404,
 };

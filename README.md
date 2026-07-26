@@ -36,7 +36,6 @@ npm start
 
 That's it! You should now see Glade - the Gingee admin panel in your web browser. You can install applications for the Gingee platform from the [Gingee App Store](https://gingerhome.github.io/ginstore/).
 
-
 ## **Key Features**
 
 Gingee is a comprehensive platform designed to provide a secure, efficient, and enjoyable development experience.
@@ -81,52 +80,55 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
 - **GenAI-Native Workflow**
   - Co-authored by a human architect and a Generative AI partner, Gingee is a testament to a new, highly efficient "Dialog-Driven Development" workflow. The project includes a pre-built knowledge bundle (`ai-context.md`) to empower you to build your own apps with an AI partner.
 
-
 ## **Documentation**
 
 Dive deeper into the architecture and learn how to build powerful applications with Gingee.
 
 ### **Concepts**
-| Document | Description |
-| :--- | :--- |
+
+| Document                                | Description                                                                                               |
+| :-------------------------------------- | :-------------------------------------------------------------------------------------------------------- |
 | **[Core Concepts](./docs/concepts.md)** | A high-level overview of the Gingee philosophy, project structure, the sandbox, and the module ecosystem. |
-| **[Features](./docs/features.md)** | The list of features supported by Gingee |
-| **[Roadmap](./docs/roadmap.md)** | The roadmap of core and app features in the pipeline for the Gingee app platform |
+| **[Features](./docs/features.md)**      | The list of features supported by Gingee                                                                  |
+| **[Roadmap](./docs/roadmap.md)**        | The roadmap of core and app features in the pipeline for the Gingee app platform                          |
 
 ### **Configuration & Setup**
-| Document | Description |
-| :--- | :--- |
-| **[Gingee CLI](./docs/gingee-cli.md)** | The all-in-one command-line interface for the Gingee platform |
-| **[Server Configuration (`gingee.json`)](./docs/server-config.md)** | A full reference guide for the server-wide `gingee.json` file, controlling settings like ports, caching, and security. |
-| **[Glade Admin Panel](./docs/glade-admin.md)** | Glade is the official, web-based administration panel for Gingee |
 
+| Document                                                            | Description                                                                                                            |
+| :------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------- |
+| **[Gingee CLI](./docs/gingee-cli.md)**                              | The all-in-one command-line interface for the Gingee platform                                                          |
+| **[Server Configuration (`gingee.json`)](./docs/server-config.md)** | A full reference guide for the server-wide `gingee.json` file, controlling settings like ports, caching, and security. |
+| **[Glade Admin Panel](./docs/glade-admin.md)**                      | Glade is the official, web-based administration panel for Gingee                                                       |
 
 ### **Developer Docs**
-| Document | Description |
-| :--- | :--- |
-| **[App Structure & `app.json`](./docs/app-structure.md)** | A detailed breakdown of the app folder structure and a comprehensive reference for all `app.json` configuration options. |
-| **[Server Script Guide](./docs/server-script.md)** | Learn the anatomy of a server script and get a full API reference for the powerful `$g` global object. |
-| **[App Developer Guide](./docs/app-developer-guide.md)** | A guide to creating your apps on the Gingee platform |
-| **[App Packaging Guide](./docs/packaging-guide.md)** | Gingee platform's standardized application packaging process |
-| **[App Permissions Guide](./docs/permissions-guide.md)** | Gingee platform's app permissions ecosystem. |
-| **[SPA App Dev Guide](./docs/app-spadev-guide.md)** | A guide to creating modern SPA with frameworks on the Gingee platform |
-| **[GStore Hosting Guide](./docs/gstore-hosting-guide.md)** | Gingee platform's decentralized app store hosting guide |
+
+| Document                                                   | Description                                                                                                              |
+| :--------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| **[App Structure & `app.json`](./docs/app-structure.md)**  | A detailed breakdown of the app folder structure and a comprehensive reference for all `app.json` configuration options. |
+| **[Server Script Guide](./docs/server-script.md)**         | Learn the anatomy of a server script and get a full API reference for the powerful `$g` global object.                   |
+| **[App Developer Guide](./docs/app-developer-guide.md)**   | A guide to creating your apps on the Gingee platform                                                                     |
+| **[App Packaging Guide](./docs/packaging-guide.md)**       | Gingee platform's standardized application packaging process                                                             |
+| **[App Permissions Guide](./docs/permissions-guide.md)**   | Gingee platform's app permissions ecosystem.                                                                             |
+| **[SPA App Dev Guide](./docs/app-spadev-guide.md)**        | A guide to creating modern SPA with frameworks on the Gingee platform                                                    |
+| **[GStore Hosting Guide](./docs/gstore-hosting-guide.md)** | Gingee platform's decentralized app store hosting guide                                                                  |
 
 ### **Refrence**
-| Document | Description |
-| :--- | :--- |
-| **[Full API Reference](https://gingerhome.github.io/gingee-docs/)** | The complete JSDoc-generated API documentation for every function in every Gingee app module. |
-|**[API Examples](https://github.com/gingerhome/gingee-examples)** | Examples of using Gingee modules, It can also be installed in a Gingee server using the .gin package in the dist folder.|                                     |
-|**[Gingee App Store](https://gingerhome.github.io/ginstore/)**| The official Gingee app store|
 
+| Document                                                            | Description                                                                                                              |
+| :------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------- |
+| **[Full API Reference](https://gingerhome.github.io/gingee-docs/)** | The complete JSDoc-generated API documentation for every function in every Gingee app module.                            |
+| **[API Examples](https://github.com/gingerhome/gingee-examples)**   | Examples of using Gingee modules, It can also be installed in a Gingee server using the .gin package in the dist folder. |     |
+| **[Gingee App Store](https://gingerhome.github.io/ginstore/)**      | The official Gingee app store                                                                                            |
 
 ## **Project Details**
-| **Project Phase** | **Status**  | **Current Token Count**|
-| :--- | :--- | :--- |
-| **Phase 1**       | Completed   | 1,038,862 / 1,048,576 **(1M tokens used out of a 1M token context window)** |
-| **Phase 2**       | Completed | 702,180 / 1,048,576 **(700K tokens used out of a 1M token context window)** |
+
+| **Project Phase** | **Status** | **Current Token Count**                                                     |
+| :---------------- | :--------- | :-------------------------------------------------------------------------- |
+| **Phase 1**       | Completed  | 1,038,862 / 1,048,576 **(1M tokens used out of a 1M token context window)** |
+| **Phase 2**       | Completed  | 702,180 / 1,048,576 **(700K tokens used out of a 1M token context window)** |
 
 ## **Tooling**
+
 Google AI Studio, VS Code, NodeJS, NPM, JSDoc
 
 ## **Contributing**
@@ -138,6 +140,7 @@ Please see our [`CONTRIBUTING`](./docs/CONTRIBUTING.md) guide for more details o
 Gingee is licensed under the **MIT License**. See the `LICENSE` file for details.
 
 ## **Sponsors**
+
 [<img src="./docs/sponsors/pilotapps-white-bg.png" alt="Gingee" width="300"/>](https://pilotapps.ai)
 
 ## **Credits**

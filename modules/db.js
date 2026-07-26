@@ -1,12 +1,12 @@
-const path = require('path');
-const { getContext } = require('./gingee.js');
+const path = require("path");
+const { getContext } = require("./gingee.js");
 const dbInstances = new Map();
 
 /**
  * @module db
  * @description Provides a unified interface for database operations, allowing dynamic loading of different database adapters.
  * This module supports multiple database types by loading the appropriate adapter based on configuration.
- * It provides methods for querying, executing commands, and managing transactions. 
+ * It provides methods for querying, executing commands, and managing transactions.
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
 
@@ -16,19 +16,27 @@ const dbInstances = new Map();
  * This is called by server.js at startup.
  */
 function init(dbName, dbConfig, app, logger) {
-    if (!dbConfig.type || !dbConfig.name) {
-        throw new Error(`Database config for '${dbName}' is missing the 'type' or 'name' property.`);
-    }
+  if (!dbConfig.type || !dbConfig.name) {
+    throw new Error(
+      `Database config for '${dbName}' is missing the 'type' or 'name' property.`,
+    );
+  }
 
-    try {
-        const AdapterClass = require(path.join(__dirname, 'dbproviders', `${dbConfig.type}.js`));
-        const adapterInstance = new AdapterClass(dbConfig, app, logger);
-        const dbKey = `${app.name}_${dbConfig.name}`;
-        dbInstances.set(dbKey, adapterInstance);
-    } catch (e) {
-        logger.error(`Failed to load database adapter for app '${app.name}' - '${dbConfig.type}': ${e.message}`);
-        throw new Error(`Failed to load/init db adapter for app '${app.name}' - '${dbConfig.type}': ${e.message}`);
-    }
+  try {
+    const AdapterClass = require(
+      path.join(__dirname, "dbproviders", `${dbConfig.type}.js`),
+    );
+    const adapterInstance = new AdapterClass(dbConfig, app, logger);
+    const dbKey = `${app.name}_${dbConfig.name}`;
+    dbInstances.set(dbKey, adapterInstance);
+  } catch (e) {
+    logger.error(
+      `Failed to load database adapter for app '${app.name}' - '${dbConfig.type}': ${e.message}`,
+    );
+    throw new Error(
+      `Failed to load/init db adapter for app '${app.name}' - '${dbConfig.type}': ${e.message}`,
+    );
+  }
 }
 
 /**
@@ -37,21 +45,25 @@ function init(dbName, dbConfig, app, logger) {
  * @private
  */
 async function shutdownApp(appName, logger) {
-    // Iterate through all known db instances
-    try {
-        for (const [uniqueDbName, adapter] of dbInstances.entries()) {
-            if (uniqueDbName.startsWith(`${appName}_`)) {
-                if (adapter && typeof adapter.shutdown === 'function') {
-                    await adapter.shutdown();
-                    logger.info(`Gracefully shut down db pool for '${uniqueDbName}'.`);
-                }
-                dbInstances.delete(uniqueDbName);
-            }
+  // Iterate through all known db instances
+  try {
+    for (const [uniqueDbName, adapter] of dbInstances.entries()) {
+      if (uniqueDbName.startsWith(`${appName}_`)) {
+        if (adapter && typeof adapter.shutdown === "function") {
+          await adapter.shutdown();
+          logger.info(`Gracefully shut down db pool for '${uniqueDbName}'.`);
         }
-    } catch (err) {
-        logger.error(`Error shutting down db connections for app '${appName}': ${err.message}`);
-        throw new Error(`Failed to shut down db connections for app '${appName}': ${err.message}`);
+        dbInstances.delete(uniqueDbName);
+      }
     }
+  } catch (err) {
+    logger.error(
+      `Error shutting down db connections for app '${appName}': ${err.message}`,
+    );
+    throw new Error(
+      `Failed to shut down db connections for app '${appName}': ${err.message}`,
+    );
+  }
 }
 
 /**
@@ -62,14 +74,14 @@ async function shutdownApp(appName, logger) {
  * @param {object} logger - The logger instance.
  */
 async function reinitApp(appName, app, logger) {
-    await shutdownApp(appName, logger);
-    
-    const appDbConfigs = app.config.db || [];
-    appDbConfigs.forEach(dbConfig => {
-        if (dbConfig.name && dbConfig.type) {
-            init(dbConfig.name, dbConfig, app, logger);
-        }
-    });
+  await shutdownApp(appName, logger);
+
+  const appDbConfigs = app.config.db || [];
+  appDbConfigs.forEach((dbConfig) => {
+    if (dbConfig.name && dbConfig.type) {
+      init(dbConfig.name, dbConfig, app, logger);
+    }
+  });
 }
 
 /**
@@ -77,20 +89,21 @@ async function reinitApp(appName, app, logger) {
  * @private
  */
 function _getAdapter(simpleDbName) {
-    const { appName } = getContext();
-    if (!appName) throw new Error("DB module cannot determine app context.");
-    
-    const uniqueDbName = `${appName}_${simpleDbName}`;
-    const adapter = dbInstances.get(uniqueDbName);
-    if (!adapter) 
-        throw new Error(`No DB configured with name '${simpleDbName}' for app '${appName}'.`);
-    return adapter;
-}
+  const { appName } = getContext();
+  if (!appName) throw new Error("DB module cannot determine app context.");
 
+  const uniqueDbName = `${appName}_${simpleDbName}`;
+  const adapter = dbInstances.get(uniqueDbName);
+  if (!adapter)
+    throw new Error(
+      `No DB configured with name '${simpleDbName}' for app '${appName}'.`,
+    );
+  return adapter;
+}
 
 // --- Public API ---
 
-/** 
+/**
  * @function query
  * @memberof module:db
  * @description Executes a SQL query against the specified database.
@@ -104,8 +117,8 @@ function _getAdapter(simpleDbName) {
  * @throws {Error} If the database connection is not configured or the query fails.
  * @throws {Error} If the SQL query is invalid or the parameters do not match.
  */
-async function query(dbName, sql, params) { 
-    return _getAdapter(dbName).query(sql, params); 
+async function query(dbName, sql, params) {
+  return _getAdapter(dbName).query(sql, params);
 }
 
 /**
@@ -126,9 +139,9 @@ async function query(dbName, sql, params) {
  * @throws {Error} If the database connection is not configured or the query fails.
  * @throws {Error} If the SQL query is invalid or the parameters do not match.
  */
-query.one = async function(dbName, sql, params) {
-    const res = await _getAdapter(dbName).query(sql, params);
-    return res.rows[0] || null;
+query.one = async function (dbName, sql, params) {
+  const res = await _getAdapter(dbName).query(sql, params);
+  return res.rows[0] || null;
 };
 
 /**
@@ -145,9 +158,9 @@ query.one = async function(dbName, sql, params) {
  * @throws {Error} If the database connection is not configured or the query fails.
  * @throws {Error} If the SQL query is invalid or the parameters do not match.
  */
-query.many = async function(dbName, sql, params) {
-    const res = await _getAdapter(dbName).query(sql, params);
-    return res.rows;
+query.many = async function (dbName, sql, params) {
+  const res = await _getAdapter(dbName).query(sql, params);
+  return res.rows;
 };
 
 /**
@@ -165,7 +178,7 @@ query.many = async function(dbName, sql, params) {
  * @throws {Error} If the SQL command is invalid or the parameters do not match.
  */
 async function execute(dbName, sql, params) {
-    return _getAdapter(dbName).execute(sql, params);
+  return _getAdapter(dbName).execute(sql, params);
 }
 
 /**
@@ -183,14 +196,14 @@ async function execute(dbName, sql, params) {
  * @throws {Error} If the database connection is not configured.
  */
 async function transaction(dbName, callback) {
-    return _getAdapter(dbName).transaction(callback);
+  return _getAdapter(dbName).transaction(callback);
 }
 
 module.exports = {
-    init, // For server.js
-    shutdownApp,
-    reinitApp,
-    query,
-    execute,
-    transaction
+  init, // For server.js
+  shutdownApp,
+  reinitApp,
+  query,
+  execute,
+  transaction,
 };

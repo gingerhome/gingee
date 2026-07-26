@@ -7,24 +7,24 @@
  * Implementation lives under modules/engine/* (engine-internal; not for app require).
  */
 
-const path = require('path');
+const path = require("path");
 
 const engineRoot = path.resolve(__dirname);
 const projectRoot = process.cwd();
 
 // Add the 'modules' folder to the Node.js search path (must run before other local requires that rely on it)
-require('app-module-path').addPath(path.join(engineRoot, 'modules'));
+require("app-module-path").addPath(path.join(engineRoot, "modules"));
 
-const { loadConfig } = require('./modules/engine/config.js');
-const { initializeApps } = require('./modules/engine/app_registry.js');
-const { createRequestHandler } = require('./modules/engine/request_handler.js');
-const { startServer } = require('./modules/engine/boot.js');
+const { loadConfig } = require("./modules/engine/config.js");
+const { initializeApps } = require("./modules/engine/app_registry.js");
+const { createRequestHandler } = require("./modules/engine/request_handler.js");
+const { startServer } = require("./modules/engine/boot.js");
 
 const { config, webPath } = loadConfig({ root: projectRoot });
 
 const requestHandler = createRequestHandler({
   webPath,
-  engineRoot
+  engineRoot,
 });
 
 // Public exports for tests (same surface as before)
@@ -36,9 +36,9 @@ startServer({
   webPath,
   projectRoot,
   engineRoot,
-  requestHandler
+  requestHandler,
 }).catch((err) => {
-  console.error('\nFATAL: An unhandled error occurred during Gingee startup.');
+  console.error("\nFATAL: An unhandled error occurred during Gingee startup.");
   console.error(err.stack || err.message);
   process.exit(1);
 });

@@ -16,8 +16,8 @@ my-gingee-store/
 └── gstore.json
 ```
 
--   **`gstore.json`:** (Required) The manifest file that defines your store and lists the available applications. This file must be at the root of the URL you share.
--   **`/apps/`:** (Recommended) A subdirectory to hold all your distributable `.gin` package files.
+- **`gstore.json`:** (Required) The manifest file that defines your store and lists the available applications. This file must be at the root of the URL you share.
+- **`/apps/`:** (Recommended) A subdirectory to hold all your distributable `.gin` package files.
 
 ## 2. Creating the `gstore.json` Manifest
 
@@ -26,6 +26,7 @@ The `gstore.json` file is the heart of your store. It's a simple JSON file that 
 Here is a complete example with two applications:
 
 **`gstore.json`**
+
 ```json
 {
   "storeName": "My Awesome Gingee App Collection",
@@ -56,15 +57,15 @@ Here is a complete example with two applications:
 
 ### Key Fields:
 
--   **`storeName`**: The human-readable name of your store.
--   **`apps`**: An array of application objects. Each object must contain:
-    -   **`name`**: The unique, machine-readable name of the app (e.g., `my-blog-app`).
-    -   **`version`**: The semantic version number of the package.
-    -   **`description`**: A short, one-line description of the app's purpose.
-    -   **`download_url`**: The URL where the `.gin` package can be downloaded. This is the most important field.
-        -   **Relative Path:** If you are hosting the `.gin` files on the same server as the manifest (as in the `my-blog-app` example), you can use a relative path. The CLI will resolve it correctly.
-        -   **Absolute URL:** If you are hosting your packages on a separate CDN or file server (as in the `my-crm-app` example), you must provide the full, absolute URL.
-    -   **`publisher`**: An object containing information about who created the app.
+- **`storeName`**: The human-readable name of your store.
+- **`apps`**: An array of application objects. Each object must contain:
+  - **`name`**: The unique, machine-readable name of the app (e.g., `my-blog-app`).
+  - **`version`**: The semantic version number of the package.
+  - **`description`**: A short, one-line description of the app's purpose.
+  - **`download_url`**: The URL where the `.gin` package can be downloaded. This is the most important field.
+    - **Relative Path:** If you are hosting the `.gin` files on the same server as the manifest (as in the `my-blog-app` example), you can use a relative path. The CLI will resolve it correctly.
+    - **Absolute URL:** If you are hosting your packages on a separate CDN or file server (as in the `my-crm-app` example), you must provide the full, absolute URL.
+  - **`publisher`**: An object containing information about who created the app.
 
 ## 3. Preparing Your Application Packages
 
@@ -80,6 +81,7 @@ For each application you want to list in your store, you need to create its `.gi
     # Package the app
     gingee-cli package-app --appName my-blog-app
     ```
+
 3.  **Place the `.gin` file:** Move the generated package file (e.g., `my-blog-app-v1.0.0.gin`) into your store's `apps/` directory.
 
 ## 4. Hosting Your Store

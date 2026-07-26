@@ -24,40 +24,40 @@ The CLI will scaffold a new, working application in the `web/first-app/` directo
 
 Run your server with `npm run dev` and navigate to `http://localhost:7070/first-app`. You'll see the page and an interactive "Say Hello" button. This works because of Gingee's **File-Based Routing**:
 
--   The request for the page (`/first-app`) serves the static `index.html`.
--   The button's click handler in `cl_app.js` makes a `fetch` call to `/first-app/hello`.
--   Because this URL has no file extension, Gingee automatically executes the server script at `web/first-app/box/hello.js`.
+- The request for the page (`/first-app`) serves the static `index.html`.
+- The button's click handler in `cl_app.js` makes a `fetch` call to `/first-app/hello`.
+- Because this URL has no file extension, Gingee automatically executes the server script at `web/first-app/box/hello.js`.
 
 ## Chapter 2: The Server Script & the `$g` Global
 
 Let's look inside `web/first-app/box/hello.js`. All Gingee server scripts follow this simple structure:
 
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        // Your application logic lives here!
-        $g.response.send({ message: 'Hello from the first-app server script!' });
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    // Your application logic lives here!
+    $g.response.send({ message: "Hello from the first-app server script!" });
+  });
 };
 ```
 
--   **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
--   **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
--   **`$g`**: The single, powerful "global" object passed to your handler. It's your secure gateway to everything you need.
+- **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
+- **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
+- **`$g`**: The single, powerful "global" object passed to your handler. It's your secure gateway to everything you need.
 
 Let's modify the script to take a query parameter:
 
 ```javascript
 // in web/first-app/box/hello.js
 await gingee(async ($g) => {
-    const name = $g.request.query.name || 'World';
-    $g.response.send({ message: `Hello, ${name}!` });
+  const name = $g.request.query.name || "World";
+  $g.response.send({ message: `Hello, ${name}!` });
 });
 ```
 
 Now, navigate to `/first-app/hello?name=Gingee` and you'll see the personalized response. All query parameters are automatically parsed for you in `$g.request.query`.
 
-*For a full breakdown of all properties on `$g`, see the Server Script & $g Object Reference [MD](./server-script.md) [HTML](./server-script.html)*
+_For a full breakdown of all properties on `$g`, see the Server Script & $g Object Reference [MD](./server-script.md) [HTML](./server-script.html)_
 
 ## Chapter 3: Building a RESTful API with `routes.json`
 
@@ -67,6 +67,7 @@ While file-based routing is great for simple pages, a real API needs clean, dyna
 2.  Define your application's routes in this file.
 
 **`web/first-app/box/routes.json`**
+
 ```json
 {
   "routes": [
@@ -89,15 +90,16 @@ Now, a `POST` request to `/first-app/posts` will execute `box/api/posts/create.j
 In your script, you can access the dynamic `:postId` parameter via `$g.request.params`.
 
 **`web/first-app/box/api/posts/get.js`**
-```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const postId = $g.request.params.postId; // "abc-123"
-        
-        // ... logic to fetch post from database ...
 
-        $g.response.send({ id: postId, title: 'My First Post' });
-    });
+```javascript
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const postId = $g.request.params.postId; // "abc-123"
+
+    // ... logic to fetch post from database ...
+
+    $g.response.send({ id: postId, title: "My First Post" });
+  });
 };
 ```
 
@@ -109,34 +111,35 @@ Gingee makes database interaction simple and secure.
 2.  **Query:** Use the powerful, sandboxed `db` module in your scripts.
 
 **`web/my-blog/box/api/posts/get.js` (with DB logic)**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const db = require('db');
-        const postId = $g.request.params.postId;
-        const DB_NAME = 'main_db'; // The 'name' from your app.json
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const db = require("db");
+    const postId = $g.request.params.postId;
+    const DB_NAME = "main_db"; // The 'name' from your app.json
 
-        try {
-            const sql = 'SELECT * FROM "Posts" WHERE "id" = $1';
-            const post = await db.query.one(DB_NAME, sql, [postId]);
+    try {
+      const sql = 'SELECT * FROM "Posts" WHERE "id" = $1';
+      const post = await db.query.one(DB_NAME, sql, [postId]);
 
-            if (post) {
-                $g.response.send(post);
-            } else {
-                $g.response.send({ error: 'Post not found' }, 404);
-            }
-        } catch (err) {
-            $g.log.error('Failed to fetch post', { postId, error: err.message });
-            $g.response.send({ error: 'Internal Server Error' }, 500);
-        }
-    });
+      if (post) {
+        $g.response.send(post);
+      } else {
+        $g.response.send({ error: "Post not found" }, 404);
+      }
+    } catch (err) {
+      $g.log.error("Failed to fetch post", { postId, error: err.message });
+      $g.response.send({ error: "Internal Server Error" }, 500);
+    }
+  });
 };
 ```
 
--   **`db.query.one`**: Fetches a single record.
--   **`db.query.many`**: Fetches an array of records.
--   **`db.execute`**: Use for `INSERT`, `UPDATE`, and `DELETE`. Returns the number of rows affected.
--   **Security:** Always use parameters (`$1`, `$2`) to prevent SQL injection. The `db` module handles this securely.
+- **`db.query.one`**: Fetches a single record.
+- **`db.query.many`**: Fetches an array of records.
+- **`db.execute`**: Use for `INSERT`, `UPDATE`, and `DELETE`. Returns the number of rows affected.
+- **Security:** Always use parameters (`$1`, `$2`) to prevent SQL injection. The `db` module handles this securely.
 
 ## Chapter 5: Using the Standard Library (App Modules)
 
@@ -144,17 +147,17 @@ Let's secure our `POST /posts` endpoint and validate its input.
 
 1.  **Create an Auth Middleware:** Create `web/my-blog/box/auth_middleware.js`.
     ```javascript
-    module.exports = async function() {
-        await gingee(async ($g) => {
-            const auth = require('auth');
-            const token = $g.request.headers.authorization?.split(' ')[1];
-            const payload = auth.jwt.verify(token);
+    module.exports = async function () {
+      await gingee(async ($g) => {
+        const auth = require("auth");
+        const token = $g.request.headers.authorization?.split(" ")[1];
+        const payload = auth.jwt.verify(token);
 
-            if (!payload) {
-                // This call ends the request and prevents the main handler from running.
-                $g.response.send({ error: 'Unauthorized' }, 401);
-            }
-        });
+        if (!payload) {
+          // This call ends the request and prevents the main handler from running.
+          $g.response.send({ error: "Unauthorized" }, 401);
+        }
+      });
     };
     ```
 2.  **Enable the Middleware:** In `web/my-blog/box/app.json`, add it to the `default_include` array. Now it will run before every script in your app.
@@ -164,16 +167,16 @@ Let's secure our `POST /posts` endpoint and validate its input.
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
-    module.exports = async function() {
-        await gingee(async ($g) => {
-            const { validate } = require('utils');
-            const { title, content } = $g.request.body;
+    module.exports = async function () {
+      await gingee(async ($g) => {
+        const { validate } = require("utils");
+        const { title, content } = $g.request.body;
 
-            if (validate.isEmpty(title)) {
-                return $g.response.send({ error: 'Title is required.' }, 400);
-            }
-            // ... insert into database ...
-        });
+        if (validate.isEmpty(title)) {
+          return $g.response.send({ error: "Title is required." }, 400);
+        }
+        // ... insert into database ...
+      });
     };
     ```
 
@@ -211,8 +214,8 @@ For work that should not block an HTTP response (emails, reports, slow AI):
 3. From a server script:
 
 ```javascript
-const queue = require('queue');
-await queue.add('my-job', { userId: 42 }, { delayMs: 0, attempts: 3 });
+const queue = require("queue");
+await queue.add("my-job", { userId: 42 }, { delayMs: 0, attempts: 3 });
 ```
 
 ```javascript
@@ -247,12 +250,12 @@ For bidirectional real-time traffic (chat, live dashboards), enable WebSockets i
 ```javascript
 // box/realtime/handler.js
 module.exports = async function (socket, ctx) {
-  const ws = require('websockets');
-  const room = ws.tenantRoom(ctx.query.tenant || 'default', 'lobby');
-  socket.tenantId = ctx.query.tenant || 'default';
+  const ws = require("websockets");
+  const room = ws.tenantRoom(ctx.query.tenant || "default", "lobby");
+  socket.tenantId = ctx.query.tenant || "default";
   socket.join(room);
-  socket.send({ type: 'joined', room });
-  socket.on('message', (raw) => {
+  socket.send({ type: "joined", room });
+  socket.on("message", (raw) => {
     socket.to(room).send({ from: socket.id, raw });
   });
 };
@@ -264,8 +267,8 @@ From an HTTP script: `require('websockets').toRoom(room, payload)`. Multi-node f
 
 If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when:
 
-- `"isolation": "process"` is set in `app.json`, or  
-- the app folder name is listed under server `isolation.apps` (solo worker), or  
+- `"isolation": "process"` is set in `app.json`, or
+- the app folder name is listed under server `isolation.apps` (solo worker), or
 - the app is a member of `isolation.groups` (shared worker with co-members).
 
 HTTP still enters on the same server port; only script execution is isolated. **Buffered** responses and **SSE** (`startStream` / `writeSSE` / `endStream`) both work over IPC—including AI streaming when the `ai` permission is granted and `app.json` (or server) AI config is set. The worker re-loads that config at init (you do not need a second copy in `gingee.json`). Privileged apps such as Glade never use workers. Prefer `await gingee(async ($g) => { … })` in async scripts so the handler fully finishes before the script returns. Details: [Server Config](./server-config.md) → `isolation`.
@@ -282,17 +285,17 @@ Two permission-protected integration modules follow the same adapter pattern as 
 
 ```javascript
 module.exports = async function () {
-    await gingee(async ($g) => {
-        const email = require('email');
-        const result = await email.send({
-            to: $g.request.body.to,
-            subject: 'Welcome',
-            text: 'Thanks for joining.',
-            html: '<p>Thanks for joining.</p>'
-        });
-        // result: { messageId, provider, status }
-        $g.response.send(result);
+  await gingee(async ($g) => {
+    const email = require("email");
+    const result = await email.send({
+      to: $g.request.body.to,
+      subject: "Welcome",
+      text: "Thanks for joining.",
+      html: "<p>Thanks for joining.</p>",
     });
+    // result: { messageId, provider, status }
+    $g.response.send(result);
+  });
 };
 ```
 
@@ -308,23 +311,23 @@ Providers: `console` (logs only; great for local dev), `sendgrid` (`api_key`, `f
 
 ```javascript
 module.exports = async function () {
-    await gingee(async ($g) => {
-        const ai = require('ai');
+  await gingee(async ($g) => {
+    const ai = require("ai");
 
-        // Non-streaming
-        const reply = await ai.chat({
-            messages: [{ role: 'user', content: $g.request.body.prompt }],
-            model: 'gemini-2.5-pro',      // optional per-call model
-            temperature: 0.4,             // optional
-            maxTokens: 2048               // optional
-        });
-        // reply.text, reply.model, reply.provider, reply.usage { inputTokens, outputTokens }
-
-        $g.response.send({
-            text: reply.text,
-            usage: reply.usage
-        });
+    // Non-streaming
+    const reply = await ai.chat({
+      messages: [{ role: "user", content: $g.request.body.prompt }],
+      model: "gemini-2.5-pro", // optional per-call model
+      temperature: 0.4, // optional
+      maxTokens: 2048, // optional
     });
+    // reply.text, reply.model, reply.provider, reply.usage { inputTokens, outputTokens }
+
+    $g.response.send({
+      text: reply.text,
+      usage: reply.usage,
+    });
+  });
 };
 ```
 
@@ -359,18 +362,23 @@ For recurring background work, declare jobs in `app.json` → `schedules` instea
 ```javascript
 // box/jobs/cleanup.js
 module.exports = async function () {
-    await gingee(async ($g) => {
-        // $g.request.method === 'SCHEDULE'
-        // $g.schedule.name, $g.schedule.runId, $g.request.body ← payload
-        const fs = require('fs');
-        const db = require('db');
-        // Prefer a leading "/" so the path is relative to box/ (not to jobs/)
-        await fs.writeFile(fs.BOX, '/data/last-run.json', JSON.stringify({
-            at: new Date().toISOString(),
-            runId: $g.schedule.runId
-        }), 'utf8');
-        $g.response.send({ ok: true }); // logged; not an HTTP response
-    });
+  await gingee(async ($g) => {
+    // $g.request.method === 'SCHEDULE'
+    // $g.schedule.name, $g.schedule.runId, $g.request.body ← payload
+    const fs = require("fs");
+    const db = require("db");
+    // Prefer a leading "/" so the path is relative to box/ (not to jobs/)
+    await fs.writeFile(
+      fs.BOX,
+      "/data/last-run.json",
+      JSON.stringify({
+        at: new Date().toISOString(),
+        runId: $g.schedule.runId,
+      }),
+      "utf8",
+    );
+    $g.response.send({ ok: true }); // logged; not an HTTP response
+  });
 };
 ```
 
@@ -414,39 +422,32 @@ There are three key steps to preparing your app for distribution.
 
 This is the most important step for security and user trust. You must declare what protected Gingee modules your app needs.
 
-*   Create a file at `web/my-app/box/pmft.json`.
-*   Define the `mandatory` and `optional` permissions.
+- Create a file at `web/my-app/box/pmft.json`.
+- Define the `mandatory` and `optional` permissions.
 
 **`web/my-app/box/pmft.json`**
+
 ```json
 {
   "permissions": {
-    "mandatory": [
-      "db",
-      "fs"
-    ],
-    "optional": [
-      "httpclient"
-    ]
+    "mandatory": ["db", "fs"],
+    "optional": ["httpclient"]
   }
 }
 ```
-*For a full list of permissions, see the Permissions Guide.*
+
+_For a full list of permissions, see the Permissions Guide._
 
 **2. Control Package Contents (`.gpkg`)**
 
 Create a `.gpkg` manifest in your `box` folder to exclude any development-only files (like local SQLite databases or frontend source code in SPA) from the final package.
 
 **`web/my-app/box/.gpkg`**
+
 ```json
 {
   "include": ["**/*"],
-  "exclude": [
-    "box/data/**",
-    "dev_src/**",
-    ".gpkg",
-    "pmft.json"
-  ]
+  "exclude": ["box/data/**", "dev_src/**", ".gpkg", "pmft.json"]
 }
 ```
 

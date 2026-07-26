@@ -1,25 +1,24 @@
 // This is the secure, sandboxed cache module for application developers.
 // It acts as a facade over the main cache_service.
-const cacheService = require('./cache_service.js');
-const { getContext } = require('./gingee.js');
+const cacheService = require("./cache_service.js");
+const { getContext } = require("./gingee.js");
 
 /**
  * @module cache
- * @description Provides a secure interface for caching data within the Gingee application context. 
+ * @description Provides a secure interface for caching data within the Gingee application context.
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
-
 
 /**
  * Constructs a secure, namespaced cache key for the current app.
  * @private
  */
 function _getNamespacedKey(key) {
-    const { appName } = getContext();
-    if (!key || typeof key !== 'string') {
-        throw new Error("Cache key must be a non-empty string.");
-    }
-    return `${appName}:${key}`;
+  const { appName } = getContext();
+  if (!key || typeof key !== "string") {
+    throw new Error("Cache key must be a non-empty string.");
+  }
+  return `${appName}:${key}`;
 }
 
 /**
@@ -39,8 +38,8 @@ function _getNamespacedKey(key) {
  * }
  */
 async function get(key) {
-    const namespacedKey = _getNamespacedKey(key);
-    return cacheService.get(namespacedKey);
+  const namespacedKey = _getNamespacedKey(key);
+  return cacheService.get(namespacedKey);
 }
 
 /**
@@ -58,8 +57,8 @@ async function get(key) {
  * console.log("Value stored in cache.");
  */
 async function set(key, value, ttl) {
-    const namespacedKey = _getNamespacedKey(key);
-    return cacheService.set(namespacedKey, value, ttl);
+  const namespacedKey = _getNamespacedKey(key);
+  return cacheService.set(namespacedKey, value, ttl);
 }
 
 /**
@@ -75,8 +74,8 @@ async function set(key, value, ttl) {
  * console.log("Value deleted from cache.");
  */
 async function del(key) {
-    const namespacedKey = _getNamespacedKey(key);
-    return cacheService.del(namespacedKey);
+  const namespacedKey = _getNamespacedKey(key);
+  return cacheService.del(namespacedKey);
 }
 
 /**
@@ -91,14 +90,14 @@ async function del(key) {
  * console.log("All cache cleared.");
  */
 async function clear() {
-    const { appName } = getContext();
-    const prefix = `${appName}:`;
-    return cacheService.clear(prefix);
+  const { appName } = getContext();
+  const prefix = `${appName}:`;
+  return cacheService.clear(prefix);
 }
 
 module.exports = {
-    get,
-    set,
-    del,
-    clear
+  get,
+  set,
+  del,
+  clear,
 };

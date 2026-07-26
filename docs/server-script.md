@@ -8,17 +8,15 @@ All Gingee scripts, regardless of their purpose, follow this simple and mandator
 
 ```javascript
 // A script must export a single asynchronous function.
-module.exports = async function() {
-
-    // The entire logic is wrapped in a call to the global 'gingee()' function.
-    await gingee(async function($g) {
-
-        // Your application code goes here.
-        // You use the '$g' object to interact with the world.
-        
-    });
+module.exports = async function () {
+  // The entire logic is wrapped in a call to the global 'gingee()' function.
+  await gingee(async function ($g) {
+    // Your application code goes here.
+    // You use the '$g' object to interact with the world.
+  });
 };
 ```
+
 This unified structure ensures that every piece of executable code runs within the same secure, sandboxed environment and receives a properly configured context object (`$g`).
 
 ## Types of Scripts in Gingee
@@ -29,43 +27,45 @@ While the structure is the same, the purpose of a script and the context it runs
 
 This is the most common type of script. It runs in direct response to an incoming HTTP request from a browser or client.
 
--   **Purpose:** To handle API requests (e.g., fetching data, creating a user, processing a form).
--   **Execution:** Triggered by the Gingee routing engine when a URL matches either a file path or a route defined in `routes.json`.
--   **`$g` Context:** Has access to the **full** `$g` object, including:
-    *   `$g.request`: To get headers, query parameters, and the request body.
-    *   `$g.response`: To send a response back to the client.
-    *   `$g.log` and `$g.app`.
+- **Purpose:** To handle API requests (e.g., fetching data, creating a user, processing a form).
+- **Execution:** Triggered by the Gingee routing engine when a URL matches either a file path or a route defined in `routes.json`.
+- **`$g` Context:** Has access to the **full** `$g` object, including:
+  - `$g.request`: To get headers, query parameters, and the request body.
+  - `$g.response`: To send a response back to the client.
+  - `$g.log` and `$g.app`.
 
 **Example (`box/api/users/get.js`):**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const userId = $g.request.query.id;
-        // ... logic to fetch user from database ...
-        $g.response.send({ id: userId, name: 'Alex' });
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const userId = $g.request.query.id;
+    // ... logic to fetch user from database ...
+    $g.response.send({ id: userId, name: "Alex" });
+  });
 };
 ```
 
 ### 2. Default Include Scripts (Middleware)
 
-These scripts run *before* every Server Script in your application. They act as middleware.
+These scripts run _before_ every Server Script in your application. They act as middleware.
 
--   **Purpose:** To run common, request-level logic for every endpoint, such as checking for a valid authentication token, logging every request, or adding common security headers.
--   **Execution:** Configured in `app.json` via the `"default_include"` array. They run in the order they are listed, before the final Server Script is executed.
--   **`$g` Context:** Has access to the **full** `$g` object, just like a Server Script. A key feature is that if a Default Include script uses `$g.response.send()`, the request lifecycle is immediately terminated, and no further scripts (including the main Server Script) will be executed.
+- **Purpose:** To run common, request-level logic for every endpoint, such as checking for a valid authentication token, logging every request, or adding common security headers.
+- **Execution:** Configured in `app.json` via the `"default_include"` array. They run in the order they are listed, before the final Server Script is executed.
+- **`$g` Context:** Has access to the **full** `$g` object, just like a Server Script. A key feature is that if a Default Include script uses `$g.response.send()`, the request lifecycle is immediately terminated, and no further scripts (including the main Server Script) will be executed.
 
 **Example (`box/auth_middleware.js`):**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const token = $g.request.headers['x-auth-token'];
-        if (!isValid(token)) {
-            // This ends the request immediately.
-            $g.response.send({ error: 'Unauthorized' }, 401);
-        }
-        // If we don't send a response, execution continues to the next script.
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const token = $g.request.headers["x-auth-token"];
+    if (!isValid(token)) {
+      // This ends the request immediately.
+      $g.response.send({ error: "Unauthorized" }, 401);
+    }
+    // If we don't send a response, execution continues to the next script.
+  });
 };
 ```
 
@@ -73,25 +73,27 @@ module.exports = async function() {
 
 These scripts run **once** when your application is loaded by the server. They are not tied to any HTTP request.
 
--   **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
--   **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
--   **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
-    *   **Available:** `$g.log`, `$g.app`.
-    *   **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
-    *   **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
+- **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
+- **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
+- **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
+  - **Available:** `$g.log`, `$g.app`.
+  - **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
+  - **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
 
 **Example (`box/setup/create_schema.js`):**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const db = require('db');
-        $g.log.info('Checking for Users table...');
-        
-        const sql = 'CREATE TABLE IF NOT EXISTS "Users" (id SERIAL PRIMARY KEY, email TEXT)';
-        await db.execute('main_db', sql);
-        
-        $g.log.info('Database schema is ready.');
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const db = require("db");
+    $g.log.info("Checking for Users table...");
+
+    const sql =
+      'CREATE TABLE IF NOT EXISTS "Users" (id SERIAL PRIMARY KEY, email TEXT)';
+    await db.execute("main_db", sql);
+
+    $g.log.info("Database schema is ready.");
+  });
 };
 ```
 
@@ -99,23 +101,27 @@ module.exports = async function() {
 
 Long-lived connections use a **different entry signature** (no `gingee()` wrapper required). Configure them in `app.json` → `websockets` and grant the **`websockets`** permission.
 
--   **Purpose:** Bidirectional messaging (chat, live dashboards, presence).
--   **Execution:** Client connects to `ws(s)://host/{appFolder}{path}` (default path `/ws`). The master accepts the upgrade; handlers run **in-process on the master** (not isolation workers).
--   **Signature:** `module.exports = async function (socket, ctx) { … }`
-    *   **`socket`:** `send`, `close`, `join(room)`, `leave(room)`, `to(room).send(…)`, `on('message'|'close')`, optional `tenantId` / `meta`
-    *   **`ctx`:** `{ app, log, query, path, headers, meta, remoteAddress }`
--   **From HTTP scripts:** `require('websockets').toRoom(room, payload)` (same permission).
--   **Multi-tenant:** use `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
--   **Sample app:** `web/ginchat/` — UI at `/ginchat/`.
+- **Purpose:** Bidirectional messaging (chat, live dashboards, presence).
+- **Execution:** Client connects to `ws(s)://host/{appFolder}{path}` (default path `/ws`). The master accepts the upgrade; handlers run **in-process on the master** (not isolation workers).
+- **Signature:** `module.exports = async function (socket, ctx) { … }`
+  - **`socket`:** `send`, `close`, `join(room)`, `leave(room)`, `to(room).send(…)`, `on('message'|'close')`, optional `tenantId` / `meta`
+  - **`ctx`:** `{ app, log, query, path, headers, meta, remoteAddress }`
+- **From HTTP scripts:** `require('websockets').toRoom(room, payload)` (same permission).
+- **Multi-tenant:** use `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
+- **Sample app:** `web/ginchat/` — UI at `/ginchat/`.
 
 **Example (`box/realtime/handler.js`):**
+
 ```javascript
 module.exports = async function (socket, ctx) {
-  const ws = require('websockets');
-  const room = ws.tenantRoom(ctx.query.tenant || 'demo', ctx.query.room || 'lobby');
+  const ws = require("websockets");
+  const room = ws.tenantRoom(
+    ctx.query.tenant || "demo",
+    ctx.query.room || "lobby",
+  );
   socket.join(room);
-  socket.send({ type: 'welcome' });
-  socket.on('message', (raw) => {
+  socket.send({ type: "welcome" });
+  socket.on("message", (raw) => {
     socket.to(room).send({ echo: raw });
   });
 };
@@ -127,14 +133,15 @@ See [Server Config](./server-config.md) → `websockets` and [App Structure](./a
 
 Deferred jobs use the same `module.exports` + `gingee()` pattern as HTTP scripts. Place handlers under `box/jobs/{name}.js` (or map names in `app.json` → `queue.jobs`). Grant the **`queue`** permission; enqueue with `require('queue').add(name, payload)`.
 
--   **Purpose:** Work that should not block an HTTP response (email, AI, cleanup, multi-node-safe CRON handoff).
--   **Execution:** The engine dequeues jobs (memory or redis driver) and runs the handler in the app sandbox.
--   **`$g` Context:**
-    *   **`$g.queue`:** `{ id, name, payload, attempt }` for the current job.
-    *   **Available:** `$g.log`, `$g.app`, and other modules per granted permissions.
-    *   There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators use **Glade → Queue / DLQ** for live jobs and DLQ retry/discard.
+- **Purpose:** Work that should not block an HTTP response (email, AI, cleanup, multi-node-safe CRON handoff).
+- **Execution:** The engine dequeues jobs (memory or redis driver) and runs the handler in the app sandbox.
+- **`$g` Context:**
+  - **`$g.queue`:** `{ id, name, payload, attempt }` for the current job.
+  - **Available:** `$g.log`, `$g.app`, and other modules per granted permissions.
+  - There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators use **Glade → Queue / DLQ** for live jobs and DLQ retry/discard.
 
 **Example (`box/jobs/send-welcome.js`):**
+
 ```javascript
 module.exports = async function () {
   await gingee(async ($g) => {
@@ -154,97 +161,97 @@ The `$g` object is the heart of the server script API. It provides a simplified 
 
 ### `$g.request`
 
-An object containing all the details of the incoming HTTP request. 
+An object containing all the details of the incoming HTTP request.
 
--   **`$g.request.url`**
-    -   **Type:** `URL` object
-    -   **Description:** The full, parsed URL of the request, including protocol, host, path, and query string.
+- **`$g.request.url`**
+  - **Type:** `URL` object
+  - **Description:** The full, parsed URL of the request, including protocol, host, path, and query string.
 
--   **`$g.request.protocol`**
-    -   **Type:** `string`
-    -   **Description:** The protocol of the request, either `'http'` or `'https'`.
+- **`$g.request.protocol`**
+  - **Type:** `string`
+  - **Description:** The protocol of the request, either `'http'` or `'https'`.
 
--   **`$g.request.hostname`**
-    -   **Type:** `string`
-    -   **Description:** The hostname from the `Host` header (e.g., `'localhost:7070'`).
+- **`$g.request.hostname`**
+  - **Type:** `string`
+  - **Description:** The hostname from the `Host` header (e.g., `'localhost:7070'`).
 
--   **`$g.request.method`**
-    -   **Type:** `string`
-    -   **Description:** The HTTP method of the request (e.g., `'GET'`, `'POST'`, `'PUT'`).
+- **`$g.request.method`**
+  - **Type:** `string`
+  - **Description:** The HTTP method of the request (e.g., `'GET'`, `'POST'`, `'PUT'`).
 
--   **`$g.request.path`**
-    -   **Type:** `string`
-    -   **Description:** The path portion of the URL (e.g., `'/users/list'`).
+- **`$g.request.path`**
+  - **Type:** `string`
+  - **Description:** The path portion of the URL (e.g., `'/users/list'`).
 
--   **`$g.request.headers`**
-    -   **Type:** `object`
-    -   **Description:** An object containing all HTTP request headers, with keys in lowercase (e.g., `$g.request.headers['user-agent']`).
+- **`$g.request.headers`**
+  - **Type:** `object`
+  - **Description:** An object containing all HTTP request headers, with keys in lowercase (e.g., `$g.request.headers['user-agent']`).
 
--   **`$g.request.cookies`**
-    -   **Type:** `object`
-    -   **Description:** An object of all cookies sent by the client, pre-parsed into key-value pairs.
+- **`$g.request.cookies`**
+  - **Type:** `object`
+  - **Description:** An object of all cookies sent by the client, pre-parsed into key-value pairs.
 
--   **`$g.request.query`**
-    -   **Type:** `object`
-    -   **Description:** An object of all query string parameters from the URL, pre-parsed into key-value pairs.
+- **`$g.request.query`**
+  - **Type:** `object`
+  - **Description:** An object of all query string parameters from the URL, pre-parsed into key-value pairs.
 
--   **`$g.request.params`**
-    -   **Type:** `object`
-    -   **Description:** An object containing key-value pairs of the dynamic path parameters extracted from the URL, as defined in `routes.json`.
-    -   **Example:** For a route defined with `path: "/users/:userId/posts/:postId"` and a request to `/users/123/posts/abc`, `$g.request.params` would be `{ "userId": "123", "postId": "abc" }`.
+- **`$g.request.params`**
+  - **Type:** `object`
+  - **Description:** An object containing key-value pairs of the dynamic path parameters extracted from the URL, as defined in `routes.json`.
+  - **Example:** For a route defined with `path: "/users/:userId/posts/:postId"` and a request to `/users/123/posts/abc`, `$g.request.params` would be `{ "userId": "123", "postId": "abc" }`.
 
--   **`$g.request.body`**
-    -   **Type:** `object` | `string` | `null`
-    -   **Description:** The pre-parsed body of the request. The `gingee()` middleware automatically parses the body based on the `Content-Type` header.
-        -   For `application/json`: An object.
-        -   For `application/x-www-form-urlencoded`: An object.
-        -   For `multipart/form-data`: An object containing text fields and a `files` object. Each file in `files` includes its `name`, `type`, `size`, and its content as a `Buffer` in the `data` property.
-        -   For other content types, it may be a raw string or `null`.
+- **`$g.request.body`**
+  - **Type:** `object` | `string` | `null`
+  - **Description:** The pre-parsed body of the request. The `gingee()` middleware automatically parses the body based on the `Content-Type` header.
+    - For `application/json`: An object.
+    - For `application/x-www-form-urlencoded`: An object.
+    - For `multipart/form-data`: An object containing text fields and a `files` object. Each file in `files` includes its `name`, `type`, `size`, and its content as a `Buffer` in the `data` property.
+    - For other content types, it may be a raw string or `null`.
 
 ### `$g.response`
 
 An object used to build the outgoing HTTP response. You modify its properties and then call `$g.response.send()` to send it.
 
--   **`$g.response.status`**
-    -   **Type:** `number`
-    -   **Default:** `200`
-    -   **Description:** The HTTP status code to be sent. Set this before calling `send()`.
-    -   **Example:** `$g.response.status = 404;`
+- **`$g.response.status`**
+  - **Type:** `number`
+  - **Default:** `200`
+  - **Description:** The HTTP status code to be sent. Set this before calling `send()`.
+  - **Example:** `$g.response.status = 404;`
 
--   **`$g.response.headers`**
-    -   **Type:** `object`
-    -   **Default:** `{ 'Content-Type': 'text/plain' }`
-    -   **Description:** An object of HTTP headers to be sent with the response.
+- **`$g.response.headers`**
+  - **Type:** `object`
+  - **Default:** `{ 'Content-Type': 'text/plain' }`
+  - **Description:** An object of HTTP headers to be sent with the response.
 
--   **`$g.response.cookies`**
-    -   **Type:** `object`
-    -   **Description:** An object of cookies to set on the client. The key is the cookie name, and the value is the cookie value. The `send()` method will format these into `Set-Cookie` headers.
-    -   **Note:** For advanced options (like `HttpOnly`, `maxAge`), use the `cookie` module. This is a shortcut for simple key-value cookies.
+- **`$g.response.cookies`**
+  - **Type:** `object`
+  - **Description:** An object of cookies to set on the client. The key is the cookie name, and the value is the cookie value. The `send()` method will format these into `Set-Cookie` headers.
+  - **Note:** For advanced options (like `HttpOnly`, `maxAge`), use the `cookie` module. This is a shortcut for simple key-value cookies.
 
--   **`$g.response.body`**
-    -   **Type:** `any`
-    -   **Default:** `null`
-    -   **Description:** A property to hold the response body before sending. It's often more direct to just pass the data to the `send()` method.
+- **`$g.response.body`**
+  - **Type:** `any`
+  - **Default:** `null`
+  - **Description:** A property to hold the response body before sending. It's often more direct to just pass the data to the `send()` method.
 
--   **`$g.response.send(data, [status], [contentType])`**
-    -   **Description:** The final method you call to send a **complete** (non-streaming) response. It intelligently handles different data types.
-    -   **`data`**: The content to send.
-        -   If `string` or `Buffer`, it's sent as-is.
-        -   If `object` or `Array`, it is automatically `JSON.stringify()`-ed, and the `Content-Type` is set to `application/json`.
-    -   **`status` (optional):** A `number` to set the HTTP status code, overriding `$g.response.status`.
-    -   **`contentType` (optional):** A `string` to set the `Content-Type` header, overriding `$g.response.headers['Content-Type']`.
-    -   **Example (JSON):** `$g.response.send({ user: 'test' });`
-    -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
-    -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
+- **`$g.response.send(data, [status], [contentType])`**
+  - **Description:** The final method you call to send a **complete** (non-streaming) response. It intelligently handles different data types.
+  - **`data`**: The content to send.
+    - If `string` or `Buffer`, it's sent as-is.
+    - If `object` or `Array`, it is automatically `JSON.stringify()`-ed, and the `Content-Type` is set to `application/json`.
+  - **`status` (optional):** A `number` to set the HTTP status code, overriding `$g.response.status`.
+  - **`contentType` (optional):** A `string` to set the `Content-Type` header, overriding `$g.response.headers['Content-Type']`.
+  - **Example (JSON):** `$g.response.send({ user: 'test' });`
+  - **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
+  - **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
 
 #### Platform limits (`$g.limits`, abort signal)
 
 When a **server script** runs under the engine limits module:
 
--   **`$g.limits.remainingMs`** — milliseconds left on the non-stream request budget (or `null` if not applicable)
--   **`$g.limits.deadline`** — absolute epoch ms deadline
--   **`$g.limits.signal`** / **`$g.request.signal`** — `AbortSignal` aborted on request timeout (passed to `httpclient` automatically)
--   **`$g.limits.config`** — effective limits object for this request
+- **`$g.limits.remainingMs`** — milliseconds left on the non-stream request budget (or `null` if not applicable)
+- **`$g.limits.deadline`** — absolute epoch ms deadline
+- **`$g.limits.signal`** / **`$g.request.signal`** — `AbortSignal` aborted on request timeout (passed to `httpclient` automatically)
+- **`$g.limits.config`** — effective limits object for this request
 
 Non-stream scripts that exceed `request_timeout_ms` receive a platform **504** if they have not yet completed. After `startStream()`, stream **idle** and **hard** timeouts apply instead. Concurrency overloads return **503** before the script runs.
 
@@ -254,56 +261,57 @@ Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are 
 
 When a script is invoked by the **CRON scheduler** (see `app.json` → `schedules`), there is no HTTP request. The `gingee()` middleware still provides `$g`, with:
 
--   **`$g.request.method`:** `"SCHEDULE"`
--   **`$g.request.body`:** the job’s optional `payload` from `app.json`
--   **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
--   **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
--   **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
--   **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
+- **`$g.request.method`:** `"SCHEDULE"`
+- **`$g.request.body`:** the job’s optional `payload` from `app.json`
+- **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
+- **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
+- **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
+- **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
 
 #### Streaming responses (SSE and chunked output)
 
 For long-running or progressive output (for example, `require('ai').chatStream(...)`), use the streaming helpers on `$g.response` instead of a single `send()`. These write to the underlying HTTP response without exposing Node's raw `res` object to the sandbox.
 
--   **`$g.response.startStream([status], [contentType], [extraHeaders])`**
-    -   Opens a streamed response. Default `Content-Type` is `text/event-stream; charset=utf-8` (Server-Sent Events).
-    -   Also sets `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no` for proxy-friendly streaming.
-    -   Optional `extraHeaders` is an object of additional headers to set before the body starts.
--   **`$g.response.write(chunk)`**
-    -   Writes a raw string or `Buffer` chunk to the open stream.
--   **`$g.response.writeSSE(payload)`**
-    -   Writes one SSE event line. If `payload` is an object, it is `JSON.stringify`-ed. Format: `data: …\n\n`.
--   **`$g.response.endStream()`**
-    -   Ends the streamed response and marks the request complete (same completion semantics as `send()` for request lifecycle).
+- **`$g.response.startStream([status], [contentType], [extraHeaders])`**
+  - Opens a streamed response. Default `Content-Type` is `text/event-stream; charset=utf-8` (Server-Sent Events).
+  - Also sets `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no` for proxy-friendly streaming.
+  - Optional `extraHeaders` is an object of additional headers to set before the body starts.
+- **`$g.response.write(chunk)`**
+  - Writes a raw string or `Buffer` chunk to the open stream.
+- **`$g.response.writeSSE(payload)`**
+  - Writes one SSE event line. If `payload` is an object, it is `JSON.stringify`-ed. Format: `data: …\n\n`.
+- **`$g.response.endStream()`**
+  - Ends the streamed response and marks the request complete (same completion semantics as `send()` for request lifecycle).
 
 **Example (AI streaming via SSE):**
+
 ```javascript
 module.exports = async function () {
-    await gingee(async ($g) => {
-        const ai = require('ai');
-        const messages = $g.request.body.messages;
+  await gingee(async ($g) => {
+    const ai = require("ai");
+    const messages = $g.request.body.messages;
 
-        $g.response.startStream(200, 'text/event-stream; charset=utf-8');
-        try {
-            for await (const chunk of ai.chatStream({ messages })) {
-                if (chunk.done) {
-                    $g.response.writeSSE({
-                        type: 'done',
-                        text: chunk.text,
-                        model: chunk.model,
-                        provider: chunk.provider,
-                        usage: chunk.usage || null
-                    });
-                } else if (chunk.textDelta) {
-                    $g.response.writeSSE({ type: 'delta', textDelta: chunk.textDelta });
-                }
-            }
-        } catch (err) {
-            $g.response.writeSSE({ type: 'error', error: err.message });
-        } finally {
-            $g.response.endStream();
+    $g.response.startStream(200, "text/event-stream; charset=utf-8");
+    try {
+      for await (const chunk of ai.chatStream({ messages })) {
+        if (chunk.done) {
+          $g.response.writeSSE({
+            type: "done",
+            text: chunk.text,
+            model: chunk.model,
+            provider: chunk.provider,
+            usage: chunk.usage || null,
+          });
+        } else if (chunk.textDelta) {
+          $g.response.writeSSE({ type: "delta", textDelta: chunk.textDelta });
         }
-    });
+      }
+    } catch (err) {
+      $g.response.writeSSE({ type: "error", error: err.message });
+    } finally {
+      $g.response.endStream();
+    }
+  });
 };
 ```
 
@@ -313,19 +321,19 @@ Clients typically consume this with `fetch()` + `ReadableStream` (POST bodies ar
 
 A direct reference to the apps's logger instance, pre-configured with the request's context.
 
--   **Methods:**
-    -   **`$g.log.info(message, [meta])`**
-    -   **`$g.log.warn(message, [meta])`**
-    -   **`$g.log.error(message, [meta])`**
--   **Description:** Use these methods for structured logging. The `message` is a string, and the optional `meta` object can contain any additional data you want to log (like a user ID or a full error stack).
+- **Methods:**
+  - **`$g.log.info(message, [meta])`**
+  - **`$g.log.warn(message, [meta])`**
+  - **`$g.log.error(message, [meta])`**
+- **Description:** Use these methods for structured logging. The `message` is a string, and the optional `meta` object can contain any additional data you want to log (like a user ID or a full error stack).
 
 ### `$g.app`
 
 An object containing safe, read-only configuration data for the current application.
 
--   **`$g.app.name`**: (string) The app's display name from `app.json`.
--   **`$g.app.version`**: (string) The app's version from `app.json`.
--   **`$g.app.description`**: (string) The app's description from `app.json`.
--   **`$g.app.env`**: (object) The custom environment variables defined in the `env` block of `app.json`.
+- **`$g.app.name`**: (string) The app's display name from `app.json`.
+- **`$g.app.version`**: (string) The app's version from `app.json`.
+- **`$g.app.description`**: (string) The app's description from `app.json`.
+- **`$g.app.env`**: (object) The custom environment variables defined in the `env` block of `app.json`.
 
 **NOTE:** The $g object will not have the $g.request and $g.response objects for a startup script.

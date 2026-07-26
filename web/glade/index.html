@@ -1,455 +1,827 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard - Glade Admin</title>
 
     <!-- Google Fonts: Roboto -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
 
     <!-- Bootstrap 5 CSS -->
-    <link href="./libs/bootstrap-v5.3.3.min.css" rel="stylesheet">
+    <link href="./libs/bootstrap-v5.3.3.min.css" rel="stylesheet" />
 
     <!-- Glade Custom CSS -->
-    <link href="./css/glade.css" rel="stylesheet">
-</head>
+    <link href="./css/glade.css" rel="stylesheet" />
+  </head>
 
-<body>
-
+  <body>
     <!-- Main Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-transparent">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">
-                <img src="./images/gingee.png" alt="Gingee Glade" width="30" height="24"
-                    class="d-inline-block align-text-top">
-                Glade Dashboard
-            </a>
-            <div class="d-flex align-items-center">
-                <button id="scheduleAdminButton" class="btn btn-outline-light text-dark ms-2" type="button"
-                    data-bs-toggle="modal" data-bs-target="#scheduleAdminModal"
-                    title="Registered CRON schedules — Run now">
-                    Schedules
-                </button>
-                <button id="queueAdminButton" class="btn btn-outline-light text-dark ms-2" type="button"
-                    data-bs-toggle="modal" data-bs-target="#queueAdminModal"
-                    title="Live queue jobs and dead-letter queue">
-                    Queue / DLQ
-                </button>
-                <button id="logsAdminButton" class="btn btn-outline-light text-dark ms-2" type="button"
-                    data-bs-toggle="modal" data-bs-target="#logsAdminModal"
-                    title="Server and application log files">
-                    Logs
-                </button>
-                <button id="aboutButton" class="btn btn-outline-light text-dark ms-2">About</button>
-                <button id="logoutButton" class="btn btn-outline-light text-dark ms-2">Logout</button>
-            </div>
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+          <img
+            src="./images/gingee.png"
+            alt="Gingee Glade"
+            width="30"
+            height="24"
+            class="d-inline-block align-text-top"
+          />
+          Glade Dashboard
+        </a>
+        <div class="d-flex align-items-center">
+          <button
+            id="scheduleAdminButton"
+            class="btn btn-outline-light text-dark ms-2"
+            type="button"
+            data-bs-toggle="modal"
+            data-bs-target="#scheduleAdminModal"
+            title="Registered CRON schedules — Run now"
+          >
+            Schedules
+          </button>
+          <button
+            id="queueAdminButton"
+            class="btn btn-outline-light text-dark ms-2"
+            type="button"
+            data-bs-toggle="modal"
+            data-bs-target="#queueAdminModal"
+            title="Live queue jobs and dead-letter queue"
+          >
+            Queue / DLQ
+          </button>
+          <button
+            id="logsAdminButton"
+            class="btn btn-outline-light text-dark ms-2"
+            type="button"
+            data-bs-toggle="modal"
+            data-bs-target="#logsAdminModal"
+            title="Server and application log files"
+          >
+            Logs
+          </button>
+          <button id="aboutButton" class="btn btn-outline-light text-dark ms-2">
+            About
+          </button>
+          <button
+            id="logoutButton"
+            class="btn btn-outline-light text-dark ms-2"
+          >
+            Logout
+          </button>
         </div>
+      </div>
     </nav>
 
     <!-- Main Content Area -->
     <main class="container mt-4">
-        <h3 class="text-muted"><img src="./images/gingee.png" alt="Gingee Glade" width="72">Glade</h3>
-        <p class="mb-3">
-            Glade is the administration dashboard for Gingee platform. Here you can install, upgrade, rollback, and
-            uninstall applications as needed. The following are the applications that are <b>currently installed</b> on
-            this server instance.
-        </p>
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#installModal">
-                Install
-            </button>
-        </div>
+      <h3 class="text-muted">
+        <img src="./images/gingee.png" alt="Gingee Glade" width="72" />Glade
+      </h3>
+      <p class="mb-3">
+        Glade is the administration dashboard for Gingee platform. Here you can
+        install, upgrade, rollback, and uninstall applications as needed. The
+        following are the applications that are <b>currently installed</b> on
+        this server instance.
+      </p>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <button
+          class="btn btn-success"
+          data-bs-toggle="modal"
+          data-bs-target="#installModal"
+        >
+          Install
+        </button>
+      </div>
 
-        <div class="card">
-            <div class="card-body">
-                <div id="loading-spinner" class="text-center">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                </div>
-                <div id="error-message" class="alert alert-danger d-none"></div>
-                <table class="table table-hover d-none" id="apps-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">App Name</th>
-                            <th scope="col">Version</th>
-                            <th scope="col" class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="apps-table-body">
-                        <!-- App rows will be dynamically inserted here -->
-                    </tbody>
-                </table>
+      <div class="card">
+        <div class="card-body">
+          <div id="loading-spinner" class="text-center">
+            <div class="spinner-border" role="status">
+              <span class="visually-hidden">Loading...</span>
             </div>
+          </div>
+          <div id="error-message" class="alert alert-danger d-none"></div>
+          <table class="table table-hover d-none" id="apps-table">
+            <thead>
+              <tr>
+                <th scope="col">App Name</th>
+                <th scope="col">Version</th>
+                <th scope="col" class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="apps-table-body">
+              <!-- App rows will be dynamically inserted here -->
+            </tbody>
+          </table>
         </div>
+      </div>
     </main>
 
     <!-- Logs Admin Modal -->
-    <div class="modal fade" id="logsAdminModal" tabindex="-1" aria-labelledby="logsAdminModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="logsAdminModalLabel">Logs</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="logs-admin-error" class="alert alert-danger d-none"></div>
-                    <div class="row g-2 mb-3 align-items-end">
-                        <div class="col-md-2">
-                            <label class="form-label small mb-0" for="logs-scope">Scope</label>
-                            <select class="form-select form-select-sm" id="logs-scope">
-                                <option value="server" selected>Server</option>
-                                <option value="app">App</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3" id="logs-app-wrap" style="display: none;">
-                            <label class="form-label small mb-0" for="logs-app">Application</label>
-                            <select class="form-select form-select-sm" id="logs-app"></select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small mb-0" for="logs-file">File</label>
-                            <select class="form-select form-select-sm" id="logs-file"></select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small mb-0" for="logs-level">Level</label>
-                            <select class="form-select form-select-sm" id="logs-level">
-                                <option value="all" selected>All</option>
-                                <option value="error">error</option>
-                                <option value="warn">warn</option>
-                                <option value="info">info</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label small mb-0" for="logs-lines">Lines</label>
-                            <select class="form-select form-select-sm" id="logs-lines">
-                                <option value="50">50</option>
-                                <option value="100" selected>100</option>
-                                <option value="250">250</option>
-                                <option value="500">500</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-3 align-items-center">
-                        <div class="col-md-2">
-                            <input type="text" class="form-control form-control-sm" id="logs-search"
-                                placeholder="Search…" autocomplete="off">
-                        </div>
-                        <div class="col-auto" id="logs-engine-only-wrap">
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="checkbox" id="logs-engine-only">
-                                <label class="form-check-label small" for="logs-engine-only" title="Hide app-forwarded lines (server log only)">Engine only</label>
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="checkbox" id="logs-hide-queries" checked>
-                                <label class="form-check-label small" for="logs-hide-queries" title="Hide Executing/Reloading/Response lines for logs-list and logs-read">
-                                    Hide log-viewer requests
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-auto ms-md-auto d-flex align-items-center gap-2">
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" id="logs-auto-refresh">
-                                <label class="form-check-label small" for="logs-auto-refresh">Auto-refresh</label>
-                            </div>
-                            <button type="button" class="queue-action-link" id="logs-refresh-btn">Refresh</button>
-                        </div>
-                    </div>
-                    <div id="logs-meta" class="small text-muted mb-2">—</div>
-                    <div class="table-responsive border rounded" style="max-height: 28rem; overflow: auto;">
-                        <table class="table table-sm table-hover align-middle mb-0" id="logs-table">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th style="width: 11rem;">Time</th>
-                                    <th style="width: 5rem;">Level</th>
-                                    <th style="width: 6rem;">App</th>
-                                    <th>Message</th>
-                                </tr>
-                            </thead>
-                            <tbody id="logs-table-body">
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted">No log lines</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="small text-muted mb-0 mt-2">
-                        Logs are for <strong>this Gingee process only</strong>.
-                        Server log includes engine events and app lines forwarded from all apps
-                        (see <code>app</code> column). For one app only, use scope <strong>App</strong>
-                        (includes Glade). Rotated <code>.gz</code> archives are not opened in v1.
-                    </p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
+    <div
+      class="modal fade"
+      id="logsAdminModal"
+      tabindex="-1"
+      aria-labelledby="logsAdminModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="logsAdminModalLabel">Logs</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div id="logs-admin-error" class="alert alert-danger d-none"></div>
+            <div class="row g-2 mb-3 align-items-end">
+              <div class="col-md-2">
+                <label class="form-label small mb-0" for="logs-scope"
+                  >Scope</label
+                >
+                <select class="form-select form-select-sm" id="logs-scope">
+                  <option value="server" selected>Server</option>
+                  <option value="app">App</option>
+                </select>
+              </div>
+              <div class="col-md-3" id="logs-app-wrap" style="display: none">
+                <label class="form-label small mb-0" for="logs-app"
+                  >Application</label
+                >
+                <select
+                  class="form-select form-select-sm"
+                  id="logs-app"
+                ></select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small mb-0" for="logs-file"
+                  >File</label
+                >
+                <select
+                  class="form-select form-select-sm"
+                  id="logs-file"
+                ></select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-0" for="logs-level"
+                  >Level</label
+                >
+                <select class="form-select form-select-sm" id="logs-level">
+                  <option value="all" selected>All</option>
+                  <option value="error">error</option>
+                  <option value="warn">warn</option>
+                  <option value="info">info</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-0" for="logs-lines"
+                  >Lines</label
+                >
+                <select class="form-select form-select-sm" id="logs-lines">
+                  <option value="50">50</option>
+                  <option value="100" selected>100</option>
+                  <option value="250">250</option>
+                  <option value="500">500</option>
+                </select>
+              </div>
             </div>
+            <div class="row g-2 mb-3 align-items-center">
+              <div class="col-md-2">
+                <input
+                  type="text"
+                  class="form-control form-control-sm"
+                  id="logs-search"
+                  placeholder="Search…"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="col-auto" id="logs-engine-only-wrap">
+                <div class="form-check mb-0">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="logs-engine-only"
+                  />
+                  <label
+                    class="form-check-label small"
+                    for="logs-engine-only"
+                    title="Hide app-forwarded lines (server log only)"
+                    >Engine only</label
+                  >
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="form-check mb-0">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="logs-hide-queries"
+                    checked
+                  />
+                  <label
+                    class="form-check-label small"
+                    for="logs-hide-queries"
+                    title="Hide Executing/Reloading/Response lines for logs-list and logs-read"
+                  >
+                    Hide log-viewer requests
+                  </label>
+                </div>
+              </div>
+              <div class="col-auto ms-md-auto d-flex align-items-center gap-2">
+                <div class="form-check form-switch mb-0">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="logs-auto-refresh"
+                  />
+                  <label class="form-check-label small" for="logs-auto-refresh"
+                    >Auto-refresh</label
+                  >
+                </div>
+                <button
+                  type="button"
+                  class="queue-action-link"
+                  id="logs-refresh-btn"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+            <div id="logs-meta" class="small text-muted mb-2">—</div>
+            <div
+              class="table-responsive border rounded"
+              style="max-height: 28rem; overflow: auto"
+            >
+              <table
+                class="table table-sm table-hover align-middle mb-0"
+                id="logs-table"
+              >
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th style="width: 11rem">Time</th>
+                    <th style="width: 5rem">Level</th>
+                    <th style="width: 6rem">App</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody id="logs-table-body">
+                  <tr>
+                    <td colspan="4" class="text-center text-muted">
+                      No log lines
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="small text-muted mb-0 mt-2">
+              Logs are for <strong>this Gingee process only</strong>. Server log
+              includes engine events and app lines forwarded from all apps (see
+              <code>app</code> column). For one app only, use scope
+              <strong>App</strong> (includes Glade). Rotated
+              <code>.gz</code> archives are not opened in v1.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Schedules / Run now Admin Modal -->
-    <div class="modal fade" id="scheduleAdminModal" tabindex="-1" aria-labelledby="scheduleAdminModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="scheduleAdminModalLabel">CRON Schedules</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="schedule-admin-error" class="alert alert-danger d-none"></div>
-                    <div id="schedule-admin-info" class="alert alert-info d-none"></div>
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div id="schedule-stats-panel" class="small text-muted">Loading…</div>
-                        <button type="button" class="queue-action-link" id="schedule-refresh-btn">Refresh</button>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label small mb-0" for="schedule-app-filter">Filter by app</label>
-                            <input type="text" class="form-control form-control-sm" id="schedule-app-filter"
-                                placeholder="Type 3+ letters to search app name" autocomplete="off">
-                        </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle" id="schedule-table">
-                            <thead>
-                                <tr>
-                                    <th>App</th>
-                                    <th>Job</th>
-                                    <th>Cron</th>
-                                    <th>Target</th>
-                                    <th>Next run</th>
-                                    <th>Last status</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="schedule-table-body">
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted">No registered schedules</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="small text-muted mb-0">
-                        Jobs appear only when <code>scheduler.enabled</code> is true on this node and apps have
-                        granted <code>scheduler</code> with valid <code>app.json</code> schedules.
-                        <strong>Run now</strong> executes on this node immediately (bypasses multi-node coordination locks).
-                    </p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
+    <div
+      class="modal fade"
+      id="scheduleAdminModal"
+      tabindex="-1"
+      aria-labelledby="scheduleAdminModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="scheduleAdminModalLabel">
+              CRON Schedules
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div
+              id="schedule-admin-error"
+              class="alert alert-danger d-none"
+            ></div>
+            <div id="schedule-admin-info" class="alert alert-info d-none"></div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div id="schedule-stats-panel" class="small text-muted">
+                Loading…
+              </div>
+              <button
+                type="button"
+                class="queue-action-link"
+                id="schedule-refresh-btn"
+              >
+                Refresh
+              </button>
             </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-4">
+                <label class="form-label small mb-0" for="schedule-app-filter"
+                  >Filter by app</label
+                >
+                <input
+                  type="text"
+                  class="form-control form-control-sm"
+                  id="schedule-app-filter"
+                  placeholder="Type 3+ letters to search app name"
+                  autocomplete="off"
+                />
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table
+                class="table table-sm table-hover align-middle"
+                id="schedule-table"
+              >
+                <thead>
+                  <tr>
+                    <th>App</th>
+                    <th>Job</th>
+                    <th>Cron</th>
+                    <th>Target</th>
+                    <th>Next run</th>
+                    <th>Last status</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="schedule-table-body">
+                  <tr>
+                    <td colspan="7" class="text-center text-muted">
+                      No registered schedules
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="small text-muted mb-0">
+              Jobs appear only when <code>scheduler.enabled</code> is true on
+              this node and apps have granted <code>scheduler</code> with valid
+              <code>app.json</code> schedules. <strong>Run now</strong> executes
+              on this node immediately (bypasses multi-node coordination locks).
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Queue / DLQ Admin Modal -->
-    <div class="modal fade" id="queueAdminModal" tabindex="-1" aria-labelledby="queueAdminModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="queueAdminModalLabel">Background Queue</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div
+      class="modal fade"
+      id="queueAdminModal"
+      tabindex="-1"
+      aria-labelledby="queueAdminModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="queueAdminModalLabel">
+              Background Queue
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div id="queue-admin-error" class="alert alert-danger d-none"></div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div id="queue-stats-panel" class="small text-muted">
+                Loading stats…
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch mb-0">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="queue-live-refresh"
+                    checked
+                  />
+                  <label class="form-check-label small" for="queue-live-refresh"
+                    >Auto-refresh</label
+                  >
                 </div>
-                <div class="modal-body">
-                    <div id="queue-admin-error" class="alert alert-danger d-none"></div>
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div id="queue-stats-panel" class="small text-muted">Loading stats…</div>
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" id="queue-live-refresh" checked>
-                                <label class="form-check-label small" for="queue-live-refresh">Auto-refresh</label>
-                            </div>
-                            <button type="button" class="queue-action-link" id="queue-refresh-btn">Refresh</button>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label small mb-0" for="queue-dlq-app-filter">Filter by app</label>
-                            <input type="text" class="form-control form-control-sm" id="queue-dlq-app-filter"
-                                placeholder="Type 3+ letters to search app name" autocomplete="off">
-                        </div>
-                    </div>
-
-                    <ul class="nav nav-tabs mb-3" id="queueAdminTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="queue-live-tab" data-bs-toggle="tab"
-                                data-bs-target="#queue-live-pane" type="button" role="tab">Live jobs</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="queue-dlq-tab" data-bs-toggle="tab"
-                                data-bs-target="#queue-dlq-pane" type="button" role="tab">Dead letter (DLQ)</button>
-                        </li>
-                    </ul>
-                    <div class="tab-content">
-                        <div class="tab-pane fade show active" id="queue-live-pane" role="tabpanel">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover align-middle" id="queue-live-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Job ID</th>
-                                            <th>App</th>
-                                            <th>Name</th>
-                                            <th>State</th>
-                                            <th>Attempt</th>
-                                            <th>Run at</th>
-                                            <th>Scope</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="queue-live-body">
-                                        <tr>
-                                            <td colspan="7" class="text-center text-muted">No live jobs</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p class="small text-muted mb-0">
-                                <strong>running</strong> / <strong>waiting</strong> are on <em>this node</em>.
-                                <strong>pending</strong> / <strong>delayed</strong> come from the driver
-                                (memory: local; redis: shared fleet pool). Refresh or leave auto-refresh on for a live view.
-                            </p>
-                        </div>
-                        <div class="tab-pane fade" id="queue-dlq-pane" role="tabpanel">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover align-middle" id="queue-dlq-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Job ID</th>
-                                            <th>App</th>
-                                            <th>Name</th>
-                                            <th>Attempts</th>
-                                            <th>Failed at</th>
-                                            <th>Error</th>
-                                            <th class="text-end">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="queue-dlq-body">
-                                        <tr>
-                                            <td colspan="7" class="text-center text-muted">No dead-letter jobs</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p class="small text-muted mb-0">
-                                Dead-letter jobs exhausted retries. <strong>Retry</strong> re-enqueues with attempt 1;
-                                <strong>Discard</strong> removes the entry. Memory DLQ is lost on server restart; Redis DLQ is durable.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
+                <button
+                  type="button"
+                  class="queue-action-link"
+                  id="queue-refresh-btn"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-4">
+                <label class="form-label small mb-0" for="queue-dlq-app-filter"
+                  >Filter by app</label
+                >
+                <input
+                  type="text"
+                  class="form-control form-control-sm"
+                  id="queue-dlq-app-filter"
+                  placeholder="Type 3+ letters to search app name"
+                  autocomplete="off"
+                />
+              </div>
+            </div>
+
+            <ul class="nav nav-tabs mb-3" id="queueAdminTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link active"
+                  id="queue-live-tab"
+                  data-bs-toggle="tab"
+                  data-bs-target="#queue-live-pane"
+                  type="button"
+                  role="tab"
+                >
+                  Live jobs
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button
+                  class="nav-link"
+                  id="queue-dlq-tab"
+                  data-bs-toggle="tab"
+                  data-bs-target="#queue-dlq-pane"
+                  type="button"
+                  role="tab"
+                >
+                  Dead letter (DLQ)
+                </button>
+              </li>
+            </ul>
+            <div class="tab-content">
+              <div
+                class="tab-pane fade show active"
+                id="queue-live-pane"
+                role="tabpanel"
+              >
+                <div class="table-responsive">
+                  <table
+                    class="table table-sm table-hover align-middle"
+                    id="queue-live-table"
+                  >
+                    <thead>
+                      <tr>
+                        <th>Job ID</th>
+                        <th>App</th>
+                        <th>Name</th>
+                        <th>State</th>
+                        <th>Attempt</th>
+                        <th>Run at</th>
+                        <th>Scope</th>
+                      </tr>
+                    </thead>
+                    <tbody id="queue-live-body">
+                      <tr>
+                        <td colspan="7" class="text-center text-muted">
+                          No live jobs
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="small text-muted mb-0">
+                  <strong>running</strong> / <strong>waiting</strong> are on
+                  <em>this node</em>. <strong>pending</strong> /
+                  <strong>delayed</strong> come from the driver (memory: local;
+                  redis: shared fleet pool). Refresh or leave auto-refresh on
+                  for a live view.
+                </p>
+              </div>
+              <div class="tab-pane fade" id="queue-dlq-pane" role="tabpanel">
+                <div class="table-responsive">
+                  <table
+                    class="table table-sm table-hover align-middle"
+                    id="queue-dlq-table"
+                  >
+                    <thead>
+                      <tr>
+                        <th>Job ID</th>
+                        <th>App</th>
+                        <th>Name</th>
+                        <th>Attempts</th>
+                        <th>Failed at</th>
+                        <th>Error</th>
+                        <th class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="queue-dlq-body">
+                      <tr>
+                        <td colspan="7" class="text-center text-muted">
+                          No dead-letter jobs
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="small text-muted mb-0">
+                  Dead-letter jobs exhausted retries.
+                  <strong>Retry</strong> re-enqueues with attempt 1;
+                  <strong>Discard</strong> removes the entry. Memory DLQ is lost
+                  on server restart; Redis DLQ is durable.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Confirmation Modal (for Delete, Rollback, etc.) -->
     <div class="modal fade" id="confirmationModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modal-title">Confirm Action</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="modal-body-text">
-                    Are you sure you want to perform this action?
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="modal-confirm-button">Confirm</button>
-                </div>
-            </div>
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modal-title">Confirm Action</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="modal-body-text">
+            Are you sure you want to perform this action?
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              id="modal-confirm-button"
+            >
+              Confirm
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Install/Upgrade Modal -->
-    <div class="modal fade" id="installModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-lg"> <!-- Made the modal larger for the wizard -->
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="install-modal-title">Install Application</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div id="install-modal-body" class="modal-body">
-                    <div id="install-wizard-error" class="alert alert-danger d-none" role="alert"></div>
+    <div
+      class="modal fade"
+      id="installModal"
+      tabindex="-1"
+      data-bs-backdrop="static"
+      data-bs-keyboard="false"
+    >
+      <div class="modal-dialog modal-lg">
+        <!-- Made the modal larger for the wizard -->
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="install-modal-title">
+              Install Application
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div id="install-modal-body" class="modal-body">
+            <div
+              id="install-wizard-error"
+              class="alert alert-danger d-none"
+              role="alert"
+            ></div>
 
-                    <!-- The form is now just a container, not for submission -->
-                    <div id="install-form">
-                        <input type="hidden" id="install-mode-input" value="initial-upload">
-                        <!-- Initial view: File Upload -->
-                        <div id="install-step-1-upload">
-                            <div class="mb-3">
-                                <label for="appNameInput" class="form-label">Application Name</label>
-                                <input type="text" class="form-control" id="appNameInput" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="packageFileInput" class="form-label">App Package File (.gin)</label>
-                                <input class="form-control" type="file" id="packageFileInput" accept=".gin" required>
-                            </div>
-                        </div>
-                        <!-- Wizard view: Tabs (hidden initially) -->
-                        <div id="install-step-2-wizard" class="d-none">
-                            <ul class="nav nav-tabs" id="install-wizard-tabs" role="tablist">
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" id="tab-link-perms" data-bs-toggle="tab" data-bs-target="#tab-pane-perms" type="button" role="tab">1. Permissions</button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link disabled" id="tab-link-db" data-bs-toggle="tab" data-bs-target="#tab-pane-db" type="button" role="tab">2. Configuration</button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link disabled" id="tab-link-confirm" data-bs-toggle="tab" data-bs-target="#tab-pane-confirm" type="button" role="tab">3. Confirm</button>
-                                </li>
-                            </ul>
-                            <div class="tab-content pt-3" id="install-wizard-content">
-                                <div class="tab-pane fade show active" id="tab-pane-perms" role="tabpanel"></div>
-                                <div class="tab-pane fade" id="tab-pane-db" role="tabpanel"></div>
-                                <div class="tab-pane fade" id="tab-pane-confirm" role="tabpanel"></div>
-                            </div>
-                        </div>
-                        <div id="install-wizard-spinner" class="text-center p-4 d-none">
-                            <div class="spinner-border" role="status"></div>
-                            <p class="mt-2">Analyzing package...</p>
-                        </div>
-                    </div>
+            <!-- The form is now just a container, not for submission -->
+            <div id="install-form">
+              <input
+                type="hidden"
+                id="install-mode-input"
+                value="initial-upload"
+              />
+              <!-- Initial view: File Upload -->
+              <div id="install-step-1-upload">
+                <div class="mb-3">
+                  <label for="appNameInput" class="form-label"
+                    >Application Name</label
+                  >
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="appNameInput"
+                    required
+                  />
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary d-none" id="wizard-next-btn">Next</button>
-                    <button type="button" class="btn btn-success" id="install-confirm-button">
-                        <span class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        <span id="install-button-text">Install</span>
+                <div class="mb-3">
+                  <label for="packageFileInput" class="form-label"
+                    >App Package File (.gin)</label
+                  >
+                  <input
+                    class="form-control"
+                    type="file"
+                    id="packageFileInput"
+                    accept=".gin"
+                    required
+                  />
+                </div>
+              </div>
+              <!-- Wizard view: Tabs (hidden initially) -->
+              <div id="install-step-2-wizard" class="d-none">
+                <ul
+                  class="nav nav-tabs"
+                  id="install-wizard-tabs"
+                  role="tablist"
+                >
+                  <li class="nav-item" role="presentation">
+                    <button
+                      class="nav-link active"
+                      id="tab-link-perms"
+                      data-bs-toggle="tab"
+                      data-bs-target="#tab-pane-perms"
+                      type="button"
+                      role="tab"
+                    >
+                      1. Permissions
                     </button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button
+                      class="nav-link disabled"
+                      id="tab-link-db"
+                      data-bs-toggle="tab"
+                      data-bs-target="#tab-pane-db"
+                      type="button"
+                      role="tab"
+                    >
+                      2. Configuration
+                    </button>
+                  </li>
+                  <li class="nav-item" role="presentation">
+                    <button
+                      class="nav-link disabled"
+                      id="tab-link-confirm"
+                      data-bs-toggle="tab"
+                      data-bs-target="#tab-pane-confirm"
+                      type="button"
+                      role="tab"
+                    >
+                      3. Confirm
+                    </button>
+                  </li>
+                </ul>
+                <div class="tab-content pt-3" id="install-wizard-content">
+                  <div
+                    class="tab-pane fade show active"
+                    id="tab-pane-perms"
+                    role="tabpanel"
+                  ></div>
+                  <div
+                    class="tab-pane fade"
+                    id="tab-pane-db"
+                    role="tabpanel"
+                  ></div>
+                  <div
+                    class="tab-pane fade"
+                    id="tab-pane-confirm"
+                    role="tabpanel"
+                  ></div>
                 </div>
+              </div>
+              <div id="install-wizard-spinner" class="text-center p-4 d-none">
+                <div class="spinner-border" role="status"></div>
+                <p class="mt-2">Analyzing package...</p>
+              </div>
             </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary d-none"
+              id="wizard-next-btn"
+            >
+              Next
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              id="install-confirm-button"
+            >
+              <span
+                class="spinner-border spinner-border-sm d-none"
+                role="status"
+              ></span>
+              <span id="install-button-text">Install</span>
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Permissions Modal -->
-    <div class="modal fade" id="permissionsModal" tabindex="-1" aria-labelledby="permissionsModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="permissions-modal-title">Edit Permissions</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="permissions-modal-body">
-                    <!-- Checkboxes and error messages will be dynamically inserted here -->
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="permissions-save-button">
-                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                        <span id="permissions-save-button-text">Save</span>
-                    </button>
-                </div>
-            </div>
+    <div
+      class="modal fade"
+      id="permissionsModal"
+      tabindex="-1"
+      aria-labelledby="permissionsModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="permissions-modal-title">
+              Edit Permissions
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="permissions-modal-body">
+            <!-- Checkboxes and error messages will be dynamically inserted here -->
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="permissions-save-button"
+            >
+              <span
+                class="spinner-border spinner-border-sm d-none"
+                role="status"
+                aria-hidden="true"
+              ></span>
+              <span id="permissions-save-button-text">Save</span>
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Bootstrap 5 JS Bundle -->
@@ -463,6 +835,5 @@
     <script src="./scripts/install_modal_mode.js"></script>
     <script src="./scripts/cl_packconfig.js"></script>
     <script src="./scripts/cl_dashboard.js"></script>
-</body>
-
+  </body>
 </html>

@@ -7,13 +7,13 @@
 /**
  * Isolation section defaults.
  */
-const { WORKER_LIMITS_DEFAULTS } = require('./resource_limits.js');
+const { WORKER_LIMITS_DEFAULTS } = require("./resource_limits.js");
 
 const ISOLATION_DEFAULTS = {
   /** off = all in-process (default). process = allow workers per policy. */
-  mode: 'off',
+  mode: "off",
   /** When mode is process and app does not set isolation: inprocess | process */
-  default: 'inprocess',
+  default: "inprocess",
   /** Optional explicit app names to isolate when mode is process */
   apps: [],
   /**
@@ -43,7 +43,7 @@ const ISOLATION_DEFAULTS = {
    * OS / V8 resource limits applied to each isolation worker process.
    * See resource_limits.js — null fields mean Node/OS defaults.
    */
-  worker_limits: { ...WORKER_LIMITS_DEFAULTS }
+  worker_limits: { ...WORKER_LIMITS_DEFAULTS },
 };
 
 /**
@@ -55,17 +55,21 @@ function shouldIsolateApp(app, config) {
   if (!app || !config) return false;
 
   const iso = config.isolation;
-  if (!iso || iso.mode !== 'process') return false;
+  if (!iso || iso.mode !== "process") return false;
 
   const name = app.name;
   // Privileged / control-plane apps always stay in-process (Glade, etc.)
-  if (Array.isArray(config.privileged_apps) && config.privileged_apps.includes(name)) {
+  if (
+    Array.isArray(config.privileged_apps) &&
+    config.privileged_apps.includes(name)
+  ) {
     return false;
   }
 
   const appIso = app.config && app.config.isolation;
-  if (appIso === 'process') return true;
-  if (appIso === 'inprocess' || appIso === 'off' || appIso === false) return false;
+  if (appIso === "process") return true;
+  if (appIso === "inprocess" || appIso === "off" || appIso === false)
+    return false;
 
   // Member of a group
   if (resolveGroupId(name, iso)) return true;
@@ -73,7 +77,7 @@ function shouldIsolateApp(app, config) {
   // Explicit allowlist of app names
   if (Array.isArray(iso.apps) && iso.apps.includes(name)) return true;
 
-  return iso.default === 'process';
+  return iso.default === "process";
 }
 
 /**
@@ -115,9 +119,13 @@ function resolveWorkerKey(app, config) {
 function appsForWorker(app, config, allApps) {
   const key = resolveWorkerKey(app, config);
   if (!key) return [];
-  if (key.startsWith('group:')) {
-    const groupId = key.slice('group:'.length);
-    const members = (config.isolation && config.isolation.groups && config.isolation.groups[groupId]) || [];
+  if (key.startsWith("group:")) {
+    const groupId = key.slice("group:".length);
+    const members =
+      (config.isolation &&
+        config.isolation.groups &&
+        config.isolation.groups[groupId]) ||
+      [];
     // Only include members that exist and are still isolated into this group
     return members.filter((name) => {
       if (allApps && !allApps[name]) return false;
@@ -134,7 +142,10 @@ function appsForWorker(app, config, allApps) {
  * @param {object} iso
  */
 function restartDelayMs(attempt, iso) {
-  const base = iso.restart_delay_ms != null ? Number(iso.restart_delay_ms) : ISOLATION_DEFAULTS.restart_delay_ms;
+  const base =
+    iso.restart_delay_ms != null
+      ? Number(iso.restart_delay_ms)
+      : ISOLATION_DEFAULTS.restart_delay_ms;
   const max =
     iso.restart_backoff_max_ms != null
       ? Number(iso.restart_backoff_max_ms)
@@ -150,5 +161,5 @@ module.exports = {
   appsForWorker,
   restartDelayMs,
   ISOLATION_DEFAULTS,
-  WORKER_LIMITS_DEFAULTS
+  WORKER_LIMITS_DEFAULTS,
 };

@@ -12,7 +12,7 @@
  * @private
  */
 
-const { randomUUID } = require('crypto');
+const { randomUUID } = require("crypto");
 
 /**
  * Atomic DLQ discard:
@@ -87,17 +87,19 @@ return newRaw
  */
 function waitUntilReady(client, timeoutMs) {
   if (!client) {
-    return Promise.reject(new Error('Redis client not created'));
+    return Promise.reject(new Error("Redis client not created"));
   }
   // Already open
-  if (client.status === 'ready') {
-    return client.ping ? client.ping().then(() => undefined) : Promise.resolve();
+  if (client.status === "ready") {
+    return client.ping
+      ? client.ping().then(() => undefined)
+      : Promise.resolve();
   }
   // Test mocks without status: try ping if present
-  if (client.status == null && typeof client.ping === 'function') {
+  if (client.status == null && typeof client.ping === "function") {
     return client.ping().then(() => undefined);
   }
-  if (client.status == null && typeof client.ping !== 'function') {
+  if (client.status == null && typeof client.ping !== "function") {
     // Injected mock without ping — assume ready
     return Promise.resolve();
   }
@@ -113,9 +115,9 @@ function waitUntilReady(client, timeoutMs) {
 
     function cleanup() {
       clearTimeout(timer);
-      if (typeof client.removeListener === 'function') {
-        client.removeListener('ready', onReady);
-        client.removeListener('error', onError);
+      if (typeof client.removeListener === "function") {
+        client.removeListener("ready", onReady);
+        client.removeListener("error", onError);
       }
     }
     function onReady() {
@@ -128,15 +130,19 @@ function waitUntilReady(client, timeoutMs) {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(err instanceof Error ? err : new Error(String(err && err.message ? err.message : err)));
+      reject(
+        err instanceof Error
+          ? err
+          : new Error(String(err && err.message ? err.message : err)),
+      );
     }
 
-    if (typeof client.once === 'function') {
-      client.once('ready', onReady);
-      client.once('error', onError);
-    } else if (typeof client.on === 'function') {
-      client.on('ready', onReady);
-      client.on('error', onError);
+    if (typeof client.once === "function") {
+      client.once("ready", onReady);
+      client.once("error", onError);
+    } else if (typeof client.on === "function") {
+      client.on("ready", onReady);
+      client.on("error", onError);
     } else {
       settled = true;
       clearTimeout(timer);
@@ -144,7 +150,7 @@ function waitUntilReady(client, timeoutMs) {
     }
 
     // Race a ping for clients already connecting
-    if (typeof client.ping === 'function') {
+    if (typeof client.ping === "function") {
       client
         .ping()
         .then(() => onReady())
@@ -169,7 +175,7 @@ function waitUntilReady(client, timeoutMs) {
  */
 function createRedisDriver(opts) {
   const log = opts.logger || console;
-  const prefix = opts.keyPrefix || 'gingee:queue:';
+  const prefix = opts.keyPrefix || "gingee:queue:";
   const pollMs = opts.pollMs != null ? Number(opts.pollMs) : 500;
   const visibilityTimeoutMs =
     opts.visibilityTimeoutMs != null
@@ -194,7 +200,8 @@ function createRedisDriver(opts) {
   const processingKey = () => `${prefix}processing`;
   const dlqKey = () => `${prefix}dlq`;
   const jobKey = (id) => `${prefix}job:${id}`;
-  const dlqTtlSec = opts.dlqTtlSec != null ? Number(opts.dlqTtlSec) : 86400 * 14;
+  const dlqTtlSec =
+    opts.dlqTtlSec != null ? Number(opts.dlqTtlSec) : 86400 * 14;
   const dlqMax = opts.dlqMax != null ? Number(opts.dlqMax) : 1000;
 
   function connect() {
@@ -202,26 +209,26 @@ function createRedisDriver(opts) {
       client = opts.client;
       return;
     }
-    const Redis = require('ioredis');
+    const Redis = require("ioredis");
     const r = opts.redis || {};
-    if (r.url || (typeof r === 'string' && r)) {
+    if (r.url || (typeof r === "string" && r)) {
       const url = r.url || r;
       client = new Redis(url, {
         maxRetriesPerRequest: null,
         enableReadyCheck: true,
-        lazyConnect: false
+        lazyConnect: false,
       });
     } else {
       client = new Redis({
-        host: r.host || '127.0.0.1',
+        host: r.host || "127.0.0.1",
         port: r.port != null ? Number(r.port) : 6379,
         password: r.password || undefined,
         db: r.db != null ? Number(r.db) : 0,
         maxRetriesPerRequest: null,
-        enableReadyCheck: true
+        enableReadyCheck: true,
       });
     }
-    client.on('error', (err) => {
+    client.on("error", (err) => {
       log.error(`[queue:redis] ${err.message}`);
     });
   }
@@ -230,7 +237,7 @@ function createRedisDriver(opts) {
     const ttl = ttlSec != null ? ttlSec : 86400 * 7;
     const copy = { ...job };
     delete copy._timer;
-    await client.set(jobKey(job.id), JSON.stringify(copy), 'EX', ttl);
+    await client.set(jobKey(job.id), JSON.stringify(copy), "EX", ttl);
   }
 
   async function markProcessing(id) {
@@ -247,7 +254,14 @@ function createRedisDriver(opts) {
   async function promoteDelayed() {
     if (!client || closed) return;
     const now = Date.now();
-    const ids = await client.zrangebyscore(delayedKey(), 0, now, 'LIMIT', 0, 32);
+    const ids = await client.zrangebyscore(
+      delayedKey(),
+      0,
+      now,
+      "LIMIT",
+      0,
+      32,
+    );
     for (const id of ids) {
       const moved = await client.zrem(delayedKey(), id);
       if (moved === 1) {
@@ -262,7 +276,14 @@ function createRedisDriver(opts) {
   async function reclaimStale() {
     if (!client || closed) return 0;
     const now = Date.now();
-    const ids = await client.zrangebyscore(processingKey(), 0, now, 'LIMIT', 0, 32);
+    const ids = await client.zrangebyscore(
+      processingKey(),
+      0,
+      now,
+      "LIMIT",
+      0,
+      32,
+    );
     let n = 0;
     for (const id of ids) {
       const removed = await client.zrem(processingKey(), id);
@@ -277,8 +298,8 @@ function createRedisDriver(opts) {
         continue;
       }
       // Do not reclaim DLQ / already failed records
-      if (job.status === 'failed') continue;
-      job.status = 'waiting';
+      if (job.status === "failed") continue;
+      job.status = "waiting";
       job.reclaimedAt = now;
       delete job.claimedAt;
       delete job.reclaimAt;
@@ -286,7 +307,7 @@ function createRedisDriver(opts) {
       await client.lpush(readyKey(), id);
       n++;
       log.warn(
-        `[queue:redis] Reclaimed stale claim id=${id} app=${job.appName || '?'} job=${job.name || '?'}`
+        `[queue:redis] Reclaimed stale claim id=${id} app=${job.appName || "?"} job=${job.name || "?"}`,
       );
     }
     return n;
@@ -318,12 +339,12 @@ function createRedisDriver(opts) {
           await client.del(jobKey(id));
           continue;
         }
-        if (job.status === 'failed') {
+        if (job.status === "failed") {
           // Stray id on ready list
           continue;
         }
         const reclaimAt = await markProcessing(id);
-        job.status = 'active';
+        job.status = "active";
         job.claimedAt = Date.now();
         job.reclaimAt = reclaimAt;
         await saveJob(job);
@@ -365,10 +386,10 @@ function createRedisDriver(opts) {
         record = job;
       }
     }
-    if (record.status === 'failed') {
+    if (record.status === "failed") {
       return false;
     }
-    record.status = 'waiting';
+    record.status = "waiting";
     delete record.claimedAt;
     delete record.reclaimAt;
     await saveJob(record);
@@ -379,7 +400,7 @@ function createRedisDriver(opts) {
   }
 
   return {
-    name: 'redis',
+    name: "redis",
     visibilityTimeoutMs,
 
     async start() {
@@ -387,21 +408,24 @@ function createRedisDriver(opts) {
       consuming = true;
       closed = false;
       // Fail fast if Redis is unreachable (supports queue.fail_closed)
-      await waitUntilReady(client, opts.connectTimeoutMs != null ? opts.connectTimeoutMs : 5000);
+      await waitUntilReady(
+        client,
+        opts.connectTimeoutMs != null ? opts.connectTimeoutMs : 5000,
+      );
       setImmediate(() => {
         pullLoop().catch((e) => log.error(`[queue:redis] ${e.message}`));
       });
       pollTimer = setInterval(() => {
         promoteDelayed().catch(() => {});
       }, pollMs);
-      if (typeof pollTimer.unref === 'function') pollTimer.unref();
+      if (typeof pollTimer.unref === "function") pollTimer.unref();
 
       reclaimTimer = setInterval(() => {
         reclaimStale().catch((e) =>
-          log.error(`[queue:redis] reclaim: ${e.message}`)
+          log.error(`[queue:redis] reclaim: ${e.message}`),
         );
       }, reclaimIntervalMs);
-      if (typeof reclaimTimer.unref === 'function') reclaimTimer.unref();
+      if (typeof reclaimTimer.unref === "function") reclaimTimer.unref();
     },
 
     /** Stop BRPOP / delivering new jobs (graceful shutdown step 1). */
@@ -437,10 +461,7 @@ function createRedisDriver(opts) {
      * @param {object|string} jobOrId
      */
     async releaseClaim(jobOrId) {
-      const job =
-        typeof jobOrId === 'string'
-          ? { id: jobOrId }
-          : jobOrId;
+      const job = typeof jobOrId === "string" ? { id: jobOrId } : jobOrId;
       return releaseClaimInternal(job);
     },
 
@@ -450,7 +471,7 @@ function createRedisDriver(opts) {
     },
 
     async enqueue(jobInput) {
-      if (!client) throw new Error('Redis queue driver not started');
+      if (!client) throw new Error("Redis queue driver not started");
       const id = jobInput.id || randomUUID();
       const delayMs = jobInput.delayMs || 0;
       // Drop any prior processing claim when re-enqueuing same id (retry / maintenance)
@@ -468,8 +489,8 @@ function createRedisDriver(opts) {
         maxAttempts: jobInput.maxAttempts || 3,
         backoffMs: jobInput.backoffMs != null ? jobInput.backoffMs : 1000,
         runAt: Date.now() + delayMs,
-        status: delayMs > 0 ? 'delayed' : 'waiting',
-        createdAt: jobInput.createdAt || Date.now()
+        status: delayMs > 0 ? "delayed" : "waiting",
+        createdAt: jobInput.createdAt || Date.now(),
       };
       await saveJob(job);
       if (delayMs > 0) {
@@ -483,7 +504,8 @@ function createRedisDriver(opts) {
     async retry(job) {
       const nextAttempt = (job.attempt || 1) + 1;
       const delay =
-        (job.backoffMs || 1000) * Math.pow(2, Math.max(0, (job.attempt || 1) - 1));
+        (job.backoffMs || 1000) *
+        Math.pow(2, Math.max(0, (job.attempt || 1) - 1));
       await clearProcessing(job.id);
       return this.enqueue({
         id: job.id,
@@ -495,7 +517,7 @@ function createRedisDriver(opts) {
         maxAttempts: job.maxAttempts,
         backoffMs: job.backoffMs,
         delayMs: delay,
-        createdAt: job.createdAt
+        createdAt: job.createdAt,
       });
     },
 
@@ -521,14 +543,19 @@ function createRedisDriver(opts) {
       await client.zrem(delayedKey(), job.id);
       const record = {
         ...job,
-        status: 'failed',
-        error: err ? err.message || String(err) : job.error || 'failed',
-        failedAt: Date.now()
+        status: "failed",
+        error: err ? err.message || String(err) : job.error || "failed",
+        failedAt: Date.now(),
       };
       delete record._timer;
       delete record.claimedAt;
       delete record.reclaimAt;
-      await client.set(jobKey(record.id), JSON.stringify(record), 'EX', dlqTtlSec);
+      await client.set(
+        jobKey(record.id),
+        JSON.stringify(record),
+        "EX",
+        dlqTtlSec,
+      );
       await client.lrem(dlqKey(), 0, record.id);
       await client.lpush(dlqKey(), record.id);
       await client.ltrim(dlqKey(), 0, Math.max(0, dlqMax - 1));
@@ -543,7 +570,7 @@ function createRedisDriver(opts) {
       }
       try {
         const j = JSON.parse(raw);
-        await this.deadLetter(j, j.error || 'failed');
+        await this.deadLetter(j, j.error || "failed");
       } catch (_) {
         await clearProcessing(jobId);
         await client.del(jobKey(jobId));
@@ -552,7 +579,10 @@ function createRedisDriver(opts) {
 
     async listDlq(opts = {}) {
       if (!client) return [];
-      const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+      const limit =
+        opts.limit != null
+          ? Math.min(500, Math.max(1, Number(opts.limit)))
+          : 100;
       const appFilter = opts.appName || null;
       const ids = await client.lrange(dlqKey(), 0, Math.max(limit * 3, 50) - 1);
       const out = [];
@@ -577,7 +607,7 @@ function createRedisDriver(opts) {
       if (!raw) return null;
       try {
         const j = JSON.parse(raw);
-        return j.status === 'failed' ? j : null;
+        return j.status === "failed" ? j : null;
       } catch (_) {
         return null;
       }
@@ -592,14 +622,14 @@ function createRedisDriver(opts) {
     async discardDlq(jobId) {
       if (!client || !jobId) return false;
       const id = String(jobId);
-      if (typeof client.eval === 'function') {
+      if (typeof client.eval === "function") {
         const n = await client.eval(
           LUA_DISCARD_DLQ,
           3,
           dlqKey(),
           jobKey(id),
           processingKey(),
-          id
+          id,
         );
         return Number(n) > 0;
       }
@@ -624,12 +654,14 @@ function createRedisDriver(opts) {
       if (!client || !jobId) return null;
       const id = String(jobId);
       const maxAttemptsArg =
-        opts.maxAttempts != null ? Math.max(1, Number(opts.maxAttempts) || 3) : 0;
+        opts.maxAttempts != null
+          ? Math.max(1, Number(opts.maxAttempts) || 3)
+          : 0;
       // When not provided, use max(3, existing) after claim — pass 0 to mean "read from job"
       const now = Date.now();
       const ttlSec = 86400 * 7;
 
-      if (typeof client.eval === 'function') {
+      if (typeof client.eval === "function") {
         // If maxAttempts not set, peek job first for default budget (read-only), then claim
         let maxForScript = maxAttemptsArg;
         if (maxForScript === 0) {
@@ -648,12 +680,12 @@ function createRedisDriver(opts) {
           id,
           String(maxForScript),
           String(now),
-          String(ttlSec)
+          String(ttlSec),
         );
-        if (!raw || raw === false || raw === 'false') return null;
+        if (!raw || raw === false || raw === "false") return null;
         let j;
         try {
-          j = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          j = typeof raw === "string" ? JSON.parse(raw) : raw;
         } catch (_) {
           return null;
         }
@@ -681,7 +713,7 @@ function createRedisDriver(opts) {
         maxAttempts,
         backoffMs: rec.backoffMs,
         delayMs: 0,
-        createdAt: rec.createdAt
+        createdAt: rec.createdAt,
       });
     },
 
@@ -698,7 +730,10 @@ function createRedisDriver(opts) {
      */
     async listPending(opts = {}) {
       if (!client) return [];
-      const limit = opts.limit != null ? Math.min(500, Math.max(1, Number(opts.limit))) : 100;
+      const limit =
+        opts.limit != null
+          ? Math.min(500, Math.max(1, Number(opts.limit)))
+          : 100;
       const appFilter = opts.appName || null;
       const out = [];
       const seen = new Set();
@@ -714,8 +749,8 @@ function createRedisDriver(opts) {
           out.push({
             ...j,
             state,
-            scope: 'driver',
-            runAt: runAtHint != null ? Number(runAtHint) : j.runAt
+            scope: "driver",
+            runAt: runAtHint != null ? Number(runAtHint) : j.runAt,
           });
         } catch (_) {
           /* ignore */
@@ -725,41 +760,45 @@ function createRedisDriver(opts) {
       // Processing claims (visibility leases)
       const processing = await client.zrangebyscore(
         processingKey(),
-        '-inf',
-        '+inf',
-        'WITHSCORES',
-        'LIMIT',
+        "-inf",
+        "+inf",
+        "WITHSCORES",
+        "LIMIT",
         0,
-        Math.max(limit, 50)
+        Math.max(limit, 50),
       );
       for (let i = 0; i < processing.length; i += 2) {
         if (out.length >= limit) break;
-        await pushId(processing[i], 'processing', processing[i + 1]);
+        await pushId(processing[i], "processing", processing[i + 1]);
       }
 
       // Delayed first (soonest first)
       if (out.length < limit) {
         const delayed = await client.zrangebyscore(
           delayedKey(),
-          '-inf',
-          '+inf',
-          'WITHSCORES',
-          'LIMIT',
+          "-inf",
+          "+inf",
+          "WITHSCORES",
+          "LIMIT",
           0,
-          Math.max(limit, 50)
+          Math.max(limit, 50),
         );
         for (let i = 0; i < delayed.length; i += 2) {
           if (out.length >= limit) break;
-          await pushId(delayed[i], 'delayed', delayed[i + 1]);
+          await pushId(delayed[i], "delayed", delayed[i + 1]);
         }
       }
 
       // Ready list
       if (out.length < limit) {
-        const readyIds = await client.lrange(readyKey(), 0, Math.max(limit * 2, 50) - 1);
+        const readyIds = await client.lrange(
+          readyKey(),
+          0,
+          Math.max(limit * 2, 50) - 1,
+        );
         for (let i = readyIds.length - 1; i >= 0; i--) {
           if (out.length >= limit) break;
-          await pushId(readyIds[i], 'pending', null);
+          await pushId(readyIds[i], "pending", null);
         }
       }
 
@@ -771,12 +810,12 @@ function createRedisDriver(opts) {
       const [pending, delayed, processing] = await Promise.all([
         client.llen(readyKey()),
         client.zcard(delayedKey()),
-        client.zcard(processingKey())
+        client.zcard(processingKey()),
       ]);
       return {
         pending: Number(pending) || 0,
         delayed: Number(delayed) || 0,
-        processing: Number(processing) || 0
+        processing: Number(processing) || 0,
       };
     },
 
@@ -794,11 +833,11 @@ function createRedisDriver(opts) {
       }
       if (client) {
         try {
-          if (typeof client.quit === 'function') {
+          if (typeof client.quit === "function") {
             await client.quit().catch(() => {
-              if (typeof client.disconnect === 'function') client.disconnect();
+              if (typeof client.disconnect === "function") client.disconnect();
             });
-          } else if (typeof client.disconnect === 'function') {
+          } else if (typeof client.disconnect === "function") {
             client.disconnect();
           }
         } catch (_) {
@@ -806,7 +845,7 @@ function createRedisDriver(opts) {
         }
         client = null;
       }
-    }
+    },
   };
 }
 

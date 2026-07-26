@@ -1,9 +1,9 @@
-const axios = require('axios');
-const querystring = require('querystring');
-const FormData = require('form-data');
-const { getContext } = require('./gingee.js');
-const limits = require('./limits.js');
-const egress = require('./egress.js');
+const axios = require("axios");
+const querystring = require("querystring");
+const FormData = require("form-data");
+const { getContext } = require("./gingee.js");
+const limits = require("./limits.js");
+const egress = require("./egress.js");
 
 /**
  * @module httpclient
@@ -29,11 +29,11 @@ const egress = require('./egress.js');
 
 // --- Constants for POST data types ---
 const POST_TYPES = {
-    JSON: 'application/json',
-    FORM: 'application/x-www-form-urlencoded',
-    TEXT: 'text/plain',
-    XML: 'application/xml',
-    MULTIPART: 'multipart/form-data',
+  JSON: "application/json",
+  FORM: "application/x-www-form-urlencoded",
+  TEXT: "text/plain",
+  XML: "application/xml",
+  MULTIPART: "multipart/form-data",
 };
 
 /**
@@ -41,13 +41,15 @@ const POST_TYPES = {
  * @private
  */
 function isBinaryResponse(headers) {
-    const contentType = headers['content-type'] || '';
-    // Added 'application/json' and 'text/' to the list of non-binary types.
-    if (/^text\/|application\/(json|javascript|xml)/.test(contentType)) {
-        return false;
-    }
-    // A more general check for common binary types.
-    return /^image\/|audio\/|video\/|application\/(octet-stream|pdf|zip|msword)/.test(contentType);
+  const contentType = headers["content-type"] || "";
+  // Added 'application/json' and 'text/' to the list of non-binary types.
+  if (/^text\/|application\/(json|javascript|xml)/.test(contentType)) {
+    return false;
+  }
+  // A more general check for common binary types.
+  return /^image\/|audio\/|video\/|application\/(octet-stream|pdf|zip|msword)/.test(
+    contentType,
+  );
 }
 
 /**
@@ -55,13 +57,13 @@ function isBinaryResponse(headers) {
  * @private
  */
 function processBody(data, headers) {
-    const bodyBuffer = Buffer.from(data);
-    if (isBinaryResponse(headers)) {
-        // If it's binary, return the raw Buffer.
-        return bodyBuffer;
-    }
-    // Otherwise, convert the Buffer to a string.
-    return bodyBuffer.toString('utf8');
+  const bodyBuffer = Buffer.from(data);
+  if (isBinaryResponse(headers)) {
+    // If it's binary, return the raw Buffer.
+    return bodyBuffer;
+  }
+  // Otherwise, convert the Buffer to a string.
+  return bodyBuffer.toString("utf8");
 }
 
 /**
@@ -69,44 +71,47 @@ function processBody(data, headers) {
  * @private
  */
 function applyPlatformLimits(options = {}) {
-    let store = null;
+  let store = null;
+  try {
+    store = getContext();
+  } catch (_) {
+    store = null;
+  }
+
+  const timeout = limits.resolveOutboundTimeoutMs(options.timeout, store);
+  const signal =
+    options.signal || (store && store.requestAbortSignal) || undefined;
+
+  const outbound = limits.tryAcquireOutbound();
+  if (!outbound.ok) {
     try {
-        store = getContext();
+      const metrics = require("./metrics.js");
+      metrics.inc("gingee_limits_rejected_total", { scope: "outbound" });
     } catch (_) {
-        store = null;
+      /* ignore */
     }
+    const err = new Error(outbound.message);
+    err.code = "TOO_MANY_OUTBOUND";
+    throw err;
+  }
 
-    const timeout = limits.resolveOutboundTimeoutMs(options.timeout, store);
-    const signal = options.signal || (store && store.requestAbortSignal) || undefined;
+  const maxRedirects =
+    options.maxRedirects != null
+      ? options.maxRedirects
+      : egress.getMaxRedirects();
 
-    const outbound = limits.tryAcquireOutbound();
-    if (!outbound.ok) {
-        try {
-            const metrics = require('./metrics.js');
-            metrics.inc('gingee_limits_rejected_total', { scope: 'outbound' });
-        } catch (_) {
-            /* ignore */
-        }
-        const err = new Error(outbound.message);
-        err.code = 'TOO_MANY_OUTBOUND';
-        throw err;
-    }
-
-    const maxRedirects =
-        options.maxRedirects != null ? options.maxRedirects : egress.getMaxRedirects();
-
-    return {
-        axiosConfig: {
-            ...options,
-            timeout,
-            maxRedirects,
-            beforeRedirect: options.beforeRedirect || egress.beforeRedirect,
-            ...(signal ? { signal } : {}),
-            responseType: 'arraybuffer'
-        },
-        releaseOutbound: outbound.release,
-        timeout
-    };
+  return {
+    axiosConfig: {
+      ...options,
+      timeout,
+      maxRedirects,
+      beforeRedirect: options.beforeRedirect || egress.beforeRedirect,
+      ...(signal ? { signal } : {}),
+      responseType: "arraybuffer",
+    },
+    releaseOutbound: outbound.release,
+    timeout,
+  };
 }
 
 /**
@@ -114,69 +119,75 @@ function applyPlatformLimits(options = {}) {
  * @private
  */
 function mapAxiosError(axiosErr) {
-    if (axiosErr.response) {
-        const body = processBody(axiosErr.response.data, axiosErr.response.headers);
-        return {
-            status: axiosErr.response.status,
-            headers: axiosErr.response.headers,
-            body: body,
-        };
-    }
-
-    const code = axiosErr.code || (axiosErr.name === 'CanceledError' || axiosErr.name === 'AbortError' ? 'ABORTED' : null);
-    const isTimeout =
-        code === 'ECONNABORTED' ||
-        code === 'ETIMEDOUT' ||
-        /timeout/i.test(axiosErr.message || '');
-    const isAbort =
-        code === 'ERR_CANCELED' ||
-        code === 'ABORTED' ||
-        axiosErr.name === 'CanceledError' ||
-        axiosErr.name === 'AbortError';
-
-    if (isTimeout) {
-        return {
-            status: 504,
-            headers: {},
-            body: 'Outbound request timed out: ' + (axiosErr.message || 'timeout'),
-            code: 'ETIMEDOUT'
-        };
-    }
-    if (isAbort) {
-        return {
-            status: 499,
-            headers: {},
-            body: 'Outbound request aborted: ' + (axiosErr.message || 'aborted'),
-            code: 'ABORTED'
-        };
-    }
-    if (axiosErr.code === 'TOO_MANY_OUTBOUND') {
-        return {
-            status: 503,
-            headers: {},
-            body: axiosErr.message,
-            code: 'TOO_MANY_OUTBOUND'
-        };
-    }
-    if (
-        axiosErr.code === 'EGRESS_DENIED' ||
-        (axiosErr.message && String(axiosErr.message).includes('EGRESS_DENIED'))
-    ) {
-        return {
-            status: 403,
-            headers: {},
-            body: axiosErr.message || 'EGRESS_DENIED',
-            code: 'EGRESS_DENIED',
-            reason: axiosErr.reason || null
-        };
-    }
-
+  if (axiosErr.response) {
+    const body = processBody(axiosErr.response.data, axiosErr.response.headers);
     return {
-        status: 500,
-        headers: {},
-        body: 'Unexpected error occurred: ' + (axiosErr.message || 'No message provided'),
-        code: code || 'ERROR'
+      status: axiosErr.response.status,
+      headers: axiosErr.response.headers,
+      body: body,
     };
+  }
+
+  const code =
+    axiosErr.code ||
+    (axiosErr.name === "CanceledError" || axiosErr.name === "AbortError"
+      ? "ABORTED"
+      : null);
+  const isTimeout =
+    code === "ECONNABORTED" ||
+    code === "ETIMEDOUT" ||
+    /timeout/i.test(axiosErr.message || "");
+  const isAbort =
+    code === "ERR_CANCELED" ||
+    code === "ABORTED" ||
+    axiosErr.name === "CanceledError" ||
+    axiosErr.name === "AbortError";
+
+  if (isTimeout) {
+    return {
+      status: 504,
+      headers: {},
+      body: "Outbound request timed out: " + (axiosErr.message || "timeout"),
+      code: "ETIMEDOUT",
+    };
+  }
+  if (isAbort) {
+    return {
+      status: 499,
+      headers: {},
+      body: "Outbound request aborted: " + (axiosErr.message || "aborted"),
+      code: "ABORTED",
+    };
+  }
+  if (axiosErr.code === "TOO_MANY_OUTBOUND") {
+    return {
+      status: 503,
+      headers: {},
+      body: axiosErr.message,
+      code: "TOO_MANY_OUTBOUND",
+    };
+  }
+  if (
+    axiosErr.code === "EGRESS_DENIED" ||
+    (axiosErr.message && String(axiosErr.message).includes("EGRESS_DENIED"))
+  ) {
+    return {
+      status: 403,
+      headers: {},
+      body: axiosErr.message || "EGRESS_DENIED",
+      code: "EGRESS_DENIED",
+      reason: axiosErr.reason || null,
+    };
+  }
+
+  return {
+    status: 500,
+    headers: {},
+    body:
+      "Unexpected error occurred: " +
+      (axiosErr.message || "No message provided"),
+    code: code || "ERROR",
+  };
 }
 
 /**
@@ -197,35 +208,35 @@ function mapAxiosError(axiosErr) {
  * console.log(response.body);
  */
 async function get(url, options = {}) {
-    let releaseOutbound = null;
-    try {
-        const allowed = await egress.assertUrlAllowed(url);
-        if (!allowed.ok) {
-            return {
-                status: 403,
-                headers: {},
-                body: allowed.message,
-                code: 'EGRESS_DENIED',
-                reason: allowed.reason
-            };
-        }
-
-        const prepared = applyPlatformLimits(options);
-        releaseOutbound = prepared.releaseOutbound;
-        // Pin connect to policy-validated addresses (DNS rebinding / H13).
-        egress.applyConnectPin(prepared.axiosConfig, allowed);
-        const response = await axios.get(url, prepared.axiosConfig);
-        const body = processBody(response.data, response.headers);
-        return {
-            status: response.status,
-            headers: response.headers,
-            body: body,
-        };
-    } catch (axiosErr) {
-        return mapAxiosError(axiosErr);
-    } finally {
-        if (releaseOutbound) releaseOutbound();
+  let releaseOutbound = null;
+  try {
+    const allowed = await egress.assertUrlAllowed(url);
+    if (!allowed.ok) {
+      return {
+        status: 403,
+        headers: {},
+        body: allowed.message,
+        code: "EGRESS_DENIED",
+        reason: allowed.reason,
+      };
     }
+
+    const prepared = applyPlatformLimits(options);
+    releaseOutbound = prepared.releaseOutbound;
+    // Pin connect to policy-validated addresses (DNS rebinding / H13).
+    egress.applyConnectPin(prepared.axiosConfig, allowed);
+    const response = await axios.get(url, prepared.axiosConfig);
+    const body = processBody(response.data, response.headers);
+    return {
+      status: response.status,
+      headers: response.headers,
+      body: body,
+    };
+  } catch (axiosErr) {
+    return mapAxiosError(axiosErr);
+  } finally {
+    if (releaseOutbound) releaseOutbound();
+  }
 }
 
 /**
@@ -247,92 +258,95 @@ async function get(url, options = {}) {
  * console.log(response.body);
  */
 async function post(url, body, options = {}) {
-    const postType = options.postType || POST_TYPES.JSON;
-    let releaseOutbound = null;
+  const postType = options.postType || POST_TYPES.JSON;
+  let releaseOutbound = null;
 
-    try {
-        const allowed = await egress.assertUrlAllowed(url);
-        if (!allowed.ok) {
-            return {
-                status: 403,
-                headers: {},
-                body: allowed.message,
-                code: 'EGRESS_DENIED',
-                reason: allowed.reason
-            };
-        }
-
-        const prepared = applyPlatformLimits(options);
-        releaseOutbound = prepared.releaseOutbound;
-
-        const config = {
-            ...prepared.axiosConfig,
-            headers: { 'Content-Type': postType, ...(options.headers || {}) },
-        };
-        // Pin connect to policy-validated addresses (DNS rebinding / H13).
-        egress.applyConnectPin(config, allowed);
-
-        let data = body;
-        if (postType === POST_TYPES.JSON) data = JSON.stringify(body);
-        if (postType === POST_TYPES.FORM) data = querystring.stringify(body);
-        if (postType === POST_TYPES.MULTIPART) {
-            if (!(body instanceof FormData)) throw new Error("For MULTIPART, body must use object created with formdata module.");
-            delete config.headers['Content-Type'];
-        }
-
-        const response = await axios.post(url, data, config);
-        const responseBody = processBody(response.data, response.headers);
-        return {
-            status: response.status,
-            headers: response.headers,
-            body: responseBody,
-        };
-    } catch (axiosErr) {
-        if (axiosErr.message && axiosErr.message.includes('MULTIPART')) {
-            throw axiosErr;
-        }
-        return mapAxiosError(axiosErr);
-    } finally {
-        if (releaseOutbound) releaseOutbound();
+  try {
+    const allowed = await egress.assertUrlAllowed(url);
+    if (!allowed.ok) {
+      return {
+        status: 403,
+        headers: {},
+        body: allowed.message,
+        code: "EGRESS_DENIED",
+        reason: allowed.reason,
+      };
     }
+
+    const prepared = applyPlatformLimits(options);
+    releaseOutbound = prepared.releaseOutbound;
+
+    const config = {
+      ...prepared.axiosConfig,
+      headers: { "Content-Type": postType, ...(options.headers || {}) },
+    };
+    // Pin connect to policy-validated addresses (DNS rebinding / H13).
+    egress.applyConnectPin(config, allowed);
+
+    let data = body;
+    if (postType === POST_TYPES.JSON) data = JSON.stringify(body);
+    if (postType === POST_TYPES.FORM) data = querystring.stringify(body);
+    if (postType === POST_TYPES.MULTIPART) {
+      if (!(body instanceof FormData))
+        throw new Error(
+          "For MULTIPART, body must use object created with formdata module.",
+        );
+      delete config.headers["Content-Type"];
+    }
+
+    const response = await axios.post(url, data, config);
+    const responseBody = processBody(response.data, response.headers);
+    return {
+      status: response.status,
+      headers: response.headers,
+      body: responseBody,
+    };
+  } catch (axiosErr) {
+    if (axiosErr.message && axiosErr.message.includes("MULTIPART")) {
+      throw axiosErr;
+    }
+    return mapAxiosError(axiosErr);
+  } finally {
+    if (releaseOutbound) releaseOutbound();
+  }
 }
 
 module.exports = {
-    get,
-    post,
-    /**
-     * @constant JSON
-     * @memberof module:httpclient
-     * @description Constant for JSON content type in POST requests.
-     * This constant can be used to specify that the POST request body is in JSON format.
-     */
-    JSON: POST_TYPES.JSON,
-    /**
-     * @constant FORM
-     * @memberof module:httpclient
-     * @description Constant for form-urlencoded content type in POST requests.
-     * This constant can be used to specify that the POST request body is in form-urlencoded format.
-     */
-    FORM: POST_TYPES.FORM,
-    /**
-     * @constant TEXT
-     * @memberof module:httpclient
-     * @description Constant for plain text content type in POST requests.
-     * This constant can be used to specify that the POST request body is in plain text format.
-     */
-    TEXT: POST_TYPES.TEXT,
-    /**
-     * @constant XML
-     * @memberof module:httpclient
-     * @description Constant for XML content type in POST requests.
-     * This constant can be used to specify that the POST request body is in XML format.
-     */
-    XML: POST_TYPES.XML,
-    /**
-     * @constant MULTIPART
-     * @memberof module:httpclient
-     * @description Constant for multipart/form-data content type in POST requests.
-     * This constant can be used to specify that the POST request body is in multipart/form-data format.
-     */
-    MULTIPART: POST_TYPES.MULTIPART,
+  get,
+  post,
+  /**
+   * @constant JSON
+   * @memberof module:httpclient
+   * @description Constant for JSON content type in POST requests.
+   * This constant can be used to specify that the POST request body is in JSON format.
+   */
+  JSON: POST_TYPES.JSON,
+  /**
+   * @constant FORM
+   * @memberof module:httpclient
+   * @description Constant for form-urlencoded content type in POST requests.
+   * This constant can be used to specify that the POST request body is in form-urlencoded format.
+   */
+  FORM: POST_TYPES.FORM,
+  /**
+   * @constant TEXT
+   * @memberof module:httpclient
+   * @description Constant for plain text content type in POST requests.
+   * This constant can be used to specify that the POST request body is in plain text format.
+   */
+  TEXT: POST_TYPES.TEXT,
+  /**
+   * @constant XML
+   * @memberof module:httpclient
+   * @description Constant for XML content type in POST requests.
+   * This constant can be used to specify that the POST request body is in XML format.
+   */
+  XML: POST_TYPES.XML,
+  /**
+   * @constant MULTIPART
+   * @memberof module:httpclient
+   * @description Constant for multipart/form-data content type in POST requests.
+   * This constant can be used to specify that the POST request body is in multipart/form-data format.
+   */
+  MULTIPART: POST_TYPES.MULTIPART,
 };

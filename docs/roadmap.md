@@ -12,49 +12,49 @@ This phase is focused on polishing the existing platform and delivering on our "
 
 This phase is focused on adding major new modules that unlock entirely new categories of applications that can be built on Gingee. [INPROGRESS]
 
--   **Real-Time Communication (`websockets` Module)** *(v1 + Redis fan-out shipped)*
-    -   **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**, **Redis multi-node fan-out** (`fanout.driver: "redis"` + sibling `websockets.redis`).
-    -   **Later:** Optional isolation bridge, Glade connection admin UI, presence directory.
+- **Real-Time Communication (`websockets` Module)** _(v1 + Redis fan-out shipped)_
+  - **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**, **Redis multi-node fan-out** (`fanout.driver: "redis"` + sibling `websockets.redis`).
+  - **Later:** Optional isolation bridge, Glade connection admin UI, presence directory.
 
--   **CRON Scheduler** *(v1 + Redis coordination shipped)*
-    -   **Done:** Declarative `app.json` schedules; server gate `scheduler.enabled` (default off); targets script/url/queue; **Redis multi-node coordination** (`coordination.driver: "redis"` + sibling `scheduler.redis`); **Glade Schedules / Run now** (list + force-run).
-    -   **Next:** Richer schedule admin (edit enable/disable, history).
+- **CRON Scheduler** _(v1 + Redis coordination shipped)_
+  - **Done:** Declarative `app.json` schedules; server gate `scheduler.enabled` (default off); targets script/url/queue; **Redis multi-node coordination** (`coordination.driver: "redis"` + sibling `scheduler.redis`); **Glade Schedules / Run now** (list + force-run).
+  - **Next:** Richer schedule admin (edit enable/disable, history).
 
--   **Job Queues & Background Processing (`queue` Module)** *(v1 + Glade DLQ shipped)*
-    -   **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** live jobs view + DLQ admin (filter, auto-refresh, retry/discard).
-    -   **Later:** Priorities/rate limits if needed.
+- **Job Queues & Background Processing (`queue` Module)** _(v1 + Glade DLQ shipped)_
+  - **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** live jobs view + DLQ admin (filter, auto-refresh, retry/discard).
+  - **Later:** Priorities/rate limits if needed.
 
--   **Third-Party Service Adapters**
-    -   **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.
-    -   **Modules:**
-        -   **`email`**: For transactional email (SendGrid + console shipped; Amazon SES and others later).
-        -   **`ai`**: Generative AI module (Gemini + mock shipped; **xai/Grok** and others next).
-        -   **`storage`**: For cloud object storage (with an adapter for Amazon S3).
-        -   **`search`**: For full-text search (with an adapter for Algolia or Elasticsearch).
+- **Third-Party Service Adapters**
+  - **Goal:** Transform Gingee into a true integration platform by providing adapters for best-in-class third-party services.
+  - **Modules:**
+    - **`email`**: For transactional email (SendGrid + console shipped; Amazon SES and others later).
+    - **`ai`**: Generative AI module (Gemini + mock shipped; **xai/Grok** and others next).
+    - **`storage`**: For cloud object storage (with an adapter for Amazon S3).
+    - **`search`**: For full-text search (with an adapter for Algolia or Elasticsearch).
 
--   **Social Logins (OAuth 2.0)**
-    -   **Goal:** Complete the `auth` module by adding support for "Login with Google/Microsoft/GitHub," etc.
-    -   **Implementation:** Integrate **Passport.js** and its rich ecosystem of strategies into the `auth` module, with configuration managed cleanly in `app.json`.
+- **Social Logins (OAuth 2.0)**
+  - **Goal:** Complete the `auth` module by adding support for "Login with Google/Microsoft/GitHub," etc.
+  - **Implementation:** Integrate **Passport.js** and its rich ecosystem of strategies into the `auth` module, with configuration managed cleanly in `app.json`.
 
 ## Phase 4: Production at Scale (Long-Term)
 
 This phase is focused on adding features essential for running massive, high-traffic, enterprise-grade applications.
 
--   **Clustering & Horizontal Scaling**
-    -   **Goal:** Allow a single Gingee instance to run on multiple CPU cores and scale across a fleet of machines.
-    -   **Implementation:** Leverage Node.js's `cluster` module and enhance core services (like the app registry and caches) to work in a distributed environment, likely with Redis.
+- **Clustering & Horizontal Scaling**
+  - **Goal:** Allow a single Gingee instance to run on multiple CPU cores and scale across a fleet of machines.
+  - **Implementation:** Leverage Node.js's `cluster` module and enhance core services (like the app registry and caches) to work in a distributed environment, likely with Redis.
 
--   **Metrics & Monitoring** *(baseline shipped)*
-    -   **Done:** Engine `/metrics` Prometheus scrape (localhost-only by default, optional bearer), counters/histograms for scripts, limits rejects, egress denies, scheduler runs; JSONL `audit` for permissions/lifecycle. See `gingee.json` → `metrics` / `audit`.
-    -   **Later:** Richer dashboards, distributed metrics under clustering, optional OpenTelemetry.
+- **Metrics & Monitoring** _(baseline shipped)_
+  - **Done:** Engine `/metrics` Prometheus scrape (localhost-only by default, optional bearer), counters/histograms for scripts, limits rejects, egress denies, scheduler runs; JSONL `audit` for permissions/lifecycle. See `gingee.json` → `metrics` / `audit`.
+  - **Later:** Richer dashboards, distributed metrics under clustering, optional OpenTelemetry.
 
--   **Process isolation** *(P1 baseline + P2 worker_limits shipped)*
-    -   **Done:** Opt-in workers (IPC), master listen ports, privileged apps in-process, **buffered + SSE** over IPC (incl. AI), **isolation groups** vs solo `apps`, **auto-restart** with backoff/`restart_max`, worker **ai/email** re-init, **`isolation.worker_limits`** (V8 `max_old_space_mb`, priority, UV threadpool, Linux `prlimit` best-effort for `max_rss_mb`).
-    -   **Later:** Scheduler-in-worker, full cgroups v2 / Windows Job Objects integration, multi-node worker placement.
+- **Process isolation** _(P1 baseline + P2 worker_limits shipped)_
+  - **Done:** Opt-in workers (IPC), master listen ports, privileged apps in-process, **buffered + SSE** over IPC (incl. AI), **isolation groups** vs solo `apps`, **auto-restart** with backoff/`restart_max`, worker **ai/email** re-init, **`isolation.worker_limits`** (V8 `max_old_space_mb`, priority, UV threadpool, Linux `prlimit` best-effort for `max_rss_mb`).
+  - **Later:** Scheduler-in-worker, full cgroups v2 / Windows Job Objects integration, multi-node worker placement.
 
--   **Community Plugin System**
-    -   **Goal:** Allow the community to build, publish, and share their own Gingee app modules.
-    -   **Implementation:** Formalize the module system to allow apps to specify third-party modules from NPM in their `app.json`, with careful consideration for security and sandboxing.
+- **Community Plugin System**
+  - **Goal:** Allow the community to build, publish, and share their own Gingee app modules.
+  - **Implementation:** Formalize the module system to allow apps to specify third-party modules from NPM in their `app.json`, with careful consideration for security and sandboxing.
 
 ## How to Contribute
 

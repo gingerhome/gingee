@@ -5,17 +5,17 @@
  * Global: window.GladeCsrf
  */
 (function (global) {
-  'use strict';
+  "use strict";
 
-  var CSRF_COOKIE = 'glade_csrf';
-  var CSRF_HEADER = 'X-CSRF-Token';
+  var CSRF_COOKIE = "glade_csrf";
+  var CSRF_HEADER = "X-CSRF-Token";
 
   function getCookie(name) {
-    if (typeof document === 'undefined' || !document.cookie) return '';
-    var parts = String(document.cookie).split(';');
+    if (typeof document === "undefined" || !document.cookie) return "";
+    var parts = String(document.cookie).split(";");
     for (var i = 0; i < parts.length; i++) {
       var p = parts[i].trim();
-      if (p.indexOf(name + '=') === 0) {
+      if (p.indexOf(name + "=") === 0) {
         try {
           return decodeURIComponent(p.slice(name.length + 1));
         } catch (e) {
@@ -23,11 +23,11 @@
         }
       }
     }
-    return '';
+    return "";
   }
 
   function getToken() {
-    return getCookie(CSRF_COOKIE) || '';
+    return getCookie(CSRF_COOKIE) || "";
   }
 
   /**
@@ -44,8 +44,8 @@
   }
 
   function isUnsafeMethod(method) {
-    var m = String(method || 'GET').toUpperCase();
-    return m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS';
+    var m = String(method || "GET").toUpperCase();
+    return m !== "GET" && m !== "HEAD" && m !== "OPTIONS";
   }
 
   /**
@@ -57,13 +57,13 @@
   function gladeFetch(url, options) {
     var opts = options ? Object.assign({}, options) : {};
     if (opts.credentials == null) {
-      opts.credentials = 'include';
+      opts.credentials = "include";
     }
-    var method = opts.method || 'GET';
+    var method = opts.method || "GET";
     if (isUnsafeMethod(method)) {
       var csrfHeaders = headers();
       var existing = opts.headers || {};
-      if (typeof Headers !== 'undefined' && existing instanceof Headers) {
+      if (typeof Headers !== "undefined" && existing instanceof Headers) {
         Object.keys(csrfHeaders).forEach(function (k) {
           if (!existing.has(k)) existing.set(k, csrfHeaders[k]);
         });
@@ -81,6 +81,6 @@
     getToken: getToken,
     headers: headers,
     isUnsafeMethod: isUnsafeMethod,
-    fetch: gladeFetch
+    fetch: gladeFetch,
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+})(typeof window !== "undefined" ? window : globalThis);

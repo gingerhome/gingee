@@ -5,7 +5,7 @@
  * Engine-internal.
  */
 
-const { EventEmitter } = require('events');
+const { EventEmitter } = require("events");
 
 /**
  * Incoming message shim. Buffers a body and emits data/end when listeners attach
@@ -21,8 +21,8 @@ class FakeIncomingMessage extends EventEmitter {
    */
   constructor(opts) {
     super();
-    this.method = opts.method || 'GET';
-    this.url = opts.url || '/';
+    this.method = opts.method || "GET";
+    this.url = opts.url || "/";
     this.headers = { ...(opts.headers || {}) };
     this.connection = { encrypted: false };
     this.socket = this.connection;
@@ -31,14 +31,17 @@ class FakeIncomingMessage extends EventEmitter {
     this.bodyResolved = false;
     this.body = undefined;
 
-    if (this._body.length > 0 && this.headers['content-length'] == null) {
-      this.headers['content-length'] = String(this._body.length);
+    if (this._body.length > 0 && this.headers["content-length"] == null) {
+      this.headers["content-length"] = String(this._body.length);
     }
   }
 
   on(event, listener) {
     const result = super.on(event, listener);
-    if ((event === 'data' || event === 'end' || event === 'readable') && !this._bodyEmitted) {
+    if (
+      (event === "data" || event === "end" || event === "readable") &&
+      !this._bodyEmitted
+    ) {
       process.nextTick(() => this._emitBufferedBody());
     }
     return result;
@@ -46,7 +49,7 @@ class FakeIncomingMessage extends EventEmitter {
 
   once(event, listener) {
     const result = super.once(event, listener);
-    if ((event === 'data' || event === 'end') && !this._bodyEmitted) {
+    if ((event === "data" || event === "end") && !this._bodyEmitted) {
       process.nextTick(() => this._emitBufferedBody());
     }
     return result;
@@ -56,9 +59,9 @@ class FakeIncomingMessage extends EventEmitter {
     if (this._bodyEmitted) return;
     this._bodyEmitted = true;
     if (this._body.length > 0) {
-      this.emit('data', this._body);
+      this.emit("data", this._body);
     }
-    this.emit('end');
+    this.emit("end");
   }
 }
 
@@ -102,10 +105,10 @@ class FakeServerResponse extends EventEmitter {
   writeHead(statusCode, statusMessageOrHeaders, maybeHeaders) {
     this.statusCode = statusCode || this.statusCode;
     let headers = maybeHeaders;
-    if (statusMessageOrHeaders && typeof statusMessageOrHeaders === 'object') {
+    if (statusMessageOrHeaders && typeof statusMessageOrHeaders === "object") {
       headers = statusMessageOrHeaders;
     }
-    if (headers && typeof headers === 'object') {
+    if (headers && typeof headers === "object") {
       for (const [k, v] of Object.entries(headers)) {
         this.setHeader(k, v);
       }
@@ -117,10 +120,17 @@ class FakeServerResponse extends EventEmitter {
   flushHeaders() {
     this.headersSent = true;
     // gingee startStream calls flushHeaders — treat as stream start if hooks present
-    if (this._streamHooks && this._streamHooks.onStreamStart && !this._streaming) {
+    if (
+      this._streamHooks &&
+      this._streamHooks.onStreamStart &&
+      !this._streaming
+    ) {
       this._streaming = true;
       try {
-        this._streamHooks.onStreamStart(this.statusCode || 200, this.getHeaders());
+        this._streamHooks.onStreamStart(
+          this.statusCode || 200,
+          this.getHeaders(),
+        );
       } catch (_) {
         /* ignore */
       }
@@ -128,9 +138,15 @@ class FakeServerResponse extends EventEmitter {
   }
 
   write(chunk, encoding, cb) {
-    if (chunk != null && chunk !== '') {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding);
-      if (this._streaming && this._streamHooks && this._streamHooks.onStreamChunk) {
+    if (chunk != null && chunk !== "") {
+      const buf = Buffer.isBuffer(chunk)
+        ? chunk
+        : Buffer.from(String(chunk), encoding);
+      if (
+        this._streaming &&
+        this._streamHooks &&
+        this._streamHooks.onStreamChunk
+      ) {
         try {
           this._streamHooks.onStreamChunk(buf);
         } catch (_) {
@@ -141,20 +157,20 @@ class FakeServerResponse extends EventEmitter {
       }
     }
     this.headersSent = true;
-    if (typeof encoding === 'function') encoding();
-    else if (typeof cb === 'function') cb();
+    if (typeof encoding === "function") encoding();
+    else if (typeof cb === "function") cb();
     return true;
   }
 
   end(chunk, encoding, cb) {
-    if (typeof chunk === 'function') {
+    if (typeof chunk === "function") {
       cb = chunk;
       chunk = null;
-    } else if (typeof encoding === 'function') {
+    } else if (typeof encoding === "function") {
       cb = encoding;
       encoding = undefined;
     }
-    if (chunk != null && chunk !== '') {
+    if (chunk != null && chunk !== "") {
       this.write(chunk, encoding);
     }
     this.writableEnded = true;
@@ -166,9 +182,9 @@ class FakeServerResponse extends EventEmitter {
         /* ignore */
       }
     }
-    this.emit('finish');
-    this.emit('close');
-    if (typeof cb === 'function') cb();
+    this.emit("finish");
+    this.emit("close");
+    if (typeof cb === "function") cb();
     return this;
   }
 
@@ -180,12 +196,12 @@ class FakeServerResponse extends EventEmitter {
       statusCode: this.statusCode || 200,
       headers: this.getHeaders(),
       body: this._chunks.length ? Buffer.concat(this._chunks) : Buffer.alloc(0),
-      streamed: this._streaming
+      streamed: this._streaming,
     };
   }
 }
 
 module.exports = {
   FakeIncomingMessage,
-  FakeServerResponse
+  FakeServerResponse,
 };

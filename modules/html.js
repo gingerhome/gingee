@@ -1,7 +1,7 @@
-const cheerio = require('cheerio');
+const cheerio = require("cheerio");
 // We require our own modules to build upon them!
-const fs = require('./fs.js'); //fs wrapper for secure file operations
-const httpclient = require('./httpclient.js'); //httpclient wrapper for making HTTP requests
+const fs = require("./fs.js"); //fs wrapper for secure file operations
+const httpclient = require("./httpclient.js"); //httpclient wrapper for making HTTP requests
 
 /**
  * @module html
@@ -20,10 +20,10 @@ const httpclient = require('./httpclient.js'); //httpclient wrapper for making H
  * @private
  */
 function _loadHtml(htmlString) {
-    if (typeof htmlString !== 'string') {
-        throw new Error("Input to be parsed must be a string.");
-    }
-    return cheerio.load(htmlString);
+  if (typeof htmlString !== "string") {
+    throw new Error("Input to be parsed must be a string.");
+  }
+  return cheerio.load(htmlString);
 }
 
 /**
@@ -40,7 +40,7 @@ function _loadHtml(htmlString) {
  * @throws {Error} If the input is not a string.
  */
 function fromString(htmlString) {
-    return _loadHtml(htmlString);
+  return _loadHtml(htmlString);
 }
 
 /**
@@ -60,9 +60,9 @@ function fromString(htmlString) {
  * console.log($('.test').text()); // Outputs the text content of the .test element
  */
 async function fromFile(scope, filePath) {
-    // Use our secure, async fs.readFile
-    const fileContent = await fs.readFile(scope, filePath, 'utf8');
-    return _loadHtml(fileContent);
+  // Use our secure, async fs.readFile
+  const fileContent = await fs.readFile(scope, filePath, "utf8");
+  return _loadHtml(fileContent);
 }
 
 /**
@@ -82,8 +82,8 @@ async function fromFile(scope, filePath) {
  * console.log($('.test').text()); // Outputs the text content of the .test element
  */
 function fromFileSync(scope, filePath) {
-    const fileContent = fs.readFileSync(scope, filePath, 'utf8');
-    return _loadHtml(fileContent);
+  const fileContent = fs.readFileSync(scope, filePath, "utf8");
+  return _loadHtml(fileContent);
 }
 
 /**
@@ -105,25 +105,27 @@ function fromFileSync(scope, filePath) {
 async function fromUrl(url, options = {}) {
   const response = await httpclient.get(url, options);
 
-  const contentType = response.headers['content-type'] || '';
-  if (!contentType.startsWith('text/html')) {
+  const contentType = response.headers["content-type"] || "";
+  if (!contentType.startsWith("text/html")) {
     throw new Error(
-      `Invalid content type. Expected 'text/html' but received '${contentType}'.`
+      `Invalid content type. Expected 'text/html' but received '${contentType}'.`,
     );
   }
-  
+
   // Our httpclient already ensures response.body is a string for text-based content types.
-  if (typeof response.body !== 'string') {
-      // This is a secondary safety check, though the check above is more specific.
-      throw new Error(`Failed to fetch HTML from URL. Response body was not text. Status: ${response.status}`);
+  if (typeof response.body !== "string") {
+    // This is a secondary safety check, though the check above is more specific.
+    throw new Error(
+      `Failed to fetch HTML from URL. Response body was not text. Status: ${response.status}`,
+    );
   }
-  
+
   return _loadHtml(response.body);
 }
 
 module.exports = {
-    fromString,
-    fromFile,
-    fromFileSync,
-    fromUrl,
+  fromString,
+  fromFile,
+  fromFileSync,
+  fromUrl,
 };

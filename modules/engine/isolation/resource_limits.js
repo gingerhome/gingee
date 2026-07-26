@@ -14,8 +14,8 @@
  * Full cgroups v2 / Windows Job Objects are left to the orchestrator (Docker, systemd, etc.).
  */
 
-const os = require('os');
-const { execFile } = require('child_process');
+const os = require("os");
+const { execFile } = require("child_process");
 
 /** Defaults when isolation.worker_limits is omitted or partial. */
 const WORKER_LIMITS_DEFAULTS = {
@@ -34,7 +34,7 @@ const WORKER_LIMITS_DEFAULTS = {
    * Soft RSS / address-space hint in MiB (Linux prlimit best-effort; ignored on Windows).
    * null = do not apply.
    */
-  max_rss_mb: null
+  max_rss_mb: null,
 };
 
 /**
@@ -42,13 +42,13 @@ const WORKER_LIMITS_DEFAULTS = {
  * @returns {object}
  */
 function normalizeWorkerLimits(raw) {
-  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   return {
     max_old_space_mb: positiveOrNull(r.max_old_space_mb),
     max_semi_space_mb: positiveOrNull(r.max_semi_space_mb),
     uv_threadpool_size: positiveOrNull(r.uv_threadpool_size),
     priority: normalizePriority(r.priority),
-    max_rss_mb: positiveOrNull(r.max_rss_mb)
+    max_rss_mb: positiveOrNull(r.max_rss_mb),
   };
 }
 
@@ -57,7 +57,7 @@ function normalizeWorkerLimits(raw) {
  * @returns {number|null}
  */
 function positiveOrNull(v) {
-  if (v == null || v === '' || v === false) return null;
+  if (v == null || v === "" || v === false) return null;
   const n = Number(v);
   if (!Number.isFinite(n) || n < 1) return null;
   return Math.floor(n);
@@ -68,9 +68,9 @@ function positiveOrNull(v) {
  * @returns {string|null}
  */
 function normalizePriority(p) {
-  if (p == null || p === '') return null;
+  if (p == null || p === "") return null;
   const s = String(p).toLowerCase().trim();
-  if (s === 'normal' || s === 'low' || s === 'high') return s;
+  if (s === "normal" || s === "low" || s === "high") return s;
   return null;
 }
 
@@ -81,20 +81,20 @@ function normalizePriority(p) {
  * @returns {string}
  */
 function mergeNodeOptions(existing, flags) {
-  const parts = String(existing || '')
+  const parts = String(existing || "")
     .split(/\s+/)
     .filter(Boolean);
   const byKey = new Map();
   for (const p of parts) {
-    const key = p.includes('=') ? p.split('=')[0] : p;
+    const key = p.includes("=") ? p.split("=")[0] : p;
     byKey.set(key, p);
   }
   for (const f of flags || []) {
     if (!f) continue;
-    const key = f.includes('=') ? f.split('=')[0] : f;
+    const key = f.includes("=") ? f.split("=")[0] : f;
     byKey.set(key, f);
   }
-  return [...byKey.values()].join(' ');
+  return [...byKey.values()].join(" ");
 }
 
 /**
@@ -130,7 +130,7 @@ function buildWorkerEnv(baseEnv, limits, extra) {
     max_semi_space_mb: lim.max_semi_space_mb,
     uv_threadpool_size: lim.uv_threadpool_size,
     priority: lim.priority,
-    max_rss_mb: lim.max_rss_mb
+    max_rss_mb: lim.max_rss_mb,
   });
 
   return env;
@@ -143,18 +143,20 @@ function buildWorkerEnv(baseEnv, limits, extra) {
  */
 function priorityToOsValue(priority) {
   const p = normalizePriority(priority);
-  if (!p || p === 'normal') return null;
+  if (!p || p === "normal") return null;
   // Node docs: higher number = lower priority on Unix; Windows uses PRIORITY_CLASS constants via os.constants
-  if (process.platform === 'win32') {
+  if (process.platform === "win32") {
     const c = os.constants && os.constants.priority;
     if (!c) return null;
-    if (p === 'low') return c.PRIORITY_BELOW_NORMAL != null ? c.PRIORITY_BELOW_NORMAL : 16384;
-    if (p === 'high') return c.PRIORITY_ABOVE_NORMAL != null ? c.PRIORITY_ABOVE_NORMAL : 32768;
+    if (p === "low")
+      return c.PRIORITY_BELOW_NORMAL != null ? c.PRIORITY_BELOW_NORMAL : 16384;
+    if (p === "high")
+      return c.PRIORITY_ABOVE_NORMAL != null ? c.PRIORITY_ABOVE_NORMAL : 32768;
     return null;
   }
   // Unix: 0 normal, positive nice = lower priority
-  if (p === 'low') return 10;
-  if (p === 'high') return -5;
+  if (p === "low") return 10;
+  if (p === "high") return -5;
   return null;
 }
 
@@ -168,7 +170,7 @@ function priorityToOsValue(priority) {
 function applyAfterSpawn(child, limits, logger, workerKey) {
   const lim = normalizeWorkerLimits(limits);
   const log = logger || console;
-  const tag = workerKey ? `[isolation:${workerKey}]` : '[isolation]';
+  const tag = workerKey ? `[isolation:${workerKey}]` : "[isolation]";
 
   if (!child || !child.pid) return;
 
@@ -176,7 +178,8 @@ function applyAfterSpawn(child, limits, logger, workerKey) {
   if (pri != null) {
     try {
       os.setPriority(child.pid, pri);
-      log.info && log.info(`${tag} worker priority set to ${lim.priority} (os=${pri})`);
+      log.info &&
+        log.info(`${tag} worker priority set to ${lim.priority} (os=${pri})`);
     } catch (e) {
       log.warn &&
         log.warn(`${tag} could not set process priority: ${e.message}`);
@@ -196,10 +199,10 @@ function applyAfterSpawn(child, limits, logger, workerKey) {
  * @param {string} tag
  */
 function applyRssLimit(pid, maxRssMb, log, tag) {
-  if (process.platform === 'win32') {
+  if (process.platform === "win32") {
     log.warn &&
       log.warn(
-        `${tag} max_rss_mb=${maxRssMb} ignored on Windows (use Job Objects / container limits at the orchestrator). V8 max_old_space_mb still applies if set.`
+        `${tag} max_rss_mb=${maxRssMb} ignored on Windows (use Job Objects / container limits at the orchestrator). V8 max_old_space_mb still applies if set.`,
       );
     return;
   }
@@ -207,14 +210,14 @@ function applyRssLimit(pid, maxRssMb, log, tag) {
   const bytes = Math.floor(maxRssMb * 1024 * 1024);
   // prlimit from util-linux: --as = address space (virtual memory) ceiling
   execFile(
-    'prlimit',
+    "prlimit",
     [`--pid=${pid}`, `--as=${bytes}`],
     { timeout: 3000 },
     (err, _stdout, stderr) => {
       if (err) {
         log.warn &&
           log.warn(
-            `${tag} max_rss_mb=${maxRssMb} not applied (prlimit: ${err.message}). Install util-linux prlimit or use cgroups/Docker.`
+            `${tag} max_rss_mb=${maxRssMb} not applied (prlimit: ${err.message}). Install util-linux prlimit or use cgroups/Docker.`,
           );
         if (stderr && log.warn) {
           log.warn(`${tag} prlimit stderr: ${String(stderr).trim()}`);
@@ -222,8 +225,10 @@ function applyRssLimit(pid, maxRssMb, log, tag) {
         return;
       }
       log.info &&
-        log.info(`${tag} applied max_rss_mb=${maxRssMb} via prlimit --as=${bytes}`);
-    }
+        log.info(
+          `${tag} applied max_rss_mb=${maxRssMb} via prlimit --as=${bytes}`,
+        );
+    },
   );
 }
 
@@ -235,12 +240,15 @@ function applyRssLimit(pid, maxRssMb, log, tag) {
 function describeLimits(limits) {
   const lim = normalizeWorkerLimits(limits);
   const parts = [];
-  if (lim.max_old_space_mb != null) parts.push(`max_old_space_mb=${lim.max_old_space_mb}`);
-  if (lim.max_semi_space_mb != null) parts.push(`max_semi_space_mb=${lim.max_semi_space_mb}`);
-  if (lim.uv_threadpool_size != null) parts.push(`uv_threadpool_size=${lim.uv_threadpool_size}`);
+  if (lim.max_old_space_mb != null)
+    parts.push(`max_old_space_mb=${lim.max_old_space_mb}`);
+  if (lim.max_semi_space_mb != null)
+    parts.push(`max_semi_space_mb=${lim.max_semi_space_mb}`);
+  if (lim.uv_threadpool_size != null)
+    parts.push(`uv_threadpool_size=${lim.uv_threadpool_size}`);
   if (lim.priority) parts.push(`priority=${lim.priority}`);
   if (lim.max_rss_mb != null) parts.push(`max_rss_mb=${lim.max_rss_mb}`);
-  return parts.length ? parts.join(' ') : 'none (Node defaults)';
+  return parts.length ? parts.join(" ") : "none (Node defaults)";
 }
 
 module.exports = {
@@ -250,5 +258,5 @@ module.exports = {
   buildWorkerEnv,
   applyAfterSpawn,
   describeLimits,
-  priorityToOsValue
+  priorityToOsValue,
 };

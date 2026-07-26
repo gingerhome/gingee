@@ -31,8 +31,8 @@
  * };
  */
 
-const { als, getContext } = require('./gingee.js');
-const hub = require('./engine/websocket_hub.js');
+const { als, getContext } = require("./gingee.js");
+const hub = require("./engine/websocket_hub.js");
 
 /**
  * Resolve current app name from ALS (HTTP, schedule, or WebSocket handler context).
@@ -48,7 +48,7 @@ function appName() {
   const n =
     (store && (store.appName || (store.app && store.app.name))) ||
     hub.getActiveAppName();
-  if (!n) throw new Error('websockets module cannot determine app context.');
+  if (!n) throw new Error("websockets module cannot determine app context.");
   return n;
 }
 
@@ -113,5 +113,5 @@ module.exports = {
   tenantRoom,
   assertRoomTenant,
   getConnectionCount,
-  getRoomSize
+  getRoomSize,
 };

@@ -1,11 +1,11 @@
 /**
  * Redis queue: visibility lease, reclaim, releaseClaim, and shutdown drain.
  */
-const { createRedisDriver } = require('../../modules/queue_drivers/redis');
-const queueService = require('../../modules/engine/queue_service');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const { createRedisDriver } = require("../../modules/queue_drivers/redis");
+const queueService = require("../../modules/engine/queue_service");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
 /**
  * Minimal in-memory Redis stand-in for queue driver tests.
@@ -67,7 +67,7 @@ function createMockRedis() {
     async ltrim(key, start, stop) {
       const arr = list(key);
       lists[key] = arr.slice(start, stop + 1);
-      return 'OK';
+      return "OK";
     },
     async zadd(key, score, id) {
       zset(key).set(String(id), Number(score));
@@ -89,13 +89,13 @@ function createMockRedis() {
     },
     async zrangebyscore(key, min, max, ...rest) {
       const z = zset(key);
-      let minN = min === '-inf' ? -Infinity : Number(min);
-      let maxN = max === '+inf' ? Infinity : Number(max);
+      let minN = min === "-inf" ? -Infinity : Number(min);
+      let maxN = max === "+inf" ? Infinity : Number(max);
       let withScores = false;
       let limit = Infinity;
       for (let i = 0; i < rest.length; i++) {
-        if (String(rest[i]).toUpperCase() === 'WITHSCORES') withScores = true;
-        if (String(rest[i]).toUpperCase() === 'LIMIT') {
+        if (String(rest[i]).toUpperCase() === "WITHSCORES") withScores = true;
+        if (String(rest[i]).toUpperCase() === "LIMIT") {
           const offset = Number(rest[i + 1]) || 0;
           limit = Number(rest[i + 2]) || 0;
           // apply offset later
@@ -119,14 +119,14 @@ function createMockRedis() {
     },
     async set(key, val) {
       kv[key] = String(val);
-      return 'OK';
+      return "OK";
     },
     async del(key) {
       const had = kv[key] != null || zsets[key] || lists[key];
       delete kv[key];
       delete lists[key];
       // do not wipe unrelated zsets when deleting a job string key
-      if (String(key).includes(':job:')) {
+      if (String(key).includes(":job:")) {
         /* only kv */
       } else {
         delete zsets[key];
@@ -142,7 +142,11 @@ function createMockRedis() {
       const keys = keysAndArgs.slice(0, numKeys);
       const args = keysAndArgs.slice(numKeys);
       const s = String(script);
-      if (s.includes("redis.call('LREM'") && s.includes('DEL') && !s.includes('cjson')) {
+      if (
+        s.includes("redis.call('LREM'") &&
+        s.includes("DEL") &&
+        !s.includes("cjson")
+      ) {
         // discard: LREM dlq, if >0 DEL job + ZREM processing
         const [dlqK, jobK, procK] = keys;
         const id = String(args[0]);
@@ -154,7 +158,7 @@ function createMockRedis() {
         }
         return 0;
       }
-      if (s.includes('cjson.decode') || s.includes("job['status']")) {
+      if (s.includes("cjson.decode") || s.includes("job['status']")) {
         // retry DLQ atomic claim
         const [dlqK, jobK, readyK, delayedK, procK] = keys;
         const id = String(args[0]);
@@ -171,7 +175,7 @@ function createMockRedis() {
           await client.del(jobK);
           return false;
         }
-        if (job.status !== 'failed') {
+        if (job.status !== "failed") {
           await client.lpush(dlqK, id);
           return false;
         }
@@ -179,7 +183,7 @@ function createMockRedis() {
         await client.lrem(readyK, 0, id);
         await client.zrem(delayedK, id);
         if (maxA > 0) job.maxAttempts = maxA;
-        job.status = 'waiting';
+        job.status = "waiting";
         job.attempt = 1;
         job.error = null;
         job.failedAt = null;
@@ -190,16 +194,16 @@ function createMockRedis() {
         await client.lpush(readyK, id);
         return JSON.stringify(job);
       }
-      throw new Error('mock eval: unsupported script');
+      throw new Error("mock eval: unsupported script");
     },
     async quit() {
-      return 'OK';
+      return "OK";
     },
     disconnect() {},
     // test helpers
     _kv: kv,
     _lists: lists,
-    _zsets: zsets
+    _zsets: zsets,
   };
 
   // ioredis set with EX: set(key, val, 'EX', ttl)
@@ -209,27 +213,27 @@ function createMockRedis() {
   return client;
 }
 
-describe('queue redis visibility', () => {
-  test('claim adds processing lease; complete removes it', async () => {
+describe("queue redis visibility", () => {
+  test("claim adds processing lease; complete removes it", async () => {
     const mock = createMockRedis();
     const ready = [];
     const driver = createRedisDriver({
       client: mock,
-      keyPrefix: 't:q:',
+      keyPrefix: "t:q:",
       visibilityTimeoutMs: 5000,
       reclaimIntervalMs: 60000,
       pollMs: 50,
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      onReady: (job) => ready.push(job)
+      onReady: (job) => ready.push(job),
     });
     await driver.start();
     const ref = await driver.enqueue({
-      appName: 'a',
-      name: 'j',
-      script: 'jobs/j.js',
+      appName: "a",
+      name: "j",
+      script: "jobs/j.js",
       payload: { x: 1 },
       attempt: 1,
-      maxAttempts: 3
+      maxAttempts: 3,
     });
 
     // Wait for claim
@@ -239,47 +243,49 @@ describe('queue redis visibility', () => {
     }
     expect(ready.length).toBe(1);
     expect(ready[0].id).toBe(ref.id);
-    expect(ready[0].status).toBe('active');
+    expect(ready[0].status).toBe("active");
 
-    const procKey = 't:q:processing';
+    const procKey = "t:q:processing";
     expect(mock._zsets[procKey] && mock._zsets[procKey].has(ref.id)).toBe(true);
 
     await driver.complete(ref.id);
-    expect(mock._zsets[procKey] && mock._zsets[procKey].has(ref.id)).toBe(false);
+    expect(mock._zsets[procKey] && mock._zsets[procKey].has(ref.id)).toBe(
+      false,
+    );
     expect(await mock.get(`t:q:job:${ref.id}`)).toBeNull();
 
     await driver.shutdown();
   }, 10000);
 
-  test('stale processing entries are reclaimed to ready', async () => {
+  test("stale processing entries are reclaimed to ready", async () => {
     const mock = createMockRedis();
     const readyJobs = [];
     const driver = createRedisDriver({
       client: mock,
-      keyPrefix: 't:r:',
+      keyPrefix: "t:r:",
       visibilityTimeoutMs: 50,
       reclaimIntervalMs: 60000, // manual reclaim
       pollMs: 200,
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      onReady: (job) => readyJobs.push(job)
+      onReady: (job) => readyJobs.push(job),
     });
     await driver.start();
     // stop consuming so first claim isn't required
     await driver.stopConsuming();
 
     const ref = await driver.enqueue({
-      appName: 'a',
-      name: 'j',
-      script: 'jobs/j.js',
+      appName: "a",
+      name: "j",
+      script: "jobs/j.js",
       payload: {},
       attempt: 1,
-      maxAttempts: 3
+      maxAttempts: 3,
     });
 
     // Simulate a dead worker claim: move ready → processing with past score
     const id = ref.id;
-    const readyKey = 't:r:ready';
-    const procKey = 't:r:processing';
+    const readyKey = "t:r:ready";
+    const procKey = "t:r:processing";
     // ensure on ready list from enqueue
     await mock.lrem(readyKey, 0, id);
     await mock.zadd(procKey, Date.now() - 1000, id);
@@ -289,32 +295,34 @@ describe('queue redis visibility', () => {
     const n = await driver._reclaimStale();
     expect(n).toBe(1);
     expect(mock._zsets[procKey] && mock._zsets[procKey].has(id)).toBe(false);
-    expect(mock._lists[readyKey] && mock._lists[readyKey].includes(id)).toBe(true);
+    expect(mock._lists[readyKey] && mock._lists[readyKey].includes(id)).toBe(
+      true,
+    );
 
     await driver.shutdown();
   }, 10000);
 
-  test('releaseClaim returns job to ready list', async () => {
+  test("releaseClaim returns job to ready list", async () => {
     const mock = createMockRedis();
     const readyJobs = [];
     const driver = createRedisDriver({
       client: mock,
-      keyPrefix: 't:c:',
+      keyPrefix: "t:c:",
       visibilityTimeoutMs: 60000,
       reclaimIntervalMs: 60000,
       pollMs: 50,
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      onReady: (job) => readyJobs.push(job)
+      onReady: (job) => readyJobs.push(job),
     });
     await driver.start();
 
     const ref = await driver.enqueue({
-      appName: 'a',
-      name: 'j',
-      script: 'jobs/j.js',
+      appName: "a",
+      name: "j",
+      script: "jobs/j.js",
       payload: {},
       attempt: 1,
-      maxAttempts: 3
+      maxAttempts: 3,
     });
 
     const deadline = Date.now() + 2000;
@@ -326,26 +334,28 @@ describe('queue redis visibility', () => {
     await driver.stopConsuming();
     await driver.releaseClaim(readyJobs[0]);
 
-    const procKey = 't:c:processing';
-    expect(mock._zsets[procKey] && mock._zsets[procKey].has(ref.id)).toBe(false);
-    expect(mock._lists['t:c:ready'] && mock._lists['t:c:ready'].includes(ref.id)).toBe(
-      true
+    const procKey = "t:c:processing";
+    expect(mock._zsets[procKey] && mock._zsets[procKey].has(ref.id)).toBe(
+      false,
     );
+    expect(
+      mock._lists["t:c:ready"] && mock._lists["t:c:ready"].includes(ref.id),
+    ).toBe(true);
 
     await driver.shutdown();
   }, 10000);
 });
 
-describe('queue_service shutdown drain (memory)', () => {
+describe("queue_service shutdown drain (memory)", () => {
   let tmp;
   let app;
 
   beforeEach(async () => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gingee-qdrain-'));
-    const box = path.join(tmp, 'box');
-    fs.mkdirSync(path.join(box, 'jobs'), { recursive: true });
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gingee-qdrain-"));
+    const box = path.join(tmp, "box");
+    fs.mkdirSync(path.join(box, "jobs"), { recursive: true });
     fs.writeFileSync(
-      path.join(box, 'jobs', 'slow.js'),
+      path.join(box, "jobs", "slow.js"),
       `
 module.exports = async function () {
   await gingee(async ($g) => {
@@ -353,29 +363,32 @@ module.exports = async function () {
     $g.log.info('SLOW_DONE');
   });
 };
-`
+`,
     );
     app = {
-      name: 'dapp',
-      config: { name: 'dapp' },
+      name: "dapp",
+      config: { name: "dapp" },
       appBoxPath: box,
-      appWebPath: path.join(tmp, 'web'),
-      grantedPermissions: ['queue'],
+      appWebPath: path.join(tmp, "web"),
+      grantedPermissions: ["queue"],
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      in_maintenance: false
+      in_maintenance: false,
     };
     await queueService.shutdown({ force: true, drainMs: 0 });
     await queueService.initServer(
       {
         enabled: true,
-        driver: 'memory',
+        driver: "memory",
         concurrency: 1,
         default_attempts: 1,
         default_backoff_ms: 10,
-        shutdown_drain_ms: 2000
+        shutdown_drain_ms: 2000,
       },
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      { box: { allowed_modules: [], allow_dynamic_code: true }, privileged_apps: [] }
+      {
+        box: { allowed_modules: [], allow_dynamic_code: true },
+        privileged_apps: [],
+      },
     );
     queueService.setAppsRegistry({ dapp: app });
   });
@@ -389,8 +402,8 @@ module.exports = async function () {
     }
   });
 
-  test('shutdown waits for in-flight job (drain)', async () => {
-    await queueService.addJob(app, 'slow', {});
+  test("shutdown waits for in-flight job (drain)", async () => {
+    await queueService.addJob(app, "slow", {});
     // Give pump time to start the job
     await new Promise((r) => setTimeout(r, 40));
     const stats = queueService.getStats();
@@ -404,7 +417,7 @@ module.exports = async function () {
     expect(queueService.getStats().inFlight).toBe(0);
   }, 10000);
 
-  test('getAdminStats exposes visibility and drain config', async () => {
+  test("getAdminStats exposes visibility and drain config", async () => {
     const s = await queueService.getAdminStats();
     expect(s.shutdown_drain_ms).toBe(2000);
     expect(s.visibility_timeout_ms).toBeGreaterThanOrEqual(1000);

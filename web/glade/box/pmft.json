@@ -1,8 +1,5 @@
 {
-    "permissions": {
-        "mandatory": [
-            "fs",
-			"platform"
-        ]
-    }
+  "permissions": {
+    "mandatory": ["fs", "platform"]
+  }
 }

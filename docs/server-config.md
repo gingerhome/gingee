@@ -8,8 +8,8 @@ Here is a comprehensive breakdown of all available properties.
 {
   "server": {
     "http": { "enabled": true, "port": 7070 },
-    "https": { 
-      "enabled": false, 
+    "https": {
+      "enabled": false,
       "port": 7443,
       "key_file": "./settings/ssl/key.pem",
       "cert_file": "./settings/ssl/cert.pem"
@@ -131,12 +131,12 @@ Here is a comprehensive breakdown of all available properties.
 An object that configures the HTTP and HTTPS servers.
 
 - **`server.http`** (object)
-  - **`enabled`** (boolean): Set to `true` to enable the HTTP server. Default: true. 
+  - **`enabled`** (boolean): Set to `true` to enable the HTTP server. Default: true.
   - **`port`** (number): The port number for the HTTP server to listen on. Default: 7070.
 
 - **`server.https`** (object)
-  - **`enabled`** (boolean): Set to `true` to enable the HTTPS server. Default: false. 
-  - **`port`** (number): The port number for the HTTPS server to listen on. Default: 7443. 
+  - **`enabled`** (boolean): Set to `true` to enable the HTTPS server. Default: false.
+  - **`port`** (number): The port number for the HTTPS server to listen on. Default: 7443.
   - **`key_file`** (string): The path to the SSL private key file (e.g., `key.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/key.pem"`.
   - **`cert_file`** (string): The path to the SSL certificate file (e.g., `cert.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/cert.pem"`
   - **NOTE:** See `Enabling HTTPS` section below to configure and run a HTTPS enabled Gingee
@@ -237,21 +237,21 @@ Or without a URL:
   - Default IANA timezone for jobs that omit `timezone` in `app.json`.
 - **`coordination`** (object, optional): multi-node single-fire policy (does **not** hold Redis connection fields — those live on sibling **`redis`**, matching queue/cache).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `driver` | `"none"` | `"none"` (ops designates one scheduler node) or `"redis"` (distributed coordination). Same idea as `queue.driver` / `cache.provider`. |
-| `strategy` | `"tick"` | **`tick`**: per app+job+fire-slot lock (recommended HA). **`leader`**: one global leader lease; only the leader runs any schedule. |
-| `lock_ttl_ms` | `300000` | Lock / leader lease TTL (ms). Leader renews at ~ttl/3. |
-| `slot_granularity_ms` | `10000` | Tick slot bucket when planned fire time is unavailable (absorbs small clock skew). |
-| `node_id` | `hostname:pid` | Identity stored in Redis lock values. |
+| Key                   | Default        | Meaning                                                                                                                               |
+| :-------------------- | :------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `driver`              | `"none"`       | `"none"` (ops designates one scheduler node) or `"redis"` (distributed coordination). Same idea as `queue.driver` / `cache.provider`. |
+| `strategy`            | `"tick"`       | **`tick`**: per app+job+fire-slot lock (recommended HA). **`leader`**: one global leader lease; only the leader runs any schedule.    |
+| `lock_ttl_ms`         | `300000`       | Lock / leader lease TTL (ms). Leader renews at ~ttl/3.                                                                                |
+| `slot_granularity_ms` | `10000`        | Tick slot bucket when planned fire time is unavailable (absorbs small clock skew).                                                    |
+| `node_id`             | `hostname:pid` | Identity stored in Redis lock values.                                                                                                 |
 
 - **`redis`** (object, optional): connection details used when `coordination.driver` is `"redis"`. **Same fields as `queue.redis` / `cache.redis`.**
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `url` | `null` | Redis URL (e.g. `env:REDIS_URL`). When set, used instead of host/port. |
-| `host` / `port` / `password` / `db` | `127.0.0.1` / `6379` / `null` / `0` | Classic connection fields. |
-| `key_prefix` | `"gingee:scheduler:"` | Namespace for lock keys (use a dedicated prefix; do not share `gingee:queue:`). |
+| Key                                 | Default                             | Meaning                                                                         |
+| :---------------------------------- | :---------------------------------- | :------------------------------------------------------------------------------ |
+| `url`                               | `null`                              | Redis URL (e.g. `env:REDIS_URL`). When set, used instead of host/port.          |
+| `host` / `port` / `password` / `db` | `127.0.0.1` / `6379` / `null` / `0` | Classic connection fields.                                                      |
+| `key_prefix`                        | `"gingee:scheduler:"`               | Namespace for lock keys (use a dedicated prefix; do not share `gingee:queue:`). |
 
 ```json
 "scheduler": {
@@ -284,18 +284,18 @@ Or without a URL:
 - **Description:** Platform **timeouts and concurrency** for this Gingee node. Protects the shared process from hung scripts, stuck outbound HTTP, and request storms. Safe defaults apply when omitted.
 - **App override:** optional `app.json` → `limits` may only **tighten** (lower) these ceilings, never raise them.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `request_timeout_ms` | `30000` | Wall-clock budget for a non-streaming server script (starts when the script runs). On expiry: **504** JSON and request abort signal. |
-| `request_timeout_stream_ms` | `300000` | Hard cap after `$g.response.startStream()` (e.g. AI SSE). |
-| `stream_idle_timeout_ms` | `60000` | If no `write` / `writeSSE` for this long while streaming, the stream is ended (**504** / error SSE). |
-| `outbound_timeout_ms` | `15000` | Default `httpclient` axios timeout when the app omits `options.timeout` (also a ceiling for explicit timeouts). Clamped to remaining request budget when not streaming. |
-| `max_concurrent_requests` | `100` | Max in-flight **server scripts** process-wide (static files are not counted). Over limit → **503** `TOO_MANY_REQUESTS`. |
-| `max_concurrent_requests_per_app` | `25` | Max in-flight scripts per app. Over limit → **503**. |
-| `max_concurrent_outbound` | `50` | Max concurrent `httpclient` calls process-wide. Over limit → status **503** from httpclient. |
-| `headers_timeout_ms` | `60000` | Node HTTP `server.headersTimeout`. |
-| `request_timeout_server_ms` | `120000` | Node HTTP `server.requestTimeout` (whole connection). |
-| `keep_alive_timeout_ms` | `5000` | Node HTTP keep-alive. |
+| Key                               | Default  | Meaning                                                                                                                                                                 |
+| :-------------------------------- | :------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `request_timeout_ms`              | `30000`  | Wall-clock budget for a non-streaming server script (starts when the script runs). On expiry: **504** JSON and request abort signal.                                    |
+| `request_timeout_stream_ms`       | `300000` | Hard cap after `$g.response.startStream()` (e.g. AI SSE).                                                                                                               |
+| `stream_idle_timeout_ms`          | `60000`  | If no `write` / `writeSSE` for this long while streaming, the stream is ended (**504** / error SSE).                                                                    |
+| `outbound_timeout_ms`             | `15000`  | Default `httpclient` axios timeout when the app omits `options.timeout` (also a ceiling for explicit timeouts). Clamped to remaining request budget when not streaming. |
+| `max_concurrent_requests`         | `100`    | Max in-flight **server scripts** process-wide (static files are not counted). Over limit → **503** `TOO_MANY_REQUESTS`.                                                 |
+| `max_concurrent_requests_per_app` | `25`     | Max in-flight scripts per app. Over limit → **503**.                                                                                                                    |
+| `max_concurrent_outbound`         | `50`     | Max concurrent `httpclient` calls process-wide. Over limit → status **503** from httpclient.                                                                            |
+| `headers_timeout_ms`              | `60000`  | Node HTTP `server.headersTimeout`.                                                                                                                                      |
+| `request_timeout_server_ms`       | `120000` | Node HTTP `server.requestTimeout` (whole connection).                                                                                                                   |
+| `keep_alive_timeout_ms`           | `5000`   | Node HTTP keep-alive.                                                                                                                                                   |
 
 **Notes:**
 
@@ -308,16 +308,16 @@ Or without a URL:
 - **Type:** `object` (optional)
 - **Description:** Outbound URL policy (**SSRF hardening**) for `require('httpclient')` and scheduler **URL** jobs. Defaults to **protected** mode. See also the [Threat Model](./threat-model.md).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `mode` | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
-| `https_only` | `false` | When `true`, reject `http:` URLs. |
-| `dns_check` | `true` | Resolve hostnames and deny if any address is blocked (`protected` and `allowlist`). |
-| `max_redirects` | `3` | Max HTTP redirects; **each hop is re-validated**. |
-| `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true` | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`. |
-| `allow_hosts` | `[]` | Exact host or `*.example.com` patterns (exceptions / allowlist entries). |
-| `allow_cidrs` | `[]` | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access. |
-| `deny_hosts` / `deny_cidrs` | `[]` | Extra denials. |
+| Key                                                                        | Default       | Meaning                                                                                                                                                                      |
+| :------------------------------------------------------------------------- | :------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                                                                     | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
+| `https_only`                                                               | `false`       | When `true`, reject `http:` URLs.                                                                                                                                            |
+| `dns_check`                                                                | `true`        | Resolve hostnames and deny if any address is blocked (`protected` and `allowlist`).                                                                                          |
+| `max_redirects`                                                            | `3`           | Max HTTP redirects; **each hop is re-validated**.                                                                                                                            |
+| `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true`        | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`.                                                              |
+| `allow_hosts`                                                              | `[]`          | Exact host or `*.example.com` patterns (exceptions / allowlist entries).                                                                                                     |
+| `allow_cidrs`                                                              | `[]`          | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access.                                                                                                        |
+| `deny_hosts` / `deny_cidrs`                                                | `[]`          | Extra denials.                                                                                                                                                               |
 
 **Connect pin (DNS rebinding):** When DNS validation yields addresses (or the URL uses a literal IP), `httpclient` and scheduler URL jobs attach a **pinned `lookup`** so TCP connect uses only those pre-checked addresses. Redirect hops are re-resolved, re-checked, and re-pinned.
 
@@ -338,18 +338,18 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 - **Type:** `object` (optional)
 - **Description:** How the engine resolves **secret references** in `gingee.json` and each app’s `app.json` at load/reload time. Apps still **cannot** read host `process.env` from sandbox code; the engine injects resolved values into in-memory config only. See [Threat Model](./threat-model.md).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `load_dotenv` | `false` | When `true`, load project-root `.env` into `process.env` for keys not already set (local Joy). |
-| `required` | `true` | Missing `env:` / `file:` targets throw at load time (fail closed). |
-| `file_roots` | `["./settings/secrets", "/run/secrets"]` | Absolute or project-relative directories allowed for `file:` secrets. Paths outside these roots are rejected. |
+| Key           | Default                                  | Meaning                                                                                                       |
+| :------------ | :--------------------------------------- | :------------------------------------------------------------------------------------------------------------ |
+| `load_dotenv` | `false`                                  | When `true`, load project-root `.env` into `process.env` for keys not already set (local Joy).                |
+| `required`    | `true`                                   | Missing `env:` / `file:` targets throw at load time (fail closed).                                            |
+| `file_roots`  | `["./settings/secrets", "/run/secrets"]` | Absolute or project-relative directories allowed for `file:` secrets. Paths outside these roots are rejected. |
 
 **Reference syntax** (any string config value, including nested fields):
 
-| Form | Example |
-| :--- | :--- |
-| Env | `"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET"` |
-| File | `"password": "file:./settings/secrets/myapp_db_password"` |
+| Form   | Example                                                          |
+| :----- | :--------------------------------------------------------------- |
+| Env    | `"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET"`                    |
+| File   | `"password": "file:./settings/secrets/myapp_db_password"`        |
 | Object | `"api_key": { "$secret": "env:SENDGRID_KEY", "required": true }` |
 
 **Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
@@ -361,12 +361,12 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 - **Type:** `object` (optional)
 - **Description:** Engine-scoped **Prometheus** exposition for observability (Grafana, etc.). Not an application route and not available via sandboxed `require`—scrape the HTTP path on the server itself. Prefer keeping scrapes on localhost or a private network interface; do not expose `/metrics` on the public internet without a reverse proxy ACL and optional bearer token.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | When `false`, the metrics path is not served. |
-| `path` | `"/metrics"` | HTTP path for scrapes (must start with `/`). |
-| `allow_from` | `["127.0.0.1", "::1", "::ffff:127.0.0.1"]` | Socket remote addresses allowed to scrape. **Empty array = allow all** (not recommended). Uses the TCP peer address only—`X-Forwarded-For` is **not** trusted. |
-| `bearer_token` | `null` | If set (literal or `env:` / `file:` secret ref), require `Authorization: Bearer <token>`. |
+| Key            | Default                                    | Meaning                                                                                                                                                        |
+| :------------- | :----------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`      | `true`                                     | When `false`, the metrics path is not served.                                                                                                                  |
+| `path`         | `"/metrics"`                               | HTTP path for scrapes (must start with `/`).                                                                                                                   |
+| `allow_from`   | `["127.0.0.1", "::1", "::ffff:127.0.0.1"]` | Socket remote addresses allowed to scrape. **Empty array = allow all** (not recommended). Uses the TCP peer address only—`X-Forwarded-For` is **not** trusted. |
+| `bearer_token` | `null`                                     | If set (literal or `env:` / `file:` secret ref), require `Authorization: Bearer <token>`.                                                                      |
 
 **Series (high level):** HTTP request counts/durations (by app, kind, status class), concurrency reject counters, egress deny reasons, scheduler job run outcomes, WebSocket upgrade results / open connection gauges, queue enqueue/complete/fail/retry counters and duration histogram, in-flight gauges, process memory, app/job counts.
 
@@ -381,66 +381,72 @@ curl -s http://127.0.0.1:7070/metrics
 - **Type:** `object` (optional)
 - **Description:** Append-only **JSONL** audit trail for privileged platform actions. Written by the engine when Glade / `platform` APIs mutate state or access sensitive ops data—not full request-level access logs.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | When `false`, no audit file is written. |
-| `path` | `"./logs/audit.jsonl"` | Absolute or project-relative path to the audit log file. Parent directories are created if needed. |
+| Key       | Default                | Meaning                                                                                            |
+| :-------- | :--------------------- | :------------------------------------------------------------------------------------------------- |
+| `enabled` | `true`                 | When `false`, no audit file is written.                                                            |
+| `path`    | `"./logs/audit.jsonl"` | Absolute or project-relative path to the audit log file. Parent directories are created if needed. |
 
 Each line is one JSON object, for example:
 
 ```json
-{"ts":"2026-07-18T12:00:00.000Z","event":"permission.set","actor":"glade","app":"myapp","details":{"previous":["fs"],"granted":["fs","db"]}}
+{
+  "ts": "2026-07-18T12:00:00.000Z",
+  "event": "permission.set",
+  "actor": "glade",
+  "app": "myapp",
+  "details": { "previous": ["fs"], "granted": ["fs", "db"] }
+}
 ```
 
-| Field | Meaning |
-| :--- | :--- |
-| `event` | Stable event name (see table below) |
-| `actor` | Privileged app that performed the action when available; otherwise `system` |
-| `app` | Target application name (when applicable) |
-| `details` | Event-specific payload (no raw log line bodies) |
+| Field     | Meaning                                                                     |
+| :-------- | :-------------------------------------------------------------------------- |
+| `event`   | Stable event name (see table below)                                         |
+| `actor`   | Privileged app that performed the action when available; otherwise `system` |
+| `app`     | Target application name (when applicable)                                   |
+| `details` | Event-specific payload (no raw log line bodies)                             |
 
-| Event | When |
-| :--- | :--- |
-| `permission.set` | Permissions saved for an app |
-| `app.install` / `app.upgrade` / `app.reload` / `app.delete` / `app.rollback` / `app.register` | App lifecycle |
-| `scheduler.run_now` | Glade **Run now** (force schedule; bypasses multi-node coordination) |
-| `queue.dlq.retry` | DLQ job re-enqueued |
-| `queue.dlq.discard` | DLQ job discarded |
-| `logs.list` | Log file list (scope + count) |
-| `logs.read` | Log file tail/read (file name, filters, line counts — **not** line content) |
+| Event                                                                                         | When                                                                        |
+| :-------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
+| `permission.set`                                                                              | Permissions saved for an app                                                |
+| `app.install` / `app.upgrade` / `app.reload` / `app.delete` / `app.rollback` / `app.register` | App lifecycle                                                               |
+| `scheduler.run_now`                                                                           | Glade **Run now** (force schedule; bypasses multi-node coordination)        |
+| `queue.dlq.retry`                                                                             | DLQ job re-enqueued                                                         |
+| `queue.dlq.discard`                                                                           | DLQ job discarded                                                           |
+| `logs.list`                                                                                   | Log file list (scope + count)                                               |
+| `logs.read`                                                                                   | Log file tail/read (file name, filters, line counts — **not** line content) |
 
 ### isolation
 
 - **Type:** `object` (optional)
 - **Description:** Opt-in **process isolation** for server scripts. When enabled, selected apps run box scripts in a **child process** (IPC). The public HTTP(S) ports remain those under `server` — the master accepts connections; workers do not listen on ports. **Default is off** (all apps in-process, same as before).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `mode` | `"off"` | `"off"` = never use workers. `"process"` = allow workers per policy below. |
-| `default` | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`. |
-| `apps` | `[]` | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`. |
-| `groups` | `{}` | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`. |
-| `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
-| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. On timeout the master sends **`cancel_request` IPC**, ends the client with **504**, and aborts the worker-side `AbortSignal` (cooperative cancel for `httpclient` / long work). |
-| `kill_worker_on_request_timeout` | `false` | When `true`, also **SIGTERM** the worker after cancel (other in-flight requests on that worker die). Prefer cooperative cancel unless you need a hard kill. |
-| `auto_restart` | `true` | Restart workers after unexpected exit (not after intentional stop/reload). |
-| `restart_max` | `10` | Max automatic restarts before staying down until next request/reload. |
-| `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
-| `restart_backoff_max_ms` | `30000` | Cap on backoff delay. |
-| `restart_stable_ms` | `60000` | After this long ready without crash, restart counter resets. |
-| `worker_limits` | see below | V8 / OS resource caps applied to each isolation **worker** process. |
+| Key                              | Default       | Meaning                                                                                                                                                                                                                                      |
+| :------------------------------- | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                           | `"off"`       | `"off"` = never use workers. `"process"` = allow workers per policy below.                                                                                                                                                                   |
+| `default`                        | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`.                                                                                                                                                  |
+| `apps`                           | `[]`          | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`.                                                                                                                                                  |
+| `groups`                         | `{}`          | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`.                                                                                        |
+| `worker_ready_timeout_ms`        | `15000`       | Max wait for a worker to become ready after fork.                                                                                                                                                                                            |
+| `request_timeout_ms`             | `120000`      | Max wait for a worker script (buffered or stream) to finish. On timeout the master sends **`cancel_request` IPC**, ends the client with **504**, and aborts the worker-side `AbortSignal` (cooperative cancel for `httpclient` / long work). |
+| `kill_worker_on_request_timeout` | `false`       | When `true`, also **SIGTERM** the worker after cancel (other in-flight requests on that worker die). Prefer cooperative cancel unless you need a hard kill.                                                                                  |
+| `auto_restart`                   | `true`        | Restart workers after unexpected exit (not after intentional stop/reload).                                                                                                                                                                   |
+| `restart_max`                    | `10`          | Max automatic restarts before staying down until next request/reload.                                                                                                                                                                        |
+| `restart_delay_ms`               | `500`         | Base backoff delay (doubles each attempt).                                                                                                                                                                                                   |
+| `restart_backoff_max_ms`         | `30000`       | Cap on backoff delay.                                                                                                                                                                                                                        |
+| `restart_stable_ms`              | `60000`       | After this long ready without crash, restart counter resets.                                                                                                                                                                                 |
+| `worker_limits`                  | see below     | V8 / OS resource caps applied to each isolation **worker** process.                                                                                                                                                                          |
 
 #### isolation.worker_limits
 
 Applied when a worker is forked (`isolation.mode: "process"`). All fields default to `null` (no forced cap).
 
-| Key | Default | Platform | Meaning |
-| :--- | :--- | :--- | :--- |
-| `max_old_space_mb` | `null` | All | V8 old-space heap cap (`--max-old-space-size`). When the heap hits the limit the worker dies and auto-restart may bring it back. |
-| `max_semi_space_mb` | `null` | All | V8 young-generation size (`--max-semi-space-size`). |
-| `uv_threadpool_size` | `null` | All | Sets `UV_THREADPOOL_SIZE` in the worker env. |
-| `priority` | `null` | All | `"low"` \| `"normal"` \| `"high"` — `os.setPriority` after spawn (may require privileges for `"high"` on Unix). |
-| `max_rss_mb` | `null` | **Linux** | Best-effort address-space ceiling via `prlimit --as` if installed. **Ignored on Windows** (log warning); use Docker/Job Objects at the orchestrator for hard RSS caps. |
+| Key                  | Default | Platform  | Meaning                                                                                                                                                                |
+| :------------------- | :------ | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_old_space_mb`   | `null`  | All       | V8 old-space heap cap (`--max-old-space-size`). When the heap hits the limit the worker dies and auto-restart may bring it back.                                       |
+| `max_semi_space_mb`  | `null`  | All       | V8 young-generation size (`--max-semi-space-size`).                                                                                                                    |
+| `uv_threadpool_size` | `null`  | All       | Sets `UV_THREADPOOL_SIZE` in the worker env.                                                                                                                           |
+| `priority`           | `null`  | All       | `"low"` \| `"normal"` \| `"high"` — `os.setPriority` after spawn (may require privileges for `"high"` on Unix).                                                        |
+| `max_rss_mb`         | `null`  | **Linux** | Best-effort address-space ceiling via `prlimit --as` if installed. **Ignored on Windows** (log warning); use Docker/Job Objects at the orchestrator for hard RSS caps. |
 
 ```json
 "isolation": {
@@ -460,13 +466,13 @@ Applied when a worker is forked (`isolation.mode: "process"`). All fields defaul
 
 **How apps are selected (when `mode` is `"process"`):**
 
-| Source | Effect |
-| :--- | :--- |
-| `app.json` `"isolation": "process"` | Solo worker unless the app is also in a **group** |
-| `isolation.apps` | Same as solo opt-in by name |
-| `isolation.groups` | Shared worker for all listed members that are installed |
-| `default: "process"` | Every non-privileged app isolated (use carefully) |
-| `privileged_apps` (e.g. Glade) | **Always** stay in-process |
+| Source                              | Effect                                                  |
+| :---------------------------------- | :------------------------------------------------------ |
+| `app.json` `"isolation": "process"` | Solo worker unless the app is also in a **group**       |
+| `isolation.apps`                    | Same as solo opt-in by name                             |
+| `isolation.groups`                  | Shared worker for all listed members that are installed |
+| `default: "process"`                | Every non-privileged app isolated (use carefully)       |
+| `privileged_apps` (e.g. Glade)      | **Always** stay in-process                              |
 
 If an app appears in both `apps` and a group, the **group wins** (one shared worker).
 
@@ -502,26 +508,26 @@ In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `
 - **Type:** `object` (optional)
 - **Description:** Master-owned **WebSocket** upgrade support on the same HTTP(S) ports as normal traffic. Apps opt in via `app.json` → `websockets` and must be granted the **`websockets`** permission. Connections always terminate on the **master** (not isolation workers). For one-shot progressive HTTP output, prefer SSE (`startStream` / `writeSSE`).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | Global kill switch. When `false`, no upgrades are accepted. |
-| `max_connections` | `10000` | Max open sockets server-wide. |
-| `max_connections_per_app` | `2000` | Max open sockets per app. |
-| `max_message_bytes` | `65536` | Max inbound message size (also `ws` maxPayload). |
-| `idle_timeout_ms` | `300000` | Close sockets idle longer than this (activity = message or pong). |
-| `heartbeat_ms` | `30000` | Server ping interval; also drives idle checks. |
-| `default_path` | `"/ws"` | Used when an app omits `websockets.path`. Full URL is `/{appName}{path}`. |
-| `fanout` | see below | Multi-node room/app broadcast (optional). |
-| `redis` | see below | Connection for fan-out when `fanout.driver` is `"redis"` (same fields as `queue.redis`). |
+| Key                       | Default   | Meaning                                                                                  |
+| :------------------------ | :-------- | :--------------------------------------------------------------------------------------- |
+| `enabled`                 | `true`    | Global kill switch. When `false`, no upgrades are accepted.                              |
+| `max_connections`         | `10000`   | Max open sockets server-wide.                                                            |
+| `max_connections_per_app` | `2000`    | Max open sockets per app.                                                                |
+| `max_message_bytes`       | `65536`   | Max inbound message size (also `ws` maxPayload).                                         |
+| `idle_timeout_ms`         | `300000`  | Close sockets idle longer than this (activity = message or pong).                        |
+| `heartbeat_ms`            | `30000`   | Server ping interval; also drives idle checks.                                           |
+| `default_path`            | `"/ws"`   | Used when an app omits `websockets.path`. Full URL is `/{appName}{path}`.                |
+| `fanout`                  | see below | Multi-node room/app broadcast (optional).                                                |
+| `redis`                   | see below | Connection for fan-out when `fanout.driver` is `"redis"` (same fields as `queue.redis`). |
 
 #### websockets.fanout (multi-node)
 
 Without fan-out, `require('websockets').toRoom` / `toApp` only reach sockets on **this** process. With Redis pub/sub, every Gingee master delivers to its local members of the room.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `driver` | `"none"` | `"none"` (single-node) or `"redis"` (pub/sub fan-out). |
-| `node_id` | `hostname:pid` | Origin id so a node ignores its own publishes. |
+| Key       | Default        | Meaning                                                |
+| :-------- | :------------- | :----------------------------------------------------- |
+| `driver`  | `"none"`       | `"none"` (single-node) or `"redis"` (pub/sub fan-out). |
+| `node_id` | `hostname:pid` | Origin id so a node ignores its own publishes.         |
 
 #### websockets.redis
 
@@ -554,13 +560,13 @@ Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**
 }
 ```
 
-| Field | Required | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | no | Set `false` to disable; presence of `handler` is enough to enable when permission is granted |
-| `path` | no | Path under the app (default server `default_path`). Client connects to `ws(s)://host/{appName}{path}` |
-| `handler` | **yes** | Box-relative script exporting `async function (socket, ctx)` |
-| `auth` | no | Box-relative script run on upgrade; return `false` / `{ ok: false }` to reject |
-| `allowed_origins` | no | If set, `Origin` must match exactly |
+| Field             | Required | Meaning                                                                                               |
+| :---------------- | :------- | :---------------------------------------------------------------------------------------------------- |
+| `enabled`         | no       | Set `false` to disable; presence of `handler` is enough to enable when permission is granted          |
+| `path`            | no       | Path under the app (default server `default_path`). Client connects to `ws(s)://host/{appName}{path}` |
+| `handler`         | **yes**  | Box-relative script exporting `async function (socket, ctx)`                                          |
+| `auth`            | no       | Box-relative script run on upgrade; return `false` / `{ ok: false }` to reject                        |
+| `allowed_origins` | no       | If set, `Origin` must match exactly                                                                   |
 
 **Multi-tenant apps:** rooms are app-global. Prefix with `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
 
@@ -575,18 +581,18 @@ Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**
 - **Type:** `object` (optional)
 - **Description:** Background **job queue**. Apps enqueue work with `require('queue').add(name, payload)`; handlers live under `box/jobs/{name}.js` (or paths mapped in `app.json` → `queue.jobs`). Requires the **`queue`** permission. Default driver is **memory** (single process, not durable). Use **redis** for multi-node shared work and durable jobs (uses existing `ioredis`).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | When `false`, enqueue and processing are off. |
-| `driver` | `"memory"` | `"memory"` or `"redis"`. |
-| `concurrency` | `5` | Max jobs running at once on this node. |
-| `default_attempts` | `3` | Retries after handler failure (exponential backoff). |
-| `default_backoff_ms` | `1000` | Base delay between retries. |
-| `jobs_dir` | `"jobs"` | Default folder under `box/` for job scripts. |
-| `visibility_timeout_ms` | `300000` | **Redis only:** claim lease (ms). If a worker dies mid-job, the claim is reclaimed after this and the job returns to the ready list. Long handlers should finish within this window (lease is refreshed when processing starts). |
-| `shutdown_drain_ms` | `30000` | Graceful shutdown: stop claiming, return local wait-queue claims to the driver, wait up to this many ms for in-flight jobs, then force-release remaining claims and disconnect. |
-| `fail_closed` | `true` | When `driver` is `"redis"` and Redis is unreachable at boot: **`true`** aborts queue init (server boot fails) — no silent memory fallback. Set **`false`** only for local dev (multi-node would otherwise split jobs across node-local memory queues). |
-| `redis` | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`. |
+| Key                     | Default      | Meaning                                                                                                                                                                                                                                                |
+| :---------------------- | :----------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`               | `true`       | When `false`, enqueue and processing are off.                                                                                                                                                                                                          |
+| `driver`                | `"memory"`   | `"memory"` or `"redis"`.                                                                                                                                                                                                                               |
+| `concurrency`           | `5`          | Max jobs running at once on this node.                                                                                                                                                                                                                 |
+| `default_attempts`      | `3`          | Retries after handler failure (exponential backoff).                                                                                                                                                                                                   |
+| `default_backoff_ms`    | `1000`       | Base delay between retries.                                                                                                                                                                                                                            |
+| `jobs_dir`              | `"jobs"`     | Default folder under `box/` for job scripts.                                                                                                                                                                                                           |
+| `visibility_timeout_ms` | `300000`     | **Redis only:** claim lease (ms). If a worker dies mid-job, the claim is reclaimed after this and the job returns to the ready list. Long handlers should finish within this window (lease is refreshed when processing starts).                       |
+| `shutdown_drain_ms`     | `30000`      | Graceful shutdown: stop claiming, return local wait-queue claims to the driver, wait up to this many ms for in-flight jobs, then force-release remaining claims and disconnect.                                                                        |
+| `fail_closed`           | `true`       | When `driver` is `"redis"` and Redis is unreachable at boot: **`true`** aborts queue init (server boot fails) — no silent memory fallback. Set **`false`** only for local dev (multi-node would otherwise split jobs across node-local memory queues). |
+| `redis`                 | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`.                                                                                                                                                                          |
 
 ```json
 "queue": {
@@ -626,8 +632,8 @@ module.exports = async function () {
 **From a server script:**
 
 ```javascript
-const queue = require('queue');
-await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
+const queue = require("queue");
+await queue.add("echo", { hello: true }, { delayMs: 0, attempts: 3 });
 ```
 
 **CRON → queue (multi-node friendly):** schedule target `"type": "queue", "job": "nightly"` enqueues instead of running the heavy work inline. App needs both `scheduler` and `queue` permissions; server needs `scheduler.enabled` and `queue.enabled`.
@@ -642,14 +648,14 @@ await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
 
 Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
 
-| Feature | Packages |
-| :--- | :--- |
-| Image processing (`require('image')`) | `sharp` |
-| PostgreSQL / MySQL / MSSQL / Oracle | `pg`, `mysql2`, `mssql`, `oracledb` |
-| Charts / canvas barcodes / dashboard | `chartjs-node-canvas`, `canvas` |
-| PDF | `pdfmake` |
-| SendGrid email | `@sendgrid/mail` |
-| Gemini AI | `@google/generative-ai` |
+| Feature                               | Packages                            |
+| :------------------------------------ | :---------------------------------- |
+| Image processing (`require('image')`) | `sharp`                             |
+| PostgreSQL / MySQL / MSSQL / Oracle   | `pg`, `mysql2`, `mssql`, `oracledb` |
+| Charts / canvas barcodes / dashboard  | `chartjs-node-canvas`, `canvas`     |
+| PDF                                   | `pdfmake`                           |
+| SendGrid email                        | `@sendgrid/mail`                    |
+| Gemini AI                             | `@google/generative-ai`             |
 
 **Install behavior (npm):**
 
@@ -660,6 +666,7 @@ Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth 
 Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals. Image ops need `sharp` installed (or a full/default install that includes optionals).
 
 ### max_body_size
+
 - **Type:** `string`
 - **Description:** Configures the maximum allowed HTTP request body size. Defaults to '10mb'. Interprets human readable string such as `mb`, `gb`.
 
@@ -680,10 +687,10 @@ An object that configures the server's logger.
 
 **On disk:**
 
-| Stream | Path | Notes |
-| :--- | :--- | :--- |
-| Server | `{project}/logs/gingee-YYYY-MM-DD.log` | JSON lines; includes engine events **and** app logs forwarded from each app logger |
-| App | `{web_root}/{app}/box/logs/app-YYYY-MM-DD.log` | JSON lines with `"app"`; app-only |
+| Stream | Path                                           | Notes                                                                              |
+| :----- | :--------------------------------------------- | :--------------------------------------------------------------------------------- |
+| Server | `{project}/logs/gingee-YYYY-MM-DD.log`         | JSON lines; includes engine events **and** app logs forwarded from each app logger |
+| App    | `{web_root}/{app}/box/logs/app-YYYY-MM-DD.log` | JSON lines with `"app"`; app-only                                                  |
 
 **Glade:** top menu **Logs** — tail/view server or app files (default last 100 lines; path-jailed). See [Glade Admin](./glade-admin.md).
 
@@ -699,12 +706,14 @@ An object that configures the server's logger.
   - **App-level override:** each app may set `allow_dynamic_code` in **`app.json`** (or nested `box.allow_dynamic_code`). An **explicit app value wins** over the server default — so an app can **opt in** (`true`) for Handlebars/UMD, or **opt out** (`false`) even when the server default is `true`.
   - **Legacy:** `allow_code_generation` is still honored if `allow_dynamic_code` is unset.
 - **Example (production default off; only needed apps opt in):**
+
 ```json
 "box": {
   "allowed_modules": [],
   "allow_dynamic_code": false
 }
 ```
+
 ```json
 // web/tests/box/app.json (needs external UMD lib)
 {
@@ -715,10 +724,10 @@ An object that configures the server's logger.
 
 ### default_app
 
--   **Type:** `string`
--   **Default:** `"glade"`
--   **Description:** Specifies the `<app-name>` of the application that should handle requests to the server's root URL (`/`). When a user navigates to your server's base address, they will be transparently routed to this application.
--   **Example:** `"default_app": "my-main-website"`
+- **Type:** `string`
+- **Default:** `"glade"`
+- **Description:** Specifies the `<app-name>` of the application that should handle requests to the server's root URL (`/`). When a user navigates to your server's base address, they will be transparently routed to this application.
+- **Example:** `"default_app": "my-main-website"`
 
 ### privileged_apps
 
@@ -753,24 +762,24 @@ First, we create a private key and a root certificate for our new local CA. Run 
 
 This is the critical step where you tell your operating system to trust your new local CA.
 
-*   **On macOS:**
-    1.  Double-click the `localCA.pem` file in Finder to open the Keychain Access app.
-    2.  Find the certificate (it will have the "Common Name" you entered). Double-click it.
-    3.  Expand the "Trust" section. For "When using this certificate," select **"Always Trust"**.
-    4.  Close the window and enter your system password when prompted.
+- **On macOS:**
+  1.  Double-click the `localCA.pem` file in Finder to open the Keychain Access app.
+  2.  Find the certificate (it will have the "Common Name" you entered). Double-click it.
+  3.  Expand the "Trust" section. For "When using this certificate," select **"Always Trust"**.
+  4.  Close the window and enter your system password when prompted.
 
-*   **On Windows:**
-    1.  Double-click the `localCA.pem` file.
-    2.  Click "Install Certificate...".
-    3.  Select store location: "Current User", then click Next.
-    4.  Select "Place all certificates in the following store," click "Browse," and choose **"Trusted Root Certification Authorities"**. Click OK.
-    5.  Click Next and Finish, accepting any security warnings.
+- **On Windows:**
+  1.  Double-click the `localCA.pem` file.
+  2.  Click "Install Certificate...".
+  3.  Select store location: "Current User", then click Next.
+  4.  Select "Place all certificates in the following store," click "Browse," and choose **"Trusted Root Certification Authorities"**. Click OK.
+  5.  Click Next and Finish, accepting any security warnings.
 
-*   **On Linux (Ubuntu/Debian):**
-    ```bash
-    sudo cp ./settings/ssl/localCA.pem /usr/local/share/ca-certificates/localCA.crt
-    sudo update-ca-certificates
-    ```
+- **On Linux (Ubuntu/Debian):**
+  ```bash
+  sudo cp ./settings/ssl/localCA.pem /usr/local/share/ca-certificates/localCA.crt
+  sudo update-ca-certificates
+  ```
 
 **Step 3: Create and Sign the Server Certificate**
 

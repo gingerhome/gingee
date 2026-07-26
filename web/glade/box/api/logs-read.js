@@ -1,14 +1,14 @@
 module.exports = async function () {
   await gingee(async ($g) => {
     try {
-      const platform = require('platform');
+      const platform = require("platform");
       const q = $g.request.query || {};
       const body = $g.request.body || {};
-      const scope = body.scope || q.scope || 'server';
+      const scope = body.scope || q.scope || "server";
       const appName = body.appName || body.app || q.appName || q.app || null;
       const file = body.file || q.file || null;
       const lines = body.lines != null ? body.lines : q.lines;
-      const level = body.level || q.level || 'all';
+      const level = body.level || q.level || "all";
       const engineOnly =
         body.engineOnly != null
           ? body.engineOnly
@@ -23,10 +23,10 @@ module.exports = async function () {
           : q.hideLogQueries != null
             ? q.hideLogQueries
             : null;
-      if (hlq === false || hlq === 'false' || hlq === '0' || hlq === 0) {
+      if (hlq === false || hlq === "false" || hlq === "0" || hlq === 0) {
         hideLogQueries = false;
       }
-      const search = body.q || body.search || q.q || q.search || '';
+      const search = body.q || body.search || q.q || q.search || "";
 
       const result = platform.readLogFile({
         scope,
@@ -36,11 +36,11 @@ module.exports = async function () {
         level,
         engineOnly,
         hideLogQueries,
-        q: search
+        q: search,
       });
-      $g.response.send({ status: 'success', ...result });
+      $g.response.send({ status: "success", ...result });
     } catch (e) {
-      $g.response.send({ status: 'error', error: e.message }, 400);
+      $g.response.send({ status: "error", error: e.message }, 400);
     }
   });
 };

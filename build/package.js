@@ -1,7 +1,7 @@
-const fs = require('fs-extra');
-const path = require('path');
-const archiver = require('archiver');
-const fg = require('fast-glob');
+const fs = require("fs-extra");
+const path = require("path");
+const archiver = require("archiver");
+const fg = require("fast-glob");
 
 /**
  * Creates a .gin package buffer from a source app directory.
@@ -11,156 +11,186 @@ const fg = require('fast-glob');
  * @returns {Promise<Buffer>} A promise that resolves with the package buffer.
  */
 async function createGinPackage(appName, projectRoot) {
-    console.log(`   -> Starting package process for '${appName}'...`);
+  console.log(`   -> Starting package process for '${appName}'...`);
 
-    const appWebPath = path.join(projectRoot, 'web', appName);
-    const appBoxPath = path.join(appWebPath, 'box');
-    const manifestPath = path.join(appBoxPath, '.gpkg');
-    const appConfigPath = path.join(appBoxPath, 'app.json');
+  const appWebPath = path.join(projectRoot, "web", appName);
+  const appBoxPath = path.join(appWebPath, "box");
+  const manifestPath = path.join(appBoxPath, ".gpkg");
+  const appConfigPath = path.join(appBoxPath, "app.json");
 
-    // Create a temporary directory for our sanitized files.
-    const tempAppPath = path.join(projectRoot, 'temp', `build-${appName}-${Date.now()}`);
-    fs.copySync(appWebPath, tempAppPath); // Copy the entire app to a temp location
+  // Create a temporary directory for our sanitized files.
+  const tempAppPath = path.join(
+    projectRoot,
+    "temp",
+    `build-${appName}-${Date.now()}`,
+  );
+  fs.copySync(appWebPath, tempAppPath); // Copy the entire app to a temp location
 
-    const tempAppConfigPath = path.join(tempAppPath, 'box', 'app.json');
-    if (fs.existsSync(tempAppConfigPath)) {
-        const appConfig = fs.readJsonSync(tempAppConfigPath);
-        // Reset the env object to safe, non-secret defaults in the temporary copy.
-        appConfig.env = {
-            "ADMIN_USERNAME": "admin",
-            "ADMIN_PASSWORD_HASH": "!!!_NEEDS_TO_BE_GENERATED_BY_CLI_!!!"
-        };
-        fs.writeJsonSync(tempAppConfigPath, appConfig, { spaces: 2 });
-        console.log(`   -> Sanitized temporary app.json for '${appName}'.`);
-    }
-
-    let filesToInclude = [];
-    let globOptions = {
-        cwd: tempAppPath, // IMPORTANT: Run the glob against the temporary, sanitized directory
-        onlyFiles: true,
-        dot: true
+  const tempAppConfigPath = path.join(tempAppPath, "box", "app.json");
+  if (fs.existsSync(tempAppConfigPath)) {
+    const appConfig = fs.readJsonSync(tempAppConfigPath);
+    // Reset the env object to safe, non-secret defaults in the temporary copy.
+    appConfig.env = {
+      ADMIN_USERNAME: "admin",
+      ADMIN_PASSWORD_HASH: "!!!_NEEDS_TO_BE_GENERATED_BY_CLI_!!!",
     };
+    fs.writeJsonSync(tempAppConfigPath, appConfig, { spaces: 2 });
+    console.log(`   -> Sanitized temporary app.json for '${appName}'.`);
+  }
 
-    if (fs.existsSync(manifestPath)) {
-        const manifest = fs.readJsonSync(manifestPath);
-        const excludePatterns = (manifest.exclude || []).concat(['.gpkg']);
-        globOptions.ignore = excludePatterns;
-        filesToInclude = await fg(manifest.include || ['**/*'], globOptions);
-    } else {
-        globOptions.ignore = ['node_modules/**', '.git/**', 'box/logs/**', '.gpkg'];
-        filesToInclude = await fg(['**/*'], globOptions);
-    }
+  let filesToInclude = [];
+  let globOptions = {
+    cwd: tempAppPath, // IMPORTANT: Run the glob against the temporary, sanitized directory
+    onlyFiles: true,
+    dot: true,
+  };
 
-    console.log(`   -> Found ${filesToInclude.length} files to include.`);
+  if (fs.existsSync(manifestPath)) {
+    const manifest = fs.readJsonSync(manifestPath);
+    const excludePatterns = (manifest.exclude || []).concat([".gpkg"]);
+    globOptions.ignore = excludePatterns;
+    filesToInclude = await fg(manifest.include || ["**/*"], globOptions);
+  } else {
+    globOptions.ignore = ["node_modules/**", ".git/**", "box/logs/**", ".gpkg"];
+    filesToInclude = await fg(["**/*"], globOptions);
+  }
 
-    // --- Create the Archive from the TEMPORARY directory ---
-    // archiver v8+: class API (not archiver('zip', opts))
-    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
-    const buffers = [];
-    archive.on('data', buffer => buffers.push(buffer));
-    const streamPromise = new Promise((resolve, reject) => {
-        archive.on('end', () => resolve(Buffer.concat(buffers)));
-        archive.on('error', reject);
-    });
+  console.log(`   -> Found ${filesToInclude.length} files to include.`);
 
-    for (const file of filesToInclude) {
-        archive.file(path.join(tempAppPath, file), { name: file });
-    }
+  // --- Create the Archive from the TEMPORARY directory ---
+  // archiver v8+: class API (not archiver('zip', opts))
+  const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
+  const buffers = [];
+  archive.on("data", (buffer) => buffers.push(buffer));
+  const streamPromise = new Promise((resolve, reject) => {
+    archive.on("end", () => resolve(Buffer.concat(buffers)));
+    archive.on("error", reject);
+  });
 
-    await archive.finalize();
+  for (const file of filesToInclude) {
+    archive.file(path.join(tempAppPath, file), { name: file });
+  }
 
-    // Clean up the temporary directory
-    fs.removeSync(tempAppPath);
+  await archive.finalize();
 
-    console.log(`   -> Package buffer created for '${appName}'.`);
-    return streamPromise;
+  // Clean up the temporary directory
+  fs.removeSync(tempAppPath);
+
+  console.log(`   -> Package buffer created for '${appName}'.`);
+  return streamPromise;
 }
-
 
 /**
  * This script builds the distributable 'gingee' package from the source.
  * It copies the necessary engine files and generates a clean, production-ready package.json.
  */
 async function buildPackage() {
-    try {
-        console.log('Starting Gingee package build...');
+  try {
+    console.log("Starting Gingee package build...");
 
-        // Define Paths based on the new project structure
-        const projectRoot = path.resolve(__dirname, '..');
-        const packageDest = path.join(projectRoot, 'build', 'dist', 'gingee');
-        const cliTemplatesPath = path.resolve(projectRoot, '../gingee-cli/templates');
+    // Define Paths based on the new project structure
+    const projectRoot = path.resolve(__dirname, "..");
+    const packageDest = path.join(projectRoot, "build", "dist", "gingee");
+    const cliTemplatesPath = path.resolve(
+      projectRoot,
+      "../gingee-cli/templates",
+    );
 
-        // Clean the destination directory
-        console.log(`Cleaning destination: ${packageDest}`);
-        fs.emptyDirSync(packageDest);
+    // Clean the destination directory
+    console.log(`Cleaning destination: ${packageDest}`);
+    fs.emptyDirSync(packageDest);
 
-        // Create the glade.gin package using our new safe function
-        console.log('Building core `glade` application package...');
-        const gladePackageBuffer = await createGinPackage('glade', projectRoot);
+    // Create the glade.gin package using our new safe function
+    console.log("Building core `glade` application package...");
+    const gladePackageBuffer = await createGinPackage("glade", projectRoot);
 
-        console.log(`Copying 'glade.gin' to the gingee-cli package...`);
-        fs.ensureDirSync(cliTemplatesPath);
-        fs.writeFileSync(path.join(cliTemplatesPath, 'glade.gin'), gladePackageBuffer);
+    console.log(`Copying 'glade.gin' to the gingee-cli package...`);
+    fs.ensureDirSync(cliTemplatesPath);
+    fs.writeFileSync(
+      path.join(cliTemplatesPath, "glade.gin"),
+      gladePackageBuffer,
+    );
 
-        // Copy essential source files and directories
-        console.log('Copying engine source files...');
-        const templatesDest = path.join(packageDest, 'templates');
-        fs.mkdirSync(templatesDest);
-        fs.writeFileSync(path.join(templatesDest, 'glade.gin'), gladePackageBuffer);
+    // Copy essential source files and directories
+    console.log("Copying engine source files...");
+    const templatesDest = path.join(packageDest, "templates");
+    fs.mkdirSync(templatesDest);
+    fs.writeFileSync(path.join(templatesDest, "glade.gin"), gladePackageBuffer);
 
-        fs.copySync(path.join(projectRoot, 'gingee.js'), path.join(packageDest, 'gingee.js'));
-        fs.copySync(path.join(projectRoot, 'modules'), path.join(packageDest, 'modules'));
-        fs.copySync(path.join(projectRoot, 'LICENSE'), path.join(packageDest, 'LICENSE'));
-        fs.copySync(path.join(projectRoot, 'README.md'), path.join(packageDest, 'README.md'));
+    fs.copySync(
+      path.join(projectRoot, "gingee.js"),
+      path.join(packageDest, "gingee.js"),
+    );
+    fs.copySync(
+      path.join(projectRoot, "modules"),
+      path.join(packageDest, "modules"),
+    );
+    fs.copySync(
+      path.join(projectRoot, "LICENSE"),
+      path.join(packageDest, "LICENSE"),
+    );
+    fs.copySync(
+      path.join(projectRoot, "README.md"),
+      path.join(packageDest, "README.md"),
+    );
 
-        fs.copySync(path.join(projectRoot, 'settings', 'fonts'), path.join(packageDest, 'settings', 'fonts'));
-        const sslPath = path.join(packageDest, 'settings', 'ssl');
-        //create ssl directory
-        fs.mkdirSync(sslPath);
+    fs.copySync(
+      path.join(projectRoot, "settings", "fonts"),
+      path.join(packageDest, "settings", "fonts"),
+    );
+    const sslPath = path.join(packageDest, "settings", "ssl");
+    //create ssl directory
+    fs.mkdirSync(sslPath);
 
-        const permissionsFilePath = path.join(packageDest, 'settings', 'permissions.json');
-        fs.writeJsonSync(permissionsFilePath, {}, { spaces: 2 });
-        console.log('   -> Created default empty permissions.json.');
+    const permissionsFilePath = path.join(
+      packageDest,
+      "settings",
+      "permissions.json",
+    );
+    fs.writeJsonSync(permissionsFilePath, {}, { spaces: 2 });
+    console.log("   -> Created default empty permissions.json.");
 
-        // Generate the production package.json
-        console.log('Generating production package.json...');
-        const sourcePackageJson = require(path.join(projectRoot, 'package.json'));
+    // Generate the production package.json
+    console.log("Generating production package.json...");
+    const sourcePackageJson = require(path.join(projectRoot, "package.json"));
 
-        const distPackageJson = {
-            name: sourcePackageJson.name,
-            version: sourcePackageJson.version,
-            description: sourcePackageJson.description,
-            main: sourcePackageJson.main,
-            repository: sourcePackageJson.repository,
-            bugs: sourcePackageJson.bugs,
-            homepage: sourcePackageJson.homepage,
-            keywords: sourcePackageJson.keywords,
-            author: sourcePackageJson.author,
-            contributors: sourcePackageJson.contributors,
-            license: sourcePackageJson.license,
-            engines: sourcePackageJson.engines,
-            genai: sourcePackageJson.genai,
-            // CRITICAL: Only include production dependencies
-            dependencies: sourcePackageJson.dependencies,
-            exports: {
-                ".": "./gingee.js",
-                "./templates/glade.gin": "./templates/glade.gin"
-            }
-        };
+    const distPackageJson = {
+      name: sourcePackageJson.name,
+      version: sourcePackageJson.version,
+      description: sourcePackageJson.description,
+      main: sourcePackageJson.main,
+      repository: sourcePackageJson.repository,
+      bugs: sourcePackageJson.bugs,
+      homepage: sourcePackageJson.homepage,
+      keywords: sourcePackageJson.keywords,
+      author: sourcePackageJson.author,
+      contributors: sourcePackageJson.contributors,
+      license: sourcePackageJson.license,
+      engines: sourcePackageJson.engines,
+      genai: sourcePackageJson.genai,
+      // CRITICAL: Only include production dependencies
+      dependencies: sourcePackageJson.dependencies,
+      exports: {
+        ".": "./gingee.js",
+        "./templates/glade.gin": "./templates/glade.gin",
+      },
+    };
 
-        fs.writeFileSync(
-            path.join(packageDest, 'package.json'),
-            JSON.stringify(distPackageJson, null, 2)
-        );
+    fs.writeFileSync(
+      path.join(packageDest, "package.json"),
+      JSON.stringify(distPackageJson, null, 2),
+    );
 
-        console.log('\n\x1b[32m%s\x1b[0m', `✅ Gingee engine package created successfully!`);
-        console.log(`   Output location: ${packageDest}`);
-
-    } catch (err) {
-        console.error('\x1b[31m%s\x1b[0m', 'Build failed:');
-        console.error(err);
-        process.exit(1);
-    }
+    console.log(
+      "\n\x1b[32m%s\x1b[0m",
+      `✅ Gingee engine package created successfully!`,
+    );
+    console.log(`   Output location: ${packageDest}`);
+  } catch (err) {
+    console.error("\x1b[31m%s\x1b[0m", "Build failed:");
+    console.error(err);
+    process.exit(1);
+  }
 }
 
 buildPackage();

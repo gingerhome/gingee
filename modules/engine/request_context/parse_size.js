@@ -9,8 +9,8 @@
  * @returns {number} size in bytes
  */
 function parseSize(sizeStr) {
-  if (typeof sizeStr !== 'string') {
-    throw new Error('Input must be a string');
+  if (typeof sizeStr !== "string") {
+    throw new Error("Input must be a string");
   }
 
   // Trim and normalize
@@ -19,14 +19,14 @@ function parseSize(sizeStr) {
   // Match number + unit (KB, MB, GB, TB, etc.)
   const match = str.match(/^([\d.]+)\s*([KMGTPE]?I?B?)$/i);
   if (!match) {
-    throw new Error('Invalid size format: ' + sizeStr);
+    throw new Error("Invalid size format: " + sizeStr);
   }
 
   const value = parseFloat(match[1]);
   let unit = match[2].toUpperCase();
 
   // Default to bytes if no unit
-  if (!unit || unit === 'B') return value;
+  if (!unit || unit === "B") return value;
 
   const units = {
     B: 1,
@@ -43,11 +43,11 @@ function parseSize(sizeStr) {
     GIB: 1024 ** 3,
     TIB: 1024 ** 4,
     PIB: 1024 ** 5,
-    EIB: 1024 ** 6
+    EIB: 1024 ** 6,
   };
 
   if (!(unit in units)) {
-    throw new Error('Unknown unit: ' + unit);
+    throw new Error("Unknown unit: " + unit);
   }
 
   return value * units[unit];
@@ -56,5 +56,5 @@ function parseSize(sizeStr) {
 module.exports = {
   parseSize,
   /** @deprecated alias used by legacy call sites */
-  _parseSize: parseSize
+  _parseSize: parseSize,
 };

@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 /**
  * @module uuid
@@ -17,8 +17,8 @@ const crypto = require('crypto');
  * console.log(newUuid); // Outputs a random UUID
  */
 function v4() {
-    // crypto.randomUUID() is the modern, fast, and secure way to generate UUIDs.
-    return crypto.randomUUID();
+  // crypto.randomUUID() is the modern, fast, and secure way to generate UUIDs.
+  return crypto.randomUUID();
 }
 
 /**
@@ -35,15 +35,16 @@ function v4() {
  * console.log(isValid); // Outputs true or false
  */
 function validate(uuidString) {
-    if (typeof uuidString !== 'string') {
-        return false;
-    }
-    // This regex checks for the standard 8-4-4-4-12 hex format of a UUID.
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuidString);
+  if (typeof uuidString !== "string") {
+    return false;
+  }
+  // This regex checks for the standard 8-4-4-4-12 hex format of a UUID.
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuidString);
 }
 
 module.exports = {
-    v4,
-    validate
+  v4,
+  validate,
 };

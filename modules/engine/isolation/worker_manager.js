@@ -4,23 +4,23 @@
  * Engine-internal.
  */
 
-const { fork } = require('child_process');
-const path = require('path');
+const { fork } = require("child_process");
+const path = require("path");
 const {
   shouldIsolateApp,
   resolveWorkerKey,
   appsForWorker,
   restartDelayMs,
-  ISOLATION_DEFAULTS
-} = require('./policy.js');
+  ISOLATION_DEFAULTS,
+} = require("./policy.js");
 const {
   normalizeWorkerLimits,
   buildWorkerEnv,
   applyAfterSpawn,
-  describeLimits
-} = require('./resource_limits.js');
-const { projectRoot } = require('../paths.js');
-const { allowDynamicCodeFromBox } = require('../../gbox.js');
+  describeLimits,
+} = require("./resource_limits.js");
+const { projectRoot } = require("../paths.js");
+const { allowDynamicCodeFromBox } = require("../../gbox.js");
 // Server default still passed at worker init; per-request apps re-resolve in app_worker
 
 /** workerKey → handle */
@@ -44,7 +44,7 @@ let serverConfig = null;
 /** @type {object|null} */
 let serverLogger = null;
 /** @type {string} */
-let webPathResolved = '';
+let webPathResolved = "";
 /** full apps registry for group membership */
 /** @type {object|null} */
 let appsRegistry = null;
@@ -81,13 +81,13 @@ function isolationOpts() {
     ...raw,
     groups: {
       ...ISOLATION_DEFAULTS.groups,
-      ...(raw.groups || {})
+      ...(raw.groups || {}),
     },
     apps: Array.isArray(raw.apps) ? raw.apps : ISOLATION_DEFAULTS.apps,
     worker_limits: normalizeWorkerLimits({
       ...ISOLATION_DEFAULTS.worker_limits,
-      ...(raw.worker_limits || {})
-    })
+      ...(raw.worker_limits || {}),
+    }),
   };
 }
 
@@ -108,7 +108,7 @@ function rememberApp(app) {
     appBoxPath: app.appBoxPath,
     grantedPermissions: Array.isArray(app.grantedPermissions)
       ? [...app.grantedPermissions]
-      : []
+      : [],
   });
 }
 
@@ -128,18 +128,22 @@ function buildInitPayload(workerKey, cfg, appNames) {
       appWebPath: snap.appWebPath,
       appBoxPath: snap.appBoxPath,
       appConfig: snap.config,
-      grantedPermissions: snap.grantedPermissions
+      grantedPermissions: snap.grantedPermissions,
     });
   }
   return {
-    type: 'init',
+    type: "init",
     workerKey,
     projectRoot,
     webPath: webPathResolved,
     apps,
-    privilegedApps: Array.isArray(cfg.privileged_apps) ? [...cfg.privileged_apps] : [],
+    privilegedApps: Array.isArray(cfg.privileged_apps)
+      ? [...cfg.privileged_apps]
+      : [],
     allowedBuiltinModules:
-      cfg.box && Array.isArray(cfg.box.allowed_modules) ? [...cfg.box.allowed_modules] : [],
+      cfg.box && Array.isArray(cfg.box.allowed_modules)
+        ? [...cfg.box.allowed_modules]
+        : [],
     allowDynamicCode: allowDynamicCodeFromBox(cfg.box),
     // Pass module defaults so the worker can re-init ai/email adapters
     // (process-local maps are empty in the child after fork).
@@ -148,9 +152,10 @@ function buildInitPayload(workerKey, cfg, appNames) {
       privileged_apps: cfg.privileged_apps || [],
       max_body_size: cfg.max_body_size,
       isolation: cfg.isolation,
-      ai: cfg.ai && typeof cfg.ai === 'object' ? { ...cfg.ai } : null,
-      email: cfg.email && typeof cfg.email === 'object' ? { ...cfg.email } : null
-    }
+      ai: cfg.ai && typeof cfg.ai === "object" ? { ...cfg.ai } : null,
+      email:
+        cfg.email && typeof cfg.email === "object" ? { ...cfg.email } : null,
+    },
   };
 }
 
@@ -178,7 +183,11 @@ function startWorker(app, config, options = {}) {
     restartTimers.delete(workerKey);
   }
 
-  const memberNames = appsForWorker(app, cfg, appsRegistry || { [app.name]: app });
+  const memberNames = appsForWorker(
+    app,
+    cfg,
+    appsRegistry || { [app.name]: app },
+  );
   // Ensure all members are remembered if present in registry
   if (appsRegistry) {
     for (const n of memberNames) {
@@ -187,26 +196,28 @@ function startWorker(app, config, options = {}) {
   }
 
   const prev = workers.get(workerKey);
-  const prevRestarts = prev && typeof prev.restarts === 'number' ? prev.restarts : 0;
+  const prevRestarts =
+    prev && typeof prev.restarts === "number" ? prev.restarts : 0;
   stopWorkerByKey(workerKey, { silent: true, intentional: true });
 
-  const workerScript = path.join(__dirname, 'app_worker.js');
+  const workerScript = path.join(__dirname, "app_worker.js");
   const opts = isolationOpts();
-  const readyTimeout = opts.worker_ready_timeout_ms || ISOLATION_DEFAULTS.worker_ready_timeout_ms;
+  const readyTimeout =
+    opts.worker_ready_timeout_ms || ISOLATION_DEFAULTS.worker_ready_timeout_ms;
   const workerLimits = opts.worker_limits || normalizeWorkerLimits({});
 
   const child = fork(workerScript, [], {
-    stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+    stdio: ["pipe", "pipe", "pipe", "ipc"],
     env: buildWorkerEnv(process.env, workerLimits, {
-      GINGEE_WORKER: '1',
-      GINGEE_WORKER_KEY: workerKey
-    })
+      GINGEE_WORKER: "1",
+      GINGEE_WORKER_KEY: workerKey,
+    }),
   });
 
   // Priority + optional Linux RSS (prlimit) — best-effort
   applyAfterSpawn(child, workerLimits, log(), workerKey);
   log().info(
-    `[isolation] Worker spawn '${workerKey}' limits: ${describeLimits(workerLimits)}`
+    `[isolation] Worker spawn '${workerKey}' limits: ${describeLimits(workerLimits)}`,
   );
 
   const handle = {
@@ -219,7 +230,7 @@ function startWorker(app, config, options = {}) {
     restarts: options.fromRestart ? prevRestarts + 1 : 0,
     stopping: false,
     readySince: null,
-    workerLimits
+    workerLimits,
   };
 
   workers.set(workerKey, handle);
@@ -228,19 +239,19 @@ function startWorker(app, config, options = {}) {
   }
 
   child.stdout &&
-    child.stdout.on('data', (d) => {
+    child.stdout.on("data", (d) => {
       log().info(`[worker:${workerKey}:stdout] ${String(d).trim()}`);
     });
   child.stderr &&
-    child.stderr.on('data', (d) => {
+    child.stderr.on("data", (d) => {
       log().warn(`[worker:${workerKey}:stderr] ${String(d).trim()}`);
     });
 
-  child.on('message', (msg) => onWorkerMessage(handle, msg));
+  child.on("message", (msg) => onWorkerMessage(handle, msg));
 
-  child.on('exit', (code, signal) => {
+  child.on("exit", (code, signal) => {
     log().warn(
-      `[isolation] Worker '${workerKey}' exited code=${code} signal=${signal || ''} (restarts=${handle.restarts})`
+      `[isolation] Worker '${workerKey}' exited code=${code} signal=${signal || ""} (restarts=${handle.restarts})`,
     );
     failPending(handle, new Error(`App worker '${workerKey}' exited`));
     handle.ready = false;
@@ -255,13 +266,17 @@ function startWorker(app, config, options = {}) {
     }
   });
 
-  child.on('error', (err) => {
+  child.on("error", (err) => {
     log().error(`[isolation] Worker error for '${workerKey}': ${err.message}`);
   });
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`Worker '${workerKey}' did not become ready within ${readyTimeout}ms`));
+      reject(
+        new Error(
+          `Worker '${workerKey}' did not become ready within ${readyTimeout}ms`,
+        ),
+      );
       try {
         child.kill();
       } catch (_) {
@@ -270,22 +285,22 @@ function startWorker(app, config, options = {}) {
     }, readyTimeout);
 
     const onMsg = (msg) => {
-      if (msg && msg.type === 'ready') {
+      if (msg && msg.type === "ready") {
         clearTimeout(timer);
-        child.removeListener('message', onMsg);
+        child.removeListener("message", onMsg);
         handle.ready = true;
         handle.readySince = Date.now();
         log().info(
-          `[isolation] Worker ready '${workerKey}' apps=[${memberNames.join(',')}] pid=${child.pid}`
+          `[isolation] Worker ready '${workerKey}' apps=[${memberNames.join(",")}] pid=${child.pid}`,
         );
         resolve(handle);
       }
     };
-    child.on('message', onMsg);
+    child.on("message", onMsg);
     child.send(buildInitPayload(workerKey, cfg, memberNames), (err) => {
       if (err) {
         clearTimeout(timer);
-        child.removeListener('message', onMsg);
+        child.removeListener("message", onMsg);
         reject(err);
       }
     });
@@ -297,24 +312,24 @@ function startWorker(app, config, options = {}) {
  * @param {object} msg
  */
 function onWorkerMessage(handle, msg) {
-  if (!msg || typeof msg !== 'object') return;
+  if (!msg || typeof msg !== "object") return;
 
-  if (msg.type === 'log') {
+  if (msg.type === "log") {
     const line = `[worker:${handle.workerKey}] ${msg.message}`;
-    if (msg.level === 'error') log().error(line);
-    else if (msg.level === 'warn') log().warn(line);
+    if (msg.level === "error") log().error(line);
+    else if (msg.level === "warn") log().warn(line);
     else log().info(line);
     return;
   }
 
-  if (msg.type === 'ready') {
+  if (msg.type === "ready") {
     handle.ready = true;
     handle.readySince = Date.now();
     return;
   }
 
   // Streaming frames (ignore after master cancel/timeout — M4)
-  if (msg.type === 'stream_start' && msg.requestId) {
+  if (msg.type === "stream_start" && msg.requestId) {
     if (isRequestCancelled(handle, msg.requestId)) return;
     const stream = handle.streams.get(msg.requestId);
     if (!stream || !stream.res || stream.res.headersSent) return;
@@ -322,10 +337,11 @@ function onWorkerMessage(handle, msg) {
       stream.res.statusCode = msg.statusCode || 200;
       const headers = msg.headers || {};
       for (const [k, v] of Object.entries(headers)) {
-        if (k.toLowerCase() === 'transfer-encoding') continue;
+        if (k.toLowerCase() === "transfer-encoding") continue;
         stream.res.setHeader(k, v);
       }
-      if (typeof stream.res.flushHeaders === 'function') stream.res.flushHeaders();
+      if (typeof stream.res.flushHeaders === "function")
+        stream.res.flushHeaders();
       stream.started = true;
     } catch (e) {
       log().error(`[isolation] stream_start failed: ${e.message}`);
@@ -333,12 +349,14 @@ function onWorkerMessage(handle, msg) {
     return;
   }
 
-  if (msg.type === 'stream_chunk' && msg.requestId) {
+  if (msg.type === "stream_chunk" && msg.requestId) {
     if (isRequestCancelled(handle, msg.requestId)) return;
     const stream = handle.streams.get(msg.requestId);
     if (!stream || !stream.res) return;
     try {
-      const buf = msg.dataBase64 ? Buffer.from(msg.dataBase64, 'base64') : Buffer.alloc(0);
+      const buf = msg.dataBase64
+        ? Buffer.from(msg.dataBase64, "base64")
+        : Buffer.alloc(0);
       stream.res.write(buf);
     } catch (e) {
       log().error(`[isolation] stream_chunk failed: ${e.message}`);
@@ -346,7 +364,7 @@ function onWorkerMessage(handle, msg) {
     return;
   }
 
-  if (msg.type === 'stream_end' && msg.requestId) {
+  if (msg.type === "stream_end" && msg.requestId) {
     if (isRequestCancelled(handle, msg.requestId)) {
       handle.streams.delete(msg.requestId);
       return;
@@ -364,12 +382,15 @@ function onWorkerMessage(handle, msg) {
     if (pending) {
       clearTimeout(pending.timer);
       handle.pending.delete(msg.requestId);
-      pending.resolve({ streamed: true, statusCode: stream && stream.res ? stream.res.statusCode : 200 });
+      pending.resolve({
+        streamed: true,
+        statusCode: stream && stream.res ? stream.res.statusCode : 200,
+      });
     }
     return;
   }
 
-  if (msg.type === 'stream_error' && msg.requestId) {
+  if (msg.type === "stream_error" && msg.requestId) {
     if (isRequestCancelled(handle, msg.requestId)) {
       handle.streams.delete(msg.requestId);
       return;
@@ -378,8 +399,10 @@ function onWorkerMessage(handle, msg) {
     if (stream && stream.res && !stream.res.headersSent) {
       try {
         stream.res.statusCode = 500;
-        stream.res.setHeader('Content-Type', 'text/plain');
-        stream.res.end(`INTERNAL_SERVER_ERROR - ${msg.error || 'stream error'}`);
+        stream.res.setHeader("Content-Type", "text/plain");
+        stream.res.end(
+          `INTERNAL_SERVER_ERROR - ${msg.error || "stream error"}`,
+        );
       } catch (_) {
         /* ignore */
       }
@@ -395,12 +418,12 @@ function onWorkerMessage(handle, msg) {
     if (pending) {
       clearTimeout(pending.timer);
       handle.pending.delete(msg.requestId);
-      pending.reject(new Error(msg.error || 'stream error'));
+      pending.reject(new Error(msg.error || "stream error"));
     }
     return;
   }
 
-  if (msg.type === 'http_result' && msg.requestId) {
+  if (msg.type === "http_result" && msg.requestId) {
     if (isRequestCancelled(handle, msg.requestId)) {
       handle.streams.delete(msg.requestId);
       return;
@@ -433,7 +456,7 @@ function onWorkerMessage(handle, msg) {
  * @param {string} [opts.reason]
  */
 function cancelWorkerRequest(handle, requestId, opts = {}) {
-  const reason = opts.reason || 'request cancelled';
+  const reason = opts.reason || "request cancelled";
   const timeoutMs = opts.timeoutMs;
   const pending = handle.pending.get(requestId);
   if (pending && pending.timer) {
@@ -443,12 +466,16 @@ function cancelWorkerRequest(handle, requestId, opts = {}) {
 
   // Cooperative cancel: tell worker to abort ALS AbortSignal for this requestId.
   try {
-    if (handle.child && typeof handle.child.send === 'function' && !handle.child.killed) {
-      handle.child.send({ type: 'cancel_request', requestId, reason });
+    if (
+      handle.child &&
+      typeof handle.child.send === "function" &&
+      !handle.child.killed
+    ) {
+      handle.child.send({ type: "cancel_request", requestId, reason });
     }
   } catch (e) {
     log().warn(
-      `[isolation] Failed to send cancel_request for ${requestId}: ${e.message}`
+      `[isolation] Failed to send cancel_request for ${requestId}: ${e.message}`,
     );
   }
 
@@ -458,9 +485,9 @@ function cancelWorkerRequest(handle, requestId, opts = {}) {
     try {
       if (!res.headersSent) {
         res.statusCode = 504;
-        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader("Content-Type", "text/plain");
         res.end(
-          `GATEWAY_TIMEOUT - ${reason}${timeoutMs != null ? ` (${timeoutMs}ms)` : ''}`
+          `GATEWAY_TIMEOUT - ${reason}${timeoutMs != null ? ` (${timeoutMs}ms)` : ""}`,
         );
       } else {
         res.end();
@@ -482,17 +509,17 @@ function cancelWorkerRequest(handle, requestId, opts = {}) {
       /* ignore */
     }
   }, 60000);
-  if (typeof dropTimer.unref === 'function') dropTimer.unref();
+  if (typeof dropTimer.unref === "function") dropTimer.unref();
 
   // Optional hard kill (other in-flight requests on this worker die too).
   const iso = isolationOpts();
   if (iso.kill_worker_on_request_timeout === true) {
     log().warn(
-      `[isolation] kill_worker_on_request_timeout: terminating worker '${handle.workerKey}' after cancel ${requestId}`
+      `[isolation] kill_worker_on_request_timeout: terminating worker '${handle.workerKey}' after cancel ${requestId}`,
     );
     try {
       if (handle.child && !handle.child.killed) {
-        handle.child.kill('SIGTERM');
+        handle.child.kill("SIGTERM");
       }
     } catch (e) {
       log().error(`[isolation] Failed to kill worker on timeout: ${e.message}`);
@@ -521,8 +548,8 @@ function failPending(handle, err) {
       try {
         if (!stream.res.headersSent) {
           stream.res.statusCode = 503;
-          stream.res.setHeader('Content-Type', 'text/plain');
-          stream.res.end('SERVICE_UNAVAILABLE - worker exited');
+          stream.res.setHeader("Content-Type", "text/plain");
+          stream.res.end("SERVICE_UNAVAILABLE - worker exited");
         } else {
           stream.res.end();
         }
@@ -543,20 +570,25 @@ function failPending(handle, err) {
 function scheduleAutoRestart(workerKey, restartsSoFar, memberNames, cfg) {
   const iso = isolationOpts();
   if (iso.auto_restart === false) {
-    log().warn(`[isolation] auto_restart disabled; not restarting '${workerKey}'`);
+    log().warn(
+      `[isolation] auto_restart disabled; not restarting '${workerKey}'`,
+    );
     return;
   }
-  const max = iso.restart_max != null ? Number(iso.restart_max) : ISOLATION_DEFAULTS.restart_max;
+  const max =
+    iso.restart_max != null
+      ? Number(iso.restart_max)
+      : ISOLATION_DEFAULTS.restart_max;
   if (restartsSoFar >= max) {
     log().error(
-      `[isolation] Worker '${workerKey}' exceeded restart_max=${max}; leaving down until next request or reload`
+      `[isolation] Worker '${workerKey}' exceeded restart_max=${max}; leaving down until next request or reload`,
     );
     return;
   }
 
   const delay = restartDelayMs(restartsSoFar, iso);
   log().info(
-    `[isolation] Scheduling restart of '${workerKey}' in ${delay}ms (attempt ${restartsSoFar + 1}/${max})`
+    `[isolation] Scheduling restart of '${workerKey}' in ${delay}ms (attempt ${restartsSoFar + 1}/${max})`,
   );
 
   if (restartTimers.has(workerKey)) {
@@ -583,10 +615,12 @@ function scheduleAutoRestart(workerKey, restartsSoFar, memberNames, cfg) {
       config: snap.config,
       appWebPath: snap.appWebPath,
       appBoxPath: snap.appBoxPath,
-      grantedPermissions: snap.grantedPermissions
+      grantedPermissions: snap.grantedPermissions,
     };
     startWorker(app, cfg, { fromRestart: true }).catch((err) => {
-      log().error(`[isolation] Auto-restart failed for '${workerKey}': ${err.message}`);
+      log().error(
+        `[isolation] Auto-restart failed for '${workerKey}': ${err.message}`,
+      );
       scheduleAutoRestart(workerKey, restartsSoFar + 1, memberNames, cfg);
     });
   }, delay);
@@ -629,7 +663,7 @@ function stopWorkerByKey(workerKey, opts = {}) {
 
   try {
     if (handle.child.connected) {
-      handle.child.send({ type: 'shutdown' });
+      handle.child.send({ type: "shutdown" });
     }
   } catch (_) {
     /* ignore */
@@ -657,7 +691,9 @@ function stopWorkerByKey(workerKey, opts = {}) {
 function maybeResetRestarts(handle) {
   const iso = isolationOpts();
   const stable =
-    iso.restart_stable_ms != null ? Number(iso.restart_stable_ms) : ISOLATION_DEFAULTS.restart_stable_ms;
+    iso.restart_stable_ms != null
+      ? Number(iso.restart_stable_ms)
+      : ISOLATION_DEFAULTS.restart_stable_ms;
   if (handle.readySince && Date.now() - handle.readySince >= stable) {
     handle.restarts = 0;
   }
@@ -690,7 +726,7 @@ async function ensureWorker(app, config) {
  */
 function readRequestBody(req, maxBytes) {
   return new Promise((resolve, reject) => {
-    if (!req || req.method === 'GET' || req.method === 'HEAD') {
+    if (!req || req.method === "GET" || req.method === "HEAD") {
       resolve(Buffer.alloc(0));
       return;
     }
@@ -706,9 +742,9 @@ function readRequestBody(req, maxBytes) {
     const done = (err, buf) => {
       if (settled) return;
       settled = true;
-      req.removeListener('data', onData);
-      req.removeListener('end', onEnd);
-      req.removeListener('error', onError);
+      req.removeListener("data", onData);
+      req.removeListener("end", onEnd);
+      req.removeListener("error", onError);
       if (err) reject(err);
       else resolve(buf || Buffer.alloc(0));
     };
@@ -725,9 +761,9 @@ function readRequestBody(req, maxBytes) {
     const onEnd = () => done(null, Buffer.concat(chunks));
     const onError = (err) => done(err);
 
-    req.on('data', onData);
-    req.on('end', onEnd);
-    req.on('error', onError);
+    req.on("data", onData);
+    req.on("end", onEnd);
+    req.on("error", onError);
   });
 }
 
@@ -745,7 +781,7 @@ async function executeOnWorker(opts) {
     routeParams,
     maxBodySize,
     useCache,
-    logger
+    logger,
   } = opts;
 
   const handle = await ensureWorker(app, config);
@@ -755,10 +791,11 @@ async function executeOnWorker(opts) {
   maybeResetRestarts(handle);
 
   const iso = isolationOpts();
-  const timeoutMs = iso.request_timeout_ms || ISOLATION_DEFAULTS.request_timeout_ms;
+  const timeoutMs =
+    iso.request_timeout_ms || ISOLATION_DEFAULTS.request_timeout_ms;
 
   let maxBytes = 25 * 1000 * 1000;
-  if (typeof maxBodySize === 'string' && /mb$/i.test(maxBodySize)) {
+  if (typeof maxBodySize === "string" && /mb$/i.test(maxBodySize)) {
     maxBytes = parseFloat(maxBodySize) * 1000 * 1000;
   }
 
@@ -774,7 +811,7 @@ async function executeOnWorker(opts) {
       cancelWorkerRequest(handle, requestId, {
         timeoutMs,
         res,
-        reason: `Worker request timed out after ${timeoutMs}ms`
+        reason: `Worker request timed out after ${timeoutMs}ms`,
       });
       reject(new Error(`Worker request timed out after ${timeoutMs}ms`));
     }, timeoutMs);
@@ -782,19 +819,19 @@ async function executeOnWorker(opts) {
     handle.pending.set(requestId, { resolve, reject, timer });
 
     const payload = {
-      type: 'http_script',
+      type: "http_script",
       requestId,
       appName: app.name,
       scriptPath,
       method: req.method,
       url: req.url,
       headers: req.headers,
-      bodyBase64: body.length ? body.toString('base64') : '',
+      bodyBase64: body.length ? body.toString("base64") : "",
       routeParams: routeParams || {},
-      maxBodySize: maxBodySize || '25mb',
+      maxBodySize: maxBodySize || "25mb",
       useCache: useCache !== false,
       // Worker uses this for waitForResponseSettle / AbortSignal budget (capped by master).
-      timeoutMs
+      timeoutMs,
     };
 
     try {
@@ -825,7 +862,7 @@ async function executeOnWorker(opts) {
   if (resultMsg.error && resultMsg.statusCode >= 500) {
     logger &&
       logger.error(
-        `[isolation] Worker script error for '${app.name}': ${resultMsg.error}`
+        `[isolation] Worker script error for '${app.name}': ${resultMsg.error}`,
       );
   }
 
@@ -834,7 +871,7 @@ async function executeOnWorker(opts) {
   const status = resultMsg.statusCode || 200;
   const headers = resultMsg.headers || {};
   for (const [k, v] of Object.entries(headers)) {
-    if (k.toLowerCase() === 'transfer-encoding') continue;
+    if (k.toLowerCase() === "transfer-encoding") continue;
     try {
       res.setHeader(k, v);
     } catch (_) {
@@ -843,7 +880,7 @@ async function executeOnWorker(opts) {
   }
   res.statusCode = status;
   const buf = resultMsg.bodyBase64
-    ? Buffer.from(resultMsg.bodyBase64, 'base64')
+    ? Buffer.from(resultMsg.bodyBase64, "base64")
     : Buffer.alloc(0);
   res.end(buf);
 }
@@ -869,7 +906,7 @@ function getWorkerStats() {
       ready: h.ready,
       pending: h.pending.size,
       restarts: h.restarts,
-      workerLimits: h.workerLimits || null
+      workerLimits: h.workerLimits || null,
     });
   }
   return out;
@@ -891,5 +928,5 @@ module.exports = {
   /** test helpers */
   _workers: workers,
   _appWorkerKeys: appWorkerKeys,
-  _appSnapshots: appSnapshots
+  _appSnapshots: appSnapshots,
 };

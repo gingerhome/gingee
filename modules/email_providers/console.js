@@ -20,7 +20,7 @@ class ConsoleEmailAdapter {
    */
   async send(message) {
     const messageId = `console-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    this.logger.info('[email:console] Outbound email (not sent)', {
+    this.logger.info("[email:console] Outbound email (not sent)", {
       messageId,
       app: this.app && this.app.name,
       to: message.to,
@@ -31,13 +31,15 @@ class ConsoleEmailAdapter {
       subject: message.subject,
       hasText: !!message.text,
       hasHtml: !!message.html,
-      attachmentCount: Array.isArray(message.attachments) ? message.attachments.length : 0
+      attachmentCount: Array.isArray(message.attachments)
+        ? message.attachments.length
+        : 0,
     });
 
     return {
       messageId,
-      provider: 'console',
-      status: 'logged'
+      provider: "console",
+      status: "logged",
     };
   }
 

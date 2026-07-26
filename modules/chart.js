@@ -1,5 +1,5 @@
-const fs = require('./fs.js'); // Our secure fs module for font registration
-const { loadOptional } = require('./internal_utils.js');
+const fs = require("./fs.js"); // Our secure fs module for font registration
+const { loadOptional } = require("./internal_utils.js");
 
 /**
  * @module chart
@@ -13,8 +13,8 @@ const { loadOptional } = require('./internal_utils.js');
  */
 
 const OUTPUT_TYPES = {
-    BUFFER: 'buffer',
-    DATA_URL: 'dataurl'
+  BUFFER: "buffer",
+  DATA_URL: "dataurl",
 };
 
 /** @type {Function|null} */
@@ -27,18 +27,22 @@ let defaultRenderer = null;
  * @private
  */
 function loadChartCanvas() {
-    // Always resolve via require so the same module identity as test mocks is used,
-    // but only throw FEATURE_NOT_INSTALLED when the package is truly missing.
-    if (!ChartJSNodeCanvas) {
-        const mod = loadOptional(
-            () => require('chartjs-node-canvas'),
-            'chartjs-node-canvas',
-            'Chart rendering (chart module)'
-        );
-        ChartJSNodeCanvas = mod.ChartJSNodeCanvas || mod;
-        loadOptional(() => require('canvas'), 'canvas', 'Chart rendering (node-canvas)');
-    }
-    return ChartJSNodeCanvas;
+  // Always resolve via require so the same module identity as test mocks is used,
+  // but only throw FEATURE_NOT_INSTALLED when the package is truly missing.
+  if (!ChartJSNodeCanvas) {
+    const mod = loadOptional(
+      () => require("chartjs-node-canvas"),
+      "chartjs-node-canvas",
+      "Chart rendering (chart module)",
+    );
+    ChartJSNodeCanvas = mod.ChartJSNodeCanvas || mod;
+    loadOptional(
+      () => require("canvas"),
+      "canvas",
+      "Chart rendering (node-canvas)",
+    );
+  }
+  return ChartJSNodeCanvas;
 }
 
 /**
@@ -46,14 +50,14 @@ function loadChartCanvas() {
  * @private
  */
 function getDefaultRenderer() {
-    const ChartCtor = loadChartCanvas();
-    if (!defaultRenderer) {
-        defaultRenderer = new ChartCtor({
-            width: 800,
-            height: 600
-        });
-    }
-    return defaultRenderer;
+  const ChartCtor = loadChartCanvas();
+  if (!defaultRenderer) {
+    defaultRenderer = new ChartCtor({
+      width: 800,
+      height: 600,
+    });
+  }
+  return defaultRenderer;
 }
 
 /**
@@ -84,25 +88,25 @@ function getDefaultRenderer() {
  * $g.response.send(imageBuffer, 200, 'image/png');
  */
 async function render(configuration, options = {}) {
-    const ChartCtor = loadChartCanvas();
-    const finalOptions = {
-        width: 800,
-        height: 600,
-        output: OUTPUT_TYPES.BUFFER,
-        ...options
-    };
+  const ChartCtor = loadChartCanvas();
+  const finalOptions = {
+    width: 800,
+    height: 600,
+    output: OUTPUT_TYPES.BUFFER,
+    ...options,
+  };
 
-    const renderer = new ChartCtor({
-        width: finalOptions.width,
-        height: finalOptions.height,
-    });
+  const renderer = new ChartCtor({
+    width: finalOptions.width,
+    height: finalOptions.height,
+  });
 
-    if (finalOptions.output === OUTPUT_TYPES.DATA_URL) {
-        return renderer.renderToDataURL(configuration);
-    }
+  if (finalOptions.output === OUTPUT_TYPES.DATA_URL) {
+    return renderer.renderToDataURL(configuration);
+  }
 
-    // Default to buffer
-    return renderer.renderToBuffer(configuration);
+  // Default to buffer
+  return renderer.renderToBuffer(configuration);
 }
 
 /**
@@ -119,13 +123,13 @@ async function render(configuration, options = {}) {
  * chart.registerFont(fs.BOX, 'path/to/Roboto-Regular.ttf', { family: 'Roboto' });
  */
 function registerFont(scope, filePath, options) {
-    const absolutePath = fs.resolveSecurePath(scope, filePath);
-    getDefaultRenderer().registerFont(absolutePath, { family: options.family });
+  const absolutePath = fs.resolveSecurePath(scope, filePath);
+  getDefaultRenderer().registerFont(absolutePath, { family: options.family });
 }
 
 module.exports = {
-    render,
-    registerFont,
-    BUFFER: OUTPUT_TYPES.BUFFER,
-    DATA_URL: OUTPUT_TYPES.DATA_URL,
+  render,
+  registerFont,
+  BUFFER: OUTPUT_TYPES.BUFFER,
+  DATA_URL: OUTPUT_TYPES.DATA_URL,
 };

@@ -1,9 +1,9 @@
-const nodeFs = require('fs');
-const path = require('path');
-const archiver = require('archiver');
-const extract = require('extract-zip');
-const fs = require('./fs.js'); // Our secure fs module
-const { resolveSecurePath } = require('./internal_utils.js');
+const nodeFs = require("fs");
+const path = require("path");
+const archiver = require("archiver");
+const extract = require("extract-zip");
+const fs = require("./fs.js"); // Our secure fs module
+const { resolveSecurePath } = require("./internal_utils.js");
 
 /**
  * @module zip
@@ -12,8 +12,7 @@ const { resolveSecurePath } = require('./internal_utils.js');
  * It ensures that all file operations are performed within the secure boundaries defined by the Gingee framework.
  * <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
-*/
-
+ */
 
 /**
  * @function zip
@@ -32,28 +31,29 @@ const { resolveSecurePath } = require('./internal_utils.js');
  * @throws {Error} If the source file or directory does not exist, or if the path traversal is detected.
  */
 async function zip(scope, sourcePath, options = {}) {
-    const absolutePath = resolveSecurePath(scope, sourcePath);
-    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
-    
+  const absolutePath = resolveSecurePath(scope, sourcePath);
+  const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
 
-    // Create a promise that resolves when the stream is finished.
-    const streamPromise = new Promise((resolve, reject) => {
-        const buffers = [];
-        archive.on('data', (buffer) => buffers.push(buffer));
-        archive.on('end', () => resolve(Buffer.concat(buffers)));
-        archive.on('error', (err) => reject(err));
-    });
+  // Create a promise that resolves when the stream is finished.
+  const streamPromise = new Promise((resolve, reject) => {
+    const buffers = [];
+    archive.on("data", (buffer) => buffers.push(buffer));
+    archive.on("end", () => resolve(Buffer.concat(buffers)));
+    archive.on("error", (err) => reject(err));
+  });
 
-    const stats = nodeFs.statSync(absolutePath);
-    if (stats.isDirectory()) {
-        const destPathInZip = options.includeRootFolder ? path.basename(absolutePath) : false;
-        archive.directory(absolutePath, destPathInZip);
-    } else {
-        archive.file(absolutePath, { name: path.basename(absolutePath) });
-    }
+  const stats = nodeFs.statSync(absolutePath);
+  if (stats.isDirectory()) {
+    const destPathInZip = options.includeRootFolder
+      ? path.basename(absolutePath)
+      : false;
+    archive.directory(absolutePath, destPathInZip);
+  } else {
+    archive.file(absolutePath, { name: path.basename(absolutePath) });
+  }
 
-    await archive.finalize();
-    return streamPromise;
+  await archive.finalize();
+  return streamPromise;
 }
 
 /**
@@ -76,38 +76,48 @@ async function zip(scope, sourcePath, options = {}) {
  *     console.log("Zip file created successfully.");
  * }
  */
-async function zipToFile(sourceScope, sourcePath, destScope, destPath, options = {}) {
-    const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
-    const destAbsolutePath = resolveSecurePath(destScope, destPath);
+async function zipToFile(
+  sourceScope,
+  sourcePath,
+  destScope,
+  destPath,
+  options = {},
+) {
+  const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
+  const destAbsolutePath = resolveSecurePath(destScope, destPath);
 
-    if (!nodeFs.existsSync(sourceAbsolutePath)) {
-        throw new Error(`Source file or directory does not exist: ${sourcePath}`);
-    }
+  if (!nodeFs.existsSync(sourceAbsolutePath)) {
+    throw new Error(`Source file or directory does not exist: ${sourcePath}`);
+  }
 
-    const destDir = path.dirname(destAbsolutePath);
-    nodeFs.mkdirSync(destDir, { recursive: true });
+  const destDir = path.dirname(destAbsolutePath);
+  nodeFs.mkdirSync(destDir, { recursive: true });
 
-    const output = nodeFs.createWriteStream(destAbsolutePath);
-    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
+  const output = nodeFs.createWriteStream(destAbsolutePath);
+  const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
 
-    // Create a promise that resolves when the output file stream is closed.
-    const streamPromise = new Promise((resolve, reject) => {
-        output.on('close', resolve);
-        archive.on('error', reject);
+  // Create a promise that resolves when the output file stream is closed.
+  const streamPromise = new Promise((resolve, reject) => {
+    output.on("close", resolve);
+    archive.on("error", reject);
+  });
+
+  archive.pipe(output);
+
+  const stats = nodeFs.statSync(sourceAbsolutePath);
+  if (stats.isDirectory()) {
+    const destPathInZip = options.includeRootFolder
+      ? path.basename(sourceAbsolutePath)
+      : false;
+    archive.directory(sourceAbsolutePath, destPathInZip);
+  } else {
+    archive.file(sourceAbsolutePath, {
+      name: path.basename(sourceAbsolutePath),
     });
+  }
 
-    archive.pipe(output);
-
-    const stats = nodeFs.statSync(sourceAbsolutePath);
-    if (stats.isDirectory()) {
-        const destPathInZip = options.includeRootFolder ? path.basename(sourceAbsolutePath) : false;
-        archive.directory(sourceAbsolutePath, destPathInZip);
-    } else {
-        archive.file(sourceAbsolutePath, { name: path.basename(sourceAbsolutePath) });
-    }
-
-    await archive.finalize();
-    return streamPromise;
+  await archive.finalize();
+  return streamPromise;
 }
 
 /**
@@ -129,21 +139,20 @@ async function zipToFile(sourceScope, sourcePath, destScope, destPath, options =
  * }
  */
 async function unzip(sourceScope, sourcePath, destScope, destPath) {
-    const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
-    const destAbsolutePath = resolveSecurePath(destScope, destPath);
+  const sourceAbsolutePath = resolveSecurePath(sourceScope, sourcePath);
+  const destAbsolutePath = resolveSecurePath(destScope, destPath);
 
-    
-    if (!nodeFs.existsSync(sourceAbsolutePath)) {
-        throw new Error(`Source zip file does not exist: ${sourcePath}`);
-    }
+  if (!nodeFs.existsSync(sourceAbsolutePath)) {
+    throw new Error(`Source zip file does not exist: ${sourcePath}`);
+  }
 
-    nodeFs.mkdirSync(destAbsolutePath, { recursive: true });
+  nodeFs.mkdirSync(destAbsolutePath, { recursive: true });
 
-    await extract(sourceAbsolutePath, { dir: destAbsolutePath });
+  await extract(sourceAbsolutePath, { dir: destAbsolutePath });
 }
 
 module.exports = {
-    zip,
-    zipToFile,
-    unzip,
+  zip,
+  zipToFile,
+  unzip,
 };

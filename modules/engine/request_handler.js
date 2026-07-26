@@ -7,28 +7,28 @@
  *   requestHandler(req, res, apps, config, logger)
  */
 
-const path = require('path');
-const { transpileCache } = require('../gbox.js');
-const { als } = require('../gingee.js');
-const metrics = require('../metrics.js');
-const cache = require('../cache_service.js');
-const { metricsScrapeHooks } = require('./metrics_hooks.js');
-const { projectRoot } = require('./paths.js');
+const path = require("path");
+const { transpileCache } = require("../gbox.js");
+const { als } = require("../gingee.js");
+const metrics = require("../metrics.js");
+const cache = require("../cache_service.js");
+const { metricsScrapeHooks } = require("./metrics_hooks.js");
+const { projectRoot } = require("./paths.js");
 const {
   resolveApp,
   resolveScriptTarget,
   rejectIfMaintenance,
   rejectIfAppMissing,
-  privilegeScope
-} = require('./request/resolve.js');
-const { handleSpa } = require('./request/spa.js');
-const { serveStaticFile, serveDirectoryOr404 } = require('./request/static.js');
-const { runServerScript } = require('./request/script_runner.js');
+  privilegeScope,
+} = require("./request/resolve.js");
+const { handleSpa } = require("./request/spa.js");
+const { serveStaticFile, serveDirectoryOr404 } = require("./request/static.js");
+const { runServerScript } = require("./request/script_runner.js");
 const {
   resolveConfinedPath,
   isInsideAppBox,
-  isInsideAppWeb
-} = require('./request/path_confine.js');
+  isInsideAppWeb,
+} = require("./request/path_confine.js");
 
 /**
  * @param {object} deps
@@ -47,30 +47,28 @@ function createRequestHandler(deps) {
         return;
       }
 
-      const { appName, app, urlWithoutQuery, urlParts, queryString } = resolveApp(
-        req,
-        apps,
-        config,
-        logger
-      );
+      const { appName, app, urlWithoutQuery, urlParts, queryString } =
+        resolveApp(req, apps, config, logger);
 
-      if (rejectIfMaintenance(res, app, appName, req, logger, requestStartedAt)) {
+      if (
+        rejectIfMaintenance(res, app, appName, req, logger, requestStartedAt)
+      ) {
         return;
       }
 
-      const { allApps, appNames, isPrivileged } = privilegeScope(config, appName, app, apps);
+      const { allApps, appNames, isPrivileged } = privilegeScope(
+        config,
+        appName,
+        app,
+        apps,
+      );
 
       if (rejectIfAppMissing(res, app, appName, requestStartedAt)) {
         return;
       }
 
-      const { routeParams, targetScriptFolder, targetScriptPath } = resolveScriptTarget(
-        req,
-        app,
-        appName,
-        urlWithoutQuery,
-        urlParts
-      );
+      const { routeParams, targetScriptFolder, targetScriptPath } =
+        resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts);
 
       // Await ALS so async errors surface to this try/catch (M3) instead of
       // becoming unhandled rejections after requestHandler has returned.
@@ -92,45 +90,45 @@ function createRequestHandler(deps) {
           scriptFolder: targetScriptFolder,
           staticFileCache: cache,
           transpileCache,
-          maxBodySize: config.max_body_size
+          maxBodySize: config.max_body_size,
         },
         async () => {
           // Early string check (fast path); resolved-path checks below are authoritative.
           if (req.url.includes(`/${appName}/box`)) {
-            res.writeHead(403, { 'Content-Type': 'text/plain' });
-            res.end('ACCESS_DENIED');
+            res.writeHead(403, { "Content-Type": "text/plain" });
+            res.end("ACCESS_DENIED");
             return;
           }
 
-          const acceptEncoding = req.headers['accept-encoding'] || '';
+          const acceptEncoding = req.headers["accept-encoding"] || "";
           const canCompress =
-            config.content_encoding.enabled && acceptEncoding.includes('gzip');
+            config.content_encoding.enabled && acceptEncoding.includes("gzip");
 
           // Static / directory paths are confined to this app's WEB root only.
           // Reject `..` and any resolve that leaves appWebPath (C1 path traversal).
           let filePath = resolveConfinedPath(app.appWebPath, urlParts.slice(1));
           if (!filePath) {
-            res.writeHead(403, { 'Content-Type': 'text/plain' });
-            res.end('ACCESS_DENIED');
+            res.writeHead(403, { "Content-Type": "text/plain" });
+            res.end("ACCESS_DENIED");
             return;
           }
           // Never serve files under box/ as static content
           if (isInsideAppBox(filePath, app.appBoxPath)) {
-            res.writeHead(403, { 'Content-Type': 'text/plain' });
-            res.end('ACCESS_DENIED');
+            res.writeHead(403, { "Content-Type": "text/plain" });
+            res.end("ACCESS_DENIED");
             return;
           }
 
           const defaultCacheConfig = {
             client: { enabled: false, no_cache_regex: [] },
-            server: { enabled: false, no_cache_regex: [] }
+            server: { enabled: false, no_cache_regex: [] },
           };
 
           const cacheConfig = app.config.cache || defaultCacheConfig;
           cacheConfig.client = cacheConfig.client || defaultCacheConfig.client;
           cacheConfig.server = cacheConfig.server || defaultCacheConfig.server;
 
-          const isDevelopment = app.config.mode === 'development';
+          const isDevelopment = app.config.mode === "development";
           if (!targetScriptPath) {
             const spaResult = handleSpa({
               req,
@@ -139,7 +137,7 @@ function createRequestHandler(deps) {
               appName,
               urlParts,
               isDevelopment,
-              logger
+              logger,
             });
             if (spaResult.handled) return;
             if (spaResult.filePath) {
@@ -148,8 +146,8 @@ function createRequestHandler(deps) {
                 !isInsideAppWeb(spaResult.filePath, app.appWebPath) ||
                 isInsideAppBox(spaResult.filePath, app.appBoxPath)
               ) {
-                res.writeHead(403, { 'Content-Type': 'text/plain' });
-                res.end('ACCESS_DENIED');
+                res.writeHead(403, { "Content-Type": "text/plain" });
+                res.end("ACCESS_DENIED");
                 return;
               }
               filePath = spaResult.filePath;
@@ -162,8 +160,8 @@ function createRequestHandler(deps) {
               !isInsideAppWeb(filePath, app.appWebPath) ||
               isInsideAppBox(filePath, app.appBoxPath)
             ) {
-              res.writeHead(403, { 'Content-Type': 'text/plain' });
-              res.end('ACCESS_DENIED');
+              res.writeHead(403, { "Content-Type": "text/plain" });
+              res.end("ACCESS_DENIED");
               return;
             }
             const headers = {};
@@ -175,7 +173,7 @@ function createRequestHandler(deps) {
               cache,
               canCompress,
               logger,
-              headers
+              headers,
             });
             return;
           }
@@ -185,8 +183,8 @@ function createRequestHandler(deps) {
             targetScriptPath &&
             !isInsideAppBox(targetScriptPath, app.appBoxPath)
           ) {
-            res.writeHead(403, { 'Content-Type': 'text/plain' });
-            res.end('ACCESS_DENIED');
+            res.writeHead(403, { "Content-Type": "text/plain" });
+            res.end("ACCESS_DENIED");
             return;
           }
 
@@ -201,7 +199,7 @@ function createRequestHandler(deps) {
             config,
             logger,
             cacheConfig,
-            requestStartedAt
+            requestStartedAt,
           });
           if (ran) return;
 
@@ -211,23 +209,23 @@ function createRequestHandler(deps) {
             !isInsideAppWeb(filePath, app.appWebPath) ||
             isInsideAppBox(filePath, app.appBoxPath)
           ) {
-            res.writeHead(403, { 'Content-Type': 'text/plain' });
-            res.end('ACCESS_DENIED');
+            res.writeHead(403, { "Content-Type": "text/plain" });
+            res.end("ACCESS_DENIED");
             return;
           }
           serveDirectoryOr404(res, filePath, urlWithoutQuery, queryString);
-        }
+        },
       );
     } catch (err) {
       logger.error(`Error handling request for ${req.url}`, err);
       if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.writeHead(500, { "Content-Type": "text/plain" });
         res.end(`INTERNAL_SERVER_ERROR - ${err.message}`);
         metrics.recordHttpRequest({
-          app: '_engine',
-          kind: 'other',
+          app: "_engine",
+          kind: "other",
           statusCode: 500,
-          durationSeconds: (Date.now() - requestStartedAt) / 1000
+          durationSeconds: (Date.now() - requestStartedAt) / 1000,
         });
       }
     }
@@ -237,5 +235,5 @@ function createRequestHandler(deps) {
 }
 
 module.exports = {
-  createRequestHandler
+  createRequestHandler,
 };

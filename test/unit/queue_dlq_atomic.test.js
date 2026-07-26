@@ -1,8 +1,8 @@
 /**
  * Atomic DLQ discard / retry (Redis Lua + memory claim-before-await).
  */
-const { createRedisDriver } = require('../../modules/queue_drivers/redis');
-const { createMemoryDriver } = require('../../modules/queue_drivers/memory');
+const { createRedisDriver } = require("../../modules/queue_drivers/redis");
+const { createMemoryDriver } = require("../../modules/queue_drivers/memory");
 
 /** Shared minimal mock from visibility tests — reimplemented for isolation. */
 function createMockRedis() {
@@ -46,7 +46,7 @@ function createMockRedis() {
       return list(key).length;
     },
     async ltrim() {
-      return 'OK';
+      return "OK";
     },
     async zadd(key, score, id) {
       zset(key).set(String(id), Number(score));
@@ -69,7 +69,7 @@ function createMockRedis() {
     },
     async set(key, val) {
       kv[key] = String(val);
-      return 'OK';
+      return "OK";
     },
     async del(key) {
       const had = kv[key] != null;
@@ -80,7 +80,7 @@ function createMockRedis() {
       const keys = keysAndArgs.slice(0, numKeys);
       const args = keysAndArgs.slice(numKeys);
       const s = String(script);
-      if (s.includes('cjson') || s.includes("job['status']")) {
+      if (s.includes("cjson") || s.includes("job['status']")) {
         const [dlqK, jobK, readyK, delayedK, procK] = keys;
         const id = String(args[0]);
         const maxA = Number(args[1]) || 0;
@@ -96,7 +96,7 @@ function createMockRedis() {
           await client.del(jobK);
           return false;
         }
-        if (job.status !== 'failed') {
+        if (job.status !== "failed") {
           await client.lpush(dlqK, id);
           return false;
         }
@@ -104,7 +104,7 @@ function createMockRedis() {
         await client.lrem(readyK, 0, id);
         await client.zrem(delayedK, id);
         if (maxA > 0) job.maxAttempts = maxA;
-        job.status = 'waiting';
+        job.status = "waiting";
         job.attempt = 1;
         job.error = null;
         job.failedAt = null;
@@ -125,22 +125,22 @@ function createMockRedis() {
       return 0;
     },
     async quit() {
-      return 'OK';
+      return "OK";
     },
     disconnect() {},
     _kv: kv,
     _lists: lists,
-    _zsets: zsets
+    _zsets: zsets,
   };
   const origSet = client.set.bind(client);
   client.set = async (key, val) => origSet(key, val);
   return client;
 }
 
-describe('redis atomic DLQ', () => {
+describe("redis atomic DLQ", () => {
   let mock;
   let driver;
-  const prefix = 't:dlq:';
+  const prefix = "t:dlq:";
 
   beforeEach(async () => {
     mock = createMockRedis();
@@ -151,7 +151,7 @@ describe('redis atomic DLQ', () => {
       reclaimIntervalMs: 60000,
       pollMs: 200,
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      onReady: () => {}
+      onReady: () => {},
     });
     await driver.start();
     await driver.stopConsuming();
@@ -164,28 +164,33 @@ describe('redis atomic DLQ', () => {
   async function seedFailedJob(id, extra = {}) {
     const job = {
       id,
-      appName: 'a',
-      name: 'j',
-      script: 'jobs/j.js',
+      appName: "a",
+      name: "j",
+      script: "jobs/j.js",
       payload: { n: 1 },
       attempt: 3,
       maxAttempts: 3,
-      status: 'failed',
-      error: 'boom',
+      status: "failed",
+      error: "boom",
       failedAt: Date.now(),
-      ...extra
+      ...extra,
     };
     await mock.set(`${prefix}job:${id}`, JSON.stringify(job));
     await mock.lpush(`${prefix}dlq`, id);
     return job;
   }
 
-  test('discardDlq only deletes hash when id is on DLQ', async () => {
-    const liveId = 'live-1';
+  test("discardDlq only deletes hash when id is on DLQ", async () => {
+    const liveId = "live-1";
     // Live waiting job hash (NOT on DLQ)
     await mock.set(
       `${prefix}job:${liveId}`,
-      JSON.stringify({ id: liveId, status: 'waiting', name: 'x', appName: 'a' })
+      JSON.stringify({
+        id: liveId,
+        status: "waiting",
+        name: "x",
+        appName: "a",
+      }),
     );
     await mock.lpush(`${prefix}ready`, liveId);
 
@@ -194,51 +199,51 @@ describe('redis atomic DLQ', () => {
     // Live job hash must survive
     expect(await mock.get(`${prefix}job:${liveId}`)).toBeTruthy();
 
-    await seedFailedJob('dead-1');
-    const ok2 = await driver.discardDlq('dead-1');
+    await seedFailedJob("dead-1");
+    const ok2 = await driver.discardDlq("dead-1");
     expect(ok2).toBe(true);
     expect(await mock.get(`${prefix}job:dead-1`)).toBeNull();
-    expect(mock._lists[`${prefix}dlq`] || []).not.toContain('dead-1');
+    expect(mock._lists[`${prefix}dlq`] || []).not.toContain("dead-1");
   });
 
-  test('retryDlq is single-winner under concurrent claims', async () => {
-    await seedFailedJob('retry-1');
+  test("retryDlq is single-winner under concurrent claims", async () => {
+    await seedFailedJob("retry-1");
 
     const [a, b, c] = await Promise.all([
-      driver.retryDlq('retry-1', { maxAttempts: 5 }),
-      driver.retryDlq('retry-1', { maxAttempts: 5 }),
-      driver.retryDlq('retry-1', { maxAttempts: 5 })
+      driver.retryDlq("retry-1", { maxAttempts: 5 }),
+      driver.retryDlq("retry-1", { maxAttempts: 5 }),
+      driver.retryDlq("retry-1", { maxAttempts: 5 }),
     ]);
     const wins = [a, b, c].filter(Boolean);
     expect(wins.length).toBe(1);
-    expect(wins[0].id).toBe('retry-1');
+    expect(wins[0].id).toBe("retry-1");
 
     // On ready once
     const ready = mock._lists[`${prefix}ready`] || [];
-    expect(ready.filter((x) => x === 'retry-1').length).toBe(1);
+    expect(ready.filter((x) => x === "retry-1").length).toBe(1);
     // Not on DLQ
-    expect((mock._lists[`${prefix}dlq`] || []).includes('retry-1')).toBe(false);
+    expect((mock._lists[`${prefix}dlq`] || []).includes("retry-1")).toBe(false);
 
     const raw = await mock.get(`${prefix}job:retry-1`);
     const j = JSON.parse(raw);
-    expect(j.status).toBe('waiting');
+    expect(j.status).toBe("waiting");
     expect(j.attempt).toBe(1);
     expect(j.maxAttempts).toBe(5);
   });
 
-  test('retryDlq refuses non-failed job that is not on DLQ status', async () => {
+  test("retryDlq refuses non-failed job that is not on DLQ status", async () => {
     // On DLQ list but status is waiting (corrupt) — script puts back
-    const id = 'bad-status';
+    const id = "bad-status";
     await mock.set(
       `${prefix}job:${id}`,
       JSON.stringify({
         id,
-        appName: 'a',
-        name: 'j',
-        status: 'waiting',
+        appName: "a",
+        name: "j",
+        status: "waiting",
         attempt: 1,
-        maxAttempts: 3
-      })
+        maxAttempts: 3,
+      }),
     );
     await mock.lpush(`${prefix}dlq`, id);
     const r = await driver.retryDlq(id, { maxAttempts: 3 });
@@ -248,64 +253,64 @@ describe('redis atomic DLQ', () => {
   });
 });
 
-describe('memory atomic DLQ', () => {
-  test('concurrent retryDlq only one wins', async () => {
+describe("memory atomic DLQ", () => {
+  test("concurrent retryDlq only one wins", async () => {
     const ready = [];
     const driver = createMemoryDriver({
       onReady: (j) => ready.push(j),
-      logger: console
+      logger: console,
     });
     await driver.start();
     await driver.enqueue({
-      id: 'm1',
-      appName: 'a',
-      name: 'j',
-      script: 'jobs/j.js',
+      id: "m1",
+      appName: "a",
+      name: "j",
+      script: "jobs/j.js",
       payload: {},
       attempt: 1,
-      maxAttempts: 1
+      maxAttempts: 1,
     });
     // Force to DLQ
     await driver.deadLetter(
       {
-        id: 'm1',
-        appName: 'a',
-        name: 'j',
-        script: 'jobs/j.js',
+        id: "m1",
+        appName: "a",
+        name: "j",
+        script: "jobs/j.js",
         payload: {},
         attempt: 1,
-        maxAttempts: 1
+        maxAttempts: 1,
       },
-      new Error('fail')
+      new Error("fail"),
     );
 
     const results = await Promise.all([
-      driver.retryDlq('m1', { maxAttempts: 3 }),
-      driver.retryDlq('m1', { maxAttempts: 3 }),
-      driver.retryDlq('m1', { maxAttempts: 3 })
+      driver.retryDlq("m1", { maxAttempts: 3 }),
+      driver.retryDlq("m1", { maxAttempts: 3 }),
+      driver.retryDlq("m1", { maxAttempts: 3 }),
     ]);
     expect(results.filter(Boolean).length).toBe(1);
-    expect(await driver.getDlqJob('m1')).toBeNull();
+    expect(await driver.getDlqJob("m1")).toBeNull();
     await driver.shutdown();
   });
 
-  test('discard of missing id is false; discard succeeds once', async () => {
+  test("discard of missing id is false; discard succeeds once", async () => {
     const driver = createMemoryDriver({ onReady: () => {}, logger: console });
     await driver.start();
     await driver.deadLetter(
       {
-        id: 'd1',
-        appName: 'a',
-        name: 'j',
-        script: 'j.js',
+        id: "d1",
+        appName: "a",
+        name: "j",
+        script: "j.js",
         payload: null,
         attempt: 2,
-        maxAttempts: 2
+        maxAttempts: 2,
       },
-      'x'
+      "x",
     );
-    expect(await driver.discardDlq('d1')).toBe(true);
-    expect(await driver.discardDlq('d1')).toBe(false);
+    expect(await driver.discardDlq("d1")).toBe(true);
+    expect(await driver.discardDlq("d1")).toBe(false);
     await driver.shutdown();
   });
 });

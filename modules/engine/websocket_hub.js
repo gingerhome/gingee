@@ -6,21 +6,21 @@
  * Public apps use require('websockets') which talks to this hub via getContext().
  */
 
-const path = require('path');
-const { URL } = require('url');
-const { WebSocketServer, WebSocket } = require('ws');
-const { als } = require('../gingee.js');
-const { runInGBox, resolveAllowDynamicCodeForApp } = require('../gbox.js');
-const { isPathInside } = require('../internal_utils.js');
-const metrics = require('../metrics.js');
+const path = require("path");
+const { URL } = require("url");
+const { WebSocketServer, WebSocket } = require("ws");
+const { als } = require("../gingee.js");
+const { runInGBox, resolveAllowDynamicCodeForApp } = require("../gbox.js");
+const { isPathInside } = require("../internal_utils.js");
+const metrics = require("../metrics.js");
 const {
   FANOUT_DEFAULTS,
   REDIS_DEFAULTS,
   normalizeFanout,
-  RedisFanout
-} = require('./websocket_fanout.js');
+  RedisFanout,
+} = require("./websocket_fanout.js");
 
-const engineRoot = path.resolve(__dirname, '..', '..');
+const engineRoot = path.resolve(__dirname, "..", "..");
 
 /** @type {object} */
 const DEFAULTS = {
@@ -31,21 +31,21 @@ const DEFAULTS = {
   idle_timeout_ms: 300000,
   heartbeat_ms: 30000,
   /** Default relative path under /{appName} when app omits websockets.path */
-  default_path: '/ws',
+  default_path: "/ws",
   /**
    * Multi-node fan-out (sibling redis block, same shape as queue.redis).
    * driver none = local rooms only; redis = pub/sub across Gingee masters.
    */
   fanout: { ...FANOUT_DEFAULTS },
-  redis: { ...REDIS_DEFAULTS }
+  redis: { ...REDIS_DEFAULTS },
 };
 
 /**
  * Process-wide singleton state so sandbox require() and engine require()
  * always share the same connection/room maps (avoids duplicate module instances).
  */
-const STATE_KEY = Symbol.for('gingee.websocket.hub.state');
-const ACTIVE_APP_KEY = Symbol.for('gingee.websocket.activeApp');
+const STATE_KEY = Symbol.for("gingee.websocket.hub.state");
+const ACTIVE_APP_KEY = Symbol.for("gingee.websocket.activeApp");
 
 function state() {
   if (!globalThis[STATE_KEY]) {
@@ -63,7 +63,7 @@ function state() {
       heartbeatTimer: null,
       /** RedisFanout instance or null */
       /** @type {object|null} */
-      fanout: null
+      fanout: null,
     };
   }
   return globalThis[STATE_KEY];
@@ -94,31 +94,35 @@ function initServer(cfg, logger, globalConfig) {
   const S = state();
   S.serverLogger = logger || console;
   S.globalConfigRef = globalConfig || null;
-  const c = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : {};
+  const c = cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
   const fanoutNorm = normalizeFanout(c);
   S.serverConfig = {
     enabled: c.enabled !== false,
     max_connections: positiveInt(c.max_connections, DEFAULTS.max_connections),
     max_connections_per_app: positiveInt(
       c.max_connections_per_app,
-      DEFAULTS.max_connections_per_app
+      DEFAULTS.max_connections_per_app,
     ),
-    max_message_bytes: positiveInt(c.max_message_bytes, DEFAULTS.max_message_bytes),
+    max_message_bytes: positiveInt(
+      c.max_message_bytes,
+      DEFAULTS.max_message_bytes,
+    ),
     idle_timeout_ms: positiveInt(c.idle_timeout_ms, DEFAULTS.idle_timeout_ms),
     heartbeat_ms: positiveInt(c.heartbeat_ms, DEFAULTS.heartbeat_ms),
-    default_path: typeof c.default_path === 'string' && c.default_path
-      ? normalizePath(c.default_path)
-      : DEFAULTS.default_path,
+    default_path:
+      typeof c.default_path === "string" && c.default_path
+        ? normalizePath(c.default_path)
+        : DEFAULTS.default_path,
     fanout: { driver: fanoutNorm.driver },
-    redis: { ...fanoutNorm.redis }
+    redis: { ...fanoutNorm.redis },
   };
 
   // Replace fanout bridge on re-init (tests)
   if (S.fanout) {
     try {
-      if (typeof S.fanout.shutdown === 'function') {
+      if (typeof S.fanout.shutdown === "function") {
         const p = S.fanout.shutdown();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
+        if (p && typeof p.catch === "function") p.catch(() => {});
       }
     } catch (_) {
       /* ignore */
@@ -127,30 +131,30 @@ function initServer(cfg, logger, globalConfig) {
   }
 
   if (!S.serverConfig.enabled) {
-    log().info('[websockets] Disabled (websockets.enabled is false).');
+    log().info("[websockets] Disabled (websockets.enabled is false).");
     return;
   }
 
   if (!S.wss) {
     S.wss = new WebSocketServer({
       noServer: true,
-      maxPayload: S.serverConfig.max_message_bytes
+      maxPayload: S.serverConfig.max_message_bytes,
     });
-    S.wss.on('connection', onConnection);
+    S.wss.on("connection", onConnection);
   }
 
-  if (fanoutNorm.driver === 'redis') {
+  if (fanoutNorm.driver === "redis") {
     S.fanout = new RedisFanout(fanoutNorm, log(), {
       onRoom: (appName, room, data) => {
         sendToRoomLocal(appName, room, data, {});
       },
       onApp: (appName, data) => {
         sendToAppLocal(appName, data);
-      }
+      },
     });
     S.fanout.start().catch((e) => {
       log().error(
-        `[websockets] Fan-out Redis failed to start (${e.message}); multi-node broadcast degraded to local-only.`
+        `[websockets] Fan-out Redis failed to start (${e.message}); multi-node broadcast degraded to local-only.`,
       );
       S.fanout = null;
     });
@@ -158,11 +162,11 @@ function initServer(cfg, logger, globalConfig) {
 
   startHeartbeat();
   const fanMsg =
-    fanoutNorm.driver === 'redis'
+    fanoutNorm.driver === "redis"
       ? ` fanout=redis prefix=${fanoutNorm.redis.key_prefix}`
-      : ' fanout=none (single-node rooms)';
+      : " fanout=none (single-node rooms)";
   log().info(
-    `[websockets] enabled max_connections=${S.serverConfig.max_connections} max_per_app=${S.serverConfig.max_connections_per_app}${fanMsg}`
+    `[websockets] enabled max_connections=${S.serverConfig.max_connections} max_per_app=${S.serverConfig.max_connections_per_app}${fanMsg}`,
   );
 }
 
@@ -176,9 +180,9 @@ function setAppsRegistry(apps) {
 
 function normalizePath(p) {
   const S = state();
-  let s = String(p || '/ws').trim();
-  if (!s.startsWith('/')) s = `/${s}`;
-  if (s.length > 1 && s.endsWith('/')) s = s.slice(0, -1);
+  let s = String(p || "/ws").trim();
+  if (!s.startsWith("/")) s = `/${s}`;
+  if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
   return s;
 }
 
@@ -200,16 +204,16 @@ function fullPathFor(appName, relativePath) {
 function parseUpgradeUrl(url) {
   const S = state();
   try {
-    const u = new URL(url, 'http://localhost');
-    const parts = u.pathname.split('/').filter(Boolean);
+    const u = new URL(url, "http://localhost");
+    const parts = u.pathname.split("/").filter(Boolean);
     if (parts.length < 2) return null;
     const appName = parts[0];
-    const restPath = normalizePath('/' + parts.slice(1).join('/'));
+    const restPath = normalizePath("/" + parts.slice(1).join("/"));
     return {
       appName,
       restPath,
       pathname: u.pathname,
-      searchParams: u.searchParams
+      searchParams: u.searchParams,
     };
   } catch (_) {
     return null;
@@ -238,24 +242,29 @@ async function registerApp(app, globalConfig) {
   }
 
   const granted = app.grantedPermissions || [];
-  if (!granted.includes('websockets')) {
+  if (!granted.includes("websockets")) {
     log().warn(
-      `[websockets] App '${app.name}' has websockets config but no "websockets" permission; not registering.`
+      `[websockets] App '${app.name}' has websockets config but no "websockets" permission; not registering.`,
     );
     return false;
   }
 
   const relPath = normalizePath(wsCfg.path || S.serverConfig.default_path);
-  const handlerRel = wsCfg.handler != null ? String(wsCfg.handler).trim() : '';
+  const handlerRel = wsCfg.handler != null ? String(wsCfg.handler).trim() : "";
   if (!handlerRel) {
-    log().warn(`[websockets] App '${app.name}' websockets.handler is missing; not registering.`);
+    log().warn(
+      `[websockets] App '${app.name}' websockets.handler is missing; not registering.`,
+    );
     return false;
   }
 
   const handlerPath = path.resolve(app.appBoxPath, handlerRel);
-  if (!isPathInside(handlerPath, app.appBoxPath) || !require('fs').existsSync(handlerPath)) {
+  if (
+    !isPathInside(handlerPath, app.appBoxPath) ||
+    !require("fs").existsSync(handlerPath)
+  ) {
     log().error(
-      `[websockets] App '${app.name}' handler not found or outside box: ${handlerRel}`
+      `[websockets] App '${app.name}' handler not found or outside box: ${handlerRel}`,
     );
     return false;
   }
@@ -263,8 +272,13 @@ async function registerApp(app, globalConfig) {
   let authPath = null;
   if (wsCfg.auth) {
     authPath = path.resolve(app.appBoxPath, String(wsCfg.auth).trim());
-    if (!isPathInside(authPath, app.appBoxPath) || !require('fs').existsSync(authPath)) {
-      log().error(`[websockets] App '${app.name}' auth script not found or outside box: ${wsCfg.auth}`);
+    if (
+      !isPathInside(authPath, app.appBoxPath) ||
+      !require("fs").existsSync(authPath)
+    ) {
+      log().error(
+        `[websockets] App '${app.name}' auth script not found or outside box: ${wsCfg.auth}`,
+      );
       return false;
     }
   }
@@ -273,13 +287,13 @@ async function registerApp(app, globalConfig) {
     appName: app.name,
     app,
     appBoxPath: app.appBoxPath,
-    globalModulesPath: path.join(engineRoot, 'modules'),
+    globalModulesPath: path.join(engineRoot, "modules"),
     allowedBuiltinModules: (cfg.box && cfg.box.allowed_modules) || [],
     privilegedApps: cfg.privileged_apps || [],
     useCache: true,
     logger: app.logger || log(),
     globalConfig: cfg,
-    allowDynamicCode: resolveAllowDynamicCodeForApp(cfg.box, app.config)
+    allowDynamicCode: resolveAllowDynamicCodeForApp(cfg.box, app.config),
   };
 
   let handlerFn;
@@ -292,12 +306,12 @@ async function registerApp(app, globalConfig) {
         logger: app.logger || log(),
         globalConfig: cfg,
         scriptPath: handlerPath,
-        scriptFolder: path.dirname(handlerPath)
+        scriptFolder: path.dirname(handlerPath),
       },
       async () => {
         const mod = runInGBox(handlerPath, gBoxConfig);
-        if (typeof mod !== 'function') {
-          throw new Error('WebSocket handler must export a function');
+        if (typeof mod !== "function") {
+          throw new Error("WebSocket handler must export a function");
         }
         handlerFn = mod;
         if (authPath) {
@@ -305,15 +319,17 @@ async function registerApp(app, globalConfig) {
             ...gBoxConfig,
             // auth uses same box config
           });
-          if (typeof amod !== 'function') {
-            throw new Error('WebSocket auth must export a function');
+          if (typeof amod !== "function") {
+            throw new Error("WebSocket auth must export a function");
           }
           authFn = amod;
         }
-      }
+      },
     );
   } catch (e) {
-    log().error(`[websockets] Failed to load handler for '${app.name}': ${e.message}`);
+    log().error(
+      `[websockets] Failed to load handler for '${app.name}': ${e.message}`,
+    );
     return false;
   }
 
@@ -330,14 +346,14 @@ async function registerApp(app, globalConfig) {
     handlerPath,
     authPath,
     allowedOrigins,
-    gBoxConfig
+    gBoxConfig,
   });
 
   if (!S.rooms.has(app.name)) S.rooms.set(app.name, new Map());
   S.appConnCounts.set(app.name, S.appConnCounts.get(app.name) || 0);
 
   log().info(
-    `[websockets] Registered app '${app.name}' at ${fullPathFor(app.name, relPath)}`
+    `[websockets] Registered app '${app.name}' at ${fullPathFor(app.name, relPath)}`,
   );
   return true;
 }
@@ -358,7 +374,7 @@ function unregisterApp(appName, opts = {}) {
   for (const [id, entry] of [...S.sockets.entries()]) {
     if (entry.appName === appName) {
       try {
-        entry.ws.close(1001, 'app unloaded');
+        entry.ws.close(1001, "app unloaded");
       } catch (_) {
         /* ignore */
       }
@@ -380,7 +396,7 @@ function attachServer(server) {
   const S = state();
   if (!S.serverConfig.enabled || !S.wss || !server) return;
 
-  server.on('upgrade', (req, socket, head) => {
+  server.on("upgrade", (req, socket, head) => {
     handleUpgrade(req, socket, head).catch((err) => {
       log().error(`[websockets] upgrade error: ${err.message}`);
       try {
@@ -400,47 +416,55 @@ function attachServer(server) {
 async function handleUpgrade(req, socket, head) {
   const S = state();
   if (!S.serverConfig.enabled || !S.wss) {
-    socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+    socket.write(
+      "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n",
+    );
     socket.destroy();
     return;
   }
 
-  const parsed = parseUpgradeUrl(req.url || '/');
+  const parsed = parseUpgradeUrl(req.url || "/");
   if (!parsed) {
-    socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+    socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
     socket.destroy();
-    metrics.inc('gingee_websocket_upgrades_total', { result: 'not_found' });
+    metrics.inc("gingee_websocket_upgrades_total", { result: "not_found" });
     return;
   }
 
   const binding = S.bindings.get(parsed.appName);
   if (!binding || binding.path !== parsed.restPath) {
-    socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+    socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
     socket.destroy();
-    metrics.inc('gingee_websocket_upgrades_total', { result: 'not_found' });
+    metrics.inc("gingee_websocket_upgrades_total", { result: "not_found" });
     return;
   }
 
   const app = (S.appsRegistry && S.appsRegistry[parsed.appName]) || binding.app;
   if (!app || app.in_maintenance) {
-    socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+    socket.write(
+      "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n",
+    );
     socket.destroy();
-    metrics.inc('gingee_websocket_upgrades_total', { result: 'unavailable' });
+    metrics.inc("gingee_websocket_upgrades_total", { result: "unavailable" });
     return;
   }
 
   // Connection limits
   if (S.sockets.size >= S.serverConfig.max_connections) {
-    socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+    socket.write(
+      "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n",
+    );
     socket.destroy();
-    metrics.inc('gingee_websocket_upgrades_total', { result: 'limit_global' });
+    metrics.inc("gingee_websocket_upgrades_total", { result: "limit_global" });
     return;
   }
   const appCount = S.appConnCounts.get(parsed.appName) || 0;
   if (appCount >= S.serverConfig.max_connections_per_app) {
-    socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+    socket.write(
+      "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n",
+    );
     socket.destroy();
-    metrics.inc('gingee_websocket_upgrades_total', { result: 'limit_app' });
+    metrics.inc("gingee_websocket_upgrades_total", { result: "limit_app" });
     return;
   }
 
@@ -448,9 +472,9 @@ async function handleUpgrade(req, socket, head) {
   if (binding.allowedOrigins && binding.allowedOrigins.length > 0) {
     const origin = req.headers.origin;
     if (!origin || !binding.allowedOrigins.includes(origin)) {
-      socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+      socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
       socket.destroy();
-      metrics.inc('gingee_websocket_upgrades_total', { result: 'origin' });
+      metrics.inc("gingee_websocket_upgrades_total", { result: "origin" });
       return;
     }
   }
@@ -465,8 +489,10 @@ async function handleUpgrade(req, socket, head) {
           logger: app.logger || log(),
           globalConfig: S.globalConfigRef,
           scriptPath: binding.authPath,
-          scriptFolder: binding.authPath ? path.dirname(binding.authPath) : app.appBoxPath,
-          isWebSocket: true
+          scriptFolder: binding.authPath
+            ? path.dirname(binding.authPath)
+            : app.appBoxPath,
+          isWebSocket: true,
         },
         async () =>
           binding.authFn({
@@ -475,22 +501,24 @@ async function handleUpgrade(req, socket, head) {
             headers: req.headers,
             url: req.url,
             query: Object.fromEntries(parsed.searchParams.entries()),
-            path: parsed.pathname
-          })
+            path: parsed.pathname,
+          }),
       );
 
       if (authResult === false || authResult == null) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
         socket.destroy();
-        metrics.inc('gingee_websocket_upgrades_total', { result: 'auth' });
+        metrics.inc("gingee_websocket_upgrades_total", { result: "auth" });
         return;
       }
-      if (typeof authResult === 'object') {
+      if (typeof authResult === "object") {
         if (authResult.ok === false) {
           const code = authResult.statusCode || 401;
-          socket.write(`HTTP/1.1 ${code} Unauthorized\r\nConnection: close\r\n\r\n`);
+          socket.write(
+            `HTTP/1.1 ${code} Unauthorized\r\nConnection: close\r\n\r\n`,
+          );
           socket.destroy();
-          metrics.inc('gingee_websocket_upgrades_total', { result: 'auth' });
+          metrics.inc("gingee_websocket_upgrades_total", { result: "auth" });
           return;
         }
         authMeta = { ...authResult };
@@ -498,9 +526,9 @@ async function handleUpgrade(req, socket, head) {
       }
     } catch (e) {
       log().error(`[websockets] auth failed for '${app.name}': ${e.message}`);
-      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+      socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
       socket.destroy();
-      metrics.inc('gingee_websocket_upgrades_total', { result: 'auth_error' });
+      metrics.inc("gingee_websocket_upgrades_total", { result: "auth_error" });
       return;
     }
   }
@@ -513,9 +541,9 @@ async function handleUpgrade(req, socket, head) {
       restPath: parsed.restPath,
       headers: req.headers,
       meta: authMeta,
-      remoteAddress: req.socket && req.socket.remoteAddress
+      remoteAddress: req.socket && req.socket.remoteAddress,
     };
-    S.wss.emit('connection', ws, req);
+    S.wss.emit("connection", ws, req);
   });
 }
 
@@ -533,7 +561,8 @@ function onConnection(ws, req) {
 
   const appName = info.appName;
   const binding = S.bindings.get(appName);
-  const app = (S.appsRegistry && S.appsRegistry[appName]) || (binding && binding.app);
+  const app =
+    (S.appsRegistry && S.appsRegistry[appName]) || (binding && binding.app);
   if (!binding || !app) {
     ws.close();
     return;
@@ -547,7 +576,7 @@ function onConnection(ws, req) {
     rooms: new Set(),
     meta: info.meta || {},
     lastActivity: Date.now(),
-    facade: null
+    facade: null,
   };
 
   const facade = createFacade(entry);
@@ -556,8 +585,11 @@ function onConnection(ws, req) {
   S.appConnCounts.set(appName, (S.appConnCounts.get(appName) || 0) + 1);
   updateGauges();
 
-  metrics.inc('gingee_websocket_upgrades_total', { result: 'ok', app: appName });
-  metrics.inc('gingee_websocket_connections_opened_total', { app: appName });
+  metrics.inc("gingee_websocket_upgrades_total", {
+    result: "ok",
+    app: appName,
+  });
+  metrics.inc("gingee_websocket_connections_opened_total", { app: appName });
 
   const runInAppAls = (fn) => {
     const store = {
@@ -568,7 +600,7 @@ function onConnection(ws, req) {
       scriptPath: binding.handlerPath,
       scriptFolder: path.dirname(binding.handlerPath),
       isWebSocket: true,
-      websocket: facade
+      websocket: facade,
     };
     const prev = globalThis[ACTIVE_APP_KEY];
     globalThis[ACTIVE_APP_KEY] = app.name;
@@ -579,11 +611,14 @@ function onConnection(ws, req) {
     }
   };
 
-  ws.on('message', (data, isBinary) => {
+  ws.on("message", (data, isBinary) => {
     entry.lastActivity = Date.now();
-    if (Buffer.isBuffer(data) && data.length > S.serverConfig.max_message_bytes) {
+    if (
+      Buffer.isBuffer(data) &&
+      data.length > S.serverConfig.max_message_bytes
+    ) {
       try {
-        ws.close(1009, 'message too large');
+        ws.close(1009, "message too large");
       } catch (_) {
         /* ignore */
       }
@@ -591,31 +626,31 @@ function onConnection(ws, req) {
     }
     let payload = data;
     if (!isBinary) {
-      payload = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
+      payload = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
     }
     // Keep app context so require('websockets') / db / etc. work inside message handlers
     try {
-      runInAppAls(() => facade._emit('message', payload, isBinary));
+      runInAppAls(() => facade._emit("message", payload, isBinary));
     } catch (err) {
       log().error(`[websockets] message handler error: ${err.message}`);
     }
   });
 
-  ws.on('pong', () => {
+  ws.on("pong", () => {
     entry.lastActivity = Date.now();
   });
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     removeSocket(id);
-    metrics.inc('gingee_websocket_connections_closed_total', { app: appName });
+    metrics.inc("gingee_websocket_connections_closed_total", { app: appName });
     try {
-      runInAppAls(() => facade._emit('close'));
+      runInAppAls(() => facade._emit("close"));
     } catch (_) {
       /* ignore */
     }
   });
 
-  ws.on('error', (err) => {
+  ws.on("error", (err) => {
     log().warn(`[websockets] socket error app=${appName}: ${err.message}`);
   });
 
@@ -626,7 +661,7 @@ function onConnection(ws, req) {
     path: info.pathname,
     headers: info.headers,
     meta: entry.meta,
-    remoteAddress: info.remoteAddress
+    remoteAddress: info.remoteAddress,
   };
 
   const runHandler = async () => {
@@ -642,11 +677,11 @@ function onConnection(ws, req) {
           scriptPath: binding.handlerPath,
           scriptFolder: path.dirname(binding.handlerPath),
           isWebSocket: true,
-          websocket: facade
+          websocket: facade,
         },
         async () => {
           await binding.handlerFn(facade, ctx);
-        }
+        },
       );
     } finally {
       globalThis[ACTIVE_APP_KEY] = prev;
@@ -656,7 +691,7 @@ function onConnection(ws, req) {
   runHandler().catch((err) => {
     log().error(`[websockets] handler error for '${appName}': ${err.message}`);
     try {
-      ws.close(1011, 'handler error');
+      ws.close(1011, "handler error");
     } catch (_) {
       /* ignore */
     }
@@ -670,7 +705,7 @@ function createFacade(entry) {
   const S = state();
   const listeners = {
     message: [],
-    close: []
+    close: [],
   };
 
   const facade = {
@@ -682,7 +717,7 @@ function createFacade(entry) {
       return entry.meta;
     },
     set meta(v) {
-      entry.meta = v && typeof v === 'object' ? v : {};
+      entry.meta = v && typeof v === "object" ? v : {};
     },
     /** App-level tenant id convention (optional). */
     get tenantId() {
@@ -695,7 +730,11 @@ function createFacade(entry) {
     send(data) {
       if (entry.ws.readyState !== WebSocket.OPEN) return false;
       try {
-        if (typeof data === 'object' && data !== null && !Buffer.isBuffer(data)) {
+        if (
+          typeof data === "object" &&
+          data !== null &&
+          !Buffer.isBuffer(data)
+        ) {
           entry.ws.send(JSON.stringify(data));
         } else {
           entry.ws.send(data);
@@ -727,12 +766,14 @@ function createFacade(entry) {
     to(room) {
       return {
         send: (data) => {
-          sendToRoom(entry.appName, String(room), data, { excludeId: entry.id });
-        }
+          sendToRoom(entry.appName, String(room), data, {
+            excludeId: entry.id,
+          });
+        },
       };
     },
     on(event, fn) {
-      if (listeners[event] && typeof fn === 'function') {
+      if (listeners[event] && typeof fn === "function") {
         listeners[event].push(fn);
       }
     },
@@ -741,16 +782,16 @@ function createFacade(entry) {
       for (const fn of list) {
         try {
           const r = fn(...args);
-          if (r && typeof r.then === 'function') {
+          if (r && typeof r.then === "function") {
             r.catch((e) =>
-              log().error(`[websockets] listener error: ${e.message}`)
+              log().error(`[websockets] listener error: ${e.message}`),
             );
           }
         } catch (e) {
           log().error(`[websockets] listener error: ${e.message}`);
         }
       }
-    }
+    },
   };
   return facade;
 }
@@ -792,7 +833,7 @@ function sendToRoomLocal(appName, room, data, opts = {}) {
   if (!appRooms || !appRooms.has(room)) return 0;
   let n = 0;
   const payload =
-    typeof data === 'object' && data !== null && !Buffer.isBuffer(data)
+    typeof data === "object" && data !== null && !Buffer.isBuffer(data)
       ? JSON.stringify(data)
       : data;
   for (const id of appRooms.get(room)) {
@@ -836,7 +877,7 @@ function sendToAppLocal(appName, data) {
   const S = state();
   let n = 0;
   const payload =
-    typeof data === 'object' && data !== null && !Buffer.isBuffer(data)
+    typeof data === "object" && data !== null && !Buffer.isBuffer(data)
       ? JSON.stringify(data)
       : data;
   for (const entry of S.sockets.values()) {
@@ -886,9 +927,9 @@ function removeSocket(id) {
 function updateGauges() {
   const S = state();
   try {
-    metrics.setGauge('gingee_websocket_connections', {}, S.sockets.size);
+    metrics.setGauge("gingee_websocket_connections", {}, S.sockets.size);
     for (const [app, n] of S.appConnCounts) {
-      metrics.setGauge('gingee_websocket_connections_per_app', { app }, n);
+      metrics.setGauge("gingee_websocket_connections_per_app", { app }, n);
     }
   } catch (_) {
     /* ignore */
@@ -910,7 +951,7 @@ function startHeartbeat() {
       }
       if (idle && now - entry.lastActivity > idle) {
         try {
-          entry.ws.close(1001, 'idle timeout');
+          entry.ws.close(1001, "idle timeout");
         } catch (_) {
           /* ignore */
         }
@@ -924,7 +965,7 @@ function startHeartbeat() {
       }
     }
   }, ms);
-  if (typeof S.heartbeatTimer.unref === 'function') S.heartbeatTimer.unref();
+  if (typeof S.heartbeatTimer.unref === "function") S.heartbeatTimer.unref();
 }
 
 function shutdownAll() {
@@ -935,9 +976,9 @@ function shutdownAll() {
   }
   if (S.fanout) {
     try {
-      if (typeof S.fanout.shutdown === 'function') {
+      if (typeof S.fanout.shutdown === "function") {
         const p = S.fanout.shutdown();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
+        if (p && typeof p.catch === "function") p.catch(() => {});
       }
     } catch (_) {
       /* ignore */
@@ -946,7 +987,7 @@ function shutdownAll() {
   }
   for (const [id, entry] of [...S.sockets.entries()]) {
     try {
-      entry.ws.close(1001, 'server shutdown');
+      entry.ws.close(1001, "server shutdown");
     } catch (_) {
       /* ignore */
     }
@@ -1001,10 +1042,10 @@ function getBindings() {
  */
 function tenantRoom(tenantId, name) {
   const S = state();
-  const t = String(tenantId == null ? '' : tenantId).trim();
-  const n = String(name == null ? '' : name).trim();
-  if (!t) throw new Error('tenantRoom requires tenantId');
-  if (!n) throw new Error('tenantRoom requires name');
+  const t = String(tenantId == null ? "" : tenantId).trim();
+  const n = String(name == null ? "" : name).trim();
+  if (!t) throw new Error("tenantRoom requires tenantId");
+  if (!n) throw new Error("tenantRoom requires name");
   return `t:${t}:${n}`;
 }
 
@@ -1051,5 +1092,5 @@ module.exports = {
     state().fanout = f;
   },
   _sendToRoomLocal: sendToRoomLocal,
-  _sendToAppLocal: sendToAppLocal
+  _sendToAppLocal: sendToAppLocal,
 };

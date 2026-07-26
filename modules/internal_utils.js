@@ -1,10 +1,10 @@
-const path = require('path');
-const fs = require('fs');
-const { getContext } = require('./gingee.js');
+const path = require("path");
+const fs = require("fs");
+const { getContext } = require("./gingee.js");
 
 const SCOPES = {
-  BOX: 'BOX',
-  WEB: 'WEB'
+  BOX: "BOX",
+  WEB: "WEB",
 };
 
 /**
@@ -16,22 +16,23 @@ const SCOPES = {
  * @private
  */
 function _normalizePath(p) {
-  if (typeof p !== 'string' || p.length === 0) {
-    return '';
+  if (typeof p !== "string" || p.length === 0) {
+    return "";
   }
   let resolved = path.resolve(p);
 
   // Drop trailing separators so "C:\app" and "C:\app\" compare equal.
   // path.resolve already collapses most cases; this covers explicit trailing seps.
   if (resolved.length > 1) {
-    const endsWithSep = resolved.endsWith(path.sep) ||
-      (path.sep !== '/' && resolved.endsWith('/'));
+    const endsWithSep =
+      resolved.endsWith(path.sep) ||
+      (path.sep !== "/" && resolved.endsWith("/"));
     if (endsWithSep) {
       resolved = resolved.slice(0, -1);
     }
   }
 
-  if (process.platform === 'win32') {
+  if (process.platform === "win32") {
     resolved = resolved.toLowerCase();
   }
 
@@ -48,7 +49,7 @@ function _normalizePath(p) {
  * @returns {string} absolute path with intermediate symlinks expanded
  */
 function resolveRealPath(p) {
-  if (typeof p !== 'string' || p.length === 0) {
+  if (typeof p !== "string" || p.length === 0) {
     return p;
   }
   const abs = path.resolve(p);
@@ -56,7 +57,7 @@ function resolveRealPath(p) {
   // realpathSync may be mocked (tests) or throw; only trust a non-empty string.
   try {
     const rp = fs.realpathSync(abs);
-    if (typeof rp === 'string' && rp.length > 0) {
+    if (typeof rp === "string" && rp.length > 0) {
       return rp;
     }
   } catch (_) {
@@ -75,7 +76,7 @@ function resolveRealPath(p) {
     cur = parent;
     try {
       const realParent = fs.realpathSync(cur);
-      if (typeof realParent === 'string' && realParent.length > 0) {
+      if (typeof realParent === "string" && realParent.length > 0) {
         return path.resolve(realParent, ...missing);
       }
     } catch (_) {
@@ -101,7 +102,12 @@ function _isPathInsideLexical(candidatePath, boundaryPath) {
   const relative = path.relative(boundary, candidate);
 
   // Outside, or not representable as a relative path under boundary (different drive, etc.)
-  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
     return false;
   }
 
@@ -122,7 +128,7 @@ function _isPathInsideLexical(candidatePath, boundaryPath) {
  * @returns {boolean}
  */
 function isPathInside(candidatePath, boundaryPath) {
-  if (typeof candidatePath !== 'string' || typeof boundaryPath !== 'string') {
+  if (typeof candidatePath !== "string" || typeof boundaryPath !== "string") {
     return false;
   }
   if (candidatePath.length === 0 || boundaryPath.length === 0) {
@@ -153,17 +159,16 @@ function resolveSecurePath(scope, userPath) {
   let basePath;
   let finalUserPath = userPath;
 
-  if (userPath.startsWith('/')) {
-    const pathSegments = userPath.split('/').filter(Boolean);
+  if (userPath.startsWith("/")) {
+    const pathSegments = userPath.split("/").filter(Boolean);
     const firstSegment = pathSegments[0];
 
     if (firstSegment === appName) {
-      finalUserPath = path.join('/', ...pathSegments.slice(1));
+      finalUserPath = path.join("/", ...pathSegments.slice(1));
     }
 
-    basePath = (scope === SCOPES.BOX) ? appBoxPath : appWebPath;
+    basePath = scope === SCOPES.BOX ? appBoxPath : appWebPath;
     finalUserPath = finalUserPath.substring(1);
-
   } else {
     basePath = ctx.scriptFolder;
     if (scope === SCOPES.WEB) {
@@ -172,11 +177,13 @@ function resolveSecurePath(scope, userPath) {
   }
 
   const requestedPath = path.join(basePath, finalUserPath);
-  const secureBoundary = (scope === SCOPES.BOX) ? appBoxPath : appWebPath;
+  const secureBoundary = scope === SCOPES.BOX ? appBoxPath : appWebPath;
 
   const resolved = path.resolve(requestedPath);
   if (!isPathInside(resolved, secureBoundary)) {
-    throw new Error(`Path Traversal Error: Access to '${userPath}' is forbidden!`);
+    throw new Error(
+      `Path Traversal Error: Access to '${userPath}' is forbidden!`,
+    );
   }
 
   // Return realpath-expanded form so open/read/write uses the same jail view.
@@ -200,18 +207,18 @@ function loadOptional(loader, packageName, featureLabel) {
   try {
     return loader();
   } catch (e) {
-    const msg = e && e.message ? String(e.message) : '';
+    const msg = e && e.message ? String(e.message) : "";
     const missing =
-      e.code === 'MODULE_NOT_FOUND' ||
+      e.code === "MODULE_NOT_FOUND" ||
       /Cannot find module/.test(msg) ||
       /Cannot find package/.test(msg);
     if (missing) {
       const err = new Error(
         `FEATURE_NOT_INSTALLED: ${featureLabel} requires optional package '${packageName}'. ` +
           `Install it with: npm install ${packageName} ` +
-          `(or reinstall without --omit=optional so optionalDependencies are included).`
+          `(or reinstall without --omit=optional so optionalDependencies are included).`,
       );
-      err.code = 'FEATURE_NOT_INSTALLED';
+      err.code = "FEATURE_NOT_INSTALLED";
       err.packageName = packageName;
       err.feature = featureLabel;
       err.cause = e;
@@ -238,7 +245,7 @@ function requireOptional(packageName, featureLabel) {
  * @returns {object|array|string|number|boolean|null}
  */
 function loadJsonFile(filePath) {
-  const fs = require('fs');
+  const fs = require("fs");
   // Prefer readFile + JSON.parse over require() so invalid JSON never leaves a broken module cache entry.
   try {
     const resolved = require.resolve(filePath);
@@ -251,10 +258,10 @@ function loadJsonFile(filePath) {
 
   let raw;
   try {
-    raw = fs.readFileSync(filePath, 'utf8');
+    raw = fs.readFileSync(filePath, "utf8");
   } catch (e) {
     const err = new Error(`Cannot read JSON file '${filePath}': ${e.message}`);
-    err.code = e.code || 'ENOENT';
+    err.code = e.code || "ENOENT";
     err.cause = e;
     throw err;
   }
@@ -263,7 +270,7 @@ function loadJsonFile(filePath) {
     return JSON.parse(raw);
   } catch (e) {
     const err = new Error(`Invalid JSON in '${filePath}': ${e.message}`);
-    err.code = 'INVALID_JSON';
+    err.code = "INVALID_JSON";
     err.cause = e;
     throw err;
   }
@@ -276,5 +283,5 @@ module.exports = {
   resolveSecurePath,
   loadOptional,
   requireOptional,
-  loadJsonFile
+  loadJsonFile,
 };

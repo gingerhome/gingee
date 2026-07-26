@@ -4,8 +4,8 @@
  * Engine-internal — prevents URL / config path traversal outside app roots.
  */
 
-const path = require('path');
-const { isPathInside, resolveRealPath } = require('../../internal_utils.js');
+const path = require("path");
+const { isPathInside, resolveRealPath } = require("../../internal_utils.js");
 
 /**
  * True if a single path segment is unsafe to join under a confinement root.
@@ -16,14 +16,14 @@ function isUnsafePathSegment(seg) {
   if (seg == null) return true;
   const s = String(seg);
   if (s.length === 0) return true;
-  if (s === '..' || s === '.') return true;
-  if (s.includes('\0')) return true;
+  if (s === ".." || s === ".") return true;
+  if (s.includes("\0")) return true;
   // Reject absolute / drive / UNC-looking segments slipped into a join list
   if (path.isAbsolute(s)) return true;
   if (/^[a-zA-Z]:/.test(s)) return true;
-  if (s.startsWith('\\\\') || s.startsWith('//')) return true;
+  if (s.startsWith("\\\\") || s.startsWith("//")) return true;
   // Encoded or embedded traversal leftovers after partial decoding
-  if (s.includes('..')) return true;
+  if (s.includes("..")) return true;
   return false;
 }
 
@@ -49,16 +49,16 @@ function hasUnsafePathSegments(segments) {
 function relativeToSegments(relativePath) {
   if (relativePath == null) return null;
   const raw = String(relativePath);
-  if (!raw || raw.includes('\0')) return null;
+  if (!raw || raw.includes("\0")) return null;
   if (path.isAbsolute(raw)) return null;
   if (/^[a-zA-Z]:/.test(raw)) return null;
-  if (raw.startsWith('\\\\') || raw.startsWith('//')) return null;
+  if (raw.startsWith("\\\\") || raw.startsWith("//")) return null;
 
-  const normalized = raw.replace(/\\/g, '/');
+  const normalized = raw.replace(/\\/g, "/");
   // Empty relative (serve root) is allowed
-  if (normalized === '' || normalized === '.') return [];
+  if (normalized === "" || normalized === ".") return [];
 
-  const parts = normalized.split('/').filter((p) => p.length > 0 && p !== '.');
+  const parts = normalized.split("/").filter((p) => p.length > 0 && p !== ".");
   if (hasUnsafePathSegments(parts)) return null;
   return parts;
 }
@@ -72,7 +72,7 @@ function relativeToSegments(relativePath) {
  * @returns {string|null}
  */
 function resolveConfinedPath(root, relativeOrSegments) {
-  if (root == null || root === '') return null;
+  if (root == null || root === "") return null;
   const rootAbs = path.resolve(String(root));
 
   let segments;
@@ -82,7 +82,7 @@ function resolveConfinedPath(root, relativeOrSegments) {
     // Filter empty; reject unsafe (including '.')
     segments = relativeOrSegments.map(String).filter((p) => p.length > 0);
     // Allow '.'-only noise by dropping; reject '..'
-    segments = segments.filter((p) => p !== '.');
+    segments = segments.filter((p) => p !== ".");
     if (hasUnsafePathSegments(segments)) return null;
   } else {
     segments = relativeToSegments(relativeOrSegments);
@@ -114,10 +114,14 @@ function confineScriptPath(appBoxPath, relativeScript, opts = {}) {
     const base = resolveConfinedPath(appBoxPath, relativeScript);
     if (!base) return null;
     // If base is the box root alone and segments were empty, appending .js is wrong
-    if (base === path.resolve(appBoxPath) && (!relativeScript || (Array.isArray(relativeScript) && relativeScript.length === 0))) {
+    if (
+      base === path.resolve(appBoxPath) &&
+      (!relativeScript ||
+        (Array.isArray(relativeScript) && relativeScript.length === 0))
+    ) {
       return null;
     }
-    const withJs = base.endsWith('.js') ? base : `${base}.js`;
+    const withJs = base.endsWith(".js") ? base : `${base}.js`;
     if (!isPathInside(withJs, path.resolve(appBoxPath))) return null;
     return resolveRealPath(withJs);
   }
@@ -153,5 +157,5 @@ module.exports = {
   resolveConfinedPath,
   confineScriptPath,
   isInsideAppBox,
-  isInsideAppWeb
+  isInsideAppWeb,
 };

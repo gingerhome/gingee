@@ -9,8 +9,8 @@
  * Engine-internal (not for sandboxed app require).
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 const DEFAULTS = {
   /** When true, write audit events to the JSONL file. */
@@ -19,7 +19,7 @@ const DEFAULTS = {
    * Path to the audit log file (relative to project root or absolute).
    * Default: logs/audit.jsonl
    */
-  path: './logs/audit.jsonl'
+  path: "./logs/audit.jsonl",
 };
 
 /** @type {object} */
@@ -49,10 +49,13 @@ function log() {
 function initServer(cfg, root, logRef) {
   logger = logRef || console;
   projectRoot = root || process.cwd();
-  const c = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : {};
+  const c = cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
   config = {
     enabled: c.enabled !== false,
-    path: c.path != null && String(c.path).trim() !== '' ? String(c.path) : DEFAULTS.path
+    path:
+      c.path != null && String(c.path).trim() !== ""
+        ? String(c.path)
+        : DEFAULTS.path,
   };
   resolvedPath = path.isAbsolute(config.path)
     ? config.path
@@ -69,7 +72,7 @@ function initServer(cfg, root, logRef) {
     }
     log().info(`[audit] enabled=true path=${resolvedPath}`);
   } else {
-    log().info('[audit] enabled=false');
+    log().info("[audit] enabled=false");
   }
 }
 
@@ -82,17 +85,17 @@ function getConfig() {
  * @private
  */
 function resolveActor(explicit) {
-  if (explicit != null && String(explicit).trim() !== '') {
+  if (explicit != null && String(explicit).trim() !== "") {
     return String(explicit);
   }
   try {
-    const { getContext } = require('./gingee.js');
+    const { getContext } = require("./gingee.js");
     const store = getContext();
     if (store && store.app && store.app.name) return store.app.name;
   } catch (_) {
     /* no ALS context */
   }
-  return 'system';
+  return "system";
 }
 
 /**
@@ -109,10 +112,16 @@ function emit(event, details = {}, options = {}) {
 
   const record = {
     ts: new Date().toISOString(),
-    event: String(event || 'unknown'),
+    event: String(event || "unknown"),
     actor: resolveActor(options.actor),
-    app: options.app != null ? String(options.app) : details.app != null ? String(details.app) : null,
-    details: details && typeof details === 'object' ? details : { value: details }
+    app:
+      options.app != null
+        ? String(options.app)
+        : details.app != null
+          ? String(details.app)
+          : null,
+    details:
+      details && typeof details === "object" ? details : { value: details },
   };
 
   // Prefer top-level app; avoid duplicating bulky nested app key when same
@@ -121,16 +130,18 @@ function emit(event, details = {}, options = {}) {
     record.details = rest;
   }
 
-  const line = JSON.stringify(record) + '\n';
+  const line = JSON.stringify(record) + "\n";
 
   try {
-    fs.appendFileSync(resolvedPath, line, 'utf8');
+    fs.appendFileSync(resolvedPath, line, "utf8");
   } catch (e) {
     log().error(`[audit] Failed to write event ${record.event}: ${e.message}`);
   }
 
   try {
-    log().info(`[audit] ${record.event} app=${record.app || '-'} actor=${record.actor}`);
+    log().info(
+      `[audit] ${record.event} app=${record.app || "-"} actor=${record.actor}`,
+    );
   } catch (_) {
     /* ignore */
   }
@@ -149,5 +160,5 @@ module.exports = {
   initServer,
   getConfig,
   emit,
-  _resetForTests
+  _resetForTests,
 };

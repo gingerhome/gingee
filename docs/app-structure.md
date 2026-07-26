@@ -104,6 +104,7 @@ Here is a comprehensive breakdown of all available properties.
   - **`"development"`** : Activates development-only features. For SPAs, this enables the seamless dev server proxy.
 
 ### SPA Configuration (`spa` object)
+
 This object is used when the app is of `"type": "SPA"`. SPA behavior is active when both `"type": "SPA"` and `"spa.enabled": true` are set.
 
 - **`spa.enabled`** (boolean, required for SPA mode): Must be `true` to activate SPA features (dev proxy and production fallback).
@@ -130,6 +131,7 @@ Single generative AI configuration for the app. App config overrides optional se
 **API (sandbox):** `require('ai')` → `chat`, `chatStream` (async generator), `complete`, `parseDocument`, `moderate`. Pass `{ config: { … } }` as the second argument to override server/app config for one call.
 
 **Example:**
+
 ```json
 "ai": {
   "type": "gemini",
@@ -216,10 +218,10 @@ Opt-in **WebSocket** endpoint for this app. Requires server `websockets.enabled`
 ```javascript
 module.exports = async function (socket, ctx) {
   // ctx: { app, log, query, path, headers, meta, remoteAddress }
-  socket.join('lobby');
-  socket.send({ type: 'hello' });
-  socket.on('message', (raw) => {
-    socket.to('lobby').send({ echo: raw });
+  socket.join("lobby");
+  socket.send({ type: "hello" });
+  socket.on("message", (raw) => {
+    socket.to("lobby").send({ echo: raw });
   });
 };
 ```
@@ -230,10 +232,10 @@ From HTTP scripts: `require('websockets').toRoom('lobby', payload)`. Multi-tenan
 
 Opt-in **process isolation** for this app’s **server scripts** (not static files). Only takes effect when the server has `gingee.json` → `isolation.mode: "process"`. Privileged apps (e.g. Glade) always stay in-process regardless of this flag.
 
-| Value | Meaning |
-| :--- | :--- |
-| `"process"` | Run box scripts in a **solo** child worker (`app:<folderName>`) unless the app is also in a server **group** |
-| `"inprocess"` | Force in-process (default when server mode is process but app is unmarked) |
+| Value         | Meaning                                                                                                      |
+| :------------ | :----------------------------------------------------------------------------------------------------------- |
+| `"process"`   | Run box scripts in a **solo** child worker (`app:<folderName>`) unless the app is also in a server **group** |
+| `"inprocess"` | Force in-process (default when server mode is process but app is unmarked)                                   |
 
 ```json
 "isolation": "process"
@@ -241,7 +243,7 @@ Opt-in **process isolation** for this app’s **server scripts** (not static fil
 
 **Server-side alternatives** (no need to set this flag if you use them):
 
-- `isolation.apps: ["my-app"]` — solo worker by folder name  
+- `isolation.apps: ["my-app"]` — solo worker by folder name
 - `isolation.groups: { "tenant-a": ["app-one", "app-two"] }` — one shared worker for members (do **not** also list those names in `apps` unless you want redundancy; group already isolates them)
 
 Buffered responses and SSE (`startStream` / `writeSSE` / `endStream`) are supported over IPC. Full server keys: [Server Config](./server-config.md) → `isolation`.
@@ -266,16 +268,16 @@ Declarative CRON jobs for this app. Registered only when **`gingee.json` → `sc
 
 Each entry:
 
-| Field | Required | Description |
-| :--- | :--- | :--- |
-| `name` | yes | Unique job id within the app (`a-zA-Z0-9._-`) |
-| `cron` | yes | CRON expression (standard 5-field; seconds supported by engine dialect) |
-| `timezone` | no | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`) |
-| `enabled` | no | Default `true`. Set `false` to keep the definition without registering |
-| `timeout_ms` | no | Default `300000` (script) / `60000` (url) / `30000` (queue enqueue) |
-| `overlap` | no | Only `"skip"` in v1 (skip if previous run still active) |
-| `payload` | no | Passed as `$g.request.body` for **script** targets; default payload for **queue** targets |
-| `target` | yes | See below |
+| Field        | Required | Description                                                                               |
+| :----------- | :------- | :---------------------------------------------------------------------------------------- |
+| `name`       | yes      | Unique job id within the app (`a-zA-Z0-9._-`)                                             |
+| `cron`       | yes      | CRON expression (standard 5-field; seconds supported by engine dialect)                   |
+| `timezone`   | no       | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`)                    |
+| `enabled`    | no       | Default `true`. Set `false` to keep the definition without registering                    |
+| `timeout_ms` | no       | Default `300000` (script) / `60000` (url) / `30000` (queue enqueue)                       |
+| `overlap`    | no       | Only `"skip"` in v1 (skip if previous run still active)                                   |
+| `payload`    | no       | Passed as `$g.request.body` for **script** targets; default payload for **queue** targets |
+| `target`     | yes      | See below                                                                                 |
 
 **`target` for scripts** (path is relative to the app’s `box/` folder only):
 
@@ -349,6 +351,7 @@ Single outbound email configuration for the app (no named profiles). App config 
 **Runtime override:** from a server script you can call `email.sendWithConfig(config, message)` so a one-off send uses config that overrides both `gingee.json` and `app.json` for that transaction only (does not change the app default).
 
 **Example `app.json`:**
+
 ```json
 "email": {
   "type": "sendgrid",
@@ -393,8 +396,8 @@ Single outbound email configuration for the app (no named profiles). App config 
 
 If you plan to distribute your application as a `.gin` package, you must declare the permissions it requires in a `pmft.json` file. This manifest is read by the `gingee-cli` during the installation process to request consent from the server administrator.
 
--   **Location:** `web/<your-app-name>/box/pmft.json`
--   **Purpose:** To declare your app's required (`mandatory`) and optional (`optional`) permissions.
+- **Location:** `web/<your-app-name>/box/pmft.json`
+- **Purpose:** To declare your app's required (`mandatory`) and optional (`optional`) permissions.
 
 For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide [MD](./permissions-guide.md) [HTML](./permissions-guide.html)**.
 
@@ -404,8 +407,8 @@ For a complete guide on the permissions system and the structure of this file, p
 
 For applications that require more powerful and flexible routing, such as RESTful APIs with dynamic path parameters, you can create a `routes.json` file. When this file is present in an app's `box` folder, it **activates manifest-based routing**, which takes precedence over the default file-based routing.
 
--   **Location:** `web/my-app/box/routes.json`
--   **Purpose:** To explicitly map URL path patterns and HTTP methods to specific server script files.
+- **Location:** `web/my-app/box/routes.json`
+- **Purpose:** To explicitly map URL path patterns and HTTP methods to specific server script files.
 
 #### Structure of `routes.json`
 
@@ -442,20 +445,20 @@ The file must contain a single root object with a `routes` key, which holds an a
 
 Each object in the `routes` array defines a single endpoint and has the following properties:
 
--   **`path`** (string, required)
-    -   **Description:** A URL path pattern that can include static segments and dynamic, named parameters.
-    -   **Dynamic Parameters:** A parameter is defined by a colon (`:`), followed by its name (e.g., `:userId`). The name should use standard variable naming conventions.
-    -   **Optional Parameters:** A parameter can be made optional by adding a question mark (`?`) to its name (e.g., `:imageId?`).
-    -   **Wildcards:** You can use an asterisk (`*`) as a wildcard to match the rest of a path.
+- **`path`** (string, required)
+  - **Description:** A URL path pattern that can include static segments and dynamic, named parameters.
+  - **Dynamic Parameters:** A parameter is defined by a colon (`:`), followed by its name (e.g., `:userId`). The name should use standard variable naming conventions.
+  - **Optional Parameters:** A parameter can be made optional by adding a question mark (`?`) to its name (e.g., `:imageId?`).
+  - **Wildcards:** You can use an asterisk (`*`) as a wildcard to match the rest of a path.
 
--   **`method`** (string, optional)
-    -   **Description:** The HTTP method that this route will respond to. The matching is case-insensitive.
-    -   **Default:** If omitted, the method defaults to `GET`.
-    -   **Supported Values:** Standard HTTP verbs like `GET`, `POST`, `PUT`, `DELETE`, `PATCH`. You can also use `ALL` to match any method for a given path.
+- **`method`** (string, optional)
+  - **Description:** The HTTP method that this route will respond to. The matching is case-insensitive.
+  - **Default:** If omitted, the method defaults to `GET`.
+  - **Supported Values:** Standard HTTP verbs like `GET`, `POST`, `PUT`, `DELETE`, `PATCH`. You can also use `ALL` to match any method for a given path.
 
--   **`script`** (string, required)
-    -   **Description:** The path to the server script file that should be executed when this route is matched. The path is **relative to the `box` folder**. The `.js` extension is optional.
-    -   **Example:** `"script": "api/users/get-profile"` will execute the file at `web/my-app/box/api/users/get-profile.js`.
+- **`script`** (string, required)
+  - **Description:** The path to the server script file that should be executed when this route is matched. The path is **relative to the `box` folder**. The `.js` extension is optional.
+  - **Example:** `"script": "api/users/get-profile"` will execute the file at `web/my-app/box/api/users/get-profile.js`.
 
 #### Accessing Path Parameters
 
@@ -463,21 +466,24 @@ When a route with dynamic parameters is matched, Gingee automatically parses the
 
 **Example:**
 
--   **Route in `routes.json`:**
-    ```json
-    { "path": "/products/:productId/reviews/:reviewId", "script": "reviews/get.js" }
-    ```
--   **Incoming Request URL:** `/my-app/products/abc-123/reviews/42`
--   **Server Script (`box/reviews/get.js`):**
-    ```javascript
-    module.exports = async function() {
-        await gingee(async ($g) => {
-            const productId = $g.request.params.productId; // "abc-123"
-            const reviewId = $g.request.params.reviewId;   // "42"
-            
-            $g.response.send({
-                message: `Fetching review ${reviewId} for product ${productId}.`
-            });
-        });
-    };
-    ```
+- **Route in `routes.json`:**
+  ```json
+  {
+    "path": "/products/:productId/reviews/:reviewId",
+    "script": "reviews/get.js"
+  }
+  ```
+- **Incoming Request URL:** `/my-app/products/abc-123/reviews/42`
+- **Server Script (`box/reviews/get.js`):**
+  ```javascript
+  module.exports = async function () {
+    await gingee(async ($g) => {
+      const productId = $g.request.params.productId; // "abc-123"
+      const reviewId = $g.request.params.reviewId; // "42"
+
+      $g.response.send({
+        message: `Fetching review ${reviewId} for product ${productId}.`,
+      });
+    });
+  };
+  ```

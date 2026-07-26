@@ -1,5 +1,5 @@
-const fs = require('./fs.js'); // Our secure fs module
-const { loadOptional } = require('./internal_utils.js');
+const fs = require("./fs.js"); // Our secure fs module
+const { loadOptional } = require("./internal_utils.js");
 
 /**
  * @module image
@@ -17,7 +17,11 @@ const { loadOptional } = require('./internal_utils.js');
  * @returns {function} sharp constructor
  */
 function getSharp() {
-    return loadOptional(() => require('sharp'), 'sharp', 'Image processing (image module)');
+  return loadOptional(
+    () => require("sharp"),
+    "sharp",
+    "Image processing (image module)",
+  );
 }
 
 /**
@@ -29,182 +33,181 @@ function getSharp() {
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
 class ImageProcessor {
-    /**
-     * Creates a new ImageProcessor instance.
-     * @param sharpInstance - An instance of the sharp image processing library.
-     * 
-     */
-    constructor(sharpInstance) {
-        this._image = sharpInstance;
+  /**
+   * Creates a new ImageProcessor instance.
+   * @param sharpInstance - An instance of the sharp image processing library.
+   *
+   */
+  constructor(sharpInstance) {
+    this._image = sharpInstance;
+  }
+
+  // --- MANIPULATION ---
+
+  /**
+   * @description Resizes the image to the specified dimensions.
+   * @param {object} options - The resize options.
+   * @param {number} options.width - The new width of the image.
+   * @param {number} options.height - The new height of the image.
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.resize({ width: 200, height: 200, fit: 'contain', background: '#FFFFFF' });
+   */
+  resize(options) {
+    this._image.resize(options);
+    return this;
+  }
+
+  /**
+   * @description Rotates the image by the specified angle.
+   * @param {number} angle - The angle to rotate the image (in degrees).
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.rotate(90);
+   */
+  rotate(angle = 0) {
+    this._image.rotate(angle);
+    return this;
+  }
+
+  /**
+   * @description Flips the image horizontally.
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.flip();
+   */
+  flip() {
+    this._image.flip();
+    return this;
+  }
+
+  /**
+   * @description Flips the image vertically.
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.flop();
+   */
+  flop() {
+    this._image.flop();
+    return this;
+  }
+
+  // --- FILTERS ---
+
+  /**
+   * @description Converts the image to greyscale.
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.greyscale();
+   */
+  greyscale() {
+    this._image.greyscale();
+    return this;
+  }
+
+  /**
+   * @description Applies a blur effect to the image.
+   * @param {number} sigma - The blur amount (higher values = more blur).
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.blur(5);
+   */
+  blur(sigma) {
+    this._image.blur(sigma);
+    return this;
+  }
+
+  /**
+   * @description Sharpens the image.
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.sharpen();
+   */
+  sharpen() {
+    this._image.sharpen();
+    return this;
+  }
+
+  // --- COMPOSITION ---
+
+  /**
+   * @description Composites another image onto this one.
+   * @param {Buffer} watermarkBuffer - The image buffer to composite.
+   * @param {object} options - The options for compositing.
+   *  @param {number} [options.left=0] - The x-coordinate to place the watermark.
+   *  @param {number} [options.top=0] - The y-coordinate to place the watermark.
+   *  @param {number} [options.opacity=1] - The opacity of the watermark
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.composite(watermarkBuffer, { left: 10, top: 10, opacity: 0.5 });
+   */
+  composite(watermarkBuffer, options) {
+    if (!Buffer.isBuffer(watermarkBuffer)) {
+      throw new Error("Watermark must be a Buffer.");
     }
+    this._image.composite([{ input: watermarkBuffer, ...options }]);
+    return this;
+  }
 
-    // --- MANIPULATION ---
+  // --- FORMATTING ---
 
-    /**
-     * @description Resizes the image to the specified dimensions.
-     * @param {object} options - The resize options.
-     * @param {number} options.width - The new width of the image.
-     * @param {number} options.height - The new height of the image.
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.resize({ width: 200, height: 200, fit: 'contain', background: '#FFFFFF' });
-     */
-    resize(options) {
-        this._image.resize(options);
-        return this;
-    }
+  /**
+   * @description Converts the image to a specific format.
+   * @param {string} format - The format to convert to (e.g., 'jpeg', 'png', 'webp').
+   * @param {object} [options] - Options for the format conversion (see sharp documentation).
+   * @returns {ImageProcessor} The ImageProcessor instance for chaining.
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.format('jpeg', { quality: 80 });
+   */
+  format(format, options) {
+    // Sharp's format function is also its toFormat conversion.
+    this._image.toFormat(format, options);
+    return this;
+  }
 
-    /**
-     * @description Rotates the image by the specified angle.
-     * @param {number} angle - The angle to rotate the image (in degrees).
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.rotate(90);
-     */
-    rotate(angle = 0) {
-        this._image.rotate(angle);
-        return this;
-    }
+  // --- OUTPUT (TERMINAL) METHODS ---
 
-    /**
-     * @description Flips the image horizontally.
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.flip();
-     */
-    flip() {
-        this._image.flip();
-        return this;
-    }
+  /**
+   * @description Processes the image and returns the final data as a Buffer.
+   * @returns {Promise<Buffer>}
+   * @example
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.resize({ width: 200, height: 200 });
+   * const buffer = await processor.toBuffer();
+   */
+  async toBuffer() {
+    return this._image.toBuffer();
+  }
 
-    /**
-     * @description Flips the image vertically.
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.flop();
-     */
-    flop() {
-        this._image.flop();
-        return this;
-    }
-
-    // --- FILTERS ---
-
-    /**
-     * @description Converts the image to greyscale.
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.greyscale();
-     */
-    greyscale() {
-        this._image.greyscale();
-        return this;
-    }
-
-    /**
-     * @description Applies a blur effect to the image.
-     * @param {number} sigma - The blur amount (higher values = more blur).
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.blur(5);
-     */
-    blur(sigma) {
-        this._image.blur(sigma);
-        return this;
-    }
-
-    /**
-     * @description Sharpens the image.
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.sharpen();
-     */
-    sharpen() {
-        this._image.sharpen();
-        return this;
-    }
-
-    // --- COMPOSITION ---
-
-    /**
-     * @description Composites another image onto this one.
-     * @param {Buffer} watermarkBuffer - The image buffer to composite.
-     * @param {object} options - The options for compositing.
-     *  @param {number} [options.left=0] - The x-coordinate to place the watermark.
-     *  @param {number} [options.top=0] - The y-coordinate to place the watermark.
-     *  @param {number} [options.opacity=1] - The opacity of the watermark
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.composite(watermarkBuffer, { left: 10, top: 10, opacity: 0.5 });
-     */
-    composite(watermarkBuffer, options) {
-        if (!Buffer.isBuffer(watermarkBuffer)) {
-            throw new Error("Watermark must be a Buffer.");
-        }
-        this._image.composite([{ input: watermarkBuffer, ...options }]);
-        return this;
-    }
-
-    // --- FORMATTING ---
-
-    /**
-     * @description Converts the image to a specific format.
-     * @param {string} format - The format to convert to (e.g., 'jpeg', 'png', 'webp').
-     * @param {object} [options] - Options for the format conversion (see sharp documentation).
-     * @returns {ImageProcessor} The ImageProcessor instance for chaining.
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.format('jpeg', { quality: 80 });
-     */
-    format(format, options) {
-        // Sharp's format function is also its toFormat conversion.
-        this._image.toFormat(format, options);
-        return this;
-    }
-
-    // --- OUTPUT (TERMINAL) METHODS ---
-
-    /**
-     * @description Processes the image and returns the final data as a Buffer.
-     * @returns {Promise<Buffer>}
-     * @example
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.resize({ width: 200, height: 200 });
-     * const buffer = await processor.toBuffer();
-     */
-    async toBuffer() {
-        return this._image.toBuffer();
-    }
-
-    /**
-     * @description Processes the image and saves it to a file using our secure fs module.
-     * @param {string} scope - The scope to save to (fs.BOX or fs.WEB).
-     * @param {string} filePath - The destination file path.
-     * @returns {Promise<void>}
-     * @example
-     * // path with leading slash indicates path from scope root, 
-     * // path without leading slash indicates path relative to the executing script
-     * // here image is loaded from <project>/<app_name>/<box>/images/gingee.png
-     * // image is and saved to <project>/<app_name>/output/processed_image.webp
-     * const processor = image.load(fs.BOX, '/images/gingee.png');
-     * processor.resize({ width: 200, height: 200 });
-     * await processor.toFile(fs.WEB, '/output/processed_image.webp');
-     */
-    async toFile(scope, filePath) {
-        const buffer = await this.toBuffer();
-        // Use our secure, sandboxed fs.writeFile to save the file.
-        await fs.writeFile(scope, filePath, buffer);
-    }
+  /**
+   * @description Processes the image and saves it to a file using our secure fs module.
+   * @param {string} scope - The scope to save to (fs.BOX or fs.WEB).
+   * @param {string} filePath - The destination file path.
+   * @returns {Promise<void>}
+   * @example
+   * // path with leading slash indicates path from scope root,
+   * // path without leading slash indicates path relative to the executing script
+   * // here image is loaded from <project>/<app_name>/<box>/images/gingee.png
+   * // image is and saved to <project>/<app_name>/output/processed_image.webp
+   * const processor = image.load(fs.BOX, '/images/gingee.png');
+   * processor.resize({ width: 200, height: 200 });
+   * await processor.toFile(fs.WEB, '/output/processed_image.webp');
+   */
+  async toFile(scope, filePath) {
+    const buffer = await this.toBuffer();
+    // Use our secure, sandboxed fs.writeFile to save the file.
+    await fs.writeFile(scope, filePath, buffer);
+  }
 }
-
 
 /**
  * @function loadFromFile
@@ -223,14 +226,14 @@ class ImageProcessor {
  * @throws {Error} If the input is not a Buffer or a valid file path.
  */
 function loadFromFile(scope, filePath, options = {}) {
-    if (scope && ![fs.BOX, fs.WEB].includes(scope)) {
-        throw new Error("Invalid scope provided. Use fs.BOX or fs.WEB.");
-    }
-    const imageBuffer = fs.readFileSync(scope || fs.BOX, filePath, options);
-    const sharp = getSharp();
-    const sharpInstance = sharp(imageBuffer);
+  if (scope && ![fs.BOX, fs.WEB].includes(scope)) {
+    throw new Error("Invalid scope provided. Use fs.BOX or fs.WEB.");
+  }
+  const imageBuffer = fs.readFileSync(scope || fs.BOX, filePath, options);
+  const sharp = getSharp();
+  const sharpInstance = sharp(imageBuffer);
 
-    return new ImageProcessor(sharpInstance);
+  return new ImageProcessor(sharpInstance);
 }
 
 /**
@@ -247,15 +250,15 @@ function loadFromFile(scope, filePath, options = {}) {
  * @throws {Error} If the input is not a Buffer.
  */
 function loadFromBuffer(buffer) {
-    if (!Buffer.isBuffer(buffer)) {
-        throw new Error("Invalid input: loadFromBuffer requires a Buffer.");
-    }
-    const sharp = getSharp();
-    const sharpInstance = sharp(buffer);
-    return new ImageProcessor(sharpInstance);
+  if (!Buffer.isBuffer(buffer)) {
+    throw new Error("Invalid input: loadFromBuffer requires a Buffer.");
+  }
+  const sharp = getSharp();
+  const sharpInstance = sharp(buffer);
+  return new ImageProcessor(sharpInstance);
 }
 
 module.exports = {
-    loadFromFile,
-    loadFromBuffer
+  loadFromFile,
+  loadFromBuffer,
 };

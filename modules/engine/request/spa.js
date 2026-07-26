@@ -4,13 +4,13 @@
  * Engine-internal.
  */
 
-const fs = require('fs');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const fs = require("fs");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 const {
   resolveConfinedPath,
   isInsideAppWeb,
-  isInsideAppBox
-} = require('./path_confine.js');
+  isInsideAppBox,
+} = require("./path_confine.js");
 
 /**
  * Handle SPA when no script target matched.
@@ -22,7 +22,11 @@ const {
 function handleSpa(opts) {
   const { req, res, app, appName, urlParts, isDevelopment, logger } = opts;
 
-  if (!(app.config.type === 'SPA' && app.config.spa && app.config.spa.enabled)) {
+  if (!(
+    app.config.type === "SPA" &&
+    app.config.spa &&
+    app.config.spa.enabled
+  )) {
     return { handled: false };
   }
 
@@ -31,28 +35,32 @@ function handleSpa(opts) {
       const proxy = createProxyMiddleware({
         target: app.config.spa.dev_server_proxy,
         changeOrigin: true,
-        logLevel: 'silent'
+        logLevel: "silent",
       });
       proxy(req, res);
       return { handled: true };
     }
-    logger.warn(`[SPA] App '${appName}' has no 'dev_server_proxy' configured in app.json.`);
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    res.end('INTERNAL SERVER ERROR - SPA app misconfigured. No dev_server_proxy set.');
+    logger.warn(
+      `[SPA] App '${appName}' has no 'dev_server_proxy' configured in app.json.`,
+    );
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end(
+      "INTERNAL SERVER ERROR - SPA app misconfigured. No dev_server_proxy set.",
+    );
     return { handled: true };
   }
 
   // Production: build_path must stay under app web root
   const buildPath = resolveConfinedPath(
     app.appWebPath,
-    app.config.spa.build_path || 'dist'
+    app.config.spa.build_path || "dist",
   );
   if (!buildPath) {
     logger.error(
-      `[SPA] App '${appName}' spa.build_path escapes app web root; refusing to serve.`
+      `[SPA] App '${appName}' spa.build_path escapes app web root; refusing to serve.`,
     );
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    res.end('INTERNAL SERVER ERROR - SPA app misconfigured (build_path).');
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("INTERNAL SERVER ERROR - SPA app misconfigured (build_path).");
     return { handled: true };
   }
 
@@ -69,7 +77,7 @@ function handleSpa(opts) {
 
   const fallbackPath = resolveConfinedPath(
     buildPath,
-    app.config.spa.fallback_path || 'index.html'
+    app.config.spa.fallback_path || "index.html",
   );
   if (
     fallbackPath &&
@@ -77,7 +85,10 @@ function handleSpa(opts) {
     !isInsideAppBox(fallbackPath, app.appBoxPath) &&
     fs.existsSync(fallbackPath)
   ) {
-    res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
+    res.writeHead(200, {
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store",
+    });
     fs.createReadStream(fallbackPath).pipe(res);
     return { handled: true };
   }
@@ -86,5 +97,5 @@ function handleSpa(opts) {
 }
 
 module.exports = {
-  handleSpa
+  handleSpa,
 };

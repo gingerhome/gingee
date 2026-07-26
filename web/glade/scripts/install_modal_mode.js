@@ -6,12 +6,12 @@
  * The input's .value is only the wizard step ('initial-upload' | 'wizard-confirm').
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) {
+  if (typeof module === "object" && module.exports) {
     module.exports = factory();
   } else {
     root.GladeInstallModalMode = factory();
   }
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function () {
   /**
    * Resolve install vs upgrade from the element that opened #installModal.
    * Upgrade triggers use class action-upgrade (dropdown) or legacy btn-upgrade;
@@ -22,21 +22,21 @@
    */
   function resolveInstallModalMode(trigger) {
     if (!trigger || !trigger.classList) {
-      return { mode: 'install', appName: null };
+      return { mode: "install", appName: null };
     }
     const isUpgrade =
-      trigger.classList.contains('action-upgrade') ||
-      trigger.classList.contains('btn-upgrade') ||
-      (typeof trigger.getAttribute === 'function' &&
-        trigger.getAttribute('data-mode') === 'upgrade');
+      trigger.classList.contains("action-upgrade") ||
+      trigger.classList.contains("btn-upgrade") ||
+      (typeof trigger.getAttribute === "function" &&
+        trigger.getAttribute("data-mode") === "upgrade");
     let appName = null;
     if (trigger.dataset && trigger.dataset.app != null) {
       appName = String(trigger.dataset.app).trim();
     }
     if (isUpgrade && appName) {
-      return { mode: 'upgrade', appName };
+      return { mode: "upgrade", appName };
     }
-    return { mode: 'install', appName: null };
+    return { mode: "install", appName: null };
   }
 
   /**
@@ -45,7 +45,7 @@
    * @returns {string}
    */
   function lifecycleApiUrl(mode) {
-    return mode === 'upgrade' ? '/glade/api/upgrade' : '/glade/api/install';
+    return mode === "upgrade" ? "/glade/api/upgrade" : "/glade/api/install";
   }
 
   /**
@@ -54,9 +54,11 @@
    * @returns {'install'|'upgrade'}
    */
   function getInstallLifecycleMode(modeInput) {
-    return modeInput && modeInput.dataset && modeInput.dataset.mode === 'upgrade'
-      ? 'upgrade'
-      : 'install';
+    return modeInput &&
+      modeInput.dataset &&
+      modeInput.dataset.mode === "upgrade"
+      ? "upgrade"
+      : "install";
   }
 
   /**
@@ -65,13 +67,13 @@
    * @returns {boolean}
    */
   function isReservedAppName(appName) {
-    return String(appName || '').toLowerCase() === 'glade';
+    return String(appName || "").toLowerCase() === "glade";
   }
 
   return {
     resolveInstallModalMode,
     lifecycleApiUrl,
     getInstallLifecycleMode,
-    isReservedAppName
+    isReservedAppName,
   };
 });

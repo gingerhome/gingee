@@ -20,16 +20,16 @@ class SendGridEmailAdapter {
     if (!this.config.from && !this.config.from_email) {
       // from may still be supplied per message; warn only
       this.logger.warn(
-        `[email:sendgrid] App '${app && app.name}' has no default 'from' address; each send must supply from.`
+        `[email:sendgrid] App '${app && app.name}' has no default 'from' address; each send must supply from.`,
       );
     }
 
     // Optional dependency — console provider works without @sendgrid/mail installed.
-    const { loadOptional } = require('../internal_utils.js');
+    const { loadOptional } = require("../internal_utils.js");
     const sgMail = loadOptional(
-      () => require('@sendgrid/mail'),
-      '@sendgrid/mail',
-      'SendGrid email provider'
+      () => require("@sendgrid/mail"),
+      "@sendgrid/mail",
+      "SendGrid email provider",
     );
     // Use a dedicated client instance shape: setApiKey is process-global on the default export.
     // That is acceptable for single-key apps; sendWithConfig creates a fresh adapter and re-sets the key.
@@ -46,12 +46,19 @@ class SendGridEmailAdapter {
     // Ensure this adapter's key is active (important when multiple apps / runtime overrides share the process).
     this._sgMail.setApiKey(this._apiKey);
 
-    const fromEmail = message.from || this.config.from || this.config.from_email;
+    const fromEmail =
+      message.from || this.config.from || this.config.from_email;
     if (!fromEmail) {
-      throw new Error("Email 'from' address is required (set in config or on the message).");
+      throw new Error(
+        "Email 'from' address is required (set in config or on the message).",
+      );
     }
 
-    const fromName = message.fromName || message.from_name || this.config.from_name || this.config.fromName;
+    const fromName =
+      message.fromName ||
+      message.from_name ||
+      this.config.from_name ||
+      this.config.fromName;
     const from = fromName ? { email: fromEmail, name: fromName } : fromEmail;
 
     const msg = {
@@ -63,7 +70,7 @@ class SendGridEmailAdapter {
       cc: message.cc,
       bcc: message.bcc,
       replyTo: message.replyTo || message.reply_to,
-      attachments: _mapAttachments(message.attachments)
+      attachments: _mapAttachments(message.attachments),
     };
 
     // Strip undefined keys so SendGrid does not reject empty fields.
@@ -74,21 +81,26 @@ class SendGridEmailAdapter {
     try {
       const [response] = await this._sgMail.send(msg);
       const messageId =
-        (response && response.headers && (response.headers['x-message-id'] || response.headers['X-Message-Id'])) ||
+        (response &&
+          response.headers &&
+          (response.headers["x-message-id"] ||
+            response.headers["X-Message-Id"])) ||
         `sendgrid-${Date.now()}`;
 
       return {
         messageId: String(messageId),
-        provider: 'sendgrid',
-        status: 'sent',
-        statusCode: response && response.statusCode
+        provider: "sendgrid",
+        status: "sent",
+        statusCode: response && response.statusCode,
       };
     } catch (err) {
       const detail =
         err.response && err.response.body
           ? JSON.stringify(err.response.body)
           : err.message;
-      this.logger.error(`[email:sendgrid] Send failed for app '${this.app && this.app.name}': ${detail}`);
+      this.logger.error(
+        `[email:sendgrid] Send failed for app '${this.app && this.app.name}': ${detail}`,
+      );
       throw new Error(`SendGrid email send failed: ${err.message}`);
     }
   }
@@ -105,14 +117,14 @@ function _mapAttachments(attachments) {
   return attachments.map((a) => {
     let content = a.content;
     if (Buffer.isBuffer(content)) {
-      content = content.toString('base64');
+      content = content.toString("base64");
     }
     return {
       content,
-      filename: a.filename || a.fileName || 'attachment',
+      filename: a.filename || a.fileName || "attachment",
       type: a.type || a.contentType || a.mimeType,
-      disposition: a.disposition || 'attachment',
-      contentId: a.contentId || a.content_id
+      disposition: a.disposition || "attachment",
+      contentId: a.contentId || a.content_id,
     };
   });
 }

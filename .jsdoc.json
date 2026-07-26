@@ -1,21 +1,21 @@
-    {
-      "opts": {
-        "template": "./node_modules/docdash",
-        "destination": "../gingee-docs",
-        "readme": "./docs/jsdoc-README.md",
-        "recurse": true
-      },
-      "source": {
-        "include": ["./modules"],
-        "includePattern": ".js$",
-        "excludePattern": "(node_modules/|docs)"
-      },
-      "plugins": [],
-      "templates": {
-        "cleverLinks": true,
-        "monospaceLinks": true,
-        "default": {
-          "outputSourceFiles": false
-        }
-      }
+{
+  "opts": {
+    "template": "./node_modules/docdash",
+    "destination": "../gingee-docs",
+    "readme": "./docs/jsdoc-README.md",
+    "recurse": true
+  },
+  "source": {
+    "include": ["./modules"],
+    "includePattern": ".js$",
+    "excludePattern": "(node_modules/|docs)"
+  },
+  "plugins": [],
+  "templates": {
+    "cleverLinks": true,
+    "monospaceLinks": true,
+    "default": {
+      "outputSourceFiles": false
     }
+  }
+}

@@ -1,62 +1,62 @@
 body {
-    font-family: 'Roboto', sans-serif;
-    background-color: #f8f9fa;
+  font-family: "Roboto", sans-serif;
+  background-color: #f8f9fa;
 }
 
-.btn{
-    min-width: 100px;
-    margin-top: 5px;
-    margin-bottom: 5px;
+.btn {
+  min-width: 100px;
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
-.btn-mark{
-    display: inline-block;
-    width: 15px;
-    height: 15px;
-    background-color: currentColor;
-    border-radius: 50%;
-    margin-right: 5px;
-    vertical-align: middle;
+.btn-mark {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  background-color: currentColor;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
 }
 
 .actions-group > * {
-    margin-left: 0.25rem;
+  margin-left: 0.25rem;
 }
 
 #install-wizard-content .tab-pane {
-    height: 350px;       /* Set a fixed height for the content area */
-    overflow-y: auto;    /* Add a vertical scrollbar only when content overflows */
-    padding: 10px;       /* Add some internal padding */
-    border: 1px solid #dee2e6;
-    border-top: none;    /* The tabs themselves act as the top border */
-    border-radius: 0 0 0.25rem 0.25rem;
+  height: 350px; /* Set a fixed height for the content area */
+  overflow-y: auto; /* Add a vertical scrollbar only when content overflows */
+  padding: 10px; /* Add some internal padding */
+  border: 1px solid #dee2e6;
+  border-top: none; /* The tabs themselves act as the top border */
+  border-radius: 0 0 0.25rem 0.25rem;
 }
 
 /* Queue / DLQ admin action links */
 .queue-action-link {
-    color: #0d6efd;
-    text-decoration: none;
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 400;
-    margin: 0 0.35rem;
-    background: none;
-    border: none;
-    padding: 0;
-    font-family: inherit;
+  color: #0d6efd;
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 400;
+  margin: 0 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
 }
 .queue-action-link:hover,
 .queue-action-link:focus {
-    color: #0a58ca;
-    text-decoration: none;
-    font-weight: 600;
+  color: #0a58ca;
+  text-decoration: none;
+  font-weight: 600;
 }
 .queue-action-link.queue-dlq-discard {
-    color: #6c757d;
+  color: #6c757d;
 }
 .queue-action-link.queue-dlq-discard:hover,
 .queue-action-link.queue-dlq-discard:focus {
-    color: #dc3545;
-    text-decoration: none;
-    font-weight: 600;
+  color: #dc3545;
+  text-decoration: none;
+  font-weight: 600;
 }

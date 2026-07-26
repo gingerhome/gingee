@@ -10,20 +10,20 @@
  * Internals live under modules/engine/request_context/ (engine-only; sandbox cannot require).
  */
 
-const { AsyncLocalStorage } = require('async_hooks');
-const path = require('path');
+const { AsyncLocalStorage } = require("async_hooks");
+const path = require("path");
 
 const als = new AsyncLocalStorage();
 
-const { initializeGContext } = require('./engine/request_context/build_g.js');
-const { parseBodyAndRunHandler } = require('./engine/request_context/body.js');
+const { initializeGContext } = require("./engine/request_context/build_g.js");
+const { parseBodyAndRunHandler } = require("./engine/request_context/body.js");
 
 module.exports = {
   als,
   getContext: () => {
     const store = als.getStore();
     if (!store) {
-      throw new Error('No context found');
+      throw new Error("No context found");
     }
     return store;
   },
@@ -31,7 +31,7 @@ module.exports = {
     const store = als.getStore();
     if (!store) {
       throw new Error(
-        "gingee must be called within a request's asynchronous execution context only."
+        "gingee must be called within a request's asynchronous execution context only.",
       );
     }
 
@@ -39,7 +39,7 @@ module.exports = {
 
     if (isHttpContext && store.$g && store.$g.isCompleted) {
       store.logger.info(
-        `Handler skipped for script '${path.basename(store.scriptPath)}' because response was already sent.`
+        `Handler skipped for script '${path.basename(store.scriptPath)}' because response was already sent.`,
       );
       return;
     }
@@ -59,18 +59,18 @@ module.exports = {
       if (store && store.logger) {
         store.logger.error(
           `Error in gingee middleware: ${err.message} in app ${store.appName} found in script ${path.basename(store.scriptPath)}`,
-          { stack: err.stack }
+          { stack: err.stack },
         );
       } else {
         console.error(
           `Error in gingee middleware: ${err.message} in app ${store.appName} found in script ${path.basename(store.scriptPath)}`,
-          { stack: err.stack }
+          { stack: err.stack },
         );
       }
       if (isHttpContext && store.$g && !store.$g.isCompleted) {
-        store.res.writeHead(500, { 'Content-Type': 'text/plain' });
+        store.res.writeHead(500, { "Content-Type": "text/plain" });
         store.res.end(
-          `INTERNAL SERVER ERROR - ${err.message} - check logs for more details`
+          `INTERNAL SERVER ERROR - ${err.message} - check logs for more details`,
         );
         store.$g.isCompleted = true;
         return;
@@ -80,5 +80,5 @@ module.exports = {
         throw err;
       }
     }
-  }
+  },
 };

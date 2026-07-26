@@ -10,25 +10,31 @@ NOTE: You might need to install pre-requistes based on your setup.
 ```bash
 npm install -g gingee-cli
 ```
+
 After installation, you will have access to the `gingee-cli` command in your terminal.
 
 ## Verifying the Installation
 
 After the installation is complete, you can verify that it was successful by running the version command:
+
 ```bash
 gingee-cli --version
 ```
+
 This should print the installed version number of the CLI.
 
 ## Platform Specific Requirements
 
 ### **Windows**
+
 For most Windows users, no additional setup is required. The standard Node.js installer from [nodejs.org](https://nodejs.org/) includes everything you need.
 
 ### **macOS**
+
 macOS users need the **Xcode Command Line Tools**. Most developer-focused setups will already have this.
 
 ### **Linux (Debian/Ubuntu)**
+
 Linux systems require a C++ compiler toolchain to build some of the CLI's dependencies. You can install the necessary packages by running:
 
 ```bash
@@ -36,6 +42,7 @@ sudo apt-get update && sudo apt-get install -y build-essential python
 ```
 
 ### **Linux (RHEL/Fedora/CentOS)**
+
 For Red Hat-based distributions, you can install the necessary build tools with:
 
 ```bash
@@ -55,19 +62,21 @@ This is the main entry point for starting a new Gingee project.
 Scaffolds a complete, new Gingee project in a new directory. It launches an interactive wizard to guide you through the setup.
 
 **Usage:**
+
 ```bash
 gingee-cli init my-awesome-project
 ```
 
 **Wizard Prompts:**
--   `Administrator Username for glade:` Sets the initial username for the bundled Glade admin panel. Defaults to `admin`.
--   `Administrator Password for glade:` Securely prompts for the admin password. This is hashed and stored in Glade's configuration.
--   **Optional feature packages:** Choose a dependency profile for Gingee’s heavy/native optionals (image/`sharp`, non-SQLite SQL drivers, PDF, charts/canvas, SendGrid, Gemini):
-    - **Minimal** — core + SQLite only (fastest install; no `sharp` / image).
-    - **Recommended** (default) — image (`sharp`), PostgreSQL, PDF, charts, SendGrid, Gemini.
-    - **Full** — all optional packages (including Oracle and other SQL drivers).
-    - **Custom** — checkbox picker per feature.
--   `Install npm dependencies automatically?` If yes (default), runs `npm install --omit=optional` for a resilient core install, then `npm install <selected packages>` for any optionals you chose. If you decline, the CLI prints the exact commands to run later.
+
+- `Administrator Username for glade:` Sets the initial username for the bundled Glade admin panel. Defaults to `admin`.
+- `Administrator Password for glade:` Securely prompts for the admin password. This is hashed and stored in Glade's configuration.
+- **Optional feature packages:** Choose a dependency profile for Gingee’s heavy/native optionals (image/`sharp`, non-SQLite SQL drivers, PDF, charts/canvas, SendGrid, Gemini):
+  - **Minimal** — core + SQLite only (fastest install; no `sharp` / image).
+  - **Recommended** (default) — image (`sharp`), PostgreSQL, PDF, charts, SendGrid, Gemini.
+  - **Full** — all optional packages (including Oracle and other SQL drivers).
+  - **Custom** — checkbox picker per feature.
+- `Install npm dependencies automatically?` If yes (default), runs `npm install --omit=optional` for a resilient core install, then `npm install <selected packages>` for any optionals you chose. If you decline, the CLI prints the exact commands to run later.
 
 SQLite, email `console`, and AI `mock` work without optionals. Image processing needs `sharp`. Using a feature without its package fails at runtime with `FEATURE_NOT_INSTALLED` (see Gingee server-config → Optional npm feature packages).
 
@@ -82,25 +91,29 @@ These commands should be run from the root directory of an existing Gingee proje
 Scaffolds a new, working "hello world" application inside your project's `web` directory.
 
 **Usage:**
+
 ```bash
 gingee-cli add-app my-blog
 ```
 
 **Wizard Prompts:**
--   `What type of app is this?` Choose between `MPA` (Multi-Page App, default) or `SPA` (Single Page Application, for React/Vue/Angular).
--   If `MPA` is chosen, it scaffolds a complete "hello world" application with HTML, CSS, and JS.
--   If `SPA` is chosen, it scaffolds a minimal backend structure (`box/`, `app.json`) and provides clear instructions for you to initialize your chosen frontend framework inside the app's directory.
--   `Would you like to configure a database connection?` If yes, it will guide you through setting up the `db` block in the new app's `app.json`.
--   `Generate a JWT secret for this app?` If yes, it will automatically generate a secure secret and add it to `app.json`.
+
+- `What type of app is this?` Choose between `MPA` (Multi-Page App, default) or `SPA` (Single Page Application, for React/Vue/Angular).
+- If `MPA` is chosen, it scaffolds a complete "hello world" application with HTML, CSS, and JS.
+- If `SPA` is chosen, it scaffolds a minimal backend structure (`box/`, `app.json`) and provides clear instructions for you to initialize your chosen frontend framework inside the app's directory.
+- `Would you like to configure a database connection?` If yes, it will guide you through setting up the `db` block in the new app's `app.json`.
+- `Generate a JWT secret for this app?` If yes, it will automatically generate a secure secret and add it to `app.json`.
 
 #### `add-script <app-name> <script-path>`
 
 Quickly creates a new server script file, pre-populated with the standard Gingee boilerplate.
 
 **Usage:**
+
 ```bash
 gingee-cli add-script my-blog api/posts
 ```
+
 Creates ./web/my-blog/box/api/posts.js
 
 ---
@@ -114,44 +127,52 @@ These commands interact with the API of a live, running `glade` instance. They r
 Authenticates the CLI with a Glade admin panel and saves the session for subsequent commands.
 
 **Usage:**
--  Login to a local server
+
+- Login to a local server
+
 ```bash
 gingee-cli login
 ```
 
--  Login to a remote server
+- Login to a remote server
+
 ```bash
 gingee-cli login -s http://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`.
--   `-u, --username <username>`: Provide the username non-interactively. Defaults to `admin`.
--   `-p, --password <password>`: Provide the password non-interactively. If this option is omitted, you will be securely prompted to enter a password.
+
+- `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`.
+- `-u, --username <username>`: Provide the username non-interactively. Defaults to `admin`.
+- `-p, --password <password>`: Provide the password non-interactively. If this option is omitted, you will be securely prompted to enter a password.
 
 #### `logout [server-url]`
 
 Logs out of a specific Glade session by deleting the stored credentials.
 
 **Usage:**
+
 ```bash
 gingee-cli logout -s http://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`
+
+- `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`
 
 #### `list-apps`
 
 Lists all applications installed on the target server.
 
 **Usage:**
+
 ```bash
 gingee-cli list-apps -s https://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`.
+
+- `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`.
 
 ---
 
@@ -164,16 +185,19 @@ These commands allow you to discover and install applications from a decentraliz
 Fetches the manifest from a store URL and displays a list of available applications.
 
 **Usage:**
+
 ```bash
 gingee-cli list-store-apps -g https://my-store.example.com
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+
+- `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
 
 #### `install-store-app <app-name>`
 
 Initiates an interactive installation of an application from a store. The CLI will:
+
 1.  Download the app's `.gin` package.
 2.  Read the app's required permissions from its internal `pmft.json` manifest.
 3.  Prompt you for consent to grant these permissions.
@@ -181,17 +205,20 @@ Initiates an interactive installation of an application from a store. The CLI wi
 5.  Repackage the app with your configuration and securely install it on your target Gingee server.
 
 **Usage:**
+
 ```bash
 gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-gingee>
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
--   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
+
+- `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+- `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
 
 #### `upgrade-store-app <app-name>`
 
 Initiates an interactive installation of an application from a store. The CLI will:
+
 1.  Download the app's `.gin` package.
 2.  Read the app's required permissions from its internal `pmft.json` manifest.
 3.  Create the new set of permissions that are requested. (auto assigns previous version grants)
@@ -200,13 +227,15 @@ Initiates an interactive installation of an application from a store. The CLI wi
 6.  Repackage the app with your configuration and securely install it on your target Gingee server.
 
 **Usage:**
+
 ```bash
 gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-gingee>
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
--   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
+
+- `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+- `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
 
 ---
 
@@ -214,20 +243,22 @@ gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s htt
 
 These powerful commands allow for remote deployment and management of your applications.
 
-| Command | Description |
-| :--- | :--- |
+| Command           | Description                                                                           |
+| :---------------- | :------------------------------------------------------------------------------------ |
 | **`package-app`** | Packages a live application from the server into a distributable `.gin` archive file. |
-| **`install-app`** | Installs a new application onto a server from a local `.gin` package file. |
-| **`upgrade-app`** | Upgrades an existing application on a server using a new `.gin` package file. |
-| **`delete-app`** | Permanently deletes an application and all its content from the server. |
+| **`install-app`** | Installs a new application onto a server from a local `.gin` package file.            |
+| **`upgrade-app`** | Upgrades an existing application on a server using a new `.gin` package file.         |
+| **`delete-app`**  | Permanently deletes an application and all its content from the server.               |
 
 **Common Options for Lifecycle Commands:**
--   `-s, --server <url>` (Optional): The URL of the target server. Defaults to the last-logged-in server.
--   `-a, --appName <app-name>` (Required): The name of the target application.
--   `-p, --ginPath <path>` (Required for install/upgrade): The path to the local `.gin` package file.
--   `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
+
+- `-s, --server <url>` (Optional): The URL of the target server. Defaults to the last-logged-in server.
+- `-a, --appName <app-name>` (Required): The name of the target application.
+- `-p, --ginPath <path>` (Required for install/upgrade): The path to the local `.gin` package file.
+- `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
 
 **Example Usage:**
+
 ```bash
 # Upgrade the 'my-blog' app on a production server
 gingee-cli upgrade-app --appName my-blog --ginPath ./builds/my-blog-v2.gin --server https://prod.server
@@ -239,15 +270,16 @@ gingee-cli upgrade-app --appName my-blog --ginPath ./builds/my-blog-v2.gin --ser
 
 Commands for the disaster recovery and rollback features.
 
-| Command | Description |
-| :--- | :--- |
+| Command                | Description                                                                      |
+| :--------------------- | :------------------------------------------------------------------------------- |
 | **`list-app-backups`** | Lists all available `.gin` backup files for an application stored on the server. |
-| **`rollback-app`** | Rolls an application back to its most recently created backup on the server. |
+| **`rollback-app`**     | Rolls an application back to its most recently created backup on the server.     |
 
 **Common Options for Recovery Commands:**
--   `-s, --server <url>` (Optional): The URL of the target server.
--   `-a, --appName <app-name>` (Required): The name of the target application.
--   `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
+
+- `-s, --server <url>` (Optional): The URL of the target server.
+- `-a, --appName <app-name>` (Required): The name of the target application.
+- `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
 
 ---
 
@@ -258,6 +290,7 @@ For use in CI/CD pipelines or other automated scripts, the lifecycle commands (`
 The preset file is a simple JSON file that contains the configuration for the action you want to perform. The CLI will use the values from this file instead of showing interactive prompts.
 
 **Example `myapp-deploy-presets.json`:**
+
 ```json
 {
   "upgrade": {
@@ -292,25 +325,27 @@ The preset file is a simple JSON file that contains the configuration for the ac
 For sensitive values like passwords, you can use environment variable placeholders (a string starting with `$`). The CLI will automatically substitute `$VAR_NAME` with the value of the `process.env.VAR_NAME` variable at runtime.
 
 **Example Usage in a CI/CD script:**
+
 ```bash
 # The server URL and app name are still passed as arguments for safety
 export DB_PASSWORD_PROD="a-very-secret-password"
 gingee-cli upgrade-app --appName my-blog-app --serverUrl https://prod.server --file ./deploy.json
 ```
+
 ---
 
 ### Service Management
 
 Commands for running Gingee as a native background service. These commands must be run from a project's root directory and typically require `sudo` or Administrator privileges.
 
--   **`service install`**: Installs and starts the server as a background service.
--   **`service uninstall`**: Stops and removes the background service.
--   **`service start`**: Manually starts the installed service.
--   **`service stop`**: Manually stops the installed service.
+- **`service install`**: Installs and starts the server as a background service.
+- **`service uninstall`**: Stops and removes the background service.
+- **`service start`**: Manually starts the installed service.
+- **`service stop`**: Manually stops the installed service.
 
 ---
 
 ### Local Utilities
 
--   **`reset-pwd`**: A local recovery tool. Prompts for a new admin user password for `glade` admin panel.
--   **`reset-glade`**: A local recovery tool that performs a clean re-installation or reset of the `glade` admin panel.
+- **`reset-pwd`**: A local recovery tool. Prompts for a new admin user password for `glade` admin panel.
+- **`reset-glade`**: A local recovery tool that performs a clean re-installation or reset of the `glade` admin panel.

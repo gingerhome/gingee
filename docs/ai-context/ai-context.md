@@ -4,7 +4,6 @@ You are an expert developer for a Node.js application server called Gingee. Your
 
 ---
 
-
 # Gingee: Core Concepts
 
 # Gingee: Core Concepts
@@ -21,40 +20,40 @@ Traditional backend development involves dozens of small, time-consuming decisio
 
 A Gingee server has a simple, predictable folder structure. The key directories are:
 
--   **/web/**: This is the **web root**. Every first-level folder inside `web` is considered a distinct **App**.
--   **/web/my_app/**: The folder for an application named `my_app`.
-    -   **/box/**: The **private brain** of your app. All your backend server scripts, private configuration, and private assets live here. Files in this folder are **never** served directly to the web.
-    -   **/css/**, **/images/**, **/scripts/**: Publicly accessible folders for your static assets.
--   **/modules/**: The global "standard library" for Gingee. All the powerful modules like `db`, `crypto`, `fs`, and `image` live here.
--   **/gingee.json**: The main server configuration file.
+- **/web/**: This is the **web root**. Every first-level folder inside `web` is considered a distinct **App**.
+- **/web/my_app/**: The folder for an application named `my_app`.
+  - **/box/**: The **private brain** of your app. All your backend server scripts, private configuration, and private assets live here. Files in this folder are **never** served directly to the web.
+  - **/css/**, **/images/**, **/scripts/**: Publicly accessible folders for your static assets.
+- **/modules/**: The global "standard library" for Gingee. All the powerful modules like `db`, `crypto`, `fs`, and `image` live here.
+- **/gingee.json**: The main server configuration file.
 
 ## 2. The Flexible Routing Engine
 
 Gingee features a powerful and flexible routing engine that automatically maps incoming URL requests to your server scripts or static files. It supports two distinct modes to fit your application's needs. The two modes can also be used together.
 
-**NOTE:** 
+**NOTE:**
+
 - In both modes, the url path should **NOT** have the /box/ explicitly mentioned. Gingee will handle it as required.
 - For Single Page Applications (`"type": "SPA"` with `spa.enabled`), Gingee provides first-class SPA hosting: in production it serves assets from `spa.build_path` and falls back to `spa.fallback_path` (usually `index.html`) for client-side routes; in development it can proxy non-API traffic to your frontend hot-reload server. Backend APIs still run from `box/`. See the [SPA Developer's Guide](./app-spadev-guide.md).
-
 
 ### Mode 1: File-Based Routing (Zero-Config Default)
 
 For simplicity and rapid development, this is the default behavior. You don't need to configure anything—just create files.
 
--   **Server Scripts:** A request to a URL without a file extension is mapped to a JavaScript file inside the `box` folder.
-    -   `GET /my-app/users/list` → executes `web/my-app/box/users/list.js`.
--   **Static Files:** A request to a URL *with* a file extension is mapped to a public file.
-    -   `GET /my-app/css/style.css` → serves the file at `web/my-app/css/style.css`.
+- **Server Scripts:** A request to a URL without a file extension is mapped to a JavaScript file inside the `box` folder.
+  - `GET /my-app/users/list` → executes `web/my-app/box/users/list.js`.
+- **Static Files:** A request to a URL _with_ a file extension is mapped to a public file.
+  - `GET /my-app/css/style.css` → serves the file at `web/my-app/css/style.css`.
 
 ### Mode 2: Manifest-Based Routing (Powerful & Explicit)
 
 For building RESTful APIs with clean, dynamic URLs, you can activate a more powerful routing mode by creating a **`routes.json`** file in your app's `box` folder.
 
--   **Dynamic Path Parameters:** This mode allows you to define routes with named parameters, which are automatically extracted and made available in your scripts.
-    -   A route defined as `path: "/users/:userId/profile"` in `routes.json`...
-    -   ...will match a request to `/my-app/users/123/profile`.
-    -   ...and your script will receive the parameter `{ "userId": "123" }`.
--   **Explicit Mapping:** The `routes.json` file provides a clear, single source of truth for all of your application's endpoints, mapping them to specific server scripts and HTTP methods. When this file exists, it takes precedence over file-based routing.
+- **Dynamic Path Parameters:** This mode allows you to define routes with named parameters, which are automatically extracted and made available in your scripts.
+  - A route defined as `path: "/users/:userId/profile"` in `routes.json`...
+  - ...will match a request to `/my-app/users/123/profile`.
+  - ...and your script will receive the parameter `{ "userId": "123" }`.
+- **Explicit Mapping:** The `routes.json` file provides a clear, single source of truth for all of your application's endpoints, mapping them to specific server scripts and HTTP methods. When this file exists, it takes precedence over file-based routing.
 
 **IMPORTANT:** The /box/ folder is never included in the url paths. Eg. a URL /<my-app>/api/my-script is automatically resolved by Gingee to /<my-app>/**box**/api/my-script . If the script exists, it is executed as a server script, if not Gingee will attempt to check for a folder of the same name in the path /<my-app>/api/my-script . If such a folder does not exist then a 404 is issued. If <app-name>/box/ appears in the URL a blanket 403 Access Denied is issued.
 
@@ -62,20 +61,20 @@ For building RESTful APIs with clean, dynamic URLs, you can activate a more powe
 
 **Security is not an afterthought in Gingee; it is the default.** Every server script you write is executed inside a secure sandbox called the "gbox".
 
--   **Isolation:** The sandbox prevents a script from accessing the server's global scope, filesystem, or sensitive process variables.
--   **Controlled Environment:** Instead of having dangerous access, your script is given a single, secure global object (`$g`) to interact with the world.
--   **ESM Support:** The sandbox automatically transpiles modern ES Module syntax (`import`/`from`) on the fly, so you can write modern JavaScript without any build steps.
+- **Isolation:** The sandbox prevents a script from accessing the server's global scope, filesystem, or sensitive process variables.
+- **Controlled Environment:** Instead of having dangerous access, your script is given a single, secure global object (`$g`) to interact with the world.
+- **ESM Support:** The sandbox automatically transpiles modern ES Module syntax (`import`/`from`) on the fly, so you can write modern JavaScript without any build steps.
 
 ## 4. The `gingee()` Middleware & the `$g` Global
 
 This is the heart of the Gingee development experience. Every server script is wrapped in a call to the `gingee()` middleware, which prepares the environment and provides a powerful, simplified API.
 
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        // Your code goes here
-        $g.response.send("Hello, World!");
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    // Your code goes here
+    $g.response.send("Hello, World!");
+  });
 };
 ```
 
@@ -89,26 +88,26 @@ Gingee is designed for **cooperative multi-app** hosting: several applications o
 
 Gingee provides a rich standard library of "app modules" to handle common tasks securely and efficiently. These are required by name (e.g., `require('db')`) from any server script.
 
--   **`ai`**: Generative AI (chat/stream, multimodal, document parsing, moderation) via provider adapters (`gemini`, `mock`; `xai` planned)
--   **`auth`**: Provides authentication-related functions, including JWT creation and verification
--   **`cache`**: Provides a secure interface for caching data within the Gingee application context.
--   **`chart`**: Provides functionality to create and manipulate server-side charts
--   **`crypto`**: Provides an essential cryptographic toolkit.
--   **`dashboard`**: Provides functionality to create and manage a dashboard layout with multiple charts.
--   **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
--   **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
--   **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
--   **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations.
--   **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
--   **`httpclient`**: Provides functions to perform GET and POST requests, supporting various content types to simplify http calls
--   **`image`**: Provides a simple and secure way to manipulate images, including resizing, rotating, format conversion etc.
--   **`pdf`**: Provides functionality to create PDF documents, and includes a custom font registry system.
--   **`qrcode`**: Provides functions to generate QR codes and 1D barcodes.
--   **`utils`**: provides functions for generating random data, validating inputs, manipulating strings, and more.
--   **`uuid`**: Provides functions to generate and validate UUIDs (Universally Unique Identifiers).
--   **`zip`**: Provides functions to zip and unzip files and directories securely.
+- **`ai`**: Generative AI (chat/stream, multimodal, document parsing, moderation) via provider adapters (`gemini`, `mock`; `xai` planned)
+- **`auth`**: Provides authentication-related functions, including JWT creation and verification
+- **`cache`**: Provides a secure interface for caching data within the Gingee application context.
+- **`chart`**: Provides functionality to create and manipulate server-side charts
+- **`crypto`**: Provides an essential cryptographic toolkit.
+- **`dashboard`**: Provides functionality to create and manage a dashboard layout with multiple charts.
+- **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
+- **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
+- **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
+- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations.
+- **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
+- **`httpclient`**: Provides functions to perform GET and POST requests, supporting various content types to simplify http calls
+- **`image`**: Provides a simple and secure way to manipulate images, including resizing, rotating, format conversion etc.
+- **`pdf`**: Provides functionality to create PDF documents, and includes a custom font registry system.
+- **`qrcode`**: Provides functions to generate QR codes and 1D barcodes.
+- **`utils`**: provides functions for generating random data, validating inputs, manipulating strings, and more.
+- **`uuid`**: Provides functions to generate and validate UUIDs (Universally Unique Identifiers).
+- **`zip`**: Provides functions to zip and unzip files and directories securely.
 
--   **`platform`**: Provides special Gingee platform level functions. To be used by only platform-level apps which are configured at server level (in gingee.json) as 'privileged apps'
+- **`platform`**: Provides special Gingee platform level functions. To be used by only platform-level apps which are configured at server level (in gingee.json) as 'privileged apps'
 
 **IMPORTANT**: All Gingee modules are required by name (eg. 'fs'). Some of these names intentionally are similar to NodeJS built-in modules for developer familiarity only. Gingee by default locks out access for all NodeJS built-in modules and third party modules with the exception of 'querystring', 'url' and 'mime-types'. A whitelist of built-in and third party modules can be configured in gingee.json but it is not recommended to do so to preserve the sandboxed nature of Gingee apps.
 
@@ -116,10 +115,10 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
--   **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
--   **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
--   **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
--   **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
+- **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
+- **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
+- **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
+- **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.
 
@@ -127,10 +126,10 @@ For a full breakdown, see the **[Server Config](./server-config.md)** and **[App
 
 The `gingee-cli` is an essential, all-in-one tool for the entire application lifecycle. It is used for both local development and production server management. Its key capabilities include:
 
--   **Project Initialization:** Scaffolding a complete, new Gingee project with `gingee-cli init`.
--   **Local Scaffolding:** Quickly creating new apps and server scripts with `add-app` and `add-script`.
--   **Application Lifecycle:** Interactively installing (`install-app`), upgrading (`upgrade-app`), rolling back (`rollback-app`), and deleting applications on a remote server.
--   **App Store:** Discovering and installing apps from a decentralized store with `list-store-apps` and `install-store-app`.
+- **Project Initialization:** Scaffolding a complete, new Gingee project with `gingee-cli init`.
+- **Local Scaffolding:** Quickly creating new apps and server scripts with `add-app` and `add-script`.
+- **Application Lifecycle:** Interactively installing (`install-app`), upgrading (`upgrade-app`), rolling back (`rollback-app`), and deleting applications on a remote server.
+- **App Store:** Discovering and installing apps from a decentralized store with `list-store-apps` and `install-store-app`.
 
 For detailed usage of all commands, see the **CLI Command Reference** [MD](./gingee-cli.md) / [HTML](./gingee-cli.html).
 
@@ -146,9 +145,7 @@ You are encouraged to adopt this same powerful workflow. The key is to provide t
 2.  **Prime the AI:** Begin a new session with a capable AI (like Google Gemini) by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called Gingee. Analyze the following documentation and API reference and be prepared to help me build an application."
 3.  **Give it a Task:** Once the AI has processed the context, you can give it high-level, goal-oriented tasks, and it will generate high-quality, idiomatic Gingee code.
 
-
 ---
-
 
 # Gingee CLI: Command Reference
 
@@ -164,25 +161,31 @@ NOTE: You might need to install pre-requistes based on your setup.
 ```bash
 npm install -g gingee-cli
 ```
+
 After installation, you will have access to the `gingee-cli` command in your terminal.
 
 ## Verifying the Installation
 
 After the installation is complete, you can verify that it was successful by running the version command:
+
 ```bash
 gingee-cli --version
 ```
+
 This should print the installed version number of the CLI.
 
 ## Platform Specific Requirements
 
 ### **Windows**
+
 For most Windows users, no additional setup is required. The standard Node.js installer from [nodejs.org](https://nodejs.org/) includes everything you need.
 
 ### **macOS**
+
 macOS users need the **Xcode Command Line Tools**. Most developer-focused setups will already have this.
 
 ### **Linux (Debian/Ubuntu)**
+
 Linux systems require a C++ compiler toolchain to build some of the CLI's dependencies. You can install the necessary packages by running:
 
 ```bash
@@ -190,6 +193,7 @@ sudo apt-get update && sudo apt-get install -y build-essential python
 ```
 
 ### **Linux (RHEL/Fedora/CentOS)**
+
 For Red Hat-based distributions, you can install the necessary build tools with:
 
 ```bash
@@ -209,19 +213,21 @@ This is the main entry point for starting a new Gingee project.
 Scaffolds a complete, new Gingee project in a new directory. It launches an interactive wizard to guide you through the setup.
 
 **Usage:**
+
 ```bash
 gingee-cli init my-awesome-project
 ```
 
 **Wizard Prompts:**
--   `Administrator Username for glade:` Sets the initial username for the bundled Glade admin panel. Defaults to `admin`.
--   `Administrator Password for glade:` Securely prompts for the admin password. This is hashed and stored in Glade's configuration.
--   **Optional feature packages:** Choose a dependency profile for Gingee’s heavy/native optionals (image/`sharp`, non-SQLite SQL drivers, PDF, charts/canvas, SendGrid, Gemini):
-    - **Minimal** — core + SQLite only (fastest install; no `sharp` / image).
-    - **Recommended** (default) — image (`sharp`), PostgreSQL, PDF, charts, SendGrid, Gemini.
-    - **Full** — all optional packages (including Oracle and other SQL drivers).
-    - **Custom** — checkbox picker per feature.
--   `Install npm dependencies automatically?` If yes (default), runs `npm install --omit=optional` for a resilient core install, then `npm install <selected packages>` for any optionals you chose. If you decline, the CLI prints the exact commands to run later.
+
+- `Administrator Username for glade:` Sets the initial username for the bundled Glade admin panel. Defaults to `admin`.
+- `Administrator Password for glade:` Securely prompts for the admin password. This is hashed and stored in Glade's configuration.
+- **Optional feature packages:** Choose a dependency profile for Gingee’s heavy/native optionals (image/`sharp`, non-SQLite SQL drivers, PDF, charts/canvas, SendGrid, Gemini):
+  - **Minimal** — core + SQLite only (fastest install; no `sharp` / image).
+  - **Recommended** (default) — image (`sharp`), PostgreSQL, PDF, charts, SendGrid, Gemini.
+  - **Full** — all optional packages (including Oracle and other SQL drivers).
+  - **Custom** — checkbox picker per feature.
+- `Install npm dependencies automatically?` If yes (default), runs `npm install --omit=optional` for a resilient core install, then `npm install <selected packages>` for any optionals you chose. If you decline, the CLI prints the exact commands to run later.
 
 SQLite, email `console`, and AI `mock` work without optionals. Image processing needs `sharp`. Using a feature without its package fails at runtime with `FEATURE_NOT_INSTALLED` (see Gingee server-config → Optional npm feature packages).
 
@@ -236,25 +242,29 @@ These commands should be run from the root directory of an existing Gingee proje
 Scaffolds a new, working "hello world" application inside your project's `web` directory.
 
 **Usage:**
+
 ```bash
 gingee-cli add-app my-blog
 ```
 
 **Wizard Prompts:**
--   `What type of app is this?` Choose between `MPA` (Multi-Page App, default) or `SPA` (Single Page Application, for React/Vue/Angular).
--   If `MPA` is chosen, it scaffolds a complete "hello world" application with HTML, CSS, and JS.
--   If `SPA` is chosen, it scaffolds a minimal backend structure (`box/`, `app.json`) and provides clear instructions for you to initialize your chosen frontend framework inside the app's directory.
--   `Would you like to configure a database connection?` If yes, it will guide you through setting up the `db` block in the new app's `app.json`.
--   `Generate a JWT secret for this app?` If yes, it will automatically generate a secure secret and add it to `app.json`.
+
+- `What type of app is this?` Choose between `MPA` (Multi-Page App, default) or `SPA` (Single Page Application, for React/Vue/Angular).
+- If `MPA` is chosen, it scaffolds a complete "hello world" application with HTML, CSS, and JS.
+- If `SPA` is chosen, it scaffolds a minimal backend structure (`box/`, `app.json`) and provides clear instructions for you to initialize your chosen frontend framework inside the app's directory.
+- `Would you like to configure a database connection?` If yes, it will guide you through setting up the `db` block in the new app's `app.json`.
+- `Generate a JWT secret for this app?` If yes, it will automatically generate a secure secret and add it to `app.json`.
 
 #### `add-script <app-name> <script-path>`
 
 Quickly creates a new server script file, pre-populated with the standard Gingee boilerplate.
 
 **Usage:**
+
 ```bash
 gingee-cli add-script my-blog api/posts
 ```
+
 Creates ./web/my-blog/box/api/posts.js
 
 ---
@@ -268,44 +278,52 @@ These commands interact with the API of a live, running `glade` instance. They r
 Authenticates the CLI with a Glade admin panel and saves the session for subsequent commands.
 
 **Usage:**
--  Login to a local server
+
+- Login to a local server
+
 ```bash
 gingee-cli login
 ```
 
--  Login to a remote server
+- Login to a remote server
+
 ```bash
 gingee-cli login -s http://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`.
--   `-u, --username <username>`: Provide the username non-interactively. Defaults to `admin`.
--   `-p, --password <password>`: Provide the password non-interactively. If this option is omitted, you will be securely prompted to enter a password.
+
+- `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`.
+- `-u, --username <username>`: Provide the username non-interactively. Defaults to `admin`.
+- `-p, --password <password>`: Provide the password non-interactively. If this option is omitted, you will be securely prompted to enter a password.
 
 #### `logout [server-url]`
 
 Logs out of a specific Glade session by deleting the stored credentials.
 
 **Usage:**
+
 ```bash
 gingee-cli logout -s http://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`
+
+- `-s, --serverUrl <server-url>`: The target Gingee server URL. Defaults to `http://localhost:7070`
 
 #### `list-apps`
 
 Lists all applications installed on the target server.
 
 **Usage:**
+
 ```bash
 gingee-cli list-apps -s https://remote-gingee:7070
 ```
 
 **Options:**
--   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`.
+
+- `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`.
 
 ---
 
@@ -318,16 +336,19 @@ These commands allow you to discover and install applications from a decentraliz
 Fetches the manifest from a store URL and displays a list of available applications.
 
 **Usage:**
+
 ```bash
 gingee-cli list-store-apps -g https://my-store.example.com
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+
+- `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
 
 #### `install-store-app <app-name>`
 
 Initiates an interactive installation of an application from a store. The CLI will:
+
 1.  Download the app's `.gin` package.
 2.  Read the app's required permissions from its internal `pmft.json` manifest.
 3.  Prompt you for consent to grant these permissions.
@@ -335,17 +356,20 @@ Initiates an interactive installation of an application from a store. The CLI wi
 5.  Repackage the app with your configuration and securely install it on your target Gingee server.
 
 **Usage:**
+
 ```bash
 gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-gingee>
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
--   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
+
+- `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+- `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
 
 #### `upgrade-store-app <app-name>`
 
 Initiates an interactive installation of an application from a store. The CLI will:
+
 1.  Download the app's `.gin` package.
 2.  Read the app's required permissions from its internal `pmft.json` manifest.
 3.  Create the new set of permissions that are requested. (auto assigns previous version grants)
@@ -354,13 +378,15 @@ Initiates an interactive installation of an application from a store. The CLI wi
 6.  Repackage the app with your configuration and securely install it on your target Gingee server.
 
 **Usage:**
+
 ```bash
 gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s http://<remote-gingee>
 ```
 
 **Options:**
--   `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
--   `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
+
+- `-g, --gStoreUrl <gstore-url>` (Optional): The Gingee App Store url
+- `-s, --server <url>` (Optional): The base URL of the target Gingee server. Defaults to `http://localhost:7070`
 
 ---
 
@@ -368,20 +394,22 @@ gingee-cli install-store-app my-blog-app -g https://my-store.example.com  -s htt
 
 These powerful commands allow for remote deployment and management of your applications.
 
-| Command | Description |
-| :--- | :--- |
+| Command           | Description                                                                           |
+| :---------------- | :------------------------------------------------------------------------------------ |
 | **`package-app`** | Packages a live application from the server into a distributable `.gin` archive file. |
-| **`install-app`** | Installs a new application onto a server from a local `.gin` package file. |
-| **`upgrade-app`** | Upgrades an existing application on a server using a new `.gin` package file. |
-| **`delete-app`** | Permanently deletes an application and all its content from the server. |
+| **`install-app`** | Installs a new application onto a server from a local `.gin` package file.            |
+| **`upgrade-app`** | Upgrades an existing application on a server using a new `.gin` package file.         |
+| **`delete-app`**  | Permanently deletes an application and all its content from the server.               |
 
 **Common Options for Lifecycle Commands:**
--   `-s, --server <url>` (Optional): The URL of the target server. Defaults to the last-logged-in server.
--   `-a, --appName <app-name>` (Required): The name of the target application.
--   `-p, --ginPath <path>` (Required for install/upgrade): The path to the local `.gin` package file.
--   `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
+
+- `-s, --server <url>` (Optional): The URL of the target server. Defaults to the last-logged-in server.
+- `-a, --appName <app-name>` (Required): The name of the target application.
+- `-p, --ginPath <path>` (Required for install/upgrade): The path to the local `.gin` package file.
+- `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
 
 **Example Usage:**
+
 ```bash
 # Upgrade the 'my-blog' app on a production server
 gingee-cli upgrade-app --appName my-blog --ginPath ./builds/my-blog-v2.gin --server https://prod.server
@@ -393,15 +421,16 @@ gingee-cli upgrade-app --appName my-blog --ginPath ./builds/my-blog-v2.gin --ser
 
 Commands for the disaster recovery and rollback features.
 
-| Command | Description |
-| :--- | :--- |
+| Command                | Description                                                                      |
+| :--------------------- | :------------------------------------------------------------------------------- |
 | **`list-app-backups`** | Lists all available `.gin` backup files for an application stored on the server. |
-| **`rollback-app`** | Rolls an application back to its most recently created backup on the server. |
+| **`rollback-app`**     | Rolls an application back to its most recently created backup on the server.     |
 
 **Common Options for Recovery Commands:**
--   `-s, --server <url>` (Optional): The URL of the target server.
--   `-a, --appName <app-name>` (Required): The name of the target application.
--   `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
+
+- `-s, --server <url>` (Optional): The URL of the target server.
+- `-a, --appName <app-name>` (Required): The name of the target application.
+- `-f, --file <path>` (Automation): Provide a preset file for non-interactive execution.
 
 ---
 
@@ -412,6 +441,7 @@ For use in CI/CD pipelines or other automated scripts, the lifecycle commands (`
 The preset file is a simple JSON file that contains the configuration for the action you want to perform. The CLI will use the values from this file instead of showing interactive prompts.
 
 **Example `myapp-deploy-presets.json`:**
+
 ```json
 {
   "upgrade": {
@@ -446,32 +476,32 @@ The preset file is a simple JSON file that contains the configuration for the ac
 For sensitive values like passwords, you can use environment variable placeholders (a string starting with `$`). The CLI will automatically substitute `$VAR_NAME` with the value of the `process.env.VAR_NAME` variable at runtime.
 
 **Example Usage in a CI/CD script:**
+
 ```bash
 # The server URL and app name are still passed as arguments for safety
 export DB_PASSWORD_PROD="a-very-secret-password"
 gingee-cli upgrade-app --appName my-blog-app --serverUrl https://prod.server --file ./deploy.json
 ```
+
 ---
 
 ### Service Management
 
 Commands for running Gingee as a native background service. These commands must be run from a project's root directory and typically require `sudo` or Administrator privileges.
 
--   **`service install`**: Installs and starts the server as a background service.
--   **`service uninstall`**: Stops and removes the background service.
--   **`service start`**: Manually starts the installed service.
--   **`service stop`**: Manually stops the installed service.
+- **`service install`**: Installs and starts the server as a background service.
+- **`service uninstall`**: Stops and removes the background service.
+- **`service start`**: Manually starts the installed service.
+- **`service stop`**: Manually stops the installed service.
 
 ---
 
 ### Local Utilities
 
--   **`reset-pwd`**: A local recovery tool. Prompts for a new admin user password for `glade` admin panel.
--   **`reset-glade`**: A local recovery tool that performs a clean re-installation or reset of the `glade` admin panel.
-
+- **`reset-pwd`**: A local recovery tool. Prompts for a new admin user password for `glade` admin panel.
+- **`reset-glade`**: A local recovery tool that performs a clean re-installation or reset of the `glade` admin panel.
 
 ---
-
 
 # Server Configuration Reference - The gingee.json File
 
@@ -485,8 +515,8 @@ Here is a comprehensive breakdown of all available properties.
 {
   "server": {
     "http": { "enabled": true, "port": 7070 },
-    "https": { 
-      "enabled": false, 
+    "https": {
+      "enabled": false,
       "port": 7443,
       "key_file": "./settings/ssl/key.pem",
       "cert_file": "./settings/ssl/cert.pem"
@@ -608,12 +638,12 @@ Here is a comprehensive breakdown of all available properties.
 An object that configures the HTTP and HTTPS servers.
 
 - **`server.http`** (object)
-  - **`enabled`** (boolean): Set to `true` to enable the HTTP server. Default: true. 
+  - **`enabled`** (boolean): Set to `true` to enable the HTTP server. Default: true.
   - **`port`** (number): The port number for the HTTP server to listen on. Default: 7070.
 
 - **`server.https`** (object)
-  - **`enabled`** (boolean): Set to `true` to enable the HTTPS server. Default: false. 
-  - **`port`** (number): The port number for the HTTPS server to listen on. Default: 7443. 
+  - **`enabled`** (boolean): Set to `true` to enable the HTTPS server. Default: false.
+  - **`port`** (number): The port number for the HTTPS server to listen on. Default: 7443.
   - **`key_file`** (string): The path to the SSL private key file (e.g., `key.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/key.pem"`.
   - **`cert_file`** (string): The path to the SSL certificate file (e.g., `cert.pem`). Can be relative to the project root or an absolute path. Default: `"./settings/ssl/cert.pem"`
   - **NOTE:** See `Enabling HTTPS` section below to configure and run a HTTPS enabled Gingee
@@ -714,21 +744,21 @@ Or without a URL:
   - Default IANA timezone for jobs that omit `timezone` in `app.json`.
 - **`coordination`** (object, optional): multi-node single-fire policy (does **not** hold Redis connection fields — those live on sibling **`redis`**, matching queue/cache).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `driver` | `"none"` | `"none"` (ops designates one scheduler node) or `"redis"` (distributed coordination). Same idea as `queue.driver` / `cache.provider`. |
-| `strategy` | `"tick"` | **`tick`**: per app+job+fire-slot lock (recommended HA). **`leader`**: one global leader lease; only the leader runs any schedule. |
-| `lock_ttl_ms` | `300000` | Lock / leader lease TTL (ms). Leader renews at ~ttl/3. |
-| `slot_granularity_ms` | `10000` | Tick slot bucket when planned fire time is unavailable (absorbs small clock skew). |
-| `node_id` | `hostname:pid` | Identity stored in Redis lock values. |
+| Key                   | Default        | Meaning                                                                                                                               |
+| :-------------------- | :------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `driver`              | `"none"`       | `"none"` (ops designates one scheduler node) or `"redis"` (distributed coordination). Same idea as `queue.driver` / `cache.provider`. |
+| `strategy`            | `"tick"`       | **`tick`**: per app+job+fire-slot lock (recommended HA). **`leader`**: one global leader lease; only the leader runs any schedule.    |
+| `lock_ttl_ms`         | `300000`       | Lock / leader lease TTL (ms). Leader renews at ~ttl/3.                                                                                |
+| `slot_granularity_ms` | `10000`        | Tick slot bucket when planned fire time is unavailable (absorbs small clock skew).                                                    |
+| `node_id`             | `hostname:pid` | Identity stored in Redis lock values.                                                                                                 |
 
 - **`redis`** (object, optional): connection details used when `coordination.driver` is `"redis"`. **Same fields as `queue.redis` / `cache.redis`.**
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `url` | `null` | Redis URL (e.g. `env:REDIS_URL`). When set, used instead of host/port. |
-| `host` / `port` / `password` / `db` | `127.0.0.1` / `6379` / `null` / `0` | Classic connection fields. |
-| `key_prefix` | `"gingee:scheduler:"` | Namespace for lock keys (use a dedicated prefix; do not share `gingee:queue:`). |
+| Key                                 | Default                             | Meaning                                                                         |
+| :---------------------------------- | :---------------------------------- | :------------------------------------------------------------------------------ |
+| `url`                               | `null`                              | Redis URL (e.g. `env:REDIS_URL`). When set, used instead of host/port.          |
+| `host` / `port` / `password` / `db` | `127.0.0.1` / `6379` / `null` / `0` | Classic connection fields.                                                      |
+| `key_prefix`                        | `"gingee:scheduler:"`               | Namespace for lock keys (use a dedicated prefix; do not share `gingee:queue:`). |
 
 ```json
 "scheduler": {
@@ -761,18 +791,18 @@ Or without a URL:
 - **Description:** Platform **timeouts and concurrency** for this Gingee node. Protects the shared process from hung scripts, stuck outbound HTTP, and request storms. Safe defaults apply when omitted.
 - **App override:** optional `app.json` → `limits` may only **tighten** (lower) these ceilings, never raise them.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `request_timeout_ms` | `30000` | Wall-clock budget for a non-streaming server script (starts when the script runs). On expiry: **504** JSON and request abort signal. |
-| `request_timeout_stream_ms` | `300000` | Hard cap after `$g.response.startStream()` (e.g. AI SSE). |
-| `stream_idle_timeout_ms` | `60000` | If no `write` / `writeSSE` for this long while streaming, the stream is ended (**504** / error SSE). |
-| `outbound_timeout_ms` | `15000` | Default `httpclient` axios timeout when the app omits `options.timeout` (also a ceiling for explicit timeouts). Clamped to remaining request budget when not streaming. |
-| `max_concurrent_requests` | `100` | Max in-flight **server scripts** process-wide (static files are not counted). Over limit → **503** `TOO_MANY_REQUESTS`. |
-| `max_concurrent_requests_per_app` | `25` | Max in-flight scripts per app. Over limit → **503**. |
-| `max_concurrent_outbound` | `50` | Max concurrent `httpclient` calls process-wide. Over limit → status **503** from httpclient. |
-| `headers_timeout_ms` | `60000` | Node HTTP `server.headersTimeout`. |
-| `request_timeout_server_ms` | `120000` | Node HTTP `server.requestTimeout` (whole connection). |
-| `keep_alive_timeout_ms` | `5000` | Node HTTP keep-alive. |
+| Key                               | Default  | Meaning                                                                                                                                                                 |
+| :-------------------------------- | :------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `request_timeout_ms`              | `30000`  | Wall-clock budget for a non-streaming server script (starts when the script runs). On expiry: **504** JSON and request abort signal.                                    |
+| `request_timeout_stream_ms`       | `300000` | Hard cap after `$g.response.startStream()` (e.g. AI SSE).                                                                                                               |
+| `stream_idle_timeout_ms`          | `60000`  | If no `write` / `writeSSE` for this long while streaming, the stream is ended (**504** / error SSE).                                                                    |
+| `outbound_timeout_ms`             | `15000`  | Default `httpclient` axios timeout when the app omits `options.timeout` (also a ceiling for explicit timeouts). Clamped to remaining request budget when not streaming. |
+| `max_concurrent_requests`         | `100`    | Max in-flight **server scripts** process-wide (static files are not counted). Over limit → **503** `TOO_MANY_REQUESTS`.                                                 |
+| `max_concurrent_requests_per_app` | `25`     | Max in-flight scripts per app. Over limit → **503**.                                                                                                                    |
+| `max_concurrent_outbound`         | `50`     | Max concurrent `httpclient` calls process-wide. Over limit → status **503** from httpclient.                                                                            |
+| `headers_timeout_ms`              | `60000`  | Node HTTP `server.headersTimeout`.                                                                                                                                      |
+| `request_timeout_server_ms`       | `120000` | Node HTTP `server.requestTimeout` (whole connection).                                                                                                                   |
+| `keep_alive_timeout_ms`           | `5000`   | Node HTTP keep-alive.                                                                                                                                                   |
 
 **Notes:**
 
@@ -785,16 +815,16 @@ Or without a URL:
 - **Type:** `object` (optional)
 - **Description:** Outbound URL policy (**SSRF hardening**) for `require('httpclient')` and scheduler **URL** jobs. Defaults to **protected** mode. See also the [Threat Model](./threat-model.md).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `mode` | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
-| `https_only` | `false` | When `true`, reject `http:` URLs. |
-| `dns_check` | `true` | Resolve hostnames and deny if any address is blocked (`protected` and `allowlist`). |
-| `max_redirects` | `3` | Max HTTP redirects; **each hop is re-validated**. |
-| `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true` | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`. |
-| `allow_hosts` | `[]` | Exact host or `*.example.com` patterns (exceptions / allowlist entries). |
-| `allow_cidrs` | `[]` | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access. |
-| `deny_hosts` / `deny_cidrs` | `[]` | Extra denials. |
+| Key                                                                        | Default       | Meaning                                                                                                                                                                      |
+| :------------------------------------------------------------------------- | :------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                                                                     | `"protected"` | `"protected"` — block private/loopback/link-local/metadata, allow public internet. `"allowlist"` — only `allow_hosts` / `allow_cidrs`. `"off"` — no checks (local dev only). |
+| `https_only`                                                               | `false`       | When `true`, reject `http:` URLs.                                                                                                                                            |
+| `dns_check`                                                                | `true`        | Resolve hostnames and deny if any address is blocked (`protected` and `allowlist`).                                                                                          |
+| `max_redirects`                                                            | `3`           | Max HTTP redirects; **each hop is re-validated**.                                                                                                                            |
+| `block_private` / `block_loopback` / `block_link_local` / `block_metadata` | `true`        | Class blocks used in `protected` mode. Metadata hostnames/IPs are force-blocked in `protected` and `allowlist`.                                                              |
+| `allow_hosts`                                                              | `[]`          | Exact host or `*.example.com` patterns (exceptions / allowlist entries).                                                                                                     |
+| `allow_cidrs`                                                              | `[]`          | CIDR exceptions (e.g. `"10.0.0.0/8"`) for intentional private access.                                                                                                        |
+| `deny_hosts` / `deny_cidrs`                                                | `[]`          | Extra denials.                                                                                                                                                               |
 
 **Connect pin (DNS rebinding):** When DNS validation yields addresses (or the URL uses a literal IP), `httpclient` and scheduler URL jobs attach a **pinned `lookup`** so TCP connect uses only those pre-checked addresses. Redirect hops are re-resolved, re-checked, and re-pinned.
 
@@ -815,18 +845,18 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 - **Type:** `object` (optional)
 - **Description:** How the engine resolves **secret references** in `gingee.json` and each app’s `app.json` at load/reload time. Apps still **cannot** read host `process.env` from sandbox code; the engine injects resolved values into in-memory config only. See [Threat Model](./threat-model.md).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `load_dotenv` | `false` | When `true`, load project-root `.env` into `process.env` for keys not already set (local Joy). |
-| `required` | `true` | Missing `env:` / `file:` targets throw at load time (fail closed). |
-| `file_roots` | `["./settings/secrets", "/run/secrets"]` | Absolute or project-relative directories allowed for `file:` secrets. Paths outside these roots are rejected. |
+| Key           | Default                                  | Meaning                                                                                                       |
+| :------------ | :--------------------------------------- | :------------------------------------------------------------------------------------------------------------ |
+| `load_dotenv` | `false`                                  | When `true`, load project-root `.env` into `process.env` for keys not already set (local Joy).                |
+| `required`    | `true`                                   | Missing `env:` / `file:` targets throw at load time (fail closed).                                            |
+| `file_roots`  | `["./settings/secrets", "/run/secrets"]` | Absolute or project-relative directories allowed for `file:` secrets. Paths outside these roots are rejected. |
 
 **Reference syntax** (any string config value, including nested fields):
 
-| Form | Example |
-| :--- | :--- |
-| Env | `"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET"` |
-| File | `"password": "file:./settings/secrets/myapp_db_password"` |
+| Form   | Example                                                          |
+| :----- | :--------------------------------------------------------------- |
+| Env    | `"jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET"`                    |
+| File   | `"password": "file:./settings/secrets/myapp_db_password"`        |
 | Object | `"api_key": { "$secret": "env:SENDGRID_KEY", "required": true }` |
 
 **Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
@@ -838,12 +868,12 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 - **Type:** `object` (optional)
 - **Description:** Engine-scoped **Prometheus** exposition for observability (Grafana, etc.). Not an application route and not available via sandboxed `require`—scrape the HTTP path on the server itself. Prefer keeping scrapes on localhost or a private network interface; do not expose `/metrics` on the public internet without a reverse proxy ACL and optional bearer token.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | When `false`, the metrics path is not served. |
-| `path` | `"/metrics"` | HTTP path for scrapes (must start with `/`). |
-| `allow_from` | `["127.0.0.1", "::1", "::ffff:127.0.0.1"]` | Socket remote addresses allowed to scrape. **Empty array = allow all** (not recommended). Uses the TCP peer address only—`X-Forwarded-For` is **not** trusted. |
-| `bearer_token` | `null` | If set (literal or `env:` / `file:` secret ref), require `Authorization: Bearer <token>`. |
+| Key            | Default                                    | Meaning                                                                                                                                                        |
+| :------------- | :----------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`      | `true`                                     | When `false`, the metrics path is not served.                                                                                                                  |
+| `path`         | `"/metrics"`                               | HTTP path for scrapes (must start with `/`).                                                                                                                   |
+| `allow_from`   | `["127.0.0.1", "::1", "::ffff:127.0.0.1"]` | Socket remote addresses allowed to scrape. **Empty array = allow all** (not recommended). Uses the TCP peer address only—`X-Forwarded-For` is **not** trusted. |
+| `bearer_token` | `null`                                     | If set (literal or `env:` / `file:` secret ref), require `Authorization: Bearer <token>`.                                                                      |
 
 **Series (high level):** HTTP request counts/durations (by app, kind, status class), concurrency reject counters, egress deny reasons, scheduler job run outcomes, WebSocket upgrade results / open connection gauges, queue enqueue/complete/fail/retry counters and duration histogram, in-flight gauges, process memory, app/job counts.
 
@@ -858,66 +888,72 @@ curl -s http://127.0.0.1:7070/metrics
 - **Type:** `object` (optional)
 - **Description:** Append-only **JSONL** audit trail for privileged platform actions. Written by the engine when Glade / `platform` APIs mutate state or access sensitive ops data—not full request-level access logs.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | When `false`, no audit file is written. |
-| `path` | `"./logs/audit.jsonl"` | Absolute or project-relative path to the audit log file. Parent directories are created if needed. |
+| Key       | Default                | Meaning                                                                                            |
+| :-------- | :--------------------- | :------------------------------------------------------------------------------------------------- |
+| `enabled` | `true`                 | When `false`, no audit file is written.                                                            |
+| `path`    | `"./logs/audit.jsonl"` | Absolute or project-relative path to the audit log file. Parent directories are created if needed. |
 
 Each line is one JSON object, for example:
 
 ```json
-{"ts":"2026-07-18T12:00:00.000Z","event":"permission.set","actor":"glade","app":"myapp","details":{"previous":["fs"],"granted":["fs","db"]}}
+{
+  "ts": "2026-07-18T12:00:00.000Z",
+  "event": "permission.set",
+  "actor": "glade",
+  "app": "myapp",
+  "details": { "previous": ["fs"], "granted": ["fs", "db"] }
+}
 ```
 
-| Field | Meaning |
-| :--- | :--- |
-| `event` | Stable event name (see table below) |
-| `actor` | Privileged app that performed the action when available; otherwise `system` |
-| `app` | Target application name (when applicable) |
-| `details` | Event-specific payload (no raw log line bodies) |
+| Field     | Meaning                                                                     |
+| :-------- | :-------------------------------------------------------------------------- |
+| `event`   | Stable event name (see table below)                                         |
+| `actor`   | Privileged app that performed the action when available; otherwise `system` |
+| `app`     | Target application name (when applicable)                                   |
+| `details` | Event-specific payload (no raw log line bodies)                             |
 
-| Event | When |
-| :--- | :--- |
-| `permission.set` | Permissions saved for an app |
-| `app.install` / `app.upgrade` / `app.reload` / `app.delete` / `app.rollback` / `app.register` | App lifecycle |
-| `scheduler.run_now` | Glade **Run now** (force schedule; bypasses multi-node coordination) |
-| `queue.dlq.retry` | DLQ job re-enqueued |
-| `queue.dlq.discard` | DLQ job discarded |
-| `logs.list` | Log file list (scope + count) |
-| `logs.read` | Log file tail/read (file name, filters, line counts — **not** line content) |
+| Event                                                                                         | When                                                                        |
+| :-------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
+| `permission.set`                                                                              | Permissions saved for an app                                                |
+| `app.install` / `app.upgrade` / `app.reload` / `app.delete` / `app.rollback` / `app.register` | App lifecycle                                                               |
+| `scheduler.run_now`                                                                           | Glade **Run now** (force schedule; bypasses multi-node coordination)        |
+| `queue.dlq.retry`                                                                             | DLQ job re-enqueued                                                         |
+| `queue.dlq.discard`                                                                           | DLQ job discarded                                                           |
+| `logs.list`                                                                                   | Log file list (scope + count)                                               |
+| `logs.read`                                                                                   | Log file tail/read (file name, filters, line counts — **not** line content) |
 
 ### isolation
 
 - **Type:** `object` (optional)
 - **Description:** Opt-in **process isolation** for server scripts. When enabled, selected apps run box scripts in a **child process** (IPC). The public HTTP(S) ports remain those under `server` — the master accepts connections; workers do not listen on ports. **Default is off** (all apps in-process, same as before).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `mode` | `"off"` | `"off"` = never use workers. `"process"` = allow workers per policy below. |
-| `default` | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`. |
-| `apps` | `[]` | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`. |
-| `groups` | `{}` | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`. |
-| `worker_ready_timeout_ms` | `15000` | Max wait for a worker to become ready after fork. |
-| `request_timeout_ms` | `120000` | Max wait for a worker script (buffered or stream) to finish. On timeout the master sends **`cancel_request` IPC**, ends the client with **504**, and aborts the worker-side `AbortSignal` (cooperative cancel for `httpclient` / long work). |
-| `kill_worker_on_request_timeout` | `false` | When `true`, also **SIGTERM** the worker after cancel (other in-flight requests on that worker die). Prefer cooperative cancel unless you need a hard kill. |
-| `auto_restart` | `true` | Restart workers after unexpected exit (not after intentional stop/reload). |
-| `restart_max` | `10` | Max automatic restarts before staying down until next request/reload. |
-| `restart_delay_ms` | `500` | Base backoff delay (doubles each attempt). |
-| `restart_backoff_max_ms` | `30000` | Cap on backoff delay. |
-| `restart_stable_ms` | `60000` | After this long ready without crash, restart counter resets. |
-| `worker_limits` | see below | V8 / OS resource caps applied to each isolation **worker** process. |
+| Key                              | Default       | Meaning                                                                                                                                                                                                                                      |
+| :------------------------------- | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                           | `"off"`       | `"off"` = never use workers. `"process"` = allow workers per policy below.                                                                                                                                                                   |
+| `default`                        | `"inprocess"` | When `mode` is `"process"`, apps without an explicit flag use `"inprocess"` or `"process"`.                                                                                                                                                  |
+| `apps`                           | `[]`          | App folder names that each get a **solo** worker (`app:<name>`) when `mode` is `"process"`.                                                                                                                                                  |
+| `groups`                         | `{}`          | Map of group id → app name list; members share **one** worker (`group:<id>`). Membership alone isolates them—**no need** to also list them in `apps`.                                                                                        |
+| `worker_ready_timeout_ms`        | `15000`       | Max wait for a worker to become ready after fork.                                                                                                                                                                                            |
+| `request_timeout_ms`             | `120000`      | Max wait for a worker script (buffered or stream) to finish. On timeout the master sends **`cancel_request` IPC**, ends the client with **504**, and aborts the worker-side `AbortSignal` (cooperative cancel for `httpclient` / long work). |
+| `kill_worker_on_request_timeout` | `false`       | When `true`, also **SIGTERM** the worker after cancel (other in-flight requests on that worker die). Prefer cooperative cancel unless you need a hard kill.                                                                                  |
+| `auto_restart`                   | `true`        | Restart workers after unexpected exit (not after intentional stop/reload).                                                                                                                                                                   |
+| `restart_max`                    | `10`          | Max automatic restarts before staying down until next request/reload.                                                                                                                                                                        |
+| `restart_delay_ms`               | `500`         | Base backoff delay (doubles each attempt).                                                                                                                                                                                                   |
+| `restart_backoff_max_ms`         | `30000`       | Cap on backoff delay.                                                                                                                                                                                                                        |
+| `restart_stable_ms`              | `60000`       | After this long ready without crash, restart counter resets.                                                                                                                                                                                 |
+| `worker_limits`                  | see below     | V8 / OS resource caps applied to each isolation **worker** process.                                                                                                                                                                          |
 
 #### isolation.worker_limits
 
 Applied when a worker is forked (`isolation.mode: "process"`). All fields default to `null` (no forced cap).
 
-| Key | Default | Platform | Meaning |
-| :--- | :--- | :--- | :--- |
-| `max_old_space_mb` | `null` | All | V8 old-space heap cap (`--max-old-space-size`). When the heap hits the limit the worker dies and auto-restart may bring it back. |
-| `max_semi_space_mb` | `null` | All | V8 young-generation size (`--max-semi-space-size`). |
-| `uv_threadpool_size` | `null` | All | Sets `UV_THREADPOOL_SIZE` in the worker env. |
-| `priority` | `null` | All | `"low"` \| `"normal"` \| `"high"` — `os.setPriority` after spawn (may require privileges for `"high"` on Unix). |
-| `max_rss_mb` | `null` | **Linux** | Best-effort address-space ceiling via `prlimit --as` if installed. **Ignored on Windows** (log warning); use Docker/Job Objects at the orchestrator for hard RSS caps. |
+| Key                  | Default | Platform  | Meaning                                                                                                                                                                |
+| :------------------- | :------ | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_old_space_mb`   | `null`  | All       | V8 old-space heap cap (`--max-old-space-size`). When the heap hits the limit the worker dies and auto-restart may bring it back.                                       |
+| `max_semi_space_mb`  | `null`  | All       | V8 young-generation size (`--max-semi-space-size`).                                                                                                                    |
+| `uv_threadpool_size` | `null`  | All       | Sets `UV_THREADPOOL_SIZE` in the worker env.                                                                                                                           |
+| `priority`           | `null`  | All       | `"low"` \| `"normal"` \| `"high"` — `os.setPriority` after spawn (may require privileges for `"high"` on Unix).                                                        |
+| `max_rss_mb`         | `null`  | **Linux** | Best-effort address-space ceiling via `prlimit --as` if installed. **Ignored on Windows** (log warning); use Docker/Job Objects at the orchestrator for hard RSS caps. |
 
 ```json
 "isolation": {
@@ -937,13 +973,13 @@ Applied when a worker is forked (`isolation.mode: "process"`). All fields defaul
 
 **How apps are selected (when `mode` is `"process"`):**
 
-| Source | Effect |
-| :--- | :--- |
-| `app.json` `"isolation": "process"` | Solo worker unless the app is also in a **group** |
-| `isolation.apps` | Same as solo opt-in by name |
-| `isolation.groups` | Shared worker for all listed members that are installed |
-| `default: "process"` | Every non-privileged app isolated (use carefully) |
-| `privileged_apps` (e.g. Glade) | **Always** stay in-process |
+| Source                              | Effect                                                  |
+| :---------------------------------- | :------------------------------------------------------ |
+| `app.json` `"isolation": "process"` | Solo worker unless the app is also in a **group**       |
+| `isolation.apps`                    | Same as solo opt-in by name                             |
+| `isolation.groups`                  | Shared worker for all listed members that are installed |
+| `default: "process"`                | Every non-privileged app isolated (use carefully)       |
+| `privileged_apps` (e.g. Glade)      | **Always** stay in-process                              |
 
 If an app appears in both `apps` and a group, the **group wins** (one shared worker).
 
@@ -979,26 +1015,26 @@ In this example: `untrusted-app` → worker `app:untrusted-app`; `app-one` and `
 - **Type:** `object` (optional)
 - **Description:** Master-owned **WebSocket** upgrade support on the same HTTP(S) ports as normal traffic. Apps opt in via `app.json` → `websockets` and must be granted the **`websockets`** permission. Connections always terminate on the **master** (not isolation workers). For one-shot progressive HTTP output, prefer SSE (`startStream` / `writeSSE`).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | Global kill switch. When `false`, no upgrades are accepted. |
-| `max_connections` | `10000` | Max open sockets server-wide. |
-| `max_connections_per_app` | `2000` | Max open sockets per app. |
-| `max_message_bytes` | `65536` | Max inbound message size (also `ws` maxPayload). |
-| `idle_timeout_ms` | `300000` | Close sockets idle longer than this (activity = message or pong). |
-| `heartbeat_ms` | `30000` | Server ping interval; also drives idle checks. |
-| `default_path` | `"/ws"` | Used when an app omits `websockets.path`. Full URL is `/{appName}{path}`. |
-| `fanout` | see below | Multi-node room/app broadcast (optional). |
-| `redis` | see below | Connection for fan-out when `fanout.driver` is `"redis"` (same fields as `queue.redis`). |
+| Key                       | Default   | Meaning                                                                                  |
+| :------------------------ | :-------- | :--------------------------------------------------------------------------------------- |
+| `enabled`                 | `true`    | Global kill switch. When `false`, no upgrades are accepted.                              |
+| `max_connections`         | `10000`   | Max open sockets server-wide.                                                            |
+| `max_connections_per_app` | `2000`    | Max open sockets per app.                                                                |
+| `max_message_bytes`       | `65536`   | Max inbound message size (also `ws` maxPayload).                                         |
+| `idle_timeout_ms`         | `300000`  | Close sockets idle longer than this (activity = message or pong).                        |
+| `heartbeat_ms`            | `30000`   | Server ping interval; also drives idle checks.                                           |
+| `default_path`            | `"/ws"`   | Used when an app omits `websockets.path`. Full URL is `/{appName}{path}`.                |
+| `fanout`                  | see below | Multi-node room/app broadcast (optional).                                                |
+| `redis`                   | see below | Connection for fan-out when `fanout.driver` is `"redis"` (same fields as `queue.redis`). |
 
 #### websockets.fanout (multi-node)
 
 Without fan-out, `require('websockets').toRoom` / `toApp` only reach sockets on **this** process. With Redis pub/sub, every Gingee master delivers to its local members of the room.
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `driver` | `"none"` | `"none"` (single-node) or `"redis"` (pub/sub fan-out). |
-| `node_id` | `hostname:pid` | Origin id so a node ignores its own publishes. |
+| Key       | Default        | Meaning                                                |
+| :-------- | :------------- | :----------------------------------------------------- |
+| `driver`  | `"none"`       | `"none"` (single-node) or `"redis"` (pub/sub fan-out). |
+| `node_id` | `hostname:pid` | Origin id so a node ignores its own publishes.         |
 
 #### websockets.redis
 
@@ -1031,13 +1067,13 @@ Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**
 }
 ```
 
-| Field | Required | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | no | Set `false` to disable; presence of `handler` is enough to enable when permission is granted |
-| `path` | no | Path under the app (default server `default_path`). Client connects to `ws(s)://host/{appName}{path}` |
-| `handler` | **yes** | Box-relative script exporting `async function (socket, ctx)` |
-| `auth` | no | Box-relative script run on upgrade; return `false` / `{ ok: false }` to reject |
-| `allowed_origins` | no | If set, `Origin` must match exactly |
+| Field             | Required | Meaning                                                                                               |
+| :---------------- | :------- | :---------------------------------------------------------------------------------------------------- |
+| `enabled`         | no       | Set `false` to disable; presence of `handler` is enough to enable when permission is granted          |
+| `path`            | no       | Path under the app (default server `default_path`). Client connects to `ws(s)://host/{appName}{path}` |
+| `handler`         | **yes**  | Box-relative script exporting `async function (socket, ctx)`                                          |
+| `auth`            | no       | Box-relative script run on upgrade; return `false` / `{ ok: false }` to reject                        |
+| `allowed_origins` | no       | If set, `Origin` must match exactly                                                                   |
 
 **Multi-tenant apps:** rooms are app-global. Prefix with `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
 
@@ -1052,18 +1088,18 @@ Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**
 - **Type:** `object` (optional)
 - **Description:** Background **job queue**. Apps enqueue work with `require('queue').add(name, payload)`; handlers live under `box/jobs/{name}.js` (or paths mapped in `app.json` → `queue.jobs`). Requires the **`queue`** permission. Default driver is **memory** (single process, not durable). Use **redis** for multi-node shared work and durable jobs (uses existing `ioredis`).
 
-| Key | Default | Meaning |
-| :--- | :--- | :--- |
-| `enabled` | `true` | When `false`, enqueue and processing are off. |
-| `driver` | `"memory"` | `"memory"` or `"redis"`. |
-| `concurrency` | `5` | Max jobs running at once on this node. |
-| `default_attempts` | `3` | Retries after handler failure (exponential backoff). |
-| `default_backoff_ms` | `1000` | Base delay between retries. |
-| `jobs_dir` | `"jobs"` | Default folder under `box/` for job scripts. |
-| `visibility_timeout_ms` | `300000` | **Redis only:** claim lease (ms). If a worker dies mid-job, the claim is reclaimed after this and the job returns to the ready list. Long handlers should finish within this window (lease is refreshed when processing starts). |
-| `shutdown_drain_ms` | `30000` | Graceful shutdown: stop claiming, return local wait-queue claims to the driver, wait up to this many ms for in-flight jobs, then force-release remaining claims and disconnect. |
-| `fail_closed` | `true` | When `driver` is `"redis"` and Redis is unreachable at boot: **`true`** aborts queue init (server boot fails) — no silent memory fallback. Set **`false`** only for local dev (multi-node would otherwise split jobs across node-local memory queues). |
-| `redis` | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`. |
+| Key                     | Default      | Meaning                                                                                                                                                                                                                                                |
+| :---------------------- | :----------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`               | `true`       | When `false`, enqueue and processing are off.                                                                                                                                                                                                          |
+| `driver`                | `"memory"`   | `"memory"` or `"redis"`.                                                                                                                                                                                                                               |
+| `concurrency`           | `5`          | Max jobs running at once on this node.                                                                                                                                                                                                                 |
+| `default_attempts`      | `3`          | Retries after handler failure (exponential backoff).                                                                                                                                                                                                   |
+| `default_backoff_ms`    | `1000`       | Base delay between retries.                                                                                                                                                                                                                            |
+| `jobs_dir`              | `"jobs"`     | Default folder under `box/` for job scripts.                                                                                                                                                                                                           |
+| `visibility_timeout_ms` | `300000`     | **Redis only:** claim lease (ms). If a worker dies mid-job, the claim is reclaimed after this and the job returns to the ready list. Long handlers should finish within this window (lease is refreshed when processing starts).                       |
+| `shutdown_drain_ms`     | `30000`      | Graceful shutdown: stop claiming, return local wait-queue claims to the driver, wait up to this many ms for in-flight jobs, then force-release remaining claims and disconnect.                                                                        |
+| `fail_closed`           | `true`       | When `driver` is `"redis"` and Redis is unreachable at boot: **`true`** aborts queue init (server boot fails) — no silent memory fallback. Set **`false`** only for local dev (multi-node would otherwise split jobs across node-local memory queues). |
+| `redis`                 | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`.                                                                                                                                                                          |
 
 ```json
 "queue": {
@@ -1103,8 +1139,8 @@ module.exports = async function () {
 **From a server script:**
 
 ```javascript
-const queue = require('queue');
-await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
+const queue = require("queue");
+await queue.add("echo", { hello: true }, { delayMs: 0, attempts: 3 });
 ```
 
 **CRON → queue (multi-node friendly):** schedule target `"type": "queue", "job": "nightly"` enqueues instead of running the heavy work inline. App needs both `scheduler` and `queue` permissions; server needs `scheduler.enabled` and `queue.enabled`.
@@ -1119,14 +1155,14 @@ await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
 
 Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth crypto, etc.) and marks specialized packages as **`optionalDependencies`** in `package.json`:
 
-| Feature | Packages |
-| :--- | :--- |
-| Image processing (`require('image')`) | `sharp` |
-| PostgreSQL / MySQL / MSSQL / Oracle | `pg`, `mysql2`, `mssql`, `oracledb` |
-| Charts / canvas barcodes / dashboard | `chartjs-node-canvas`, `canvas` |
-| PDF | `pdfmake` |
-| SendGrid email | `@sendgrid/mail` |
-| Gemini AI | `@google/generative-ai` |
+| Feature                               | Packages                            |
+| :------------------------------------ | :---------------------------------- |
+| Image processing (`require('image')`) | `sharp`                             |
+| PostgreSQL / MySQL / MSSQL / Oracle   | `pg`, `mysql2`, `mssql`, `oracledb` |
+| Charts / canvas barcodes / dashboard  | `chartjs-node-canvas`, `canvas`     |
+| PDF                                   | `pdfmake`                           |
+| SendGrid email                        | `@sendgrid/mail`                    |
+| Gemini AI                             | `@google/generative-ai`             |
 
 **Install behavior (npm):**
 
@@ -1137,6 +1173,7 @@ Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth 
 Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the package name. SQLite (`better-sqlite3`), email `type: "console"`, and AI `type: "mock"` do not require optionals. Image ops need `sharp` installed (or a full/default install that includes optionals).
 
 ### max_body_size
+
 - **Type:** `string`
 - **Description:** Configures the maximum allowed HTTP request body size. Defaults to '10mb'. Interprets human readable string such as `mb`, `gb`.
 
@@ -1157,10 +1194,10 @@ An object that configures the server's logger.
 
 **On disk:**
 
-| Stream | Path | Notes |
-| :--- | :--- | :--- |
-| Server | `{project}/logs/gingee-YYYY-MM-DD.log` | JSON lines; includes engine events **and** app logs forwarded from each app logger |
-| App | `{web_root}/{app}/box/logs/app-YYYY-MM-DD.log` | JSON lines with `"app"`; app-only |
+| Stream | Path                                           | Notes                                                                              |
+| :----- | :--------------------------------------------- | :--------------------------------------------------------------------------------- |
+| Server | `{project}/logs/gingee-YYYY-MM-DD.log`         | JSON lines; includes engine events **and** app logs forwarded from each app logger |
+| App    | `{web_root}/{app}/box/logs/app-YYYY-MM-DD.log` | JSON lines with `"app"`; app-only                                                  |
 
 **Glade:** top menu **Logs** — tail/view server or app files (default last 100 lines; path-jailed). See [Glade Admin](./glade-admin.md).
 
@@ -1176,12 +1213,14 @@ An object that configures the server's logger.
   - **App-level override:** each app may set `allow_dynamic_code` in **`app.json`** (or nested `box.allow_dynamic_code`). An **explicit app value wins** over the server default — so an app can **opt in** (`true`) for Handlebars/UMD, or **opt out** (`false`) even when the server default is `true`.
   - **Legacy:** `allow_code_generation` is still honored if `allow_dynamic_code` is unset.
 - **Example (production default off; only needed apps opt in):**
+
 ```json
 "box": {
   "allowed_modules": [],
   "allow_dynamic_code": false
 }
 ```
+
 ```json
 // web/tests/box/app.json (needs external UMD lib)
 {
@@ -1192,10 +1231,10 @@ An object that configures the server's logger.
 
 ### default_app
 
--   **Type:** `string`
--   **Default:** `"glade"`
--   **Description:** Specifies the `<app-name>` of the application that should handle requests to the server's root URL (`/`). When a user navigates to your server's base address, they will be transparently routed to this application.
--   **Example:** `"default_app": "my-main-website"`
+- **Type:** `string`
+- **Default:** `"glade"`
+- **Description:** Specifies the `<app-name>` of the application that should handle requests to the server's root URL (`/`). When a user navigates to your server's base address, they will be transparently routed to this application.
+- **Example:** `"default_app": "my-main-website"`
 
 ### privileged_apps
 
@@ -1230,24 +1269,24 @@ First, we create a private key and a root certificate for our new local CA. Run 
 
 This is the critical step where you tell your operating system to trust your new local CA.
 
-*   **On macOS:**
-    1.  Double-click the `localCA.pem` file in Finder to open the Keychain Access app.
-    2.  Find the certificate (it will have the "Common Name" you entered). Double-click it.
-    3.  Expand the "Trust" section. For "When using this certificate," select **"Always Trust"**.
-    4.  Close the window and enter your system password when prompted.
+- **On macOS:**
+  1.  Double-click the `localCA.pem` file in Finder to open the Keychain Access app.
+  2.  Find the certificate (it will have the "Common Name" you entered). Double-click it.
+  3.  Expand the "Trust" section. For "When using this certificate," select **"Always Trust"**.
+  4.  Close the window and enter your system password when prompted.
 
-*   **On Windows:**
-    1.  Double-click the `localCA.pem` file.
-    2.  Click "Install Certificate...".
-    3.  Select store location: "Current User", then click Next.
-    4.  Select "Place all certificates in the following store," click "Browse," and choose **"Trusted Root Certification Authorities"**. Click OK.
-    5.  Click Next and Finish, accepting any security warnings.
+- **On Windows:**
+  1.  Double-click the `localCA.pem` file.
+  2.  Click "Install Certificate...".
+  3.  Select store location: "Current User", then click Next.
+  4.  Select "Place all certificates in the following store," click "Browse," and choose **"Trusted Root Certification Authorities"**. Click OK.
+  5.  Click Next and Finish, accepting any security warnings.
 
-*   **On Linux (Ubuntu/Debian):**
-    ```bash
-    sudo cp ./settings/ssl/localCA.pem /usr/local/share/ca-certificates/localCA.crt
-    sudo update-ca-certificates
-    ```
+- **On Linux (Ubuntu/Debian):**
+  ```bash
+  sudo cp ./settings/ssl/localCA.pem /usr/local/share/ca-certificates/localCA.crt
+  sudo update-ca-certificates
+  ```
 
 **Step 3: Create and Sign the Server Certificate**
 
@@ -1281,12 +1320,9 @@ Enable the HTTPS server in your configuration. Since we used the default file pa
 
 Now, start your server (`npm start`). You can navigate to `https://localhost:7443` and your browser will show a secure connection with no warnings.
 
-
 ---
 
-
-# 
-
+#
 
 # Glade: The Gingee Admin Panel
 
@@ -1301,12 +1337,13 @@ When you create a new Gingee project using the `gingee-cli init` command, the Gl
 1.  **Initial Credentials:** During the `init` wizard, you are prompted for an administrator username and password. The CLI securely hashes the password using Argon2 and stores these credentials inside Glade's configuration file.
 
 2.  **Configuration File:** The credentials are saved in `web/glade/box/app.json`:
+
     ```json
     {
       "name": "glade",
       "env": {
         "ADMIN_USERNAME": "admin",
-        "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=..." 
+        "ADMIN_PASSWORD_HASH": "$argon2id$v=19$m=..."
       }
     }
     ```
@@ -1317,11 +1354,11 @@ When you create a new Gingee project using the `gingee-cli init` command, the Gl
 
 Failed logins are rate-limited using the server **cache** (memory or Redis), keyed by **client IP** and **username**. Defaults:
 
-| Setting | Default | Meaning |
-| :--- | ---: | :--- |
-| `LOGIN_MAX_ATTEMPTS` | `5` | Failures before lockout (per IP and per username) |
-| `LOGIN_WINDOW_SEC` | `900` | Window for counting failures (15 minutes) |
-| `LOGIN_LOCKOUT_SEC` | `900` | Lockout duration after the limit is hit |
+| Setting              | Default | Meaning                                           |
+| :------------------- | ------: | :------------------------------------------------ |
+| `LOGIN_MAX_ATTEMPTS` |     `5` | Failures before lockout (per IP and per username) |
+| `LOGIN_WINDOW_SEC`   |   `900` | Window for counting failures (15 minutes)         |
+| `LOGIN_LOCKOUT_SEC`  |   `900` | Lockout duration after the limit is hit           |
 
 Override in `web/glade/box/app.json` → `env` if needed. When locked, `/glade/login` returns **HTTP 429** with `Retry-After` and a generic message (no username enumeration). Successful login clears counters for that IP and username.
 
@@ -1351,9 +1388,9 @@ The dashboard consists of two main components:
 
 1.  **The Header:** Contains the Glade title, **Schedules**, **Queue / DLQ**, **Logs** (server + app log files), and a **Logout** button to securely end your session.
 2.  **The Application List:** A table that displays every application currently installed and running on the Gingee server.
-    -   **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
-    -   **Version:** The version number, as specified in the app's own `app.json` file.
-    -   **Actions:** A set of buttons for performing lifecycle operations on each application.
+    - **App Name:** The unique ID of the application (corresponds to its folder name in `web/`).
+    - **Version:** The version number, as specified in the app's own `app.json` file.
+    - **Actions:** A set of buttons for performing lifecycle operations on each application.
 
 ## Core Features: Application Lifecycle Management
 
@@ -1365,7 +1402,7 @@ This is for deploying a new application from a package file. Glade provides an i
 
 1.  Click the green **Install** button at the top of the application list.
 2.  A modal dialog will appear, prompting for the **Application Name** and the **App Package File (.gin)**.
-3.  Upon selecting a `.gin` file, Glade analyzes the package *in your browser* and transforms the modal into a tabbed installation wizard.
+3.  Upon selecting a `.gin` file, Glade analyzes the package _in your browser_ and transforms the modal into a tabbed installation wizard.
 4.  **Permissions Tab:** The first tab will display the `mandatory` and `optional` permissions the application requires (read from its `pmft.json` manifest). You must review and consent to these permissions before proceeding.
 5.  **Configuration Tab:** If the application requires any database connections, this tab will display a form for you to enter the connection details (host, user, password, etc.). For apps with multiple database requirements, this will be displayed as a convenient accordion.
 6.  **Confirm Tab:** A final tab shows a summary of the installation.
@@ -1397,7 +1434,7 @@ Security is managed at the application level. You can review and change the perm
 
 ### Upgrading an Application
 
-This is for deploying a new version of an *existing* application. The process is nearly identical to a new installation, ensuring the same level of security and configuration.
+This is for deploying a new version of an _existing_ application. The process is nearly identical to a new installation, ensuring the same level of security and configuration.
 
 1.  In the application list, find the app you wish to upgrade and click its blue **Upgrade** button.
 2.  The installation wizard will appear, but the "Application Name" field will be pre-filled and read-only.
@@ -1515,9 +1552,7 @@ The password is set during **`gingee-cli init`** (hashed with Argon2 into `ADMIN
 
 **Note:** The hash that may appear in the Gingee **source repository** under `web/glade/` is for development only. Production projects should only use credentials produced by `init` / `reset-pwd`, never a copied repo default.
 
-
 ---
-
 
 # Anatomy of a Gingee App
 
@@ -1627,6 +1662,7 @@ Here is a comprehensive breakdown of all available properties.
   - **`"development"`** : Activates development-only features. For SPAs, this enables the seamless dev server proxy.
 
 ### SPA Configuration (`spa` object)
+
 This object is used when the app is of `"type": "SPA"`. SPA behavior is active when both `"type": "SPA"` and `"spa.enabled": true` are set.
 
 - **`spa.enabled`** (boolean, required for SPA mode): Must be `true` to activate SPA features (dev proxy and production fallback).
@@ -1653,6 +1689,7 @@ Single generative AI configuration for the app. App config overrides optional se
 **API (sandbox):** `require('ai')` → `chat`, `chatStream` (async generator), `complete`, `parseDocument`, `moderate`. Pass `{ config: { … } }` as the second argument to override server/app config for one call.
 
 **Example:**
+
 ```json
 "ai": {
   "type": "gemini",
@@ -1739,10 +1776,10 @@ Opt-in **WebSocket** endpoint for this app. Requires server `websockets.enabled`
 ```javascript
 module.exports = async function (socket, ctx) {
   // ctx: { app, log, query, path, headers, meta, remoteAddress }
-  socket.join('lobby');
-  socket.send({ type: 'hello' });
-  socket.on('message', (raw) => {
-    socket.to('lobby').send({ echo: raw });
+  socket.join("lobby");
+  socket.send({ type: "hello" });
+  socket.on("message", (raw) => {
+    socket.to("lobby").send({ echo: raw });
   });
 };
 ```
@@ -1753,10 +1790,10 @@ From HTTP scripts: `require('websockets').toRoom('lobby', payload)`. Multi-tenan
 
 Opt-in **process isolation** for this app’s **server scripts** (not static files). Only takes effect when the server has `gingee.json` → `isolation.mode: "process"`. Privileged apps (e.g. Glade) always stay in-process regardless of this flag.
 
-| Value | Meaning |
-| :--- | :--- |
-| `"process"` | Run box scripts in a **solo** child worker (`app:<folderName>`) unless the app is also in a server **group** |
-| `"inprocess"` | Force in-process (default when server mode is process but app is unmarked) |
+| Value         | Meaning                                                                                                      |
+| :------------ | :----------------------------------------------------------------------------------------------------------- |
+| `"process"`   | Run box scripts in a **solo** child worker (`app:<folderName>`) unless the app is also in a server **group** |
+| `"inprocess"` | Force in-process (default when server mode is process but app is unmarked)                                   |
 
 ```json
 "isolation": "process"
@@ -1764,7 +1801,7 @@ Opt-in **process isolation** for this app’s **server scripts** (not static fil
 
 **Server-side alternatives** (no need to set this flag if you use them):
 
-- `isolation.apps: ["my-app"]` — solo worker by folder name  
+- `isolation.apps: ["my-app"]` — solo worker by folder name
 - `isolation.groups: { "tenant-a": ["app-one", "app-two"] }` — one shared worker for members (do **not** also list those names in `apps` unless you want redundancy; group already isolates them)
 
 Buffered responses and SSE (`startStream` / `writeSSE` / `endStream`) are supported over IPC. Full server keys: [Server Config](./server-config.md) → `isolation`.
@@ -1789,16 +1826,16 @@ Declarative CRON jobs for this app. Registered only when **`gingee.json` → `sc
 
 Each entry:
 
-| Field | Required | Description |
-| :--- | :--- | :--- |
-| `name` | yes | Unique job id within the app (`a-zA-Z0-9._-`) |
-| `cron` | yes | CRON expression (standard 5-field; seconds supported by engine dialect) |
-| `timezone` | no | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`) |
-| `enabled` | no | Default `true`. Set `false` to keep the definition without registering |
-| `timeout_ms` | no | Default `300000` (script) / `60000` (url) / `30000` (queue enqueue) |
-| `overlap` | no | Only `"skip"` in v1 (skip if previous run still active) |
-| `payload` | no | Passed as `$g.request.body` for **script** targets; default payload for **queue** targets |
-| `target` | yes | See below |
+| Field        | Required | Description                                                                               |
+| :----------- | :------- | :---------------------------------------------------------------------------------------- |
+| `name`       | yes      | Unique job id within the app (`a-zA-Z0-9._-`)                                             |
+| `cron`       | yes      | CRON expression (standard 5-field; seconds supported by engine dialect)                   |
+| `timezone`   | no       | IANA timezone (defaults to server `scheduler.timezone`, usually `UTC`)                    |
+| `enabled`    | no       | Default `true`. Set `false` to keep the definition without registering                    |
+| `timeout_ms` | no       | Default `300000` (script) / `60000` (url) / `30000` (queue enqueue)                       |
+| `overlap`    | no       | Only `"skip"` in v1 (skip if previous run still active)                                   |
+| `payload`    | no       | Passed as `$g.request.body` for **script** targets; default payload for **queue** targets |
+| `target`     | yes      | See below                                                                                 |
 
 **`target` for scripts** (path is relative to the app’s `box/` folder only):
 
@@ -1872,6 +1909,7 @@ Single outbound email configuration for the app (no named profiles). App config 
 **Runtime override:** from a server script you can call `email.sendWithConfig(config, message)` so a one-off send uses config that overrides both `gingee.json` and `app.json` for that transaction only (does not change the app default).
 
 **Example `app.json`:**
+
 ```json
 "email": {
   "type": "sendgrid",
@@ -1916,8 +1954,8 @@ Single outbound email configuration for the app (no named profiles). App config 
 
 If you plan to distribute your application as a `.gin` package, you must declare the permissions it requires in a `pmft.json` file. This manifest is read by the `gingee-cli` during the installation process to request consent from the server administrator.
 
--   **Location:** `web/<your-app-name>/box/pmft.json`
--   **Purpose:** To declare your app's required (`mandatory`) and optional (`optional`) permissions.
+- **Location:** `web/<your-app-name>/box/pmft.json`
+- **Purpose:** To declare your app's required (`mandatory`) and optional (`optional`) permissions.
 
 For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide [MD](./permissions-guide.md) [HTML](./permissions-guide.html)**.
 
@@ -1927,8 +1965,8 @@ For a complete guide on the permissions system and the structure of this file, p
 
 For applications that require more powerful and flexible routing, such as RESTful APIs with dynamic path parameters, you can create a `routes.json` file. When this file is present in an app's `box` folder, it **activates manifest-based routing**, which takes precedence over the default file-based routing.
 
--   **Location:** `web/my-app/box/routes.json`
--   **Purpose:** To explicitly map URL path patterns and HTTP methods to specific server script files.
+- **Location:** `web/my-app/box/routes.json`
+- **Purpose:** To explicitly map URL path patterns and HTTP methods to specific server script files.
 
 #### Structure of `routes.json`
 
@@ -1965,20 +2003,20 @@ The file must contain a single root object with a `routes` key, which holds an a
 
 Each object in the `routes` array defines a single endpoint and has the following properties:
 
--   **`path`** (string, required)
-    -   **Description:** A URL path pattern that can include static segments and dynamic, named parameters.
-    -   **Dynamic Parameters:** A parameter is defined by a colon (`:`), followed by its name (e.g., `:userId`). The name should use standard variable naming conventions.
-    -   **Optional Parameters:** A parameter can be made optional by adding a question mark (`?`) to its name (e.g., `:imageId?`).
-    -   **Wildcards:** You can use an asterisk (`*`) as a wildcard to match the rest of a path.
+- **`path`** (string, required)
+  - **Description:** A URL path pattern that can include static segments and dynamic, named parameters.
+  - **Dynamic Parameters:** A parameter is defined by a colon (`:`), followed by its name (e.g., `:userId`). The name should use standard variable naming conventions.
+  - **Optional Parameters:** A parameter can be made optional by adding a question mark (`?`) to its name (e.g., `:imageId?`).
+  - **Wildcards:** You can use an asterisk (`*`) as a wildcard to match the rest of a path.
 
--   **`method`** (string, optional)
-    -   **Description:** The HTTP method that this route will respond to. The matching is case-insensitive.
-    -   **Default:** If omitted, the method defaults to `GET`.
-    -   **Supported Values:** Standard HTTP verbs like `GET`, `POST`, `PUT`, `DELETE`, `PATCH`. You can also use `ALL` to match any method for a given path.
+- **`method`** (string, optional)
+  - **Description:** The HTTP method that this route will respond to. The matching is case-insensitive.
+  - **Default:** If omitted, the method defaults to `GET`.
+  - **Supported Values:** Standard HTTP verbs like `GET`, `POST`, `PUT`, `DELETE`, `PATCH`. You can also use `ALL` to match any method for a given path.
 
--   **`script`** (string, required)
-    -   **Description:** The path to the server script file that should be executed when this route is matched. The path is **relative to the `box` folder**. The `.js` extension is optional.
-    -   **Example:** `"script": "api/users/get-profile"` will execute the file at `web/my-app/box/api/users/get-profile.js`.
+- **`script`** (string, required)
+  - **Description:** The path to the server script file that should be executed when this route is matched. The path is **relative to the `box` folder**. The `.js` extension is optional.
+  - **Example:** `"script": "api/users/get-profile"` will execute the file at `web/my-app/box/api/users/get-profile.js`.
 
 #### Accessing Path Parameters
 
@@ -1986,28 +2024,29 @@ When a route with dynamic parameters is matched, Gingee automatically parses the
 
 **Example:**
 
--   **Route in `routes.json`:**
-    ```json
-    { "path": "/products/:productId/reviews/:reviewId", "script": "reviews/get.js" }
-    ```
--   **Incoming Request URL:** `/my-app/products/abc-123/reviews/42`
--   **Server Script (`box/reviews/get.js`):**
-    ```javascript
-    module.exports = async function() {
-        await gingee(async ($g) => {
-            const productId = $g.request.params.productId; // "abc-123"
-            const reviewId = $g.request.params.reviewId;   // "42"
-            
-            $g.response.send({
-                message: `Fetching review ${reviewId} for product ${productId}.`
-            });
-        });
-    };
-    ```
+- **Route in `routes.json`:**
+  ```json
+  {
+    "path": "/products/:productId/reviews/:reviewId",
+    "script": "reviews/get.js"
+  }
+  ```
+- **Incoming Request URL:** `/my-app/products/abc-123/reviews/42`
+- **Server Script (`box/reviews/get.js`):**
+  ```javascript
+  module.exports = async function () {
+    await gingee(async ($g) => {
+      const productId = $g.request.params.productId; // "abc-123"
+      const reviewId = $g.request.params.reviewId; // "42"
 
+      $g.response.send({
+        message: `Fetching review ${reviewId} for product ${productId}.`,
+      });
+    });
+  };
+  ```
 
 ---
-
 
 # Understanding Gingee Scripts
 
@@ -2021,17 +2060,15 @@ All Gingee scripts, regardless of their purpose, follow this simple and mandator
 
 ```javascript
 // A script must export a single asynchronous function.
-module.exports = async function() {
-
-    // The entire logic is wrapped in a call to the global 'gingee()' function.
-    await gingee(async function($g) {
-
-        // Your application code goes here.
-        // You use the '$g' object to interact with the world.
-        
-    });
+module.exports = async function () {
+  // The entire logic is wrapped in a call to the global 'gingee()' function.
+  await gingee(async function ($g) {
+    // Your application code goes here.
+    // You use the '$g' object to interact with the world.
+  });
 };
 ```
+
 This unified structure ensures that every piece of executable code runs within the same secure, sandboxed environment and receives a properly configured context object (`$g`).
 
 ## Types of Scripts in Gingee
@@ -2042,43 +2079,45 @@ While the structure is the same, the purpose of a script and the context it runs
 
 This is the most common type of script. It runs in direct response to an incoming HTTP request from a browser or client.
 
--   **Purpose:** To handle API requests (e.g., fetching data, creating a user, processing a form).
--   **Execution:** Triggered by the Gingee routing engine when a URL matches either a file path or a route defined in `routes.json`.
--   **`$g` Context:** Has access to the **full** `$g` object, including:
-    *   `$g.request`: To get headers, query parameters, and the request body.
-    *   `$g.response`: To send a response back to the client.
-    *   `$g.log` and `$g.app`.
+- **Purpose:** To handle API requests (e.g., fetching data, creating a user, processing a form).
+- **Execution:** Triggered by the Gingee routing engine when a URL matches either a file path or a route defined in `routes.json`.
+- **`$g` Context:** Has access to the **full** `$g` object, including:
+  - `$g.request`: To get headers, query parameters, and the request body.
+  - `$g.response`: To send a response back to the client.
+  - `$g.log` and `$g.app`.
 
 **Example (`box/api/users/get.js`):**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const userId = $g.request.query.id;
-        // ... logic to fetch user from database ...
-        $g.response.send({ id: userId, name: 'Alex' });
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const userId = $g.request.query.id;
+    // ... logic to fetch user from database ...
+    $g.response.send({ id: userId, name: "Alex" });
+  });
 };
 ```
 
 ### 2. Default Include Scripts (Middleware)
 
-These scripts run *before* every Server Script in your application. They act as middleware.
+These scripts run _before_ every Server Script in your application. They act as middleware.
 
--   **Purpose:** To run common, request-level logic for every endpoint, such as checking for a valid authentication token, logging every request, or adding common security headers.
--   **Execution:** Configured in `app.json` via the `"default_include"` array. They run in the order they are listed, before the final Server Script is executed.
--   **`$g` Context:** Has access to the **full** `$g` object, just like a Server Script. A key feature is that if a Default Include script uses `$g.response.send()`, the request lifecycle is immediately terminated, and no further scripts (including the main Server Script) will be executed.
+- **Purpose:** To run common, request-level logic for every endpoint, such as checking for a valid authentication token, logging every request, or adding common security headers.
+- **Execution:** Configured in `app.json` via the `"default_include"` array. They run in the order they are listed, before the final Server Script is executed.
+- **`$g` Context:** Has access to the **full** `$g` object, just like a Server Script. A key feature is that if a Default Include script uses `$g.response.send()`, the request lifecycle is immediately terminated, and no further scripts (including the main Server Script) will be executed.
 
 **Example (`box/auth_middleware.js`):**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const token = $g.request.headers['x-auth-token'];
-        if (!isValid(token)) {
-            // This ends the request immediately.
-            $g.response.send({ error: 'Unauthorized' }, 401);
-        }
-        // If we don't send a response, execution continues to the next script.
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const token = $g.request.headers["x-auth-token"];
+    if (!isValid(token)) {
+      // This ends the request immediately.
+      $g.response.send({ error: "Unauthorized" }, 401);
+    }
+    // If we don't send a response, execution continues to the next script.
+  });
 };
 ```
 
@@ -2086,25 +2125,27 @@ module.exports = async function() {
 
 These scripts run **once** when your application is loaded by the server. They are not tied to any HTTP request.
 
--   **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
--   **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
--   **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
-    *   **Available:** `$g.log`, `$g.app`.
-    *   **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
-    *   **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
+- **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
+- **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
+- **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
+  - **Available:** `$g.log`, `$g.app`.
+  - **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
+  - **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
 
 **Example (`box/setup/create_schema.js`):**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const db = require('db');
-        $g.log.info('Checking for Users table...');
-        
-        const sql = 'CREATE TABLE IF NOT EXISTS "Users" (id SERIAL PRIMARY KEY, email TEXT)';
-        await db.execute('main_db', sql);
-        
-        $g.log.info('Database schema is ready.');
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const db = require("db");
+    $g.log.info("Checking for Users table...");
+
+    const sql =
+      'CREATE TABLE IF NOT EXISTS "Users" (id SERIAL PRIMARY KEY, email TEXT)';
+    await db.execute("main_db", sql);
+
+    $g.log.info("Database schema is ready.");
+  });
 };
 ```
 
@@ -2112,23 +2153,27 @@ module.exports = async function() {
 
 Long-lived connections use a **different entry signature** (no `gingee()` wrapper required). Configure them in `app.json` → `websockets` and grant the **`websockets`** permission.
 
--   **Purpose:** Bidirectional messaging (chat, live dashboards, presence).
--   **Execution:** Client connects to `ws(s)://host/{appFolder}{path}` (default path `/ws`). The master accepts the upgrade; handlers run **in-process on the master** (not isolation workers).
--   **Signature:** `module.exports = async function (socket, ctx) { … }`
-    *   **`socket`:** `send`, `close`, `join(room)`, `leave(room)`, `to(room).send(…)`, `on('message'|'close')`, optional `tenantId` / `meta`
-    *   **`ctx`:** `{ app, log, query, path, headers, meta, remoteAddress }`
--   **From HTTP scripts:** `require('websockets').toRoom(room, payload)` (same permission).
--   **Multi-tenant:** use `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
--   **Sample app:** `web/ginchat/` — UI at `/ginchat/`.
+- **Purpose:** Bidirectional messaging (chat, live dashboards, presence).
+- **Execution:** Client connects to `ws(s)://host/{appFolder}{path}` (default path `/ws`). The master accepts the upgrade; handlers run **in-process on the master** (not isolation workers).
+- **Signature:** `module.exports = async function (socket, ctx) { … }`
+  - **`socket`:** `send`, `close`, `join(room)`, `leave(room)`, `to(room).send(…)`, `on('message'|'close')`, optional `tenantId` / `meta`
+  - **`ctx`:** `{ app, log, query, path, headers, meta, remoteAddress }`
+- **From HTTP scripts:** `require('websockets').toRoom(room, payload)` (same permission).
+- **Multi-tenant:** use `require('websockets').tenantRoom(tenantId, name)` → `t:{tenantId}:{name}`.
+- **Sample app:** `web/ginchat/` — UI at `/ginchat/`.
 
 **Example (`box/realtime/handler.js`):**
+
 ```javascript
 module.exports = async function (socket, ctx) {
-  const ws = require('websockets');
-  const room = ws.tenantRoom(ctx.query.tenant || 'demo', ctx.query.room || 'lobby');
+  const ws = require("websockets");
+  const room = ws.tenantRoom(
+    ctx.query.tenant || "demo",
+    ctx.query.room || "lobby",
+  );
   socket.join(room);
-  socket.send({ type: 'welcome' });
-  socket.on('message', (raw) => {
+  socket.send({ type: "welcome" });
+  socket.on("message", (raw) => {
     socket.to(room).send({ echo: raw });
   });
 };
@@ -2140,14 +2185,15 @@ See [Server Config](./server-config.md) → `websockets` and [App Structure](./a
 
 Deferred jobs use the same `module.exports` + `gingee()` pattern as HTTP scripts. Place handlers under `box/jobs/{name}.js` (or map names in `app.json` → `queue.jobs`). Grant the **`queue`** permission; enqueue with `require('queue').add(name, payload)`.
 
--   **Purpose:** Work that should not block an HTTP response (email, AI, cleanup, multi-node-safe CRON handoff).
--   **Execution:** The engine dequeues jobs (memory or redis driver) and runs the handler in the app sandbox.
--   **`$g` Context:**
-    *   **`$g.queue`:** `{ id, name, payload, attempt }` for the current job.
-    *   **Available:** `$g.log`, `$g.app`, and other modules per granted permissions.
-    *   There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators use **Glade → Queue / DLQ** for live jobs and DLQ retry/discard.
+- **Purpose:** Work that should not block an HTTP response (email, AI, cleanup, multi-node-safe CRON handoff).
+- **Execution:** The engine dequeues jobs (memory or redis driver) and runs the handler in the app sandbox.
+- **`$g` Context:**
+  - **`$g.queue`:** `{ id, name, payload, attempt }` for the current job.
+  - **Available:** `$g.log`, `$g.app`, and other modules per granted permissions.
+  - There is no live client connection; throwing fails the attempt (retries / **DLQ** per server `queue` config). Operators use **Glade → Queue / DLQ** for live jobs and DLQ retry/discard.
 
 **Example (`box/jobs/send-welcome.js`):**
+
 ```javascript
 module.exports = async function () {
   await gingee(async ($g) => {
@@ -2167,97 +2213,97 @@ The `$g` object is the heart of the server script API. It provides a simplified 
 
 ### `$g.request`
 
-An object containing all the details of the incoming HTTP request. 
+An object containing all the details of the incoming HTTP request.
 
--   **`$g.request.url`**
-    -   **Type:** `URL` object
-    -   **Description:** The full, parsed URL of the request, including protocol, host, path, and query string.
+- **`$g.request.url`**
+  - **Type:** `URL` object
+  - **Description:** The full, parsed URL of the request, including protocol, host, path, and query string.
 
--   **`$g.request.protocol`**
-    -   **Type:** `string`
-    -   **Description:** The protocol of the request, either `'http'` or `'https'`.
+- **`$g.request.protocol`**
+  - **Type:** `string`
+  - **Description:** The protocol of the request, either `'http'` or `'https'`.
 
--   **`$g.request.hostname`**
-    -   **Type:** `string`
-    -   **Description:** The hostname from the `Host` header (e.g., `'localhost:7070'`).
+- **`$g.request.hostname`**
+  - **Type:** `string`
+  - **Description:** The hostname from the `Host` header (e.g., `'localhost:7070'`).
 
--   **`$g.request.method`**
-    -   **Type:** `string`
-    -   **Description:** The HTTP method of the request (e.g., `'GET'`, `'POST'`, `'PUT'`).
+- **`$g.request.method`**
+  - **Type:** `string`
+  - **Description:** The HTTP method of the request (e.g., `'GET'`, `'POST'`, `'PUT'`).
 
--   **`$g.request.path`**
-    -   **Type:** `string`
-    -   **Description:** The path portion of the URL (e.g., `'/users/list'`).
+- **`$g.request.path`**
+  - **Type:** `string`
+  - **Description:** The path portion of the URL (e.g., `'/users/list'`).
 
--   **`$g.request.headers`**
-    -   **Type:** `object`
-    -   **Description:** An object containing all HTTP request headers, with keys in lowercase (e.g., `$g.request.headers['user-agent']`).
+- **`$g.request.headers`**
+  - **Type:** `object`
+  - **Description:** An object containing all HTTP request headers, with keys in lowercase (e.g., `$g.request.headers['user-agent']`).
 
--   **`$g.request.cookies`**
-    -   **Type:** `object`
-    -   **Description:** An object of all cookies sent by the client, pre-parsed into key-value pairs.
+- **`$g.request.cookies`**
+  - **Type:** `object`
+  - **Description:** An object of all cookies sent by the client, pre-parsed into key-value pairs.
 
--   **`$g.request.query`**
-    -   **Type:** `object`
-    -   **Description:** An object of all query string parameters from the URL, pre-parsed into key-value pairs.
+- **`$g.request.query`**
+  - **Type:** `object`
+  - **Description:** An object of all query string parameters from the URL, pre-parsed into key-value pairs.
 
--   **`$g.request.params`**
-    -   **Type:** `object`
-    -   **Description:** An object containing key-value pairs of the dynamic path parameters extracted from the URL, as defined in `routes.json`.
-    -   **Example:** For a route defined with `path: "/users/:userId/posts/:postId"` and a request to `/users/123/posts/abc`, `$g.request.params` would be `{ "userId": "123", "postId": "abc" }`.
+- **`$g.request.params`**
+  - **Type:** `object`
+  - **Description:** An object containing key-value pairs of the dynamic path parameters extracted from the URL, as defined in `routes.json`.
+  - **Example:** For a route defined with `path: "/users/:userId/posts/:postId"` and a request to `/users/123/posts/abc`, `$g.request.params` would be `{ "userId": "123", "postId": "abc" }`.
 
--   **`$g.request.body`**
-    -   **Type:** `object` | `string` | `null`
-    -   **Description:** The pre-parsed body of the request. The `gingee()` middleware automatically parses the body based on the `Content-Type` header.
-        -   For `application/json`: An object.
-        -   For `application/x-www-form-urlencoded`: An object.
-        -   For `multipart/form-data`: An object containing text fields and a `files` object. Each file in `files` includes its `name`, `type`, `size`, and its content as a `Buffer` in the `data` property.
-        -   For other content types, it may be a raw string or `null`.
+- **`$g.request.body`**
+  - **Type:** `object` | `string` | `null`
+  - **Description:** The pre-parsed body of the request. The `gingee()` middleware automatically parses the body based on the `Content-Type` header.
+    - For `application/json`: An object.
+    - For `application/x-www-form-urlencoded`: An object.
+    - For `multipart/form-data`: An object containing text fields and a `files` object. Each file in `files` includes its `name`, `type`, `size`, and its content as a `Buffer` in the `data` property.
+    - For other content types, it may be a raw string or `null`.
 
 ### `$g.response`
 
 An object used to build the outgoing HTTP response. You modify its properties and then call `$g.response.send()` to send it.
 
--   **`$g.response.status`**
-    -   **Type:** `number`
-    -   **Default:** `200`
-    -   **Description:** The HTTP status code to be sent. Set this before calling `send()`.
-    -   **Example:** `$g.response.status = 404;`
+- **`$g.response.status`**
+  - **Type:** `number`
+  - **Default:** `200`
+  - **Description:** The HTTP status code to be sent. Set this before calling `send()`.
+  - **Example:** `$g.response.status = 404;`
 
--   **`$g.response.headers`**
-    -   **Type:** `object`
-    -   **Default:** `{ 'Content-Type': 'text/plain' }`
-    -   **Description:** An object of HTTP headers to be sent with the response.
+- **`$g.response.headers`**
+  - **Type:** `object`
+  - **Default:** `{ 'Content-Type': 'text/plain' }`
+  - **Description:** An object of HTTP headers to be sent with the response.
 
--   **`$g.response.cookies`**
-    -   **Type:** `object`
-    -   **Description:** An object of cookies to set on the client. The key is the cookie name, and the value is the cookie value. The `send()` method will format these into `Set-Cookie` headers.
-    -   **Note:** For advanced options (like `HttpOnly`, `maxAge`), use the `cookie` module. This is a shortcut for simple key-value cookies.
+- **`$g.response.cookies`**
+  - **Type:** `object`
+  - **Description:** An object of cookies to set on the client. The key is the cookie name, and the value is the cookie value. The `send()` method will format these into `Set-Cookie` headers.
+  - **Note:** For advanced options (like `HttpOnly`, `maxAge`), use the `cookie` module. This is a shortcut for simple key-value cookies.
 
--   **`$g.response.body`**
-    -   **Type:** `any`
-    -   **Default:** `null`
-    -   **Description:** A property to hold the response body before sending. It's often more direct to just pass the data to the `send()` method.
+- **`$g.response.body`**
+  - **Type:** `any`
+  - **Default:** `null`
+  - **Description:** A property to hold the response body before sending. It's often more direct to just pass the data to the `send()` method.
 
--   **`$g.response.send(data, [status], [contentType])`**
-    -   **Description:** The final method you call to send a **complete** (non-streaming) response. It intelligently handles different data types.
-    -   **`data`**: The content to send.
-        -   If `string` or `Buffer`, it's sent as-is.
-        -   If `object` or `Array`, it is automatically `JSON.stringify()`-ed, and the `Content-Type` is set to `application/json`.
-    -   **`status` (optional):** A `number` to set the HTTP status code, overriding `$g.response.status`.
-    -   **`contentType` (optional):** A `string` to set the `Content-Type` header, overriding `$g.response.headers['Content-Type']`.
-    -   **Example (JSON):** `$g.response.send({ user: 'test' });`
-    -   **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
-    -   **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
+- **`$g.response.send(data, [status], [contentType])`**
+  - **Description:** The final method you call to send a **complete** (non-streaming) response. It intelligently handles different data types.
+  - **`data`**: The content to send.
+    - If `string` or `Buffer`, it's sent as-is.
+    - If `object` or `Array`, it is automatically `JSON.stringify()`-ed, and the `Content-Type` is set to `application/json`.
+  - **`status` (optional):** A `number` to set the HTTP status code, overriding `$g.response.status`.
+  - **`contentType` (optional):** A `string` to set the `Content-Type` header, overriding `$g.response.headers['Content-Type']`.
+  - **Example (JSON):** `$g.response.send({ user: 'test' });`
+  - **Example (Image):** `$g.response.send(imageBuffer, 200, 'image/png');`
+  - **Note:** Do not call `send()` after a stream has been started with `startStream()`. Use `endStream()` instead.
 
 #### Platform limits (`$g.limits`, abort signal)
 
 When a **server script** runs under the engine limits module:
 
--   **`$g.limits.remainingMs`** — milliseconds left on the non-stream request budget (or `null` if not applicable)
--   **`$g.limits.deadline`** — absolute epoch ms deadline
--   **`$g.limits.signal`** / **`$g.request.signal`** — `AbortSignal` aborted on request timeout (passed to `httpclient` automatically)
--   **`$g.limits.config`** — effective limits object for this request
+- **`$g.limits.remainingMs`** — milliseconds left on the non-stream request budget (or `null` if not applicable)
+- **`$g.limits.deadline`** — absolute epoch ms deadline
+- **`$g.limits.signal`** / **`$g.request.signal`** — `AbortSignal` aborted on request timeout (passed to `httpclient` automatically)
+- **`$g.limits.config`** — effective limits object for this request
 
 Non-stream scripts that exceed `request_timeout_ms` receive a platform **504** if they have not yet completed. After `startStream()`, stream **idle** and **hard** timeouts apply instead. Concurrency overloads return **503** before the script runs.
 
@@ -2267,56 +2313,57 @@ Outbound `httpclient` calls use `limits.outbound_timeout_ms` by default and are 
 
 When a script is invoked by the **CRON scheduler** (see `app.json` → `schedules`), there is no HTTP request. The `gingee()` middleware still provides `$g`, with:
 
--   **`$g.request.method`:** `"SCHEDULE"`
--   **`$g.request.body`:** the job’s optional `payload` from `app.json`
--   **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
--   **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
--   **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
--   **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
+- **`$g.request.method`:** `"SCHEDULE"`
+- **`$g.request.body`:** the job’s optional `payload` from `app.json`
+- **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
+- **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
+- **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
+- **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
 
 #### Streaming responses (SSE and chunked output)
 
 For long-running or progressive output (for example, `require('ai').chatStream(...)`), use the streaming helpers on `$g.response` instead of a single `send()`. These write to the underlying HTTP response without exposing Node's raw `res` object to the sandbox.
 
--   **`$g.response.startStream([status], [contentType], [extraHeaders])`**
-    -   Opens a streamed response. Default `Content-Type` is `text/event-stream; charset=utf-8` (Server-Sent Events).
-    -   Also sets `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no` for proxy-friendly streaming.
-    -   Optional `extraHeaders` is an object of additional headers to set before the body starts.
--   **`$g.response.write(chunk)`**
-    -   Writes a raw string or `Buffer` chunk to the open stream.
--   **`$g.response.writeSSE(payload)`**
-    -   Writes one SSE event line. If `payload` is an object, it is `JSON.stringify`-ed. Format: `data: …\n\n`.
--   **`$g.response.endStream()`**
-    -   Ends the streamed response and marks the request complete (same completion semantics as `send()` for request lifecycle).
+- **`$g.response.startStream([status], [contentType], [extraHeaders])`**
+  - Opens a streamed response. Default `Content-Type` is `text/event-stream; charset=utf-8` (Server-Sent Events).
+  - Also sets `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no` for proxy-friendly streaming.
+  - Optional `extraHeaders` is an object of additional headers to set before the body starts.
+- **`$g.response.write(chunk)`**
+  - Writes a raw string or `Buffer` chunk to the open stream.
+- **`$g.response.writeSSE(payload)`**
+  - Writes one SSE event line. If `payload` is an object, it is `JSON.stringify`-ed. Format: `data: …\n\n`.
+- **`$g.response.endStream()`**
+  - Ends the streamed response and marks the request complete (same completion semantics as `send()` for request lifecycle).
 
 **Example (AI streaming via SSE):**
+
 ```javascript
 module.exports = async function () {
-    await gingee(async ($g) => {
-        const ai = require('ai');
-        const messages = $g.request.body.messages;
+  await gingee(async ($g) => {
+    const ai = require("ai");
+    const messages = $g.request.body.messages;
 
-        $g.response.startStream(200, 'text/event-stream; charset=utf-8');
-        try {
-            for await (const chunk of ai.chatStream({ messages })) {
-                if (chunk.done) {
-                    $g.response.writeSSE({
-                        type: 'done',
-                        text: chunk.text,
-                        model: chunk.model,
-                        provider: chunk.provider,
-                        usage: chunk.usage || null
-                    });
-                } else if (chunk.textDelta) {
-                    $g.response.writeSSE({ type: 'delta', textDelta: chunk.textDelta });
-                }
-            }
-        } catch (err) {
-            $g.response.writeSSE({ type: 'error', error: err.message });
-        } finally {
-            $g.response.endStream();
+    $g.response.startStream(200, "text/event-stream; charset=utf-8");
+    try {
+      for await (const chunk of ai.chatStream({ messages })) {
+        if (chunk.done) {
+          $g.response.writeSSE({
+            type: "done",
+            text: chunk.text,
+            model: chunk.model,
+            provider: chunk.provider,
+            usage: chunk.usage || null,
+          });
+        } else if (chunk.textDelta) {
+          $g.response.writeSSE({ type: "delta", textDelta: chunk.textDelta });
         }
-    });
+      }
+    } catch (err) {
+      $g.response.writeSSE({ type: "error", error: err.message });
+    } finally {
+      $g.response.endStream();
+    }
+  });
 };
 ```
 
@@ -2326,26 +2373,24 @@ Clients typically consume this with `fetch()` + `ReadableStream` (POST bodies ar
 
 A direct reference to the apps's logger instance, pre-configured with the request's context.
 
--   **Methods:**
-    -   **`$g.log.info(message, [meta])`**
-    -   **`$g.log.warn(message, [meta])`**
-    -   **`$g.log.error(message, [meta])`**
--   **Description:** Use these methods for structured logging. The `message` is a string, and the optional `meta` object can contain any additional data you want to log (like a user ID or a full error stack).
+- **Methods:**
+  - **`$g.log.info(message, [meta])`**
+  - **`$g.log.warn(message, [meta])`**
+  - **`$g.log.error(message, [meta])`**
+- **Description:** Use these methods for structured logging. The `message` is a string, and the optional `meta` object can contain any additional data you want to log (like a user ID or a full error stack).
 
 ### `$g.app`
 
 An object containing safe, read-only configuration data for the current application.
 
--   **`$g.app.name`**: (string) The app's display name from `app.json`.
--   **`$g.app.version`**: (string) The app's version from `app.json`.
--   **`$g.app.description`**: (string) The app's description from `app.json`.
--   **`$g.app.env`**: (object) The custom environment variables defined in the `env` block of `app.json`.
+- **`$g.app.name`**: (string) The app's display name from `app.json`.
+- **`$g.app.version`**: (string) The app's version from `app.json`.
+- **`$g.app.description`**: (string) The app's description from `app.json`.
+- **`$g.app.env`**: (object) The custom environment variables defined in the `env` block of `app.json`.
 
 **NOTE:** The $g object will not have the $g.request and $g.response objects for a startup script.
 
-
 ---
-
 
 # Gingee: The App Developer's Guide
 
@@ -2375,40 +2420,40 @@ The CLI will scaffold a new, working application in the `web/first-app/` directo
 
 Run your server with `npm run dev` and navigate to `http://localhost:7070/first-app`. You'll see the page and an interactive "Say Hello" button. This works because of Gingee's **File-Based Routing**:
 
--   The request for the page (`/first-app`) serves the static `index.html`.
--   The button's click handler in `cl_app.js` makes a `fetch` call to `/first-app/hello`.
--   Because this URL has no file extension, Gingee automatically executes the server script at `web/first-app/box/hello.js`.
+- The request for the page (`/first-app`) serves the static `index.html`.
+- The button's click handler in `cl_app.js` makes a `fetch` call to `/first-app/hello`.
+- Because this URL has no file extension, Gingee automatically executes the server script at `web/first-app/box/hello.js`.
 
 ## Chapter 2: The Server Script & the `$g` Global
 
 Let's look inside `web/first-app/box/hello.js`. All Gingee server scripts follow this simple structure:
 
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        // Your application logic lives here!
-        $g.response.send({ message: 'Hello from the first-app server script!' });
-    });
+module.exports = async function () {
+  await gingee(async ($g) => {
+    // Your application logic lives here!
+    $g.response.send({ message: "Hello from the first-app server script!" });
+  });
 };
 ```
 
--   **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
--   **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
--   **`$g`**: The single, powerful "global" object passed to your handler. It's your secure gateway to everything you need.
+- **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
+- **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
+- **`$g`**: The single, powerful "global" object passed to your handler. It's your secure gateway to everything you need.
 
 Let's modify the script to take a query parameter:
 
 ```javascript
 // in web/first-app/box/hello.js
 await gingee(async ($g) => {
-    const name = $g.request.query.name || 'World';
-    $g.response.send({ message: `Hello, ${name}!` });
+  const name = $g.request.query.name || "World";
+  $g.response.send({ message: `Hello, ${name}!` });
 });
 ```
 
 Now, navigate to `/first-app/hello?name=Gingee` and you'll see the personalized response. All query parameters are automatically parsed for you in `$g.request.query`.
 
-*For a full breakdown of all properties on `$g`, see the Server Script & $g Object Reference [MD](./server-script.md) [HTML](./server-script.html)*
+_For a full breakdown of all properties on `$g`, see the Server Script & $g Object Reference [MD](./server-script.md) [HTML](./server-script.html)_
 
 ## Chapter 3: Building a RESTful API with `routes.json`
 
@@ -2418,6 +2463,7 @@ While file-based routing is great for simple pages, a real API needs clean, dyna
 2.  Define your application's routes in this file.
 
 **`web/first-app/box/routes.json`**
+
 ```json
 {
   "routes": [
@@ -2440,15 +2486,16 @@ Now, a `POST` request to `/first-app/posts` will execute `box/api/posts/create.j
 In your script, you can access the dynamic `:postId` parameter via `$g.request.params`.
 
 **`web/first-app/box/api/posts/get.js`**
-```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const postId = $g.request.params.postId; // "abc-123"
-        
-        // ... logic to fetch post from database ...
 
-        $g.response.send({ id: postId, title: 'My First Post' });
-    });
+```javascript
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const postId = $g.request.params.postId; // "abc-123"
+
+    // ... logic to fetch post from database ...
+
+    $g.response.send({ id: postId, title: "My First Post" });
+  });
 };
 ```
 
@@ -2460,34 +2507,35 @@ Gingee makes database interaction simple and secure.
 2.  **Query:** Use the powerful, sandboxed `db` module in your scripts.
 
 **`web/my-blog/box/api/posts/get.js` (with DB logic)**
+
 ```javascript
-module.exports = async function() {
-    await gingee(async ($g) => {
-        const db = require('db');
-        const postId = $g.request.params.postId;
-        const DB_NAME = 'main_db'; // The 'name' from your app.json
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const db = require("db");
+    const postId = $g.request.params.postId;
+    const DB_NAME = "main_db"; // The 'name' from your app.json
 
-        try {
-            const sql = 'SELECT * FROM "Posts" WHERE "id" = $1';
-            const post = await db.query.one(DB_NAME, sql, [postId]);
+    try {
+      const sql = 'SELECT * FROM "Posts" WHERE "id" = $1';
+      const post = await db.query.one(DB_NAME, sql, [postId]);
 
-            if (post) {
-                $g.response.send(post);
-            } else {
-                $g.response.send({ error: 'Post not found' }, 404);
-            }
-        } catch (err) {
-            $g.log.error('Failed to fetch post', { postId, error: err.message });
-            $g.response.send({ error: 'Internal Server Error' }, 500);
-        }
-    });
+      if (post) {
+        $g.response.send(post);
+      } else {
+        $g.response.send({ error: "Post not found" }, 404);
+      }
+    } catch (err) {
+      $g.log.error("Failed to fetch post", { postId, error: err.message });
+      $g.response.send({ error: "Internal Server Error" }, 500);
+    }
+  });
 };
 ```
 
--   **`db.query.one`**: Fetches a single record.
--   **`db.query.many`**: Fetches an array of records.
--   **`db.execute`**: Use for `INSERT`, `UPDATE`, and `DELETE`. Returns the number of rows affected.
--   **Security:** Always use parameters (`$1`, `$2`) to prevent SQL injection. The `db` module handles this securely.
+- **`db.query.one`**: Fetches a single record.
+- **`db.query.many`**: Fetches an array of records.
+- **`db.execute`**: Use for `INSERT`, `UPDATE`, and `DELETE`. Returns the number of rows affected.
+- **Security:** Always use parameters (`$1`, `$2`) to prevent SQL injection. The `db` module handles this securely.
 
 ## Chapter 5: Using the Standard Library (App Modules)
 
@@ -2495,17 +2543,17 @@ Let's secure our `POST /posts` endpoint and validate its input.
 
 1.  **Create an Auth Middleware:** Create `web/my-blog/box/auth_middleware.js`.
     ```javascript
-    module.exports = async function() {
-        await gingee(async ($g) => {
-            const auth = require('auth');
-            const token = $g.request.headers.authorization?.split(' ')[1];
-            const payload = auth.jwt.verify(token);
+    module.exports = async function () {
+      await gingee(async ($g) => {
+        const auth = require("auth");
+        const token = $g.request.headers.authorization?.split(" ")[1];
+        const payload = auth.jwt.verify(token);
 
-            if (!payload) {
-                // This call ends the request and prevents the main handler from running.
-                $g.response.send({ error: 'Unauthorized' }, 401);
-            }
-        });
+        if (!payload) {
+          // This call ends the request and prevents the main handler from running.
+          $g.response.send({ error: "Unauthorized" }, 401);
+        }
+      });
     };
     ```
 2.  **Enable the Middleware:** In `web/my-blog/box/app.json`, add it to the `default_include` array. Now it will run before every script in your app.
@@ -2515,16 +2563,16 @@ Let's secure our `POST /posts` endpoint and validate its input.
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
-    module.exports = async function() {
-        await gingee(async ($g) => {
-            const { validate } = require('utils');
-            const { title, content } = $g.request.body;
+    module.exports = async function () {
+      await gingee(async ($g) => {
+        const { validate } = require("utils");
+        const { title, content } = $g.request.body;
 
-            if (validate.isEmpty(title)) {
-                return $g.response.send({ error: 'Title is required.' }, 400);
-            }
-            // ... insert into database ...
-        });
+        if (validate.isEmpty(title)) {
+          return $g.response.send({ error: "Title is required." }, 400);
+        }
+        // ... insert into database ...
+      });
     };
     ```
 
@@ -2562,8 +2610,8 @@ For work that should not block an HTTP response (emails, reports, slow AI):
 3. From a server script:
 
 ```javascript
-const queue = require('queue');
-await queue.add('my-job', { userId: 42 }, { delayMs: 0, attempts: 3 });
+const queue = require("queue");
+await queue.add("my-job", { userId: 42 }, { delayMs: 0, attempts: 3 });
 ```
 
 ```javascript
@@ -2598,12 +2646,12 @@ For bidirectional real-time traffic (chat, live dashboards), enable WebSockets i
 ```javascript
 // box/realtime/handler.js
 module.exports = async function (socket, ctx) {
-  const ws = require('websockets');
-  const room = ws.tenantRoom(ctx.query.tenant || 'default', 'lobby');
-  socket.tenantId = ctx.query.tenant || 'default';
+  const ws = require("websockets");
+  const room = ws.tenantRoom(ctx.query.tenant || "default", "lobby");
+  socket.tenantId = ctx.query.tenant || "default";
   socket.join(room);
-  socket.send({ type: 'joined', room });
-  socket.on('message', (raw) => {
+  socket.send({ type: "joined", room });
+  socket.on("message", (raw) => {
     socket.to(room).send({ from: socket.id, raw });
   });
 };
@@ -2615,8 +2663,8 @@ From an HTTP script: `require('websockets').toRoom(room, payload)`. Multi-node f
 
 If the operator enables `gingee.json` → `isolation.mode: "process"`, your app may run **server scripts** in a child process when:
 
-- `"isolation": "process"` is set in `app.json`, or  
-- the app folder name is listed under server `isolation.apps` (solo worker), or  
+- `"isolation": "process"` is set in `app.json`, or
+- the app folder name is listed under server `isolation.apps` (solo worker), or
 - the app is a member of `isolation.groups` (shared worker with co-members).
 
 HTTP still enters on the same server port; only script execution is isolated. **Buffered** responses and **SSE** (`startStream` / `writeSSE` / `endStream`) both work over IPC—including AI streaming when the `ai` permission is granted and `app.json` (or server) AI config is set. The worker re-loads that config at init (you do not need a second copy in `gingee.json`). Privileged apps such as Glade never use workers. Prefer `await gingee(async ($g) => { … })` in async scripts so the handler fully finishes before the script returns. Details: [Server Config](./server-config.md) → `isolation`.
@@ -2633,17 +2681,17 @@ Two permission-protected integration modules follow the same adapter pattern as 
 
 ```javascript
 module.exports = async function () {
-    await gingee(async ($g) => {
-        const email = require('email');
-        const result = await email.send({
-            to: $g.request.body.to,
-            subject: 'Welcome',
-            text: 'Thanks for joining.',
-            html: '<p>Thanks for joining.</p>'
-        });
-        // result: { messageId, provider, status }
-        $g.response.send(result);
+  await gingee(async ($g) => {
+    const email = require("email");
+    const result = await email.send({
+      to: $g.request.body.to,
+      subject: "Welcome",
+      text: "Thanks for joining.",
+      html: "<p>Thanks for joining.</p>",
     });
+    // result: { messageId, provider, status }
+    $g.response.send(result);
+  });
 };
 ```
 
@@ -2659,23 +2707,23 @@ Providers: `console` (logs only; great for local dev), `sendgrid` (`api_key`, `f
 
 ```javascript
 module.exports = async function () {
-    await gingee(async ($g) => {
-        const ai = require('ai');
+  await gingee(async ($g) => {
+    const ai = require("ai");
 
-        // Non-streaming
-        const reply = await ai.chat({
-            messages: [{ role: 'user', content: $g.request.body.prompt }],
-            model: 'gemini-2.5-pro',      // optional per-call model
-            temperature: 0.4,             // optional
-            maxTokens: 2048               // optional
-        });
-        // reply.text, reply.model, reply.provider, reply.usage { inputTokens, outputTokens }
-
-        $g.response.send({
-            text: reply.text,
-            usage: reply.usage
-        });
+    // Non-streaming
+    const reply = await ai.chat({
+      messages: [{ role: "user", content: $g.request.body.prompt }],
+      model: "gemini-2.5-pro", // optional per-call model
+      temperature: 0.4, // optional
+      maxTokens: 2048, // optional
     });
+    // reply.text, reply.model, reply.provider, reply.usage { inputTokens, outputTokens }
+
+    $g.response.send({
+      text: reply.text,
+      usage: reply.usage,
+    });
+  });
 };
 ```
 
@@ -2710,18 +2758,23 @@ For recurring background work, declare jobs in `app.json` → `schedules` instea
 ```javascript
 // box/jobs/cleanup.js
 module.exports = async function () {
-    await gingee(async ($g) => {
-        // $g.request.method === 'SCHEDULE'
-        // $g.schedule.name, $g.schedule.runId, $g.request.body ← payload
-        const fs = require('fs');
-        const db = require('db');
-        // Prefer a leading "/" so the path is relative to box/ (not to jobs/)
-        await fs.writeFile(fs.BOX, '/data/last-run.json', JSON.stringify({
-            at: new Date().toISOString(),
-            runId: $g.schedule.runId
-        }), 'utf8');
-        $g.response.send({ ok: true }); // logged; not an HTTP response
-    });
+  await gingee(async ($g) => {
+    // $g.request.method === 'SCHEDULE'
+    // $g.schedule.name, $g.schedule.runId, $g.request.body ← payload
+    const fs = require("fs");
+    const db = require("db");
+    // Prefer a leading "/" so the path is relative to box/ (not to jobs/)
+    await fs.writeFile(
+      fs.BOX,
+      "/data/last-run.json",
+      JSON.stringify({
+        at: new Date().toISOString(),
+        runId: $g.schedule.runId,
+      }),
+      "utf8",
+    );
+    $g.response.send({ ok: true }); // logged; not an HTTP response
+  });
 };
 ```
 
@@ -2765,39 +2818,32 @@ There are three key steps to preparing your app for distribution.
 
 This is the most important step for security and user trust. You must declare what protected Gingee modules your app needs.
 
-*   Create a file at `web/my-app/box/pmft.json`.
-*   Define the `mandatory` and `optional` permissions.
+- Create a file at `web/my-app/box/pmft.json`.
+- Define the `mandatory` and `optional` permissions.
 
 **`web/my-app/box/pmft.json`**
+
 ```json
 {
   "permissions": {
-    "mandatory": [
-      "db",
-      "fs"
-    ],
-    "optional": [
-      "httpclient"
-    ]
+    "mandatory": ["db", "fs"],
+    "optional": ["httpclient"]
   }
 }
 ```
-*For a full list of permissions, see the Permissions Guide.*
+
+_For a full list of permissions, see the Permissions Guide._
 
 **2. Control Package Contents (`.gpkg`)**
 
 Create a `.gpkg` manifest in your `box` folder to exclude any development-only files (like local SQLite databases or frontend source code in SPA) from the final package.
 
 **`web/my-app/box/.gpkg`**
+
 ```json
 {
   "include": ["**/*"],
-  "exclude": [
-    "box/data/**",
-    "dev_src/**",
-    ".gpkg",
-    "pmft.json"
-  ]
+  "exclude": ["box/data/**", "dev_src/**", ".gpkg", "pmft.json"]
 }
 ```
 
@@ -2815,9 +2861,7 @@ gingee-cli package-app --appName my-app
 
 This will generate a versioned `.gin` file (e.g., `my-app-v1.2.0.gin`) in your current directory. This single file is all anyone needs to install your application on their own Gingee server using the `gingee-cli install-app` command.
 
-
 ---
-
 
 # Gingee App Packaging Guide (`.gin` & `.gpkg`)
 
@@ -2848,15 +2892,15 @@ This workflow ensures that deployments are atomic, repeatable, and less error-pr
 
 When you build your application for production, you often have files and folders that should **not** be included in the final, distributable package. Examples include:
 
--   Local development database files (e.g., `box/data/app.db`)
--   Frontend source code directories (e.g., `dev_src/` for a React app)
--   Temporary files or build artifacts
--   Notes and documentation irrelevant to the running app
+- Local development database files (e.g., `box/data/app.db`)
+- Frontend source code directories (e.g., `dev_src/` for a React app)
+- Temporary files or build artifacts
+- Notes and documentation irrelevant to the running app
 
 To control what gets included in your `.gin` file, you can create a manifest file named **`.gpkg`** (short for **G**inger **p**ac**k**a**g**e).
 
--   **Location:** The `.gpkg` file must be placed in your application's `box` folder (e.g., `web/my-app/box/.gpkg`).
--   **Format:** It is a simple JSON file.
+- **Location:** The `.gpkg` file must be placed in your application's `box` folder (e.g., `web/my-app/box/.gpkg`).
+- **Format:** It is a simple JSON file.
 
 ### `.gpkg` Structure and Rules
 
@@ -2866,31 +2910,23 @@ The manifest contains `include` and `exclude` rules that use standard **glob pat
 {
   "version": 1,
   "packager": "gingee-packager",
-  "include": [
-    "**/*"
-  ],
-  "exclude": [
-    "box/data/**",
-    "box/logs",
-    "dev_src/**",
-    "**/*.tmp",
-    ".gpkg"
-  ]
+  "include": ["**/*"],
+  "exclude": ["box/data/**", "box/logs", "dev_src/**", "**/*.tmp", ".gpkg"]
 }
 ```
 
--   **`include`** (array of strings)
-    -   An array of glob patterns for files that should be included.
-    -   The default and most common value is `["**/*"]`, which means "include all files and folders recursively."
+- **`include`** (array of strings)
+  - An array of glob patterns for files that should be included.
+  - The default and most common value is `["**/*"]`, which means "include all files and folders recursively."
 
--   **`exclude`** (array of strings)
-    -   An array of glob patterns for files and folders to **exclude** from the final package. These rules are applied after the `include` rules.
-    -   **Common Patterns:**
-        -   `"box/data/**"`: Excludes the `data` folder inside the `box` and all of its contents. Perfect for ignoring local SQLite databases.
-        -   `"dev_src/**"`: Excludes the entire frontend source code directory.
-        -   `"**/*.log"`: Excludes all files ending with `.log` from any directory.
-        -   `"**/*.tmp"`: Excludes all temporary files.
-        -   `".gpkg"`: It is a best practice for the manifest to exclude itself from the package.
+- **`exclude`** (array of strings)
+  - An array of glob patterns for files and folders to **exclude** from the final package. These rules are applied after the `include` rules.
+  - **Common Patterns:**
+    - `"box/data/**"`: Excludes the `data` folder inside the `box` and all of its contents. Perfect for ignoring local SQLite databases.
+    - `"dev_src/**"`: Excludes the entire frontend source code directory.
+    - `"**/*.log"`: Excludes all files ending with `.log` from any directory.
+    - `"**/*.tmp"`: Excludes all temporary files.
+    - `".gpkg"`: It is a best practice for the manifest to exclude itself from the package.
 
 ### Example `.gpkg` for a Single Page Application (SPA)
 
@@ -2898,10 +2934,7 @@ When packaging a modern SPA (like one built with React or Vue), it is critical t
 
 ```json
 {
-  "include": [
-    "box/**/*",
-    "dist/**/*"
-  ],
+  "include": ["box/**/*", "dist/**/*"],
   "exclude": [
     "box/data",
     "box/logs",
@@ -2922,25 +2955,23 @@ When packaging a modern SPA (like one built with React or Vue), it is critical t
 
 If your application does **not** have a `.gpkg` file in its `box` folder, the `package-app` command will use a set of safe defaults. It will include all files in your app's directory except for common development artifacts like:
 
--   `node_modules/**`
--   `.git/**`
+- `node_modules/**`
+- `.git/**`
 
 For full control over your application's distributable package, creating a `.gpkg` manifest is the recommended approach.
 
 ## Declaring Security Requirements: The `pmft.json` Manifest
 
-While `.gpkg` controls *what files* are included in your package, the `pmft.json` manifest declares the *security permissions* your application requires to function.
+While `.gpkg` controls _what files_ are included in your package, the `pmft.json` manifest declares the _security permissions_ your application requires to function.
 
--   **Location:** The `pmft.json` file must be placed in your application's `box` folder (e.g., `web/my-app/box/pmft.json`).
--   **Purpose:** To declare which protected Gingee modules (like `db`, `fs`, `email`, or `ai`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
+- **Location:** The `pmft.json` file must be placed in your application's `box` folder (e.g., `web/my-app/box/pmft.json`).
+- **Purpose:** To declare which protected Gingee modules (like `db`, `fs`, `email`, or `ai`) your application needs to access. It distinguishes between permissions that are `mandatory` for the app to work and those that are `optional`.
 
 When an administrator installs your `.gin` package using the `gingee-cli`, the CLI will read this file directly from the package and use it to generate a clear, interactive consent prompt. This ensures administrators know exactly what capabilities they are granting to your application.
 
 For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide** [MD](./permissions-guide.md) [HTML](./permissions-guide.html).
 
-
 ---
-
 
 # Gingee Permissions Guide
 
@@ -2962,8 +2993,8 @@ This model ensures that administrators have full control and awareness of an app
 
 When you build an application that you intend to distribute (as a `.gin` file) or share, you must declare the permissions it requires in a manifest file. This file acts as a formal request to the administrator who will install your app.
 
--   **File Name:** `pmft.json` (Permissions Manifest)
--   **Location:** `web/<your-app-name>/box/pmft.json`
+- **File Name:** `pmft.json` (Permissions Manifest)
+- **Location:** `web/<your-app-name>/box/pmft.json`
 
 The `gingee-cli` will read this file directly from your `.gin` package during installation to prompt the administrator for consent.
 
@@ -2971,17 +3002,15 @@ The `gingee-cli` will read this file directly from your `.gin` package during in
 
 The file contains a single `permissions` object with two keys: `mandatory` and `optional`.
 
--   **`mandatory`**: An array of permission keys that are **essential** for your app's core functionality. If the administrator denies a mandatory permission, the installation process should be aborted.
--   **`optional`**: An array of permission keys for features that are enhancements but not critical. Your application code should be written to handle cases where an optional permission is not granted.
+- **`mandatory`**: An array of permission keys that are **essential** for your app's core functionality. If the administrator denies a mandatory permission, the installation process should be aborted.
+- **`optional`**: An array of permission keys for features that are enhancements but not critical. Your application code should be written to handle cases where an optional permission is not granted.
 
 **Example `pmft.json` for a blog application:**
+
 ```json
 {
   "permissions": {
-    "mandatory": [
-      "db",
-      "fs"
-    ],
+    "mandatory": ["db", "fs"],
     "optional": [
       "httpclient",
       "email",
@@ -2993,7 +3022,8 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
   }
 }
 ```
-*In this example, the blog requires database and filesystem access to function. Optional features (outbound HTTP, transactional email, generative AI) are listed separately so an administrator can grant only what they approve. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
+
+_In this example, the blog requires database and filesystem access to function. Optional features (outbound HTTP, transactional email, generative AI) are listed separately so an administrator can grant only what they approve. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation._
 
 ## For Administrators: Managing Permissions
 
@@ -3003,27 +3033,23 @@ As a server administrator, you have the final authority on what an application i
 
 This file is the single source of truth for all application grants on your Gingee server.
 
--   **Location:** `project_root/settings/permissions.json`
--   **Structure:** A JSON object where each key is an application's name. The value is an object containing a `granted` array.
+- **Location:** `project_root/settings/permissions.json`
+- **Structure:** A JSON object where each key is an application's name. The value is an object containing a `granted` array.
 
 **Example `settings/permissions.json`:**
+
 ```json
 {
   "glade": {
-    "granted": [
-      "platform",
-      "fs"
-    ]
+    "granted": ["platform", "fs"]
   },
   "my-blog-app": {
-    "granted": [
-      "db",
-      "fs"
-    ]
+    "granted": ["db", "fs"]
   }
 }
 ```
-*In this example, `my-blog-app` was granted its two mandatory permissions, but the administrator chose not to grant the optional `httpclient` permission.*
+
+_In this example, `my-blog-app` was granted its two mandatory permissions, but the administrator chose not to grant the optional `httpclient` permission._
 
 ### Managing Permissions in Glade
 
@@ -3035,26 +3061,23 @@ Saving your changes in this modal will automatically update the `settings/permis
 
 This is the definitive list of all permission keys available in Gingee.
 
-| Permission Key | Description | Security Implication |
-| :--- | :--- | :--- |
-| **platform** | **PRIVILEGED.** Allows the app to use the `platform` module to manage the lifecycle (install, delete, upgrade, etc.) of other applications on the server. | **Critical.** This is the highest level of privilege. Only grant this to a fully trusted administration application like `glade`. |
-| **cache** | Allows the app to use the caching service for storing and retrieving data. | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data. |
-| **db** | Allows the app to connect to and query the database(s) configured for it in `app.json`. | **High.** Grants access to the application's primary data store. |
-| **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
-| **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
-| **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. Multi-node room delivery needs operator `websockets.fanout.driver: "redis"`. | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. Grant only when needed. |
-| **queue** | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`. | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. Operators manage live jobs + DLQ in Glade. |
-| **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended. |
-| **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets). | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts. |
-| **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
-| **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
-| **zip** | Allows the app to create and extract ZIP archives. | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
-| **image** | Allows the app to manipulate image files. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
-
-
+| Permission Key | Description                                                                                                                                                                                                                                                                                     | Security Implication                                                                                                                                            |
+| :------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **platform**   | **PRIVILEGED.** Allows the app to use the `platform` module to manage the lifecycle (install, delete, upgrade, etc.) of other applications on the server.                                                                                                                                       | **Critical.** This is the highest level of privilege. Only grant this to a fully trusted administration application like `glade`.                               |
+| **cache**      | Allows the app to use the caching service for storing and retrieving data.                                                                                                                                                                                                                      | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data.                                                       |
+| **db**         | Allows the app to connect to and query the database(s) configured for it in `app.json`.                                                                                                                                                                                                         | **High.** Grants access to the application's primary data store.                                                                                                |
+| **email**      | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`.                                                                                               | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally.       |
+| **ai**         | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned).                                                                                                             | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications.             |
+| **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. Multi-node room delivery needs operator `websockets.fanout.driver: "redis"`.                                                                                    | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. Grant only when needed.                          |
+| **queue**      | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`.                                                                                                                                                                                        | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. Operators manage live jobs + DLQ in Glade. |
+| **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended.          |
+| **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                                                                     | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
+| **fs**         | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`).                                                                                                                                                                                   | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
+| **pdf**        | Allows the app to generate and manipulate PDF documents.                                                                                                                                                                                                                                        | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
+| **zip**        | Allows the app to create and extract ZIP archives.                                                                                                                                                                                                                                              | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
+| **image**      | Allows the app to manipulate image files.                                                                                                                                                                                                                                                       | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
 
 ---
-
 
 # Gingee Threat Model
 
@@ -3076,10 +3099,10 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ## 2. Two deployment models (read this first)
 
-| Model | Description | Gingee fit |
-| :--- | :--- | :--- |
-| **A. Cooperative multi-app** | One org (or trusted partners) runs several apps on one Gingee instance. Apps are first-party, reviewed third-party, or installed only after admin review of package + permissions. | **Intended.** Permissions, BOX/WEB, Glade, and `limits` are built for this. |
-| **B. Hostile multi-tenant** | Untrusted parties upload or install apps that may be malicious or compromised. Tenants must not affect each other’s confidentiality, integrity, or availability. | **Not supported as a hard security boundary.** Do not sell or operate Gingee as “shared hosting for arbitrary untrusted code” without process/container isolation **outside** Gingee. |
+| Model                        | Description                                                                                                                                                                        | Gingee fit                                                                                                                                                                            |
+| :--------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A. Cooperative multi-app** | One org (or trusted partners) runs several apps on one Gingee instance. Apps are first-party, reviewed third-party, or installed only after admin review of package + permissions. | **Intended.** Permissions, BOX/WEB, Glade, and `limits` are built for this.                                                                                                           |
+| **B. Hostile multi-tenant**  | Untrusted parties upload or install apps that may be malicious or compromised. Tenants must not affect each other’s confidentiality, integrity, or availability.                   | **Not supported as a hard security boundary.** Do not sell or operate Gingee as “shared hosting for arbitrary untrusted code” without process/container isolation **outside** Gingee. |
 
 **Operator rule of thumb:**
 
@@ -3089,15 +3112,15 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ## 3. Assets worth protecting
 
-| Asset | Examples | Typical owner |
-| :--- | :--- | :--- |
-| **App private code & data** | `box/` scripts, SQLite files, logs, secrets in `app.json` | App + server admin |
-| **App public assets** | `web/` static files | App (intentionally public) |
-| **Server control plane** | `gingee.json`, `settings/permissions.json`, SSL keys, backups | Server admin |
-| **Other apps on the same process** | Sibling `web/<other-app>/` trees | Other apps / admin |
-| **Outbound identity & budget** | SendGrid keys, AI API keys, ability to hit internal networks | Org / cloud account |
-| **Platform integrity** | Ability to install/delete apps (`platform` module, privileged apps) | Server admin only |
-| **Availability** | Shared event loop, memory, FDs, CPU | All tenants on the node |
+| Asset                              | Examples                                                            | Typical owner              |
+| :--------------------------------- | :------------------------------------------------------------------ | :------------------------- |
+| **App private code & data**        | `box/` scripts, SQLite files, logs, secrets in `app.json`           | App + server admin         |
+| **App public assets**              | `web/` static files                                                 | App (intentionally public) |
+| **Server control plane**           | `gingee.json`, `settings/permissions.json`, SSL keys, backups       | Server admin               |
+| **Other apps on the same process** | Sibling `web/<other-app>/` trees                                    | Other apps / admin         |
+| **Outbound identity & budget**     | SendGrid keys, AI API keys, ability to hit internal networks        | Org / cloud account        |
+| **Platform integrity**             | Ability to install/delete apps (`platform` module, privileged apps) | Server admin only          |
+| **Availability**                   | Shared event loop, memory, FDs, CPU                                 | All tenants on the node    |
 
 ---
 
@@ -3136,15 +3159,15 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ## 5. Actors and intents
 
-| Actor | Intent | Assumed in cooperative model? |
-| :--- | :--- | :--- |
-| **Server admin** | Configure host, grant permissions, install apps | Trusted |
-| **App developer** (first-party) | Ship business logic; may make mistakes | Semi-trusted (bugs, not malice) |
-| **App packager / store app** | Distributes `.gin`; may request excessive perms | Review before grant |
-| **End user of an app** | Uses HTTP UI/API of one app | Untrusted for input; trusted only within that app’s auth model |
-| **External network attacker** | Exploit exposed HTTP, steal data, DoS | Always untrusted |
-| **Malicious app author** | Escape isolation, steal other apps’ data, mine crypto, SSRF | **Out of scope** for hard isolation on a shared process |
-| **Compromised dependency** | RCE inside process via native module or prototype pollution | Residual supply-chain risk |
+| Actor                           | Intent                                                      | Assumed in cooperative model?                                  |
+| :------------------------------ | :---------------------------------------------------------- | :------------------------------------------------------------- |
+| **Server admin**                | Configure host, grant permissions, install apps             | Trusted                                                        |
+| **App developer** (first-party) | Ship business logic; may make mistakes                      | Semi-trusted (bugs, not malice)                                |
+| **App packager / store app**    | Distributes `.gin`; may request excessive perms             | Review before grant                                            |
+| **End user of an app**          | Uses HTTP UI/API of one app                                 | Untrusted for input; trusted only within that app’s auth model |
+| **External network attacker**   | Exploit exposed HTTP, steal data, DoS                       | Always untrusted                                               |
+| **Malicious app author**        | Escape isolation, steal other apps’ data, mine crypto, SSRF | **Out of scope** for hard isolation on a shared process        |
+| **Compromised dependency**      | RCE inside process via native module or prototype pollution | Residual supply-chain risk                                     |
 
 ---
 
@@ -3152,16 +3175,16 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ### 6.1 Strengths (work as designed under model A)
 
-| Control | Mechanism | Limits of control |
-| :--- | :--- | :--- |
-| **Default deny modules** | `PROTECTED_MODULES` + `grantedPermissions` | Only modules that check permission; not a full OS sandbox |
-| **Path jail (`fs`, relative `require`)** | `isPathInside` / `resolveSecurePath` under app BOX/WEB | Must be used consistently; leading `/` vs script-relative paths can confuse authors |
-| **BOX not web-served** | Engine blocks `…/box` URLs | Misconfigured reverse proxies could still expose disk if mounted elsewhere |
-| **Privileged apps** | `privileged_apps` + restricted `platform` / engine modules | Anyone who can edit `gingee.json` is root-equivalent for the platform |
-| **Permission consent** | `pmft.json` + Glade / CLI + `settings/permissions.json` | Human factor; over-grant is common under time pressure |
-| **Request / outbound limits** | `limits` (concurrency, timeouts) | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin |
-| **Scheduler gate** | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
-| **Explicit high-risk capabilities** | `httpclient`, `email`, `ai`, `scheduler`, `platform` | Once granted, full capability within that API |
+| Control                                  | Mechanism                                                                                                                       | Limits of control                                                                                                 |
+| :--------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------- |
+| **Default deny modules**                 | `PROTECTED_MODULES` + `grantedPermissions`                                                                                      | Only modules that check permission; not a full OS sandbox                                                         |
+| **Path jail (`fs`, relative `require`)** | `isPathInside` / `resolveSecurePath` under app BOX/WEB                                                                          | Must be used consistently; leading `/` vs script-relative paths can confuse authors                               |
+| **BOX not web-served**                   | Engine blocks `…/box` URLs                                                                                                      | Misconfigured reverse proxies could still expose disk if mounted elsewhere                                        |
+| **Privileged apps**                      | `privileged_apps` + restricted `platform` / engine modules                                                                      | Anyone who can edit `gingee.json` is root-equivalent for the platform                                             |
+| **Permission consent**                   | `pmft.json` + Glade / CLI + `settings/permissions.json`                                                                         | Human factor; over-grant is common under time pressure                                                            |
+| **Request / outbound limits**            | `limits` (concurrency, timeouts)                                                                                                | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin                                         |
+| **Scheduler gate**                       | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
+| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`                                                                            | Once granted, full capability within that API                                                                     |
 
 ### 6.2 Soft sandbox reality (`gbox`)
 
@@ -3183,14 +3206,14 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 **Therefore:**
 
-| Claim | Valid? |
-| :--- | :--- |
-| “App A cannot `require` host `fs` / `child_process` without grant” | **Yes** (gRequire + forbidden built-ins) |
-| “App A cannot read `process.env` of the host” | **Yes** under default gbox (no `process`) |
-| “App A cannot read App B’s BOX via normal `fs` APIs” | **Yes**, if path jail holds |
-| “App A cannot affect App B’s availability” | **No** — CPU/memory/event loop are shared |
-| “App A cannot inspect App B’s secrets in RAM after resolve” | **No hard guarantee** (same process) |
-| “Permissions equal cloud multi-tenant isolation” | **No** |
+| Claim                                                              | Valid?                                    |
+| :----------------------------------------------------------------- | :---------------------------------------- |
+| “App A cannot `require` host `fs` / `child_process` without grant” | **Yes** (gRequire + forbidden built-ins)  |
+| “App A cannot read `process.env` of the host”                      | **Yes** under default gbox (no `process`) |
+| “App A cannot read App B’s BOX via normal `fs` APIs”               | **Yes**, if path jail holds               |
+| “App A cannot affect App B’s availability”                         | **No** — CPU/memory/event loop are shared |
+| “App A cannot inspect App B’s secrets in RAM after resolve”        | **No hard guarantee** (same process)      |
+| “Permissions equal cloud multi-tenant isolation”                   | **No**                                    |
 
 **Env/file secrets (P2a):** Config may use `env:VAR` / `file:path` refs. The **engine** resolves them at load into that app’s in-memory config. App scripts still **cannot** read host `process.env`. This is **ops hygiene** (keys out of git/JSON packages), **not** inter-app isolation on one process—another reason untrusted apps must not share a process.
 
@@ -3200,28 +3223,28 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 ### 7.1 Cooperative multi-app (in scope — mitigated)
 
-| ID | Scenario | Primary mitigations | Residual risk |
-| :--- | :--- | :--- | :--- |
-| C1 | Accidental path traversal in app code | Sandboxed `fs` + `isPathInside` | Bugs in new modules that skip jail |
-| C2 | App requests too many permissions | Admin review of `pmft.json` / Glade | Admin grants “all” for convenience |
-| C3 | Hung outbound HTTP | `limits.outbound_timeout_ms`, outbound concurrency | Custom axios options still clamped; other egress paths (AI/email) have their own timeouts |
-| C3b | Accidental SSRF to localhost/metadata | `egress` protected mode on `httpclient` + scheduler URLs | DNS rebinding residual; `mode=off` disables |
-| C4 | Runaway request volume | `max_concurrent_requests` / per-app caps → 503 | No sophisticated rate limit / WAF |
-| C5 | Script never finishes | `request_timeout_ms` / stream idle+hard | Sync infinite loops ignore timers until yield |
-| C6 | Install wrong package version | Backups, Glade rollback, review `.gin` | Supply chain of the package itself |
-| C7 | Secrets in `app.json` | Filesystem permissions, least privilege OS user | Backups, logs, package export may copy secrets |
+| ID  | Scenario                              | Primary mitigations                                      | Residual risk                                                                             |
+| :-- | :------------------------------------ | :------------------------------------------------------- | :---------------------------------------------------------------------------------------- |
+| C1  | Accidental path traversal in app code | Sandboxed `fs` + `isPathInside`                          | Bugs in new modules that skip jail                                                        |
+| C2  | App requests too many permissions     | Admin review of `pmft.json` / Glade                      | Admin grants “all” for convenience                                                        |
+| C3  | Hung outbound HTTP                    | `limits.outbound_timeout_ms`, outbound concurrency       | Custom axios options still clamped; other egress paths (AI/email) have their own timeouts |
+| C3b | Accidental SSRF to localhost/metadata | `egress` protected mode on `httpclient` + scheduler URLs | DNS rebinding residual; `mode=off` disables                                               |
+| C4  | Runaway request volume                | `max_concurrent_requests` / per-app caps → 503           | No sophisticated rate limit / WAF                                                         |
+| C5  | Script never finishes                 | `request_timeout_ms` / stream idle+hard                  | Sync infinite loops ignore timers until yield                                             |
+| C6  | Install wrong package version         | Backups, Glade rollback, review `.gin`                   | Supply chain of the package itself                                                        |
+| C7  | Secrets in `app.json`                 | Filesystem permissions, least privilege OS user          | Backups, logs, package export may copy secrets                                            |
 
 ### 7.2 Hostile multi-tenant (out of scope for hard guarantees)
 
-| ID | Scenario | Why Gingee alone is insufficient |
-| :--- | :--- | :--- |
-| H1 | Malicious app with only “safe” permissions burns CPU | Shared event loop; no preemption of tight loops |
-| H2 | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs | **Mitigated by default** via `egress.mode=protected` (private/loopback/metadata blocked; DNS check; redirect re-validation). Residual: DNS rebinding TOCTOU, `mode=off`, or overly broad `allow_cidrs` |
-| H3 | Malicious app with `fs` + clever bugs tries cross-app read | Path jail is software; hostile code + engine bugs = higher risk |
-| H4 | Malicious app with `platform` (if wrongly privileged) | Full lifecycle control of all apps |
-| H5 | Malicious app with `scheduler` + `httpclient` | Persistent unattended egress |
-| H6 | Tenant escapes to steal other apps’ DB credentials from config in memory | Single process; no crypto boundary between apps |
-| H7 | Resource exhaustion (FD/memory) | `limits` help for HTTP concurrency; not a full cgroup story |
+| ID  | Scenario                                                                 | Why Gingee alone is insufficient                                                                                                                                                                       |
+| :-- | :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1  | Malicious app with only “safe” permissions burns CPU                     | Shared event loop; no preemption of tight loops                                                                                                                                                        |
+| H2  | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs     | **Mitigated by default** via `egress.mode=protected` (private/loopback/metadata blocked; DNS check; redirect re-validation). Residual: DNS rebinding TOCTOU, `mode=off`, or overly broad `allow_cidrs` |
+| H3  | Malicious app with `fs` + clever bugs tries cross-app read               | Path jail is software; hostile code + engine bugs = higher risk                                                                                                                                        |
+| H4  | Malicious app with `platform` (if wrongly privileged)                    | Full lifecycle control of all apps                                                                                                                                                                     |
+| H5  | Malicious app with `scheduler` + `httpclient`                            | Persistent unattended egress                                                                                                                                                                           |
+| H6  | Tenant escapes to steal other apps’ DB credentials from config in memory | Single process; no crypto boundary between apps                                                                                                                                                        |
+| H7  | Resource exhaustion (FD/memory)                                          | `limits` help for HTTP concurrency; not a full cgroup story                                                                                                                                            |
 
 **Required pattern for hostile or untrusted code:** **one Gingee process (or container) per trust domain**, network policy, secrets isolation, and independent resource limits at the orchestrator level.
 
@@ -3229,28 +3252,28 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 ## 8. STRIDE-style view (platform level)
 
-| Category | Example | Cooperative posture |
-| :--- | :--- | :--- |
-| **S**poofing | Forged admin session on Glade | Harden Glade credentials (set at **`gingee-cli init`**); TLS; session cookie `Path=/glade` + `SameSite=Strict` + `Secure` on HTTPS; **login rate limit** (IP + username) |
-| **C**SRF / same-host | Sibling app XSS calling `/glade/api/*` with credentials | Glade **CSRF** (`X-CSRF-Token` + `glade_csrf` cookie); Origin/Referer checks; prefer **dedicated Glade host/port** |
-| **T**ampering | Modified `permissions.json` on disk | OS file permissions; restrict who can write `settings/` |
-| **R**epudiation | “Who granted `httpclient`?” | Append-only JSONL **`audit`** log (`permission.set`, lifecycle events) + process logs; keep file history on `settings/permissions.json` |
-| **I**nformation disclosure | App data leakage via another app | Path jail + no cross-app API by default; not RAM isolation |
-| **D**enial of service | Heavy PDF/AI script stalls node | `limits`, separate processes for heavy apps, timeouts |
-| **E**levation of privilege | Normal app becomes privileged | Keep `privileged_apps` minimal; never put untrusted apps there |
+| Category                   | Example                                                 | Cooperative posture                                                                                                                                                      |
+| :------------------------- | :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S**poofing               | Forged admin session on Glade                           | Harden Glade credentials (set at **`gingee-cli init`**); TLS; session cookie `Path=/glade` + `SameSite=Strict` + `Secure` on HTTPS; **login rate limit** (IP + username) |
+| **C**SRF / same-host       | Sibling app XSS calling `/glade/api/*` with credentials | Glade **CSRF** (`X-CSRF-Token` + `glade_csrf` cookie); Origin/Referer checks; prefer **dedicated Glade host/port**                                                       |
+| **T**ampering              | Modified `permissions.json` on disk                     | OS file permissions; restrict who can write `settings/`                                                                                                                  |
+| **R**epudiation            | “Who granted `httpclient`?”                             | Append-only JSONL **`audit`** log (`permission.set`, lifecycle events) + process logs; keep file history on `settings/permissions.json`                                  |
+| **I**nformation disclosure | App data leakage via another app                        | Path jail + no cross-app API by default; not RAM isolation                                                                                                               |
+| **D**enial of service      | Heavy PDF/AI script stalls node                         | `limits`, separate processes for heavy apps, timeouts                                                                                                                    |
+| **E**levation of privilege | Normal app becomes privileged                           | Keep `privileged_apps` minimal; never put untrusted apps there                                                                                                           |
 
 ---
 
 ## 9. Data flow trust notes
 
-| Flow | Trust note |
-| :--- | :--- |
-| Browser → App HTTP script | Validate all input in the app; Gingee parses body with size caps (`max_body_size`) |
-| App → `db` | Credentials from `app.json`; compromise of app with `db` = data plane compromise for that DB |
+| Flow                            | Trust note                                                                                           |
+| :------------------------------ | :--------------------------------------------------------------------------------------------------- |
+| Browser → App HTTP script       | Validate all input in the app; Gingee parses body with size caps (`max_body_size`)                   |
+| App → `db`                      | Credentials from `app.json`; compromise of app with `db` = data plane compromise for that DB         |
 | App → `httpclient` / AI / email | Treat as full egress for that capability; prefer dedicated keys with least privilege at the provider |
-| App → `fs` BOX | Private to app path; still on shared disk volume |
-| Admin → Glade/`platform` | Highest privilege path; protect like root |
-| Scheduler → script/URL | Runs as that app’s permissions; enable only on intended node |
+| App → `fs` BOX                  | Private to app path; still on shared disk volume                                                     |
+| Admin → Glade/`platform`        | Highest privilege path; protect like root                                                            |
+| Scheduler → script/URL          | Runs as that app’s permissions; enable only on intended node                                         |
 
 ---
 
@@ -3262,14 +3285,14 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 2. Keep **`privileged_apps`** to Glade (or equivalent) only.
 3. Grant permissions **least privilege**; prefer optional over mandatory in packages you publish.
 4. Set **`limits`** appropriately; do not disable timeouts without a reason.
-4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
-4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
+   4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
+   4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
 5. Keep **`scheduler.enabled`** false except on the designated scheduler node, **or** enable on all nodes with `scheduler.coordination.driver: "redis"` and shared `scheduler.redis` (NTP-aligned clocks recommended).
-5b. Treat **Glade Logs** as admin-only: server and app log files may contain secrets or payloads; do not expose Glade publicly.
+   5b. Treat **Glade Logs** as admin-only: server and app log files may contain secrets or payloads; do not expose Glade publicly.
 6. Prefer **Redis** for cache when running more than one node.
 7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.  
-7b. **Glade CSRF:** Mutating Glade APIs require `X-CSRF-Token` (session-bound; double-submit cookie `glade_csrf` Path=/glade). Same-site sibling apps cannot read that cookie. For hostile multi-app hosts, run Glade on a **separate host/port** and set `GLADE_ALLOWED_ORIGINS` in Glade `app.json` `env` if needed.  
-7c. **Glade login rate limit:** Failed logins are throttled by IP and username (cache-backed; default 5 fails / 15 minutes → 429). Password is set at **`gingee-cli init`** — rotate with `reset-pwd` if compromised (see [Glade Admin](./glade-admin.md)).
+   7b. **Glade CSRF:** Mutating Glade APIs require `X-CSRF-Token` (session-bound; double-submit cookie `glade_csrf` Path=/glade). Same-site sibling apps cannot read that cookie. For hostile multi-app hosts, run Glade on a **separate host/port** and set `GLADE_ALLOWED_ORIGINS` in Glade `app.json` `env` if needed.  
+   7c. **Glade login rate limit:** Failed logins are throttled by IP and username (cache-backed; default 5 fails / 15 minutes → 429). Password is set at **`gingee-cli init`** — rotate with `reset-pwd` if compromised (see [Glade Admin](./glade-admin.md)).
 8. Treat **`app.json` secrets** as sensitive; restrict backups and who can download `.gin` exports.
 9. Leave **`box.allowed_modules`** empty unless you fully understand the escape hatch.
 10. Review every new `.gin`’s `pmft.json` before production grant.
@@ -3299,13 +3322,13 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 Gingee does **not** currently claim:
 
-- Full hostile multi-tenant isolation on one host (even with process isolation)  
-- Formal verification of the sandbox  
-- Built-in WAF or global end-user SSO (Glade admin has **CSRF + Origin** checks; app authors still own their own CSRF)  
-- Perfect SSRF immunity in every edge case (baseline `egress` + **connect-time DNS pin** is on by default; orchestrator network policy still required for hostile tenants)  
-- Multi-tenant billing isolation or noisy-neighbor SLAs  
-- Guaranteed preemption of malicious infinite loops in the **master** process  
-- Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)  
+- Full hostile multi-tenant isolation on one host (even with process isolation)
+- Formal verification of the sandbox
+- Built-in WAF or global end-user SSO (Glade admin has **CSRF + Origin** checks; app authors still own their own CSRF)
+- Perfect SSRF immunity in every edge case (baseline `egress` + **connect-time DNS pin** is on by default; orchestrator network policy still required for hostile tenants)
+- Multi-tenant billing isolation or noisy-neighbor SLAs
+- Guaranteed preemption of malicious infinite loops in the **master** process
+- Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)
 
 These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
 
@@ -3315,12 +3338,12 @@ These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS qu
 
 ## 13. Mapping to critical assessment P0
 
-| Assessment item | This document |
-| :--- | :--- |
-| Document cooperative vs hostile models | §§2, 7, 10 |
-| Stop false assumptions about sandbox | §§6.2, 7.2, 12 |
-| Align operators with real controls | §§6.1, 10 |
-| Residual risk honesty | Throughout |
+| Assessment item                        | This document  |
+| :------------------------------------- | :------------- |
+| Document cooperative vs hostile models | §§2, 7, 10     |
+| Stop false assumptions about sandbox   | §§6.2, 7.2, 12 |
+| Align operators with real controls     | §§6.1, 10      |
+| Residual risk honesty                  | Throughout     |
 
 **Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, process isolation (incl. **worker_limits**), WebSockets (incl. Redis fan-out), scheduler Redis coordination, and background **queue** (incl. DLQ + live jobs Glade admin) — see [Server Config](./server-config.md) and the [critical assessment](../dev-docs/gingee-critical-assessment.md). That reduces **availability** abuse under cooperative load and improves crash containment for opted-in apps; it is not a substitute for full tenant isolation.
 
@@ -3328,17 +3351,15 @@ These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS qu
 
 ## 14. Document control
 
-| Field | Value |
-| :--- | :--- |
-| Status | Living document |
-| Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS` |
-| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `modules/engine/isolation/*`, `gingee.js` |
+| Field                                | Value                                                                                                                                                                                                           |
+| :----------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status                               | Living document                                                                                                                                                                                                 |
+| Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS`                                                                                                                           |
+| Implementation anchors               | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `modules/engine/isolation/*`, `gingee.js` |
 
 When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.
 
-
 ---
-
 
 # Gingee: The Modern SPA Developer's Guide
 
@@ -3400,30 +3421,33 @@ The generated `web/my-spa/box/app.json` is the key to enabling SPA mode:
 }
 ```
 
-*   `"type": "SPA"`: Tells the Gingee engine to use the SPA routing logic.
-*   `"mode": "development"`: **Crucial for development.** This activates the dev server proxy. Switch this to `"production"` when you are ready to build and deploy.
-*   `"spa.dev_server_proxy"`: The URL of your frontend's dev server. You may need to change the port to match your tooling (e.g., `http://localhost:4200` for Angular).
-*   `"spa.build_path"`: The path to your compiled frontend assets, relative to the app's root (`web/my-spa/`). **`./dist`** is a common default.
-*   `"spa.fallback_path"`: The entry point file for your SPA, located inside the `build_path`.
+- `"type": "SPA"`: Tells the Gingee engine to use the SPA routing logic.
+- `"mode": "development"`: **Crucial for development.** This activates the dev server proxy. Switch this to `"production"` when you are ready to build and deploy.
+- `"spa.dev_server_proxy"`: The URL of your frontend's dev server. You may need to change the port to match your tooling (e.g., `http://localhost:4200` for Angular).
+- `"spa.build_path"`: The path to your compiled frontend assets, relative to the app's root (`web/my-spa/`). **`./dist`** is a common default.
+- `"spa.fallback_path"`: The entry point file for your SPA, located inside the `build_path`.
 
 ### Chapter 3: Setting Up Your Frontend
 
-Gingee is framework-agnostic. You can now use the official CLI for your chosen framework to initialize your project *inside* the `web/my-spa/` directory.
+Gingee is framework-agnostic. You can now use the official CLI for your chosen framework to initialize your project _inside_ the `web/my-spa/` directory.
 
 **Example using Vite + React + TypeScript:**
 
 1.  **Navigate into your app's directory:**
+
     ```bash
     cd web/my-spa
     ```
 
 2.  **Initialize the Vite project in the current folder:**
+
     ```bash
     # The '.' tells Vite to use the current directory
     npm create vite@latest
     ```
 
 3.  **Install frontend dependencies:**
+
     ```bash
     npm install
     ```
@@ -3433,14 +3457,14 @@ Gingee is framework-agnostic. You can now use the official CLI for your chosen f
 
     ```javascript
     // File: web/my-spa/vite.config.js
-    import { defineConfig } from 'vite'
-    import react from '@vitejs/plugin-react'
+    import { defineConfig } from "vite";
+    import react from "@vitejs/plugin-react";
 
     export default defineConfig({
       plugins: [react()],
       // This ensures all asset paths are correctly prefixed with /my-spa/
-      base: '/my-spa/', 
-    })
+      base: "/my-spa/",
+    });
     ```
 
 ### Chapter 4: The Unified Development Experience
@@ -3485,7 +3509,7 @@ Declare all the Gingee modules your backend API needs. See Permissions Guide [MD
 // File: web/my-spa/box/pmft.json
 {
   "permissions": {
-    "mandatory": [ "db"],
+    "mandatory": ["db"],
     "optional": []
   }
 }
@@ -3497,10 +3521,7 @@ Specify which files to include in the final `.gin` package. **Crucially, you mus
 ```json
 // File: web/my-spa/box/.gpkg
 {
-  "include": [
-    "box/**/*",
-    "dist/**/*"
-  ],
+  "include": ["box/**/*", "dist/**/*"],
   "exclude": [
     "src",
     "node_modules",
@@ -3526,9 +3547,7 @@ With the frontend built and manifests in place, you are ready to create your dis
 
 Congratulations! You have successfully built and packaged a modern Single Page Application on the Gingee platform
 
-
 ---
-
 
 # GStore - Hosting a Gingee App Store
 
@@ -3550,8 +3569,8 @@ my-gingee-store/
 └── gstore.json
 ```
 
--   **`gstore.json`:** (Required) The manifest file that defines your store and lists the available applications. This file must be at the root of the URL you share.
--   **`/apps/`:** (Recommended) A subdirectory to hold all your distributable `.gin` package files.
+- **`gstore.json`:** (Required) The manifest file that defines your store and lists the available applications. This file must be at the root of the URL you share.
+- **`/apps/`:** (Recommended) A subdirectory to hold all your distributable `.gin` package files.
 
 ## 2. Creating the `gstore.json` Manifest
 
@@ -3560,6 +3579,7 @@ The `gstore.json` file is the heart of your store. It's a simple JSON file that 
 Here is a complete example with two applications:
 
 **`gstore.json`**
+
 ```json
 {
   "storeName": "My Awesome Gingee App Collection",
@@ -3590,15 +3610,15 @@ Here is a complete example with two applications:
 
 ### Key Fields:
 
--   **`storeName`**: The human-readable name of your store.
--   **`apps`**: An array of application objects. Each object must contain:
-    -   **`name`**: The unique, machine-readable name of the app (e.g., `my-blog-app`).
-    -   **`version`**: The semantic version number of the package.
-    -   **`description`**: A short, one-line description of the app's purpose.
-    -   **`download_url`**: The URL where the `.gin` package can be downloaded. This is the most important field.
-        -   **Relative Path:** If you are hosting the `.gin` files on the same server as the manifest (as in the `my-blog-app` example), you can use a relative path. The CLI will resolve it correctly.
-        -   **Absolute URL:** If you are hosting your packages on a separate CDN or file server (as in the `my-crm-app` example), you must provide the full, absolute URL.
-    -   **`publisher`**: An object containing information about who created the app.
+- **`storeName`**: The human-readable name of your store.
+- **`apps`**: An array of application objects. Each object must contain:
+  - **`name`**: The unique, machine-readable name of the app (e.g., `my-blog-app`).
+  - **`version`**: The semantic version number of the package.
+  - **`description`**: A short, one-line description of the app's purpose.
+  - **`download_url`**: The URL where the `.gin` package can be downloaded. This is the most important field.
+    - **Relative Path:** If you are hosting the `.gin` files on the same server as the manifest (as in the `my-blog-app` example), you can use a relative path. The CLI will resolve it correctly.
+    - **Absolute URL:** If you are hosting your packages on a separate CDN or file server (as in the `my-crm-app` example), you must provide the full, absolute URL.
+  - **`publisher`**: An object containing information about who created the app.
 
 ## 3. Preparing Your Application Packages
 
@@ -3614,6 +3634,7 @@ For each application you want to list in your store, you need to create its `.gi
     # Package the app
     gingee-cli package-app --appName my-blog-app
     ```
+
 3.  **Place the `.gin` file:** Move the generated package file (e.g., `my-blog-app-v1.0.0.gin`) into your store's `apps/` directory.
 
 ## 4. Hosting Your Store
@@ -3656,9 +3677,7 @@ gingee-cli list-store-apps -g "https://<your-username>.github.io/my-gingee-store
 gingee-cli install-store-app my-blog-app -g "https://<your-username>.github.io/my-gingee-store/" -s "https://<target-gingee-server.com>"
 ```
 
-
 ---
-
 
 # Gingee Feature Overview
 
@@ -3670,77 +3689,77 @@ Gingee is a comprehensive application server designed to accelerate development 
 
 These are the core architectural features that define the Gingee development experience.
 
-*   **Secure Sandbox Execution**
-    Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
+- **Secure Sandbox Execution**
+  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
 
-*   **Whitelist-Based Permissions System**
-    A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).
+- **Whitelist-Based Permissions System**
+  A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).
 
-*   **Flexible Routing Engine**
-    Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
+- **Flexible Routing Engine**
+  Gingee features a powerful routing engine with two modes. For regular apps, use the zero-config **File-Based Routing**. For building RESTful APIs, create a `routes.json` manifest to enable **Manifest-Based Routing** with dynamic path parameters (e.g., `/users/:id`).
 
-*   **Multi-Database Abstraction Layer**
-    Write your database logic once and deploy against multiple database systems. Gingee supports PostgreSQL, MySQL/MariaDB, SQLite, MS SQL Server, and Oracle, automatically transpiling queries for the target database.
+- **Multi-Database Abstraction Layer**
+  Write your database logic once and deploy against multiple database systems. Gingee supports PostgreSQL, MySQL/MariaDB, SQLite, MS SQL Server, and Oracle, automatically transpiling queries for the target database.
 
-*   **Modern JavaScript Support (ESM)**
-    Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
+- **Modern JavaScript Support (ESM)**
+  Use modern ES Module syntax (`import`/`from`) directly in your backend scripts. Gingee uses on-the-fly transpilation to handle this automatically, with no build steps or complex `package.json` configuration required.
 
-*   **SPA Hosting & Development Workflow**
-    Gingee provides first-class support for modern Single Page Applications (React, Vue, Angular). In development (`type: "SPA"`, `mode: "development"`), it proxies non-API requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves compiled assets from `spa.build_path` and falls back to `spa.fallback_path` (e.g. `index.html`) for client-side routers. Backend APIs continue to run from the secure `box/` folder. See the [SPA Developer's Guide](./app-spadev-guide.md).
+- **SPA Hosting & Development Workflow**
+  Gingee provides first-class support for modern Single Page Applications (React, Vue, Angular). In development (`type: "SPA"`, `mode: "development"`), it proxies non-API requests to your frontend's native hot-reloading server for a unified, CORS-free environment. In production, it serves compiled assets from `spa.build_path` and falls back to `spa.fallback_path` (e.g. `index.html`) for client-side routers. Backend APIs continue to run from the secure `box/` folder. See the [SPA Developer's Guide](./app-spadev-guide.md).
 
-*   **Application Lifecycle Management**
-    A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
+- **Application Lifecycle Management**
+  A privileged `platform` module allows for full lifecycle management, enabling the creation, packaging (`.gin`), installation, upgrading, backup, and rollback of applications, a powerful module accessible to designated `privileged apps` as configured in `gingee.json`. The default Gingee Glade Admin Tool is one such privileged app.
 
-*   **App Store with Interactive Installation**
-    The `gingee-cli` provides commands to browse and install applications from any decentralized "GStore" - the Gingee app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
+- **App Store with Interactive Installation**
+  The `gingee-cli` provides commands to browse and install applications from any decentralized "GStore" - the Gingee app store (a static server hosting a `gstore.json` manifest). The installation process is fully interactive, reading a permissions manifest (`pmft.json`) and database requirements directly from the app package to guide the administrator through a secure, one-command setup.
 
-*   **Hierarchical & Context-Aware Logging**
-    Each app writes to its own structured JSON log file within its private `box` directory, while logs are also forwarded to a central, timestamped server log for a complete system overview.
+- **Hierarchical & Context-Aware Logging**
+  Each app writes to its own structured JSON log file within its private `box` directory, while logs are also forwarded to a central, timestamped server log for a complete system overview.
 
-*   **Resilient Distributed Caching**
-    The server provides a centralized, pluggable caching service. Use a dependency-free in-memory cache for local development, or switch to a Redis backend for horizontally scaled production deployments by changing a single line of config.
+- **Resilient Distributed Caching**
+  The server provides a centralized, pluggable caching service. Use a dependency-free in-memory cache for local development, or switch to a Redis backend for horizontally scaled production deployments by changing a single line of config.
 
-*   **Transactional Email (`email` Module)**
-    Send mail through a provider adapter (SendGrid in v1, plus a `console` logger for local dev). Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `email.send(message)` or `email.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `email` permission.
+- **Transactional Email (`email` Module)**
+  Send mail through a provider adapter (SendGrid in v1, plus a `console` logger for local dev). Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `email.send(message)` or `email.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `email` permission.
 
-*   **Generative AI (`ai` Module)**
-    Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
+- **Generative AI (`ai` Module)**
+  Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
 
-*   **Streamed HTTP Responses**
-    Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
+- **Streamed HTTP Responses**
+  Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
 
-*   **CRON Scheduler**
-    Apps declare recurring jobs in `app.json` → `schedules` (script, URL, or **queue** handoff). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`). Multi-server: enable on one node, **or** set `scheduler.coordination.driver: "redis"` with sibling `scheduler.redis` (same connection shape as queue/cache) so every node can enable the scheduler with single-fire locks (or global leader). **Glade → Schedules** lists jobs on this node and supports **Run now**. Requires the `scheduler` permission (`httpclient` for URL; `queue` for queue targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
+- **CRON Scheduler**
+  Apps declare recurring jobs in `app.json` → `schedules` (script, URL, or **queue** handoff). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`). Multi-server: enable on one node, **or** set `scheduler.coordination.driver: "redis"` with sibling `scheduler.redis` (same connection shape as queue/cache) so every node can enable the scheduler with single-fire locks (or global leader). **Glade → Schedules** lists jobs on this node and supports **Run now**. Requires the `scheduler` permission (`httpclient` for URL; `queue` for queue targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
 
-*   **Request & Outbound Limits**
-    Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
+- **Request & Outbound Limits**
+  Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.
 
-*   **Egress / SSRF policy**
-    Default **`egress.mode: protected`** blocks outbound calls to loopback, private, link-local, and cloud metadata targets for `httpclient` and scheduler URL jobs; DNS is checked and redirects are re-validated. Deny → **403** `EGRESS_DENIED`. Use `allow_cidrs` / `allow_hosts` for intentional internal access, or `mode: "off"` for local dev only.
+- **Egress / SSRF policy**
+  Default **`egress.mode: protected`** blocks outbound calls to loopback, private, link-local, and cloud metadata targets for `httpclient` and scheduler URL jobs; DNS is checked and redirects are re-validated. Deny → **403** `EGRESS_DENIED`. Use `allow_cidrs` / `allow_hosts` for intentional internal access, or `mode: "off"` for local dev only.
 
-*   **Config secret references**
-    Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
+- **Config secret references**
+  Use `env:VAR_NAME` or `file:…` (under `secrets.file_roots`) in `app.json` / `gingee.json` for JWT, DB passwords, API keys, etc. The engine resolves them at load; sandbox scripts still cannot access host `process.env`.
 
--   **Prometheus Metrics:**
-    Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, WebSocket upgrades/connections/fan-out, queue/DLQ counters, and process gauges—not cross-app data APIs for untrusted code.
+* **Prometheus Metrics:**
+  Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, WebSocket upgrades/connections/fan-out, queue/DLQ counters, and process gauges—not cross-app data APIs for untrusted code.
 
--   **Audit Trail:**
-    Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants, app lifecycle (install, upgrade, reload, delete, rollback), scheduler Run now, queue DLQ retry/discard, and log list/read metadata. Complements application request logs.
+* **Audit Trail:**
+  Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants, app lifecycle (install, upgrade, reload, delete, rollback), scheduler Run now, queue DLQ retry/discard, and log list/read metadata. Complements application request logs.
 
--   **Optional feature packages:**
-    Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
+* **Optional feature packages:**
+  Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
 
--   **Process isolation (opt-in):**
-    With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, **request-timeout cancel** (IPC + AbortSignal; optional worker kill), and worker-side re-init of `ai` / `email` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
+* **Process isolation (opt-in):**
+  With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, **request-timeout cancel** (IPC + AbortSignal; optional worker kill), and worker-side re-init of `ai` / `email` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
 
--   **WebSockets (opt-in per app):**
-    Bidirectional real-time connections on the same public HTTP(S) port (`ws` library). Declare `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, then use `require('websockets')` for rooms/broadcast. Multi-tenant apps should use `tenantRoom(tenantId, name)`. Connections terminate on the **master** (not isolation workers). **Multi-node:** set `websockets.fanout.driver: "redis"` and sibling `websockets.redis` so `toRoom` / `toApp` reach sockets on every master. Prefer SSE for one-shot AI token streams. Sample app: **`ginchat`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets`.
+* **WebSockets (opt-in per app):**
+  Bidirectional real-time connections on the same public HTTP(S) port (`ws` library). Declare `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, then use `require('websockets')` for rooms/broadcast. Multi-tenant apps should use `tenantRoom(tenantId, name)`. Connections terminate on the **master** (not isolation workers). **Multi-node:** set `websockets.fanout.driver: "redis"` and sibling `websockets.redis` so `toRoom` / `toApp` reach sockets on every master. Prefer SSE for one-shot AI token streams. Sample app: **`ginchat`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets`.
 
--   **Background job queue (`queue` module):**
-    Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** **Queue / DLQ**: live jobs (running/waiting/pending/delayed, auto-refresh) and DLQ (retry/discard). CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
+* **Background job queue (`queue` module):**
+  Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** **Queue / DLQ**: live jobs (running/waiting/pending/delayed, auto-refresh) and DLQ (retry/discard). CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
-*   **Application Startup Hooks**
-    Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
+- **Application Startup Hooks**
+  Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
 ## App Module Library
 
@@ -3748,64 +3767,62 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 
 ### Core & System
 
-*   **`gingee`**
-    The core middleware and context provider. It provides the `$g` global object (`$g.request`, `$g.response`, etc.) to all server scripts and handles automatic request body parsing.
-*   **`cache`**
-    A secure, multi-tenant facade module for application data caching. It provides a simple API (`get`, `set`, `del`, `clear`) and automatically namespaces all keys to ensure data isolation between apps.
+- **`gingee`**
+  The core middleware and context provider. It provides the `$g` global object (`$g.request`, `$g.response`, etc.) to all server scripts and handles automatic request body parsing.
+- **`cache`**
+  A secure, multi-tenant facade module for application data caching. It provides a simple API (`get`, `set`, `del`, `clear`) and automatically namespaces all keys to ensure data isolation between apps.
 
 ### Data & I/O
 
-*   **`db`**
-    The unified database interface. Provides a consistent API (`query`, `execute`, `transaction`) for interacting with any configured database.
-*   **`email`**
-    Transactional email via provider adapters (`sendgrid`, `console`). Config from `gingee.json` / `app.json`, plus `sendWithConfig` for per-transaction overrides. Permission-protected.
-*   **`ai`**
-    Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
-*   **`fs`**
-    A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
-*   **`httpclient`**
-    A powerful wrapper for making external HTTP(S) requests. It handles redirects, HTTPS, and intelligently processes response bodies into strings or buffers.
-*   **`formdata`**
-    A simple factory module for creating `multipart/form-data` bodies for file uploads via the `httpclient`.
-*   **`zip`**
-    A utility for creating and extracting zip archives. It can operate on buffers or files and has secure defaults for cross-scope operations.
+- **`db`**
+  The unified database interface. Provides a consistent API (`query`, `execute`, `transaction`) for interacting with any configured database.
+- **`email`**
+  Transactional email via provider adapters (`sendgrid`, `console`). Config from `gingee.json` / `app.json`, plus `sendWithConfig` for per-transaction overrides. Permission-protected.
+- **`ai`**
+  Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
+- **`fs`**
+  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
+- **`httpclient`**
+  A powerful wrapper for making external HTTP(S) requests. It handles redirects, HTTPS, and intelligently processes response bodies into strings or buffers.
+- **`formdata`**
+  A simple factory module for creating `multipart/form-data` bodies for file uploads via the `httpclient`.
+- **`zip`**
+  A utility for creating and extracting zip archives. It can operate on buffers or files and has secure defaults for cross-scope operations.
 
 ### Data Processing & Generation
 
-*   **`image`**
-    A high-performance module for server-side image manipulation. Wraps the optional `sharp` package to provide a secure, chainable API for resizing, filtering, and format conversion. Install `sharp` (or install without `--omit=optional`) when using this module.
-*   **`html`**
-    A server-side web scraping and parsing module. Wraps `cheerio` to load and query HTML from strings, files, or remote URLs.
-*   **`qrcode`**
-    A generator for both 2D QR Codes (via `qrcode()`) and traditional 1D barcodes (via `barcode()`). It can output generated codes as a PNG `Buffer` or a `DataURL`.
-*   **`chart`**
-    A server-side chart rendering engine. Wraps `Chart.js` to create beautiful, modern charts as PNG images from a standard JSON configuration.
-*   **`dashboard`**
-    A powerful composition engine for creating multi-chart dashboards. It uses a JSON grid layout to render multiple charts into a single, unified image.
-*   **`pdf`**
-    A high-level PDF generation module. Wraps `pdfmake` to create complex, multi-page documents with flowing layouts, tables, and images from a declarative JSON definition.
+- **`image`**
+  A high-performance module for server-side image manipulation. Wraps the optional `sharp` package to provide a secure, chainable API for resizing, filtering, and format conversion. Install `sharp` (or install without `--omit=optional`) when using this module.
+- **`html`**
+  A server-side web scraping and parsing module. Wraps `cheerio` to load and query HTML from strings, files, or remote URLs.
+- **`qrcode`**
+  A generator for both 2D QR Codes (via `qrcode()`) and traditional 1D barcodes (via `barcode()`). It can output generated codes as a PNG `Buffer` or a `DataURL`.
+- **`chart`**
+  A server-side chart rendering engine. Wraps `Chart.js` to create beautiful, modern charts as PNG images from a standard JSON configuration.
+- **`dashboard`**
+  A powerful composition engine for creating multi-chart dashboards. It uses a JSON grid layout to render multiple charts into a single, unified image.
+- **`pdf`**
+  A high-level PDF generation module. Wraps `pdfmake` to create complex, multi-page documents with flowing layouts, tables, and images from a declarative JSON definition.
 
 ### Security & Authentication
 
-*   **`auth`**
-    An authentication module for managing user sessions. Its first implementation provides a complete, configurable toolkit for creating and verifying JSON Web Tokens (JWT).
-*   **`crypto`**
-    A comprehensive cryptographic library. Provides tools for hashing, HMAC, secure password management (`argon2`), symmetric encryption (`AES-2GCM`), and random string generation.
-*   **`uuid`**
-    A dependency-free utility for generating and validating RFC 4122 v4 UUIDs.
+- **`auth`**
+  An authentication module for managing user sessions. Its first implementation provides a complete, configurable toolkit for creating and verifying JSON Web Tokens (JWT).
+- **`crypto`**
+  A comprehensive cryptographic library. Provides tools for hashing, HMAC, secure password management (`argon2`), symmetric encryption (`AES-2GCM`), and random string generation.
+- **`uuid`**
+  A dependency-free utility for generating and validating RFC 4122 v4 UUIDs.
 
 ### Utilities
 
-*   **`utils`**
-    A large "standard library" of general-purpose helpers, organized into namespaces: `rnd` (random data), `string` (manipulation), `validate` (data validation), and `misc`.
-*   **`encode`**
-    A unified module for all common encoding and decoding needs, including `base64`, `hex`, `uri` components, and `html` entities.
-*   **`platform`** (Privileged)
-    The privileged, admin-level module for the **Glade Admin Tool**. It provides the APIs to manage the full lifecycle of all applications on the server.
-
+- **`utils`**
+  A large "standard library" of general-purpose helpers, organized into namespaces: `rnd` (random data), `string` (manipulation), `validate` (data validation), and `misc`.
+- **`encode`**
+  A unified module for all common encoding and decoding needs, including `base64`, `hex`, `uri` components, and `html` entities.
+- **`platform`** (Privileged)
+  The privileged, admin-level module for the **Glade Admin Tool**. It provides the APIs to manage the full lifecycle of all applications on the server.
 
 ---
-
 
 # App Module API Reference
 
@@ -3968,152 +3985,197 @@ Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true
 <a name="module_ai"></a>
 
 ## ai
-Generative AI for Gingee apps (chat, multimodal, document parsing, content safety)via provider adapters — similar to `db` / `email`.<b>Configuration (single config):</b>- Server defaults: `gingee.json` → `ai`- App override: `app.json` → `ai`- Per-call override: pass `{ config: { … } }` as the second argument to any method<b>Providers:</b>- `mock` — local deterministic responses (dev/tests)- `gemini` — Google Gemini (v1)- `xai` — Grok via xAI (P1 — stub until implemented)<b>Streaming:</b> `ai.chatStream(request, options)` yields chunk objects; final chunk has `done: true`.<b>IMPORTANT:</b> Requires the `ai` permission. See docs/permissions-guide.
 
+Generative AI for Gingee apps (chat, multimodal, document parsing, content safety)
+via provider adapters — similar to `db` / `email`.
 
-* [ai](#module_ai)
-    * _static_
-        * [.chat(request, [options])](#module_ai.chat) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [.chatStream(request, [options])](#module_ai.chatStream) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
-        * [.complete()](#module_ai.complete)
-        * [.parseDocument()](#module_ai.parseDocument)
-        * [.moderate()](#module_ai.moderate)
-    * _inner_
-        * [~serverAiConfig](#module_ai..serverAiConfig) : <code>object</code> \| <code>null</code>
-        * [~aiInstances](#module_ai..aiInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+<b>Configuration (single config):</b>
+
+- Server defaults: `gingee.json` → `ai`
+- App override: `app.json` → `ai`
+- Per-call override: pass `{ config: { … } }` as the second argument to any method
+
+<b>Providers:</b>
+
+- `mock` — local deterministic responses (dev/tests)
+- `gemini` — Google Gemini (v1)
+- `xai` — Grok via xAI (P1 — stub until implemented)
+
+<b>Streaming:</b> `ai.chatStream(request, options)` yields chunk objects; final chunk has `done: true`.
+
+<b>IMPORTANT:</b> Requires the `ai` permission. See docs/permissions-guide.
+
+- [ai](#module_ai)
+  - _static_
+    - [.chat(request, [options])](#module_ai.chat) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [.chatStream(request, [options])](#module_ai.chatStream) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
+    - [.complete()](#module_ai.complete)
+    - [.parseDocument()](#module_ai.parseDocument)
+    - [.moderate()](#module_ai.moderate)
+  - _inner_
+    - [~serverAiConfig](#module_ai..serverAiConfig) : <code>object</code> \| <code>null</code>
+    - [~aiInstances](#module_ai..aiInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
 
 <a name="module_ai.chat"></a>
 
 ### ai.chat(request, [options]) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Chat / text generation (supports multimodal content parts). Non-streaming.
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
-**Returns**: <code>Promise.&lt;object&gt;</code> - Result with `text`, `model`, `provider`, `usage`, etc.  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with `text`, `model`, `provider`, `usage`, etc.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| request | <code>object</code> |  |
-| request.messages | <code>Array.&lt;object&gt;</code> | Chat messages: `{ role, content }` where content is a string or array of parts |
-| [request.system] | <code>string</code> |  |
-| [request.model] | <code>string</code> |  |
-| [request.temperature] | <code>number</code> |  |
-| [request.maxTokens] | <code>number</code> |  |
-| [options] | <code>object</code> |  |
-| [options.config] | <code>object</code> | Per-call AI config override |
+| Param                 | Type                              | Description                                                                    |
+| --------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
+| request               | <code>object</code>               |                                                                                |
+| request.messages      | <code>Array.&lt;object&gt;</code> | Chat messages: `{ role, content }` where content is a string or array of parts |
+| [request.system]      | <code>string</code>               |                                                                                |
+| [request.model]       | <code>string</code>               |                                                                                |
+| [request.temperature] | <code>number</code>               |                                                                                |
+| [request.maxTokens]   | <code>number</code>               |                                                                                |
+| [options]             | <code>object</code>               |                                                                                |
+| [options.config]      | <code>object</code>               | Per-call AI config override                                                    |
 
 <a name="module_ai.chatStream"></a>
 
 ### ai.chatStream(request, [options]) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
-Streaming chat. Async generator yielding `{ textDelta, done, … }`.Final chunk has `done: true` and full `text`.
 
-**Kind**: static method of [<code>ai</code>](#module_ai)  
+Streaming chat. Async generator yielding `{ textDelta, done, … }`.
+Final chunk has `done: true` and full `text`.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| request | <code>object</code> | Same as [chat](#module_ai.chat) |
-| [options] | <code>object</code> |  |
-| [options.config] | <code>object</code> |  |
+**Kind**: static method of [<code>ai</code>](#module_ai)
 
-**Example**  
+| Param            | Type                | Description                     |
+| ---------------- | ------------------- | ------------------------------- |
+| request          | <code>object</code> | Same as [chat](#module_ai.chat) |
+| [options]        | <code>object</code> |                                 |
+| [options.config] | <code>object</code> |                                 |
+
+**Example**
+
 ```js
-for await (const chunk of ai.chatStream({ messages: [{ role: 'user', content: 'Hi' }] })) {  if (!chunk.done) process.stdout.write(chunk.textDelta);}
+for await (const chunk of ai.chatStream({
+  messages: [{ role: "user", content: "Hi" }],
+})) {
+  if (!chunk.done) process.stdout.write(chunk.textDelta);
+}
 ```
+
 <a name="module_ai.complete"></a>
 
 ### ai.complete()
+
 Single-prompt completion (wrapper over chat).
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
 <a name="module_ai.parseDocument"></a>
 
 ### ai.parseDocument()
+
 OCR / extract / summarize a document (buffer, text, or sandboxed path).
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
 <a name="module_ai.moderate"></a>
 
 ### ai.moderate()
+
 Content safety check for text (and provider-dependent media later).
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
 <a name="module_ai..serverAiConfig"></a>
 
 ### ai~serverAiConfig : <code>object</code> \| <code>null</code>
+
 **Kind**: inner property of [<code>ai</code>](#module_ai)  
 <a name="module_ai..aiInstances"></a>
 
 ### ai~aiInstances : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+
 **Kind**: inner constant of [<code>ai</code>](#module_ai)  
 <a name="module_auth"></a>
 
 ## auth
+
 Provides authentication-related functions, including JWT creation and verification.
 
-
-* [auth](#module_auth)
-    * [.jwt](#module_auth.jwt) : <code>object</code>
-        * [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
-        * [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
+- [auth](#module_auth)
+  - [.jwt](#module_auth.jwt) : <code>object</code>
+    - [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
+    - [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
 
 <a name="module_auth.jwt"></a>
 
 ### auth.jwt : <code>object</code>
+
 Provides methods for creating and verifying JSON Web Tokens (JWTs).
 
-**Kind**: static namespace of [<code>auth</code>](#module_auth)  
+**Kind**: static namespace of [<code>auth</code>](#module_auth)
 
-* [.jwt](#module_auth.jwt) : <code>object</code>
-    * [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
-    * [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
+- [.jwt](#module_auth.jwt) : <code>object</code>
+  - [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
+  - [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
 
 <a name="module_auth.jwt.create"></a>
 
 #### jwt.create(payload, [expiresIn]) ⇒ <code>string</code>
+
 Creates a JSON Web Token (JWT) with the given payload and expiration.
 
 **Kind**: static method of [<code>jwt</code>](#module_auth.jwt)  
-**Returns**: <code>string</code> - The JWT string.  
+**Returns**: <code>string</code> - The JWT string.
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| payload | <code>object</code> |  | The data to include in the token. |
-| [expiresIn] | <code>string</code> | <code>&quot;&#x27;1h&#x27;&quot;</code> | The token's lifespan. |
+| Param       | Type                | Default                                 | Description                       |
+| ----------- | ------------------- | --------------------------------------- | --------------------------------- |
+| payload     | <code>object</code> |                                         | The data to include in the token. |
+| [expiresIn] | <code>string</code> | <code>&quot;&#x27;1h&#x27;&quot;</code> | The token's lifespan.             |
 
-**Example**  
+**Example**
+
 ```js
-const token = auth.jwt.create({ userId: 42, role: 'admin' }, '2h');
+const token = auth.jwt.create({ userId: 42, role: "admin" }, "2h");
 ```
+
 <a name="module_auth.jwt.verify"></a>
 
 #### jwt.verify(token) ⇒ <code>object</code> \| <code>null</code>
+
 Verifies a JWT and returns its payload if valid.
 
 **Kind**: static method of [<code>jwt</code>](#module_auth.jwt)  
-**Returns**: <code>object</code> \| <code>null</code> - The token's payload if valid and not expired, otherwise null.  
+**Returns**: <code>object</code> \| <code>null</code> - The token's payload if valid and not expired, otherwise null.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param | Type                | Description               |
+| ----- | ------------------- | ------------------------- |
 | token | <code>string</code> | The JWT string to verify. |
 
-**Example**  
+**Example**
+
 ```js
-const payload = auth.jwt.verify(token);if (payload) {    console.log("Token is valid:", payload);} else {    console.log("Token is invalid or expired.");}
+const payload = auth.jwt.verify(token);
+if (payload) {
+  console.log("Token is valid:", payload);
+} else {
+  console.log("Token is invalid or expired.");
+}
 ```
+
 <a name="module_cache"></a>
 
 ## cache
-Provides a secure interface for caching data within the Gingee application context. <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
+Provides a secure interface for caching data within the Gingee application context.
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-* [cache](#module_cache)
-    * [.get(key)](#module_cache.get) ⇒ <code>Promise.&lt;any&gt;</code>
-    * [.set(key, value, [ttl])](#module_cache.set) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.del(key)](#module_cache.del) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.clear()](#module_cache.clear) ⇒ <code>Promise.&lt;void&gt;</code>
+- [cache](#module_cache)
+  - [.get(key)](#module_cache.get) ⇒ <code>Promise.&lt;any&gt;</code>
+  - [.set(key, value, [ttl])](#module_cache.set) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.del(key)](#module_cache.del) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.clear()](#module_cache.clear) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_cache.get"></a>
 
 ### cache.get(key) ⇒ <code>Promise.&lt;any&gt;</code>
+
 Retrieves a value from the application's cache using a namespaced key.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4122,18 +4184,26 @@ Retrieves a value from the application's cache using a namespaced key.
 
 - <code>Error</code> If the key is invalid or retrieval fails.
 
+| Param | Type                | Description          |
+| ----- | ------------------- | -------------------- |
+| key   | <code>string</code> | The key to retrieve. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| key | <code>string</code> | The key to retrieve. |
+**Example**
 
-**Example**  
 ```js
-const cache = require('cache');const value = await cache.get('my_key');if (value) {   console.log(`Value found: ${JSON.stringify(value)}`);} else {   console.log("Key not found in cache.");}
+const cache = require("cache");
+const value = await cache.get("my_key");
+if (value) {
+  console.log(`Value found: ${JSON.stringify(value)}`);
+} else {
+  console.log("Key not found in cache.");
+}
 ```
+
 <a name="module_cache.set"></a>
 
 ### cache.set(key, value, [ttl]) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Stores a value in the application's cache.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4141,20 +4211,24 @@ Stores a value in the application's cache.
 
 - <code>Error</code> If the key is invalid or storage fails.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| key | <code>string</code> | The key to store the value under. |
-| value | <code>any</code> | The JSON-serializable value to store. |
+| Param | Type                | Description                                                                |
+| ----- | ------------------- | -------------------------------------------------------------------------- |
+| key   | <code>string</code> | The key to store the value under.                                          |
+| value | <code>any</code>    | The JSON-serializable value to store.                                      |
 | [ttl] | <code>number</code> | Optional Time-To-Live in seconds. Uses the server default if not provided. |
 
-**Example**  
+**Example**
+
 ```js
-const cache = require('cache');await cache.set('my_key', { message: 'Hello, world!' }, 3600);console.log("Value stored in cache.");
+const cache = require("cache");
+await cache.set("my_key", { message: "Hello, world!" }, 3600);
+console.log("Value stored in cache.");
 ```
+
 <a name="module_cache.del"></a>
 
 ### cache.del(key) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Deletes a value from the application's cache using a namespaced key.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4162,18 +4236,22 @@ Deletes a value from the application's cache using a namespaced key.
 
 - <code>Error</code> If the key is invalid or deletion fails.
 
+| Param | Type                | Description        |
+| ----- | ------------------- | ------------------ |
+| key   | <code>string</code> | The key to delete. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| key | <code>string</code> | The key to delete. |
+**Example**
 
-**Example**  
 ```js
-const cache = require('cache');await cache.del('my_key');console.log("Value deleted from cache.");
+const cache = require("cache");
+await cache.del("my_key");
+console.log("Value deleted from cache.");
 ```
+
 <a name="module_cache.clear"></a>
 
 ### cache.clear() ⇒ <code>Promise.&lt;void&gt;</code>
+
 Clears all cached values for the current application. This does not affect other applications' caches.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4181,27 +4259,37 @@ Clears all cached values for the current application. This does not affect other
 
 - <code>Error</code> If the clear operation fails.
 
-**Example**  
+**Example**
+
 ```js
-const cache = require('cache');await cache.clear();console.log("All cache cleared.");
+const cache = require("cache");
+await cache.clear();
+console.log("All cache cleared.");
 ```
+
 <a name="module_chart"></a>
 
 ## chart
-This module provides functionality to create and manipulate charts using Chart.js.It includes a renderer for generating chart images and a font registration system.<b>Optional dependency:</b> requires <code>chartjs-node-canvas</code> and <code>canvas</code>(package.json optionalDependencies). Install without <code>--omit=optional</code>, or<code>npm install chartjs-node-canvas canvas</code>.
 
+This module provides functionality to create and manipulate charts using Chart.js.
+It includes a renderer for generating chart images and a font registration system.
 
-* [chart](#module_chart)
-    * _static_
-        * [.render(configuration, [options])](#module_chart.render) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-        * [.registerFont(scope, filePath, options)](#module_chart.registerFont)
-    * _inner_
-        * [~ChartJSNodeCanvas](#module_chart..ChartJSNodeCanvas) : <code>function</code> \| <code>null</code>
-        * [~defaultRenderer](#module_chart..defaultRenderer) : <code>object</code> \| <code>null</code>
+<b>Optional dependency:</b> requires <code>chartjs-node-canvas</code> and <code>canvas</code>
+(package.json optionalDependencies). Install without <code>--omit=optional</code>, or
+<code>npm install chartjs-node-canvas canvas</code>.
+
+- [chart](#module_chart)
+  - _static_
+    - [.render(configuration, [options])](#module_chart.render) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+    - [.registerFont(scope, filePath, options)](#module_chart.registerFont)
+  - _inner_
+    - [~ChartJSNodeCanvas](#module_chart..ChartJSNodeCanvas) : <code>function</code> \| <code>null</code>
+    - [~defaultRenderer](#module_chart..defaultRenderer) : <code>object</code> \| <code>null</code>
 
 <a name="module_chart.render"></a>
 
 ### chart.render(configuration, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+
 Renders a chart based on a Chart.js configuration object.
 
 **Kind**: static method of [<code>chart</code>](#module_chart)  
@@ -4210,187 +4298,241 @@ Renders a chart based on a Chart.js configuration object.
 
 - <code>Error</code> If the configuration is invalid or rendering fails.
 
+| Param            | Type                | Default                                     | Description                                                     |
+| ---------------- | ------------------- | ------------------------------------------- | --------------------------------------------------------------- |
+| configuration    | <code>object</code> |                                             | A standard Chart.js configuration object (type, data, options). |
+| [options]        | <code>object</code> |                                             | Optional settings for the output.                               |
+| [options.width]  | <code>number</code> | <code>800</code>                            | The width of the final image in pixels.                         |
+| [options.height] | <code>number</code> | <code>600</code>                            | The height of the final image in pixels.                        |
+| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'.                         |
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| configuration | <code>object</code> |  | A standard Chart.js configuration object (type, data, options). |
-| [options] | <code>object</code> |  | Optional settings for the output. |
-| [options.width] | <code>number</code> | <code>800</code> | The width of the final image in pixels. |
-| [options.height] | <code>number</code> | <code>600</code> | The height of the final image in pixels. |
-| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
+**Example**
 
-**Example**  
 ```js
-const chart = require('chart');const config = {    type: 'bar',    data: {        labels: ['January', 'February', 'March'],        datasets: [{            label: 'Sales',            data: [100, 200, 300]        }]    }};const imageBuffer = await chart.render(config);// To send the image in a http response:$g.response.send(imageBuffer, 200, 'image/png');
+const chart = require("chart");
+const config = {
+  type: "bar",
+  data: {
+    labels: ["January", "February", "March"],
+    datasets: [
+      {
+        label: "Sales",
+        data: [100, 200, 300],
+      },
+    ],
+  },
+};
+const imageBuffer = await chart.render(config);
+// To send the image in a http response:
+$g.response.send(imageBuffer, 200, "image/png");
 ```
+
 <a name="module_chart.registerFont"></a>
 
 ### chart.registerFont(scope, filePath, options)
-Registers a custom font from a file to be used in charts.This should be called at the application's startup or in a default_include script.
+
+Registers a custom font from a file to be used in charts.
+This should be called at the application's startup or in a default_include script.
 
 **Kind**: static method of [<code>chart</code>](#module_chart)  
 **Throws**:
 
 - <code>Error</code> If the font file cannot be found or registered.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope where the font file is located (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the .ttf or .otf font file. |
-| options | <code>object</code> | Font registration options. |
+| Param          | Type                | Description                                                       |
+| -------------- | ------------------- | ----------------------------------------------------------------- |
+| scope          | <code>string</code> | The scope where the font file is located (fs.BOX or fs.WEB).      |
+| filePath       | <code>string</code> | The path to the .ttf or .otf font file.                           |
+| options        | <code>object</code> | Font registration options.                                        |
 | options.family | <code>string</code> | The font-family name to use in Chart.js configs (e.g., 'Roboto'). |
 
-**Example**  
+**Example**
+
 ```js
-chart.registerFont(fs.BOX, 'path/to/Roboto-Regular.ttf', { family: 'Roboto' });
+chart.registerFont(fs.BOX, "path/to/Roboto-Regular.ttf", { family: "Roboto" });
 ```
+
 <a name="module_chart..ChartJSNodeCanvas"></a>
 
 ### chart~ChartJSNodeCanvas : <code>function</code> \| <code>null</code>
+
 **Kind**: inner property of [<code>chart</code>](#module_chart)  
 <a name="module_chart..defaultRenderer"></a>
 
 ### chart~defaultRenderer : <code>object</code> \| <code>null</code>
+
 **Kind**: inner property of [<code>chart</code>](#module_chart)  
 <a name="module_crypto"></a>
 
 ## crypto
+
 Provides cryptographic functions for hashing, encryption, and secure random string generation.
 
-
-* [crypto](#module_crypto)
-    * [.CRC32(inputString)](#module_crypto.CRC32) ⇒ <code>number</code>
-    * [.MD5(inputString)](#module_crypto.MD5) ⇒ <code>string</code>
-    * [.SHA2(inputString)](#module_crypto.SHA2) ⇒ <code>string</code>
-    * [.SHA3(inputString)](#module_crypto.SHA3) ⇒ <code>string</code>
-    * [.hmacSha256Encrypt(inputString, secret)](#module_crypto.hmacSha256Encrypt) ⇒ <code>string</code>
-    * [.hmacSha256Verify(encryptedString, originalString, secret)](#module_crypto.hmacSha256Verify) ⇒ <code>boolean</code>
-    * [.encrypt(textToEncrypt, secret)](#module_crypto.encrypt) ⇒ <code>string</code>
-    * [.decrypt(encryptedPackage, secret)](#module_crypto.decrypt) ⇒ <code>string</code> \| <code>null</code>
-    * [.hashPassword(plainTextPassword)](#module_crypto.hashPassword) ⇒ <code>Promise.&lt;string&gt;</code>
-    * [.verifyPassword(plainTextPassword, hash)](#module_crypto.verifyPassword) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    * [.generateSecureRandomString(length)](#module_crypto.generateSecureRandomString) ⇒ <code>string</code>
+- [crypto](#module_crypto)
+  - [.CRC32(inputString)](#module_crypto.CRC32) ⇒ <code>number</code>
+  - [.MD5(inputString)](#module_crypto.MD5) ⇒ <code>string</code>
+  - [.SHA2(inputString)](#module_crypto.SHA2) ⇒ <code>string</code>
+  - [.SHA3(inputString)](#module_crypto.SHA3) ⇒ <code>string</code>
+  - [.hmacSha256Encrypt(inputString, secret)](#module_crypto.hmacSha256Encrypt) ⇒ <code>string</code>
+  - [.hmacSha256Verify(encryptedString, originalString, secret)](#module_crypto.hmacSha256Verify) ⇒ <code>boolean</code>
+  - [.encrypt(textToEncrypt, secret)](#module_crypto.encrypt) ⇒ <code>string</code>
+  - [.decrypt(encryptedPackage, secret)](#module_crypto.decrypt) ⇒ <code>string</code> \| <code>null</code>
+  - [.hashPassword(plainTextPassword)](#module_crypto.hashPassword) ⇒ <code>Promise.&lt;string&gt;</code>
+  - [.verifyPassword(plainTextPassword, hash)](#module_crypto.verifyPassword) ⇒ <code>Promise.&lt;boolean&gt;</code>
+  - [.generateSecureRandomString(length)](#module_crypto.generateSecureRandomString) ⇒ <code>string</code>
 
 <a name="module_crypto.CRC32"></a>
 
 ### crypto.CRC32(inputString) ⇒ <code>number</code>
+
 Computes the CRC32 checksum for a string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>number</code> - The CRC32 checksum as an integer.  
+**Returns**: <code>number</code> - The CRC32 checksum as an integer.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description            |
+| ----------- | ------------------- | ---------------------- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**  
+**Example**
+
 ```js
-const checksum = crypto.CRC32("Hello, World!");console.log("CRC32 Checksum:", checksum);
+const checksum = crypto.CRC32("Hello, World!");
+console.log("CRC32 Checksum:", checksum);
 ```
+
 <a name="module_crypto.MD5"></a>
 
 ### crypto.MD5(inputString) ⇒ <code>string</code>
+
 Computes the MD5 hash for a string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The MD5 hash as a hex string.  
+**Returns**: <code>string</code> - The MD5 hash as a hex string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description            |
+| ----------- | ------------------- | ---------------------- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**  
+**Example**
+
 ```js
-const hash = crypto.MD5("Hello, World!");console.log("MD5 Hash:", hash);
+const hash = crypto.MD5("Hello, World!");
+console.log("MD5 Hash:", hash);
 ```
+
 <a name="module_crypto.SHA2"></a>
 
 ### crypto.SHA2(inputString) ⇒ <code>string</code>
+
 Computes the SHA256 hash for a string. (SHA2 is a family, SHA256 is the most common)
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The SHA256 hash as a hex string.  
+**Returns**: <code>string</code> - The SHA256 hash as a hex string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description            |
+| ----------- | ------------------- | ---------------------- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**  
+**Example**
+
 ```js
-const hash = crypto.SHA2("Hello, World!");console.log("SHA256 Hash:", hash);
+const hash = crypto.SHA2("Hello, World!");
+console.log("SHA256 Hash:", hash);
 ```
+
 <a name="module_crypto.SHA3"></a>
 
 ### crypto.SHA3(inputString) ⇒ <code>string</code>
+
 Computes the SHA3-256 hash for a string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The SHA3-256 hash as a hex string.  
+**Returns**: <code>string</code> - The SHA3-256 hash as a hex string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description            |
+| ----------- | ------------------- | ---------------------- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**  
+**Example**
+
 ```js
-const hash = crypto.SHA3("Hello, World!");console.log("SHA3-256 Hash:", hash);
+const hash = crypto.SHA3("Hello, World!");
+console.log("SHA3-256 Hash:", hash);
 ```
+
 <a name="module_crypto.hmacSha256Encrypt"></a>
 
 ### crypto.hmacSha256Encrypt(inputString, secret) ⇒ <code>string</code>
+
 Encrypts (signs) a string using HMAC-SHA256.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The HMAC signature as a hex string.  
+**Returns**: <code>string</code> - The HMAC signature as a hex string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description                 |
+| ----------- | ------------------- | --------------------------- |
 | inputString | <code>string</code> | The string to encrypt/sign. |
-| secret | <code>string</code> | The secret key. |
+| secret      | <code>string</code> | The secret key.             |
 
-**Example**  
+**Example**
+
 ```js
-const signature = crypto.hmacSha256Encrypt("Hello, World!", "my-secret");console.log("HMAC-SHA256 Signature:", signature);
+const signature = crypto.hmacSha256Encrypt("Hello, World!", "my-secret");
+console.log("HMAC-SHA256 Signature:", signature);
 ```
+
 <a name="module_crypto.hmacSha256Verify"></a>
 
 ### crypto.hmacSha256Verify(encryptedString, originalString, secret) ⇒ <code>boolean</code>
+
 Verifies an HMAC-SHA256 signature.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>boolean</code> - True if the signature is valid, false otherwise.  
+**Returns**: <code>boolean</code> - True if the signature is valid, false otherwise.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param           | Type                | Description                           |
+| --------------- | ------------------- | ------------------------------------- |
 | encryptedString | <code>string</code> | The signature (hex string) to verify. |
-| originalString | <code>string</code> | The original, unencrypted string. |
-| secret | <code>string</code> | The secret key used for signing. |
+| originalString  | <code>string</code> | The original, unencrypted string.     |
+| secret          | <code>string</code> | The secret key used for signing.      |
 
-**Example**  
+**Example**
+
 ```js
-const isValid = crypto.hmacSha256Verify(signature, "Hello, World!", "my-secret");console.log("Is the signature valid? - ", isValid);
+const isValid = crypto.hmacSha256Verify(
+  signature,
+  "Hello, World!",
+  "my-secret",
+);
+console.log("Is the signature valid? - ", isValid);
 ```
+
 <a name="module_crypto.encrypt"></a>
 
 ### crypto.encrypt(textToEncrypt, secret) ⇒ <code>string</code>
+
 Encrypts text using AES-256-GCM.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - A combined string "iv:authtag:encryptedtext" in hex format.  
+**Returns**: <code>string</code> - A combined string "iv:authtag:encryptedtext" in hex format.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| textToEncrypt | <code>string</code> | The plaintext string. |
-| secret | <code>string</code> | The secret key to use for encryption. |
+| Param         | Type                | Description                           |
+| ------------- | ------------------- | ------------------------------------- |
+| textToEncrypt | <code>string</code> | The plaintext string.                 |
+| secret        | <code>string</code> | The secret key to use for encryption. |
 
-**Example**  
+**Example**
+
 ```js
-const encrypted = crypto.encrypt("Hello, World!", "my-secret");console.log("Encrypted Text:", encrypted);
+const encrypted = crypto.encrypt("Hello, World!", "my-secret");
+console.log("Encrypted Text:", encrypted);
 ```
+
 <a name="module_crypto.decrypt"></a>
 
 ### crypto.decrypt(encryptedPackage, secret) ⇒ <code>string</code> \| <code>null</code>
+
 Decrypts text that was encrypted with the encrypt() function.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
@@ -4399,165 +4541,211 @@ Decrypts text that was encrypted with the encrypt() function.
 
 - <code>Error</code> If the decryption fails due to an invalid format or other issues.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param            | Type                | Description                            |
+| ---------------- | ------------------- | -------------------------------------- |
 | encryptedPackage | <code>string</code> | The "iv:authtag:encryptedtext" string. |
-| secret | <code>string</code> | The secret key used for encryption. |
+| secret           | <code>string</code> | The secret key used for encryption.    |
 
-**Example**  
+**Example**
+
 ```js
-const decrypted = crypto.decrypt("iv:authtag:encryptedtext", "my-secret");console.log("Decrypted Text:", decrypted);
+const decrypted = crypto.decrypt("iv:authtag:encryptedtext", "my-secret");
+console.log("Decrypted Text:", decrypted);
 ```
+
 <a name="module_crypto.hashPassword"></a>
 
 ### crypto.hashPassword(plainTextPassword) ⇒ <code>Promise.&lt;string&gt;</code>
+
 Securely hashes a password using Argon2.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>Promise.&lt;string&gt;</code> - A promise that resolves to the full hash string.  
+**Returns**: <code>Promise.&lt;string&gt;</code> - A promise that resolves to the full hash string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param             | Type                | Description          |
+| ----------------- | ------------------- | -------------------- |
 | plainTextPassword | <code>string</code> | The user's password. |
 
-**Example**  
+**Example**
+
 ```js
-const hash = await crypto.hashPassword("mySecurePassword");console.log("Hashed Password:", hash);
+const hash = await crypto.hashPassword("mySecurePassword");
+console.log("Hashed Password:", hash);
 ```
+
 <a name="module_crypto.verifyPassword"></a>
 
 ### crypto.verifyPassword(plainTextPassword, hash) ⇒ <code>Promise.&lt;boolean&gt;</code>
+
 Verifies a plaintext password against an Argon2 hash.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves to true if they match, false otherwise.  
+**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves to true if they match, false otherwise.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| plainTextPassword | <code>string</code> | The password to check. |
-| hash | <code>string</code> | The hash string from the database. |
+| Param             | Type                | Description                        |
+| ----------------- | ------------------- | ---------------------------------- |
+| plainTextPassword | <code>string</code> | The password to check.             |
+| hash              | <code>string</code> | The hash string from the database. |
 
-**Example**  
+**Example**
+
 ```js
-const isValid = await crypto.verifyPassword("mySecurePassword", hash);console.log("Is the password valid? - ", isValid);
+const isValid = await crypto.verifyPassword("mySecurePassword", hash);
+console.log("Is the password valid? - ", isValid);
 ```
+
 <a name="module_crypto.generateSecureRandomString"></a>
 
 ### crypto.generateSecureRandomString(length) ⇒ <code>string</code>
+
 Generates a cryptographically secure random string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - A random, URL-safe string.  
+**Returns**: <code>string</code> - A random, URL-safe string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                             |
+| ------ | ------------------- | --------------------------------------- |
 | length | <code>number</code> | The desired length of the final string. |
 
-**Example**  
+**Example**
+
 ```js
-const randomString = crypto.generateSecureRandomString(32);console.log("Random String:", randomString);
+const randomString = crypto.generateSecureRandomString(32);
+console.log("Random String:", randomString);
 ```
+
 <a name="module_dashboard"></a>
 
 ## dashboard
-This module provides functionality to create and manage a dashboard layout with multiple charts.It allows for rendering charts into specific cells of a defined grid layout.The dashboard can be initialized with a JSON layout object, and charts can be rendered into specified cells.The final dashboard image can be exported as a PNG buffer or Data URL.
 
+This module provides functionality to create and manage a dashboard layout with multiple charts.
+It allows for rendering charts into specific cells of a defined grid layout.
+The dashboard can be initialized with a JSON layout object, and charts can be rendered into specified cells.
+The final dashboard image can be exported as a PNG buffer or Data URL.
 
-* [dashboard](#module_dashboard)
-    * _static_
-        * [.init(layout)](#module_dashboard.init) ⇒ <code>Dashboard</code>
-    * _inner_
-        * [~Dashboard](#module_dashboard..Dashboard)
-            * [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
-            * [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
-            * [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
-            * [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
+- [dashboard](#module_dashboard)
+  - _static_
+    - [.init(layout)](#module_dashboard.init) ⇒ <code>Dashboard</code>
+  - _inner_
+    - [~Dashboard](#module_dashboard..Dashboard)
+      - [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
+      - [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
+      - [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
+      - [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
 
 <a name="module_dashboard.init"></a>
 
 ### dashboard.init(layout) ⇒ <code>Dashboard</code>
+
 Initializes a new dashboard layout.
 
 **Kind**: static method of [<code>dashboard</code>](#module_dashboard)  
-**Returns**: <code>Dashboard</code> - An instance of the Dashboard class, ready for rendering.  
+**Returns**: <code>Dashboard</code> - An instance of the Dashboard class, ready for rendering.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                                    |
+| ------ | ------------------- | ---------------------------------------------- |
 | layout | <code>object</code> | The JSON object defining the dashboard layout. |
 
-**Example**  
+**Example**
+
 ```js
-const dashboardLayout = {    width: 1200,    height: 800,    backgroundColor: '#F5F5F5',    grid: { rows: 2, cols: 2, padding: 20 },    cells: {        "bar-chart": { "row": 0, "col": 0, "colspan": 2 },        "pie-chart": { "row": 1, "col": 0 },        "line-chart": { "row": 1, "col": 1 }    }};const myDashboard = dashboard.init(dashboardLayout);// Now you can render charts into the dashboard:const finalImageBuffer = myDashboard.toBuffer();// To send the image in a http response:$g.response.send(finalImageBuffer, 200, 'image/png');
+const dashboardLayout = {
+  width: 1200,
+  height: 800,
+  backgroundColor: "#F5F5F5",
+  grid: { rows: 2, cols: 2, padding: 20 },
+  cells: {
+    "bar-chart": { row: 0, col: 0, colspan: 2 },
+    "pie-chart": { row: 1, col: 0 },
+    "line-chart": { row: 1, col: 1 },
+  },
+};
+const myDashboard = dashboard.init(dashboardLayout);
+// Now you can render charts into the dashboard:
+const finalImageBuffer = myDashboard.toBuffer();
+// To send the image in a http response:
+$g.response.send(finalImageBuffer, 200, "image/png");
 ```
+
 <a name="module_dashboard..Dashboard"></a>
 
 ### dashboard~Dashboard
-The Dashboard class manages the layout, canvas, and rendering of multiple charts.This class is returned by the init() function.It provides methods to render charts into specific cells and export the final dashboard image.
 
-**Kind**: inner class of [<code>dashboard</code>](#module_dashboard)  
+The Dashboard class manages the layout, canvas, and rendering of multiple charts.
+This class is returned by the init() function.
+It provides methods to render charts into specific cells and export the final dashboard image.
 
-* [~Dashboard](#module_dashboard..Dashboard)
-    * [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
-    * [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
-    * [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
-    * [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
+**Kind**: inner class of [<code>dashboard</code>](#module_dashboard)
+
+- [~Dashboard](#module_dashboard..Dashboard)
+  - [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
+  - [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
+  - [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
+  - [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
 
 <a name="new_module_dashboard..Dashboard_new"></a>
 
 #### new Dashboard(layout)
-Initializes the Dashboard instance with a layout object.The layout should define the grid structure and cell definitions.
+
+Initializes the Dashboard instance with a layout object.
+The layout should define the grid structure and cell definitions.
 
 **Throws**:
 
 - <code>Error</code> If the layout is invalid or missing required properties.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                                    |
+| ------ | ------------------- | ---------------------------------------------- |
 | layout | <code>object</code> | The JSON object defining the dashboard layout. |
 
 <a name="module_dashboard..Dashboard+renderChart"></a>
 
 #### dashboard.renderChart(cellName, chartConfig) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
+
 Renders a chart into a specified cell of the dashboard.
 
 **Kind**: instance method of [<code>Dashboard</code>](#module_dashboard..Dashboard)  
-**Returns**: <code>Promise.&lt;Dashboard&gt;</code> - A promise that resolves with the Dashboard instance for chaining.  
+**Returns**: <code>Promise.&lt;Dashboard&gt;</code> - A promise that resolves with the Dashboard instance for chaining.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| cellName | <code>string</code> | The name of the cell (defined in the layout) to render into. |
-| chartConfig | <code>object</code> | A standard Chart.js configuration object. |
+| Param       | Type                | Description                                                  |
+| ----------- | ------------------- | ------------------------------------------------------------ |
+| cellName    | <code>string</code> | The name of the cell (defined in the layout) to render into. |
+| chartConfig | <code>object</code> | A standard Chart.js configuration object.                    |
 
 <a name="module_dashboard..Dashboard+toBuffer"></a>
 
 #### dashboard.toBuffer() ⇒ <code>Buffer</code>
+
 Returns the final dashboard image as a PNG buffer.
 
 **Kind**: instance method of [<code>Dashboard</code>](#module_dashboard..Dashboard)  
 <a name="module_dashboard..Dashboard+toDataURL"></a>
 
 #### dashboard.toDataURL() ⇒ <code>string</code>
+
 Returns the final dashboard image as a Data URL.
 
 **Kind**: instance method of [<code>Dashboard</code>](#module_dashboard..Dashboard)  
 <a name="module_db"></a>
 
 ## db
-Provides a unified interface for database operations, allowing dynamic loading of different database adapters.This module supports multiple database types by loading the appropriate adapter based on configuration.It provides methods for querying, executing commands, and managing transactions. <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
+Provides a unified interface for database operations, allowing dynamic loading of different database adapters.
+This module supports multiple database types by loading the appropriate adapter based on configuration.
+It provides methods for querying, executing commands, and managing transactions.
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-* [db](#module_db)
-    * [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
-        * [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
-        * [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
-    * [.execute(dbName, sql, params)](#module_db.execute) ⇒ <code>Promise.&lt;Object&gt;</code>
-    * [.transaction(dbName, callback)](#module_db.transaction) ⇒ <code>Promise.&lt;any&gt;</code>
+- [db](#module_db)
+  - [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
+    - [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
+    - [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
+  - [.execute(dbName, sql, params)](#module_db.execute) ⇒ <code>Promise.&lt;Object&gt;</code>
+  - [.transaction(dbName, callback)](#module_db.transaction) ⇒ <code>Promise.&lt;any&gt;</code>
 
 <a name="module_db.query"></a>
 
 ### db.query(dbName, sql, params) ⇒ <code>Promise.&lt;Object&gt;</code>
+
 Executes a SQL query against the specified database.
 
 **Kind**: static method of [<code>db</code>](#module_db)  
@@ -4567,25 +4755,31 @@ Executes a SQL query against the specified database.
 - <code>Error</code> If the database connection is not configured or the query fails.
 - <code>Error</code> If the SQL query is invalid or the parameters do not match.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                        |
+| ------ | ------------------- | ---------------------------------- |
 | dbName | <code>string</code> | The name of the database to query. |
-| sql | <code>string</code> | The SQL query string. |
-| params | <code>Array</code> | The parameters for the query. |
+| sql    | <code>string</code> | The SQL query string.              |
+| params | <code>Array</code>  | The parameters for the query.      |
 
-**Example**  
+**Example**
+
 ```js
-const result = await db.query('myDatabase', 'SELECT * FROM users WHERE id = ?', [userId]);console.log(result);
+const result = await db.query(
+  "myDatabase",
+  "SELECT * FROM users WHERE id = ?",
+  [userId],
+);
+console.log(result);
 ```
 
-* [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
-    * [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
-    * [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
+- [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
+  - [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
+  - [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
 
 <a name="module_db.query.one"></a>
 
 #### query.one(dbName, sql, params) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
+
 Executes a SQL query against the specified database and returns a single result.
 
 **Kind**: static method of [<code>query</code>](#module_db.query)  
@@ -4595,20 +4789,31 @@ Executes a SQL query against the specified database and returns a single result.
 - <code>Error</code> If the database connection is not configured or the query fails.
 - <code>Error</code> If the SQL query is invalid or the parameters do not match.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                        |
+| ------ | ------------------- | ---------------------------------- |
 | dbName | <code>string</code> | The name of the database to query. |
-| sql | <code>string</code> | The SQL query string. |
-| params | <code>Array</code> | The parameters for the query. |
+| sql    | <code>string</code> | The SQL query string.              |
+| params | <code>Array</code>  | The parameters for the query.      |
 
-**Example**  
+**Example**
+
 ```js
-const user = await db.query.one('myDatabase', 'SELECT * FROM users WHERE id = ?', [userId]);if (user) {    console.log(`User found: ${user.name}`);} else {    console.log("User not found");}
+const user = await db.query.one(
+  "myDatabase",
+  "SELECT * FROM users WHERE id = ?",
+  [userId],
+);
+if (user) {
+  console.log(`User found: ${user.name}`);
+} else {
+  console.log("User not found");
+}
 ```
+
 <a name="module_db.query.many"></a>
 
 #### query.many(dbName, sql, params) ⇒ <code>Promise.&lt;Array&gt;</code>
+
 Executes a SQL query against the specified database and returns multiple results.
 
 **Kind**: static method of [<code>query</code>](#module_db.query)  
@@ -4618,20 +4823,27 @@ Executes a SQL query against the specified database and returns multiple results
 - <code>Error</code> If the database connection is not configured or the query fails.
 - <code>Error</code> If the SQL query is invalid or the parameters do not match.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                        |
+| ------ | ------------------- | ---------------------------------- |
 | dbName | <code>string</code> | The name of the database to query. |
-| sql | <code>string</code> | The SQL query string. |
-| params | <code>Array</code> | The parameters for the query. |
+| sql    | <code>string</code> | The SQL query string.              |
+| params | <code>Array</code>  | The parameters for the query.      |
 
-**Example**  
+**Example**
+
 ```js
-const users = await db.query.many('myDatabase', 'SELECT * FROM users WHERE active = ?', [true]);console.log(`Found ${users.length} active users.`);
+const users = await db.query.many(
+  "myDatabase",
+  "SELECT * FROM users WHERE active = ?",
+  [true],
+);
+console.log(`Found ${users.length} active users.`);
 ```
+
 <a name="module_db.execute"></a>
 
 ### db.execute(dbName, sql, params) ⇒ <code>Promise.&lt;Object&gt;</code>
+
 Executes a SQL update/insert/delete command against the specified database.
 
 **Kind**: static method of [<code>db</code>](#module_db)  
@@ -4641,20 +4853,27 @@ Executes a SQL update/insert/delete command against the specified database.
 - <code>Error</code> If the database connection is not configured or the command fails.
 - <code>Error</code> If the SQL command is invalid or the parameters do not match.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                                         |
+| ------ | ------------------- | --------------------------------------------------- |
 | dbName | <code>string</code> | The name of the database to execute the command on. |
-| sql | <code>string</code> | The SQL insert/update/delete command string. |
-| params | <code>Array</code> | The parameters for the command. |
+| sql    | <code>string</code> | The SQL insert/update/delete command string.        |
+| params | <code>Array</code>  | The parameters for the command.                     |
 
-**Example**  
+**Example**
+
 ```js
-const result = await db.execute('myDatabase', 'UPDATE users SET active = ? WHERE id = ?', [false, userId]);console.log(`Rows affected: ${result.rowCount}`);
+const result = await db.execute(
+  "myDatabase",
+  "UPDATE users SET active = ? WHERE id = ?",
+  [false, userId],
+);
+console.log(`Rows affected: ${result.rowCount}`);
 ```
+
 <a name="module_db.transaction"></a>
 
 ### db.transaction(dbName, callback) ⇒ <code>Promise.&lt;any&gt;</code>
+
 Executes a transaction with the provided callback function.
 
 **Kind**: static method of [<code>db</code>](#module_db)  
@@ -4664,420 +4883,557 @@ Executes a transaction with the provided callback function.
 - <code>Error</code> If the transaction fails or the callback throws an error.
 - <code>Error</code> If the database connection is not configured.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| dbName | <code>string</code> | The name of the database to use for the transaction. |
+| Param    | Type                  | Description                                             |
+| -------- | --------------------- | ------------------------------------------------------- |
+| dbName   | <code>string</code>   | The name of the database to use for the transaction.    |
 | callback | <code>function</code> | The function to execute within the transaction context. |
 
-**Example**  
+**Example**
+
 ```js
-await db.transaction('myDatabase', async (client) => {    await client.execute('INSERT INTO users (name) VALUES (?)', ['Alice']);});
+await db.transaction("myDatabase", async (client) => {
+  await client.execute("INSERT INTO users (name) VALUES (?)", ["Alice"]);
+});
 ```
+
 <a name="module_email"></a>
 
 ## email
-Transactional email for Gingee apps using a provider adapter pattern (similar to `db` / `cache`).<b>Configuration (single config, no named profiles):</b>- Optional server defaults: `gingee.json` → `email`- Optional app config: `app.json` → `email` (overrides server for that app)- Runtime override: [sendWithConfig](#module_email.sendWithConfig) merges on top for one send only<b>Providers (v1):</b> `console` (log only), `sendgrid` (@sendgrid/mail)<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
+Transactional email for Gingee apps using a provider adapter pattern (similar to `db` / `cache`).
 
-* [email](#module_email)
-    * _static_
-        * [.send(message)](#module_email.send) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [.sendWithConfig(configOverride, message)](#module_email.sendWithConfig) ⇒ <code>Promise.&lt;object&gt;</code>
-    * _inner_
-        * [~serverEmailConfig](#module_email..serverEmailConfig) : <code>object</code> \| <code>null</code>
-        * [~emailInstances](#module_email..emailInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+<b>Configuration (single config, no named profiles):</b>
+
+- Optional server defaults: `gingee.json` → `email`
+- Optional app config: `app.json` → `email` (overrides server for that app)
+- Runtime override: [sendWithConfig](#module_email.sendWithConfig) merges on top for one send only
+
+<b>Providers (v1):</b> `console` (log only), `sendgrid` (@sendgrid/mail)
+
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+
+- [email](#module_email)
+  - _static_
+    - [.send(message)](#module_email.send) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [.sendWithConfig(configOverride, message)](#module_email.sendWithConfig) ⇒ <code>Promise.&lt;object&gt;</code>
+  - _inner_
+    - [~serverEmailConfig](#module_email..serverEmailConfig) : <code>object</code> \| <code>null</code>
+    - [~emailInstances](#module_email..emailInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
 
 <a name="module_email.send"></a>
 
 ### email.send(message) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Sends an email using the app's resolved config (app.json overrides gingee.json).
 
 **Kind**: static method of [<code>email</code>](#module_email)  
-**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status
 
-| Param | Type | Description |
-| --- | --- | --- |
-| message | <code>object</code> | Outbound message. |
-| message.to | <code>string</code> \| <code>Array.&lt;string&gt;</code> | Recipient(s). |
-| message.subject | <code>string</code> | Subject line. |
-| [message.text] | <code>string</code> | Plain-text body. |
-| [message.html] | <code>string</code> | HTML body. |
-| [message.from] | <code>string</code> | Override default from address for this message only. |
-| [message.fromName] | <code>string</code> | Override default from name. |
-| [message.cc] | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  |
-| [message.bcc] | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  |
-| [message.replyTo] | <code>string</code> |  |
-| [message.attachments] | <code>Array.&lt;object&gt;</code> | filename, content (Buffer or base64), type, disposition |
+| Param                 | Type                                                     | Description                                             |
+| --------------------- | -------------------------------------------------------- | ------------------------------------------------------- |
+| message               | <code>object</code>                                      | Outbound message.                                       |
+| message.to            | <code>string</code> \| <code>Array.&lt;string&gt;</code> | Recipient(s).                                           |
+| message.subject       | <code>string</code>                                      | Subject line.                                           |
+| [message.text]        | <code>string</code>                                      | Plain-text body.                                        |
+| [message.html]        | <code>string</code>                                      | HTML body.                                              |
+| [message.from]        | <code>string</code>                                      | Override default from address for this message only.    |
+| [message.fromName]    | <code>string</code>                                      | Override default from name.                             |
+| [message.cc]          | <code>string</code> \| <code>Array.&lt;string&gt;</code> |                                                         |
+| [message.bcc]         | <code>string</code> \| <code>Array.&lt;string&gt;</code> |                                                         |
+| [message.replyTo]     | <code>string</code>                                      |                                                         |
+| [message.attachments] | <code>Array.&lt;object&gt;</code>                        | filename, content (Buffer or base64), type, disposition |
 
-**Example**  
+**Example**
+
 ```js
-const email = require('email');await email.send({  to: 'user@example.com',  subject: 'Welcome',  text: 'Thanks for joining.',  html: '<p>Thanks for joining.</p>'});
+const email = require("email");
+await email.send({
+  to: "user@example.com",
+  subject: "Welcome",
+  text: "Thanks for joining.",
+  html: "<p>Thanks for joining.</p>",
+});
 ```
+
 <a name="module_email.sendWithConfig"></a>
 
 ### email.sendWithConfig(configOverride, message) ⇒ <code>Promise.&lt;object&gt;</code>
-Sends a single email using a runtime config that overrides both server and app.jsonsettings for this transaction only. Does not persist or change the app's default adapter.
+
+Sends a single email using a runtime config that overrides both server and app.json
+settings for this transaction only. Does not persist or change the app's default adapter.
 
 **Kind**: static method of [<code>email</code>](#module_email)  
-**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param          | Type                | Description                                                          |
+| -------------- | ------------------- | -------------------------------------------------------------------- |
 | configOverride | <code>object</code> | Partial or full email config (type, api_key, from, from_name, etc.). |
-| message | <code>object</code> | Same shape as [send](#module_email.send). |
+| message        | <code>object</code> | Same shape as [send](#module_email.send).                            |
 
-**Example**  
+**Example**
+
 ```js
-const email = require('email');await email.sendWithConfig(  { type: 'sendgrid', api_key: userApiKey, from: 'billing@example.com' },  { to: 'customer@example.com', subject: 'Invoice', text: 'Your invoice is attached.' });
+const email = require("email");
+await email.sendWithConfig(
+  { type: "sendgrid", api_key: userApiKey, from: "billing@example.com" },
+  {
+    to: "customer@example.com",
+    subject: "Invoice",
+    text: "Your invoice is attached.",
+  },
+);
 ```
+
 <a name="module_email..serverEmailConfig"></a>
 
 ### email~serverEmailConfig : <code>object</code> \| <code>null</code>
+
 **Kind**: inner property of [<code>email</code>](#module_email)  
 <a name="module_email..emailInstances"></a>
 
 ### email~emailInstances : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+
 **Kind**: inner constant of [<code>email</code>](#module_email)  
 <a name="module_encode"></a>
 
 ## encode
-Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.This module is designed to handle common encoding tasks in a web application context.It includes methods for encoding and decoding strings in different formats, ensuring compatibility with various data transmission and storage requirements.It also provides URL-safe encoding methods and HTML entity encoding to prevent XSS attacks.
 
+Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
+This module is designed to handle common encoding tasks in a web application context.
+It includes methods for encoding and decoding strings in different formats, ensuring compatibility with various data transmission and storage requirements.
+It also provides URL-safe encoding methods and HTML entity encoding to prevent XSS attacks.
 
-* [encode](#module_encode)
-    * [.base64](#module_encode.base64) : <code>object</code>
-        * [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
-        * [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
-        * [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
-        * [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
-    * [.uri](#module_encode.uri) : <code>object</code>
-        * [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
-        * [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
-    * [.hex](#module_encode.hex) : <code>object</code>
-        * [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
-        * [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
-    * [.html](#module_encode.html) : <code>object</code>
-        * [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
-        * [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
-    * [.base58](#module_encode.base58) : <code>object</code>
-        * [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
-        * [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
+- [encode](#module_encode)
+  - [.base64](#module_encode.base64) : <code>object</code>
+    - [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
+    - [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
+    - [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
+    - [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
+  - [.uri](#module_encode.uri) : <code>object</code>
+    - [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
+    - [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
+  - [.hex](#module_encode.hex) : <code>object</code>
+    - [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
+    - [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
+  - [.html](#module_encode.html) : <code>object</code>
+    - [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
+    - [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
+  - [.base58](#module_encode.base58) : <code>object</code>
+    - [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
+    - [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
 
 <a name="module_encode.base64"></a>
 
 ### encode.base64 : <code>object</code>
-Provides methods for Base64 encoding and decoding.This namespace includes functions to encode and decode strings in Base64 format, which is commonly used for data transmission in web applications.It supports both standard Base64 and URL-safe Base64 encoding.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)  
+Provides methods for Base64 encoding and decoding.
+This namespace includes functions to encode and decode strings in Base64 format, which is commonly used for data transmission in web applications.
+It supports both standard Base64 and URL-safe Base64 encoding.
 
-* [.base64](#module_encode.base64) : <code>object</code>
-    * [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
-    * [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
-    * [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
-    * [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
+**Kind**: static namespace of [<code>encode</code>](#module_encode)
+
+- [.base64](#module_encode.base64) : <code>object</code>
+  - [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
+  - [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
+  - [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
+  - [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
 
 <a name="module_encode.base64.encode"></a>
 
 #### base64.encode(inputString) ⇒ <code>string</code>
+
 Encodes a UTF-8 string into a Base64 string.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The Base64 encoded string or null if the input is not a string.  
+**Returns**: <code>string</code> - The Base64 encoded string or null if the input is not a string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description           |
+| ----------- | ------------------- | --------------------- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**  
+**Example**
+
 ```js
-const encoded = base64.encode('Hello, World!');console.log(encoded); // Outputs: SGVsbG8sIFdvcmxkIQ==
+const encoded = base64.encode("Hello, World!");
+console.log(encoded); // Outputs: SGVsbG8sIFdvcmxkIQ==
 ```
+
 <a name="module_encode.base64.decode"></a>
 
 #### base64.decode(base64String) ⇒ <code>string</code>
+
 Decodes a Base64 string back into a UTF-8 string.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The original UTF-8 string or null if the input is not a string.  
+**Returns**: <code>string</code> - The original UTF-8 string or null if the input is not a string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param        | Type                | Description                  |
+| ------------ | ------------------- | ---------------------------- |
 | base64String | <code>string</code> | The Base64 string to decode. |
 
-**Example**  
+**Example**
+
 ```js
-const decoded = base64.decode('SGVsbG8sIFdvcmxkIQ==');console.log(decoded); // Outputs: Hello, World!
+const decoded = base64.decode("SGVsbG8sIFdvcmxkIQ==");
+console.log(decoded); // Outputs: Hello, World!
 ```
+
 <a name="module_encode.base64.encodeUrl"></a>
 
 #### base64.encodeUrl(input) ⇒ <code>string</code>
-Encodes a string using the URL-safe Base64 variant.This replaces '+' with '-', '/' with '_', and removes padding ('=').It is useful for encoding data that will be included in URLs or HTTP headers.
+
+Encodes a string using the URL-safe Base64 variant.
+This replaces '+' with '-', '/' with '_', and removes padding ('=').
+It is useful for encoding data that will be included in URLs or HTTP headers.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The Base64Url encoded string.  
+**Returns**: <code>string</code> - The Base64Url encoded string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param | Type                | Description                     |
+| ----- | ------------------- | ------------------------------- |
 | input | <code>string</code> | The string or buffer to encode. |
 
-**Example**  
+**Example**
+
 ```js
-const encodedUrl = base64.encodeUrl('Hello, World!');console.log(encodedUrl); // Outputs: SGVsbG8sIFdvcmxkIQ==
+const encodedUrl = base64.encodeUrl("Hello, World!");
+console.log(encodedUrl); // Outputs: SGVsbG8sIFdvcmxkIQ==
 ```
+
 <a name="module_encode.base64.decodeUrl"></a>
 
 #### base64.decodeUrl(input) ⇒ <code>string</code>
-Decodes a Base64Url encoded string.This reverses the URL-safe encoding by replacing '-' with '+', '_' with '/', and adding padding if necessary.It is useful for decoding data that was encoded for use in URLs or HTTP headers.
+
+Decodes a Base64Url encoded string.
+This reverses the URL-safe encoding by replacing '-' with '+', '_' with '/', and adding padding if necessary.
+It is useful for decoding data that was encoded for use in URLs or HTTP headers.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The decoded string.  
+**Returns**: <code>string</code> - The decoded string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param | Type                | Description           |
+| ----- | ------------------- | --------------------- |
 | input | <code>string</code> | The Base64Url string. |
 
-**Example**  
+**Example**
+
 ```js
-const decodedUrl = base64.decodeUrl('SGVsbG8sIFdvcmxkIQ');console.log(decodedUrl); // Outputs: Hello, World!
+const decodedUrl = base64.decodeUrl("SGVsbG8sIFdvcmxkIQ");
+console.log(decodedUrl); // Outputs: Hello, World!
 ```
+
 <a name="module_encode.uri"></a>
 
 ### encode.uri : <code>object</code>
-Provides methods for URI encoding and decoding.This namespace includes functions to safely encode and decode strings for use in URIs, ensuring that special characters are properly handled.It is useful for preparing data to be included in URLs, query parameters, or path segments
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)  
+Provides methods for URI encoding and decoding.
+This namespace includes functions to safely encode and decode strings for use in URIs, ensuring that special characters are properly handled.
+It is useful for preparing data to be included in URLs, query parameters, or path segments
 
-* [.uri](#module_encode.uri) : <code>object</code>
-    * [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
-    * [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
+**Kind**: static namespace of [<code>encode</code>](#module_encode)
+
+- [.uri](#module_encode.uri) : <code>object</code>
+  - [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
+  - [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
 
 <a name="module_encode.uri.encode"></a>
 
 #### uri.encode(inputString) ⇒ <code>string</code>
+
 Encodes a string for use in a URI.
 
 **Kind**: static method of [<code>uri</code>](#module_encode.uri)  
-**Returns**: <code>string</code> - The encoded URI component.  
+**Returns**: <code>string</code> - The encoded URI component.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description           |
+| ----------- | ------------------- | --------------------- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**  
+**Example**
+
 ```js
-const encoded = uri.encode('Hello, World!');console.log(encoded); // Outputs: Hello%2C%20World%21
+const encoded = uri.encode("Hello, World!");
+console.log(encoded); // Outputs: Hello%2C%20World%21
 ```
+
 <a name="module_encode.uri.decode"></a>
 
 #### uri.decode(encodedString) ⇒ <code>string</code>
+
 Decodes a URI-encoded string.
 
 **Kind**: static method of [<code>uri</code>](#module_encode.uri)  
-**Returns**: <code>string</code> - The decoded string.  
+**Returns**: <code>string</code> - The decoded string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param         | Type                | Description                   |
+| ------------- | ------------------- | ----------------------------- |
 | encodedString | <code>string</code> | The encoded string to decode. |
 
-**Example**  
+**Example**
+
 ```js
-const decoded = uri.decode('Hello%2C%20World%21');console.log(decoded); // Outputs: Hello, World!
+const decoded = uri.decode("Hello%2C%20World%21");
+console.log(decoded); // Outputs: Hello, World!
 ```
+
 <a name="module_encode.hex"></a>
 
 ### encode.hex : <code>object</code>
-Provides methods for hexadecimal encoding and decoding.This namespace includes functions to convert strings to and from hexadecimal format, which is often used for data representation in computing.It is useful for encoding binary data as a readable string format, commonly used in cryptography and data transmission.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)  
+Provides methods for hexadecimal encoding and decoding.
+This namespace includes functions to convert strings to and from hexadecimal format, which is often used for data representation in computing.
+It is useful for encoding binary data as a readable string format, commonly used in cryptography and data transmission.
 
-* [.hex](#module_encode.hex) : <code>object</code>
-    * [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
-    * [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
+**Kind**: static namespace of [<code>encode</code>](#module_encode)
+
+- [.hex](#module_encode.hex) : <code>object</code>
+  - [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
+  - [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
 
 <a name="module_encode.hex.encode"></a>
 
 #### hex.encode(inputString) ⇒ <code>string</code>
+
 Encodes a string into hexadecimal format.
 
 **Kind**: static method of [<code>hex</code>](#module_encode.hex)  
-**Returns**: <code>string</code> - The hexadecimal encoded string.  
+**Returns**: <code>string</code> - The hexadecimal encoded string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description           |
+| ----------- | ------------------- | --------------------- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**  
+**Example**
+
 ```js
-const encoded = hex.encode('Hello, World!');console.log(encoded); // Outputs: 48656c6c6f2c20576f726c6421
+const encoded = hex.encode("Hello, World!");
+console.log(encoded); // Outputs: 48656c6c6f2c20576f726c6421
 ```
+
 <a name="module_encode.hex.decode"></a>
 
 #### hex.decode(hexString) ⇒ <code>string</code>
+
 Decodes a hexadecimal string back into a UTF-8 string.
 
 **Kind**: static method of [<code>hex</code>](#module_encode.hex)  
-**Returns**: <code>string</code> - The original UTF-8 string.  
+**Returns**: <code>string</code> - The original UTF-8 string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param     | Type                | Description                       |
+| --------- | ------------------- | --------------------------------- |
 | hexString | <code>string</code> | The hexadecimal string to decode. |
 
-**Example**  
+**Example**
+
 ```js
-const decoded = hex.decode('48656c6c6f2c20576f726c6421');console.log(decoded); // Outputs: Hello, World!
+const decoded = hex.decode("48656c6c6f2c20576f726c6421");
+console.log(decoded); // Outputs: Hello, World!
 ```
+
 <a name="module_encode.html"></a>
 
 ### encode.html : <code>object</code>
-Provides methods for HTML encoding and decoding.This namespace includes functions to safely encode and decode strings for use in HTML contexts, preventing XSS (Cross-Site Scripting) attacks.It is useful for sanitizing user input before displaying it in web pages, ensuring that special characters are properly escaped.It helps to prevent security vulnerabilities by converting characters like `<`, `>`, and `&` into their corresponding HTML entities.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)  
+Provides methods for HTML encoding and decoding.
+This namespace includes functions to safely encode and decode strings for use in HTML contexts, preventing XSS (Cross-Site Scripting) attacks.
+It is useful for sanitizing user input before displaying it in web pages, ensuring that special characters are properly escaped.
+It helps to prevent security vulnerabilities by converting characters like `<`, `>`, and `&` into their corresponding HTML entities.
 
-* [.html](#module_encode.html) : <code>object</code>
-    * [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
-    * [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
+**Kind**: static namespace of [<code>encode</code>](#module_encode)
+
+- [.html](#module_encode.html) : <code>object</code>
+  - [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
+  - [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
 
 <a name="module_encode.html.encode"></a>
 
 #### html.encode(inputString) ⇒ <code>string</code>
+
 Encodes a string for safe HTML display.
 
 **Kind**: static method of [<code>html</code>](#module_encode.html)  
-**Returns**: <code>string</code> - The HTML encoded string.  
+**Returns**: <code>string</code> - The HTML encoded string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                | Description           |
+| ----------- | ------------------- | --------------------- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**  
+**Example**
+
 ```js
-const encoded = html.encode('<script>alert("XSS")</script>');console.log(encoded); // Outputs: &lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;
+const encoded = html.encode('<script>alert("XSS")</script>');
+console.log(encoded); // Outputs: &lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;
 ```
+
 <a name="module_encode.html.decode"></a>
 
 #### html.decode(encodedString) ⇒ <code>string</code>
+
 Decodes an HTML encoded string back to its original form.
 
 **Kind**: static method of [<code>html</code>](#module_encode.html)  
-**Returns**: <code>string</code> - The decoded string.  
+**Returns**: <code>string</code> - The decoded string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param         | Type                | Description                        |
+| ------------- | ------------------- | ---------------------------------- |
 | encodedString | <code>string</code> | The HTML encoded string to decode. |
 
-**Example**  
+**Example**
+
 ```js
-const decoded = html.decode('&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;');console.log(decoded); // Outputs: <script>alert("XSS")</script>
+const decoded = html.decode(
+  "&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;",
+);
+console.log(decoded); // Outputs: <script>alert("XSS")</script>
 ```
+
 <a name="module_encode.base58"></a>
 
 ### encode.base58 : <code>object</code>
-Provides methods for Base58 encoding and decoding.This namespace includes functions to encode and decode strings in Base58 format, which is commonly used for data representation in applications like Bitcoin addresses.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)  
+Provides methods for Base58 encoding and decoding.
+This namespace includes functions to encode and decode strings in Base58 format, which is commonly used for data representation in applications like Bitcoin addresses.
 
-* [.base58](#module_encode.base58) : <code>object</code>
-    * [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
-    * [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
+**Kind**: static namespace of [<code>encode</code>](#module_encode)
+
+- [.base58](#module_encode.base58) : <code>object</code>
+  - [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
+  - [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
 
 <a name="module_encode.base58.encode"></a>
 
 #### base58.encode(inputBuffer) ⇒ <code>string</code>
+
 Encodes a Buffer or string into Base58 format.
 
 **Kind**: static method of [<code>base58</code>](#module_encode.base58)  
-**Returns**: <code>string</code> - The Base58 encoded string.  
+**Returns**: <code>string</code> - The Base58 encoded string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param       | Type                                       | Description         |
+| ----------- | ------------------------------------------ | ------------------- |
 | inputBuffer | <code>Buffer</code> \| <code>string</code> | The data to encode. |
 
-**Example**  
+**Example**
+
 ```js
-const encoded = base58.encode(Buffer.from('Hello, World!'));console.log(encoded); // Outputs: 2NEpo7TZRRrLZSi2U
+const encoded = base58.encode(Buffer.from("Hello, World!"));
+console.log(encoded); // Outputs: 2NEpo7TZRRrLZSi2U
 ```
+
 <a name="module_encode.base58.decode"></a>
 
 #### base58.decode(base58String) ⇒ <code>Buffer</code>
+
 Decodes a Base58 encoded string back into a Buffer.
 
 **Kind**: static method of [<code>base58</code>](#module_encode.base58)  
-**Returns**: <code>Buffer</code> - The decoded Buffer.  
+**Returns**: <code>Buffer</code> - The decoded Buffer.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param        | Type                | Description                  |
+| ------------ | ------------------- | ---------------------------- |
 | base58String | <code>string</code> | The Base58 string to decode. |
 
-**Example**  
+**Example**
+
 ```js
-const decoded = base58.decode('2NEpo7TZRRrLZSi2U');console.log(decoded.toString()); // Outputs: Hello, World!
+const decoded = base58.decode("2NEpo7TZRRrLZSi2U");
+console.log(decoded.toString()); // Outputs: Hello, World!
 ```
+
 <a name="module_formdata"></a>
 
 ## formdata
-Provides a factory function to create FormData instances.This module is used to handle form data in HTTP requests, allowing for easy construction of multipart/form-data requests.It simplifies the process of appending fields and files to the form data, and provides a method to get headers for use with HTTP clients.It is particularly useful for uploading files and sending complex data structures in web applications.It abstracts the complexities of constructing multipart requests, making it easier to work with file uploads and form submissions.
+
+Provides a factory function to create FormData instances.
+This module is used to handle form data in HTTP requests, allowing for easy construction of multipart/form-data requests.
+It simplifies the process of appending fields and files to the form data, and provides a method to get headers for use with HTTP clients.
+It is particularly useful for uploading files and sending complex data structures in web applications.
+It abstracts the complexities of constructing multipart requests, making it easier to work with file uploads and form submissions.
 
 <a name="module_formdata.create"></a>
 
 ### formdata.create() ⇒ <code>FormData</code>
-Creates a new FormData instance.This function initializes a FormData object that can be used to append fields and files for HTTP requests.It provides a simple interface for constructing multipart/form-data requests, which is commonly used for file uploads and form submissions.It allows developers to easily add data to the form, including text fields and binary files,and retrieve the necessary headers for sending the form data in HTTP requests.
+
+Creates a new FormData instance.
+This function initializes a FormData object that can be used to append fields and files for HTTP requests.
+It provides a simple interface for constructing multipart/form-data requests, which is commonly used for file uploads and form submissions.
+It allows developers to easily add data to the form, including text fields and binary files,
+and retrieve the necessary headers for sending the form data in HTTP requests.
 
 **Kind**: static method of [<code>formdata</code>](#module_formdata)  
 **Returns**: <code>FormData</code> - A new FormData instance.  
-**Example**  
+**Example**
+
 ```js
-const form = formdata.create();form.append('name', 'Gingee App Server');form.append('description', 'This is the Gingee mascot.');form.append('image', fs.readFileSync(fs.BOX, './images/gingee.png'), 'gingee.png');const headers = form.getHeaders();
+const form = formdata.create();
+form.append("name", "Gingee App Server");
+form.append("description", "This is the Gingee mascot.");
+form.append(
+  "image",
+  fs.readFileSync(fs.BOX, "./images/gingee.png"),
+  "gingee.png",
+);
+const headers = form.getHeaders();
 ```
+
 <a name="module_fs"></a>
 
 ## fs
-A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
+A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
+<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-* [fs](#module_fs)
-    * [.BOX](#module_fs.BOX)
-    * [.WEB](#module_fs.WEB)
-    * [.readFileSync(scope, filePath, [options])](#module_fs.readFileSync) ⇒ <code>string</code> \| <code>Buffer</code>
-    * [.readJSONSync(scope, filePath, [options])](#module_fs.readJSONSync) ⇒ <code>object</code>
-    * [.writeFileSync(scope, filePath, data, [options])](#module_fs.writeFileSync) ⇒ <code>void</code>
-    * [.appendFileSync(scope, filePath, data, [options])](#module_fs.appendFileSync) ⇒ <code>void</code>
-    * [.writeJSONSync(scope, filePath, data, [options])](#module_fs.writeJSONSync) ⇒ <code>void</code>
-    * [.existsSync(scope, filePath)](#module_fs.existsSync) ⇒ <code>boolean</code>
-    * [.deleteFileSync(scope, filePath)](#module_fs.deleteFileSync) ⇒ <code>void</code>
-    * [.moveFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFileSync) ⇒ <code>string</code>
-    * [.copyFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFileSync) ⇒ <code>void</code>
-    * [.mkdirSync(scope, dirPath)](#module_fs.mkdirSync) ⇒ <code>void</code>
-    * [.rmdirSync(scope, dirPath, [options])](#module_fs.rmdirSync) ⇒ <code>void</code>
-    * [.moveDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDirSync) ⇒ <code>string</code>
-    * [.copyDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDirSync) ⇒ <code>void</code>
-    * [.readFile(scope, filePath, [options])](#module_fs.readFile) ⇒ <code>Promise.&lt;(string\|Buffer)&gt;</code>
-    * [.writeFile(scope, filePath, data, [options])](#module_fs.writeFile) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.appendFile(scope, filePath, data, [options])](#module_fs.appendFile) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.exists(scope, filePath)](#module_fs.exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    * [.deleteFile(scope, filePath)](#module_fs.deleteFile) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.moveFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFile) ⇒ <code>Promise.&lt;string&gt;</code>
-    * [.copyFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFile) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.mkdir(scope, dirPath)](#module_fs.mkdir) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.rmdir(scope, dirPath, [options])](#module_fs.rmdir) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.moveDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDir) ⇒ <code>Promise.&lt;string&gt;</code>
-    * [.copyDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDir) ⇒ <code>Promise.&lt;void&gt;</code>
+- [fs](#module_fs)
+  - [.BOX](#module_fs.BOX)
+  - [.WEB](#module_fs.WEB)
+  - [.readFileSync(scope, filePath, [options])](#module_fs.readFileSync) ⇒ <code>string</code> \| <code>Buffer</code>
+  - [.readJSONSync(scope, filePath, [options])](#module_fs.readJSONSync) ⇒ <code>object</code>
+  - [.writeFileSync(scope, filePath, data, [options])](#module_fs.writeFileSync) ⇒ <code>void</code>
+  - [.appendFileSync(scope, filePath, data, [options])](#module_fs.appendFileSync) ⇒ <code>void</code>
+  - [.writeJSONSync(scope, filePath, data, [options])](#module_fs.writeJSONSync) ⇒ <code>void</code>
+  - [.existsSync(scope, filePath)](#module_fs.existsSync) ⇒ <code>boolean</code>
+  - [.deleteFileSync(scope, filePath)](#module_fs.deleteFileSync) ⇒ <code>void</code>
+  - [.moveFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFileSync) ⇒ <code>string</code>
+  - [.copyFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFileSync) ⇒ <code>void</code>
+  - [.mkdirSync(scope, dirPath)](#module_fs.mkdirSync) ⇒ <code>void</code>
+  - [.rmdirSync(scope, dirPath, [options])](#module_fs.rmdirSync) ⇒ <code>void</code>
+  - [.moveDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDirSync) ⇒ <code>string</code>
+  - [.copyDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDirSync) ⇒ <code>void</code>
+  - [.readFile(scope, filePath, [options])](#module_fs.readFile) ⇒ <code>Promise.&lt;(string\|Buffer)&gt;</code>
+  - [.writeFile(scope, filePath, data, [options])](#module_fs.writeFile) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.appendFile(scope, filePath, data, [options])](#module_fs.appendFile) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.exists(scope, filePath)](#module_fs.exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
+  - [.deleteFile(scope, filePath)](#module_fs.deleteFile) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.moveFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFile) ⇒ <code>Promise.&lt;string&gt;</code>
+  - [.copyFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFile) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.mkdir(scope, dirPath)](#module_fs.mkdir) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.rmdir(scope, dirPath, [options])](#module_fs.rmdir) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.moveDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDir) ⇒ <code>Promise.&lt;string&gt;</code>
+  - [.copyDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDir) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_fs.BOX"></a>
 
 ### fs.BOX
-Constant for the BOX scope.This constant can be used to specify the BOX scope when working with file system operations.It represents the application box directory, typically used for sandboxed data and server scripts that should not be accessible from the web.
+
+Constant for the BOX scope.
+This constant can be used to specify the BOX scope when working with file system operations.
+It represents the application box directory, typically used for sandboxed data and server scripts that should not be accessible from the web.
 
 **Kind**: static constant of [<code>fs</code>](#module_fs)  
 <a name="module_fs.WEB"></a>
 
 ### fs.WEB
-Constant for the WEB scope.This constant can be used to specify the WEB scope when working with file system operations.It represents the web directory, typically used for web assets.
+
+Constant for the WEB scope.
+This constant can be used to specify the WEB scope when working with file system operations.
+It represents the web directory, typically used for web assets.
 
 **Kind**: static constant of [<code>fs</code>](#module_fs)  
 <a name="module_fs.readFileSync"></a>
 
 ### fs.readFileSync(scope, filePath, [options]) ⇒ <code>string</code> \| <code>Buffer</code>
+
 Synchronously reads the entire contents of a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5086,20 +5442,23 @@ Synchronously reads the entire contents of a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-const content = fs.readFileSync(fs.BOX, 'data/myfile.txt', 'utf8');console.log(content); // Outputs the content of myfile.txt
+const content = fs.readFileSync(fs.BOX, "data/myfile.txt", "utf8");
+console.log(content); // Outputs the content of myfile.txt
 ```
+
 <a name="module_fs.readJSONSync"></a>
 
 ### fs.readJSONSync(scope, filePath, [options]) ⇒ <code>object</code>
+
 Synchronously reads a JSON file and parses it.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5108,20 +5467,23 @@ Synchronously reads a JSON file and parses it.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope or it is not valid JSON.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-const data = fs.readJSONSync(fs.BOX, 'data/myfile.json');console.log(data); // Outputs the parsed JSON object
+const data = fs.readJSONSync(fs.BOX, "data/myfile.json");
+console.log(data); // Outputs the parsed JSON object
 ```
+
 <a name="module_fs.writeFileSync"></a>
 
 ### fs.writeFileSync(scope, filePath, data, [options]) ⇒ <code>void</code>
+
 Synchronously writes data to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5129,21 +5491,23 @@ Synchronously writes data to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| data      | <code>string</code> \| <code>Buffer</code> | The data to write to the file.                         |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| data | <code>string</code> \| <code>Buffer</code> | The data to write to the file. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-fs.writeFileSync(fs.BOX, 'data/myfile.txt', 'Hello, World!', 'utf8');
+fs.writeFileSync(fs.BOX, "data/myfile.txt", "Hello, World!", "utf8");
 ```
+
 <a name="module_fs.appendFileSync"></a>
 
 ### fs.appendFileSync(scope, filePath, data, [options]) ⇒ <code>void</code>
+
 Synchronously appends data to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5151,21 +5515,23 @@ Synchronously appends data to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| data      | <code>string</code> \| <code>Buffer</code> | The data to append to the file.                        |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| data | <code>string</code> \| <code>Buffer</code> | The data to append to the file. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-fs.appendFileSync(fs.BOX, 'data/myfile.txt', 'Hello, World!', 'utf8');
+fs.appendFileSync(fs.BOX, "data/myfile.txt", "Hello, World!", "utf8");
 ```
+
 <a name="module_fs.writeJSONSync"></a>
 
 ### fs.writeJSONSync(scope, filePath, data, [options]) ⇒ <code>void</code>
+
 Synchronously writes a JSON object to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5173,38 +5539,44 @@ Synchronously writes a JSON object to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| data      | <code>object</code>                        | The JSON object to write to the file.                  |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| data | <code>object</code> | The JSON object to write to the file. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-fs.writeJSONSync(fs.BOX, 'data/myfile.json', { key: 'value' });
+fs.writeJSONSync(fs.BOX, "data/myfile.json", { key: "value" });
 ```
+
 <a name="module_fs.existsSync"></a>
 
 ### fs.existsSync(scope, filePath) ⇒ <code>boolean</code>
+
 Synchronously checks if a file exists.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
-**Returns**: <code>boolean</code> - True if the file exists, false otherwise.  
+**Returns**: <code>boolean</code> - True if the file exists, false otherwise.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| Param    | Type                | Description                                            |
+| -------- | ------------------- | ------------------------------------------------------ |
+| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**  
+**Example**
+
 ```js
-const exists = fs.existsSync(fs.BOX, 'data/myfile.txt');console.log(exists); // Outputs true if myfile.txt exists, false otherwise
+const exists = fs.existsSync(fs.BOX, "data/myfile.txt");
+console.log(exists); // Outputs true if myfile.txt exists, false otherwise
 ```
+
 <a name="module_fs.deleteFileSync"></a>
 
 ### fs.deleteFileSync(scope, filePath) ⇒ <code>void</code>
+
 Synchronously deletes a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5212,19 +5584,21 @@ Synchronously deletes a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| Param    | Type                | Description                                            |
+| -------- | ------------------- | ------------------------------------------------------ |
+| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**  
+**Example**
+
 ```js
-fs.deleteFileSync(fs.BOX, 'data/myfile.txt');
+fs.deleteFileSync(fs.BOX, "data/myfile.txt");
 ```
+
 <a name="module_fs.moveFileSync"></a>
 
 ### fs.moveFileSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>string</code>
+
 Synchronously moves a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5233,21 +5607,28 @@ Synchronously moves a file from one location to another within the same scope.
 
 - <code>Error</code> if the source file does not exist.
 
+| Param       | Type                | Description                                                          |
+| ----------- | ------------------- | -------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-const newPath = fs.moveFileSync(fs.BOX, 'data/myfile.txt', fs.BOX, 'data/archived/myfile.txt');
+const newPath = fs.moveFileSync(
+  fs.BOX,
+  "data/myfile.txt",
+  fs.BOX,
+  "data/archived/myfile.txt",
+);
 ```
+
 <a name="module_fs.copyFileSync"></a>
 
 ### fs.copyFileSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>void</code>
+
 Synchronously copies a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5255,21 +5636,23 @@ Synchronously copies a file from one location to another within the same scope.
 
 - <code>Error</code> if the source file does not exist.
 
+| Param       | Type                | Description                                                          |
+| ----------- | ------------------- | -------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-fs.copyFileSync(fs.BOX, 'data/myfile.txt', fs.BOX, 'data/backup/myfile.txt');
+fs.copyFileSync(fs.BOX, "data/myfile.txt", fs.BOX, "data/backup/myfile.txt");
 ```
+
 <a name="module_fs.mkdirSync"></a>
 
 ### fs.mkdirSync(scope, dirPath) ⇒ <code>void</code>
+
 Synchronously creates a directory and its parent directories if they do not exist.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5277,19 +5660,21 @@ Synchronously creates a directory and its parent directories if they do not exis
 
 - <code>Error</code> If the directory path is outside the secure scope or if the directory cannot be created.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| Param   | Type                | Description                                                 |
+| ------- | ------------------- | ----------------------------------------------------------- |
+| scope   | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                 |
 | dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
 
-**Example**  
+**Example**
+
 ```js
-fs.mkdirSync(fs.BOX, 'data/newdir');
+fs.mkdirSync(fs.BOX, "data/newdir");
 ```
+
 <a name="module_fs.rmdirSync"></a>
 
 ### fs.rmdirSync(scope, dirPath, [options]) ⇒ <code>void</code>
+
 Synchronously removes a directory.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5297,20 +5682,22 @@ Synchronously removes a directory.
 
 - <code>Error</code> If the directory is not empty and `recursive` is false.
 
+| Param     | Type                | Description                                                                                          |
+| --------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
+| scope     | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                                                          |
+| dirPath   | <code>string</code> | The path to the directory, relative to the scope or script.                                          |
+| [options] | <code>object</code> | Options for the removal. - `recursive`: If true, removes the directory and its contents recursively. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
-| [options] | <code>object</code> | Options for the removal.   - `recursive`: If true, removes the directory and its contents recursively. |
+**Example**
 
-**Example**  
 ```js
-fs.rmdirSync(fs.BOX, 'data/oldDir', { recursive: true });
+fs.rmdirSync(fs.BOX, "data/oldDir", { recursive: true });
 ```
+
 <a name="module_fs.moveDirSync"></a>
 
 ### fs.moveDirSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>string</code>
+
 Synchronously moves a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5319,21 +5706,23 @@ Synchronously moves a directory from one location to another within the same sco
 
 - <code>Error</code> if the source directory does not exist.
 
+| Param       | Type                | Description                                                               |
+| ----------- | ------------------- | ------------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-fs.moveDirSync(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir');
+fs.moveDirSync(fs.BOX, "data/oldDir", fs.BOX, "data/newDir");
 ```
+
 <a name="module_fs.copyDirSync"></a>
 
 ### fs.copyDirSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>void</code>
+
 Synchronously copies a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5341,21 +5730,23 @@ Synchronously copies a directory from one location to another within the same sc
 
 - <code>Error</code> if the source directory does not exist.
 
+| Param       | Type                | Description                                                               |
+| ----------- | ------------------- | ------------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-fs.copyDirSync(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir');
+fs.copyDirSync(fs.BOX, "data/oldDir", fs.BOX, "data/newDir");
 ```
+
 <a name="module_fs.readFile"></a>
 
 ### fs.readFile(scope, filePath, [options]) ⇒ <code>Promise.&lt;(string\|Buffer)&gt;</code>
+
 Asynchronously reads the entire contents of a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5364,20 +5755,24 @@ Asynchronously reads the entire contents of a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-fs.readFile(fs.BOX, 'data/file.txt', 'utf8').then(contents => {  console.log(contents);});
+fs.readFile(fs.BOX, "data/file.txt", "utf8").then((contents) => {
+  console.log(contents);
+});
 ```
+
 <a name="module_fs.writeFile"></a>
 
 ### fs.writeFile(scope, filePath, data, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Asynchronously writes data to a file, replacing the file if it already exists.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5386,21 +5781,25 @@ Asynchronously writes data to a file, replacing the file if it already exists.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| data      | <code>string</code> \| <code>Buffer</code> | The data to write.                                     |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| data | <code>string</code> \| <code>Buffer</code> | The data to write. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-fs.writeFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {  console.log('File written successfully');});
+fs.writeFile(fs.BOX, "data/file.txt", "Hello, world!", "utf8").then(() => {
+  console.log("File written successfully");
+});
 ```
+
 <a name="module_fs.appendFile"></a>
 
 ### fs.appendFile(scope, filePath, data, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Asynchronously appends data to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5409,21 +5808,25 @@ Asynchronously appends data to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
+| Param     | Type                                       | Description                                            |
+| --------- | ------------------------------------------ | ------------------------------------------------------ |
+| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
+| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
+| data      | <code>string</code> \| <code>Buffer</code> | The data to append.                                    |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
-| data | <code>string</code> \| <code>Buffer</code> | The data to append. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+**Example**
 
-**Example**  
 ```js
-fs.appendFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {  console.log('File appended successfully');});
+fs.appendFile(fs.BOX, "data/file.txt", "Hello, world!", "utf8").then(() => {
+  console.log("File appended successfully");
+});
 ```
+
 <a name="module_fs.exists"></a>
 
 ### fs.exists(scope, filePath) ⇒ <code>Promise.&lt;boolean&gt;</code>
+
 Asynchronously checks if a file exists.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5432,19 +5835,23 @@ Asynchronously checks if a file exists.
 
 - <code>Error</code> If the file path is outside the secure scope.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| Param    | Type                | Description                                            |
+| -------- | ------------------- | ------------------------------------------------------ |
+| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**  
+**Example**
+
 ```js
-fs.exists(fs.BOX, 'data/file.txt').then(exists => {  console.log(exists);});
+fs.exists(fs.BOX, "data/file.txt").then((exists) => {
+  console.log(exists);
+});
 ```
+
 <a name="module_fs.deleteFile"></a>
 
 ### fs.deleteFile(scope, filePath) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Asynchronously deletes a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5453,19 +5860,23 @@ Asynchronously deletes a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| Param    | Type                | Description                                            |
+| -------- | ------------------- | ------------------------------------------------------ |
+| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**  
+**Example**
+
 ```js
-fs.deleteFile(fs.BOX, 'data/file.txt').then(() => {  console.log('File deleted successfully');});
+fs.deleteFile(fs.BOX, "data/file.txt").then(() => {
+  console.log("File deleted successfully");
+});
 ```
+
 <a name="module_fs.moveFile"></a>
 
 ### fs.moveFile(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;string&gt;</code>
+
 Asynchronously moves a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5475,21 +5886,27 @@ Asynchronously moves a file from one location to another within the same scope.
 - <code>Error</code> If the source and destination scopes are different.
 - <code>Error</code> If the source file does not exist.
 
+| Param       | Type                | Description                                                          |
+| ----------- | ------------------- | -------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-fs.moveFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/newfile.txt').then(newPath => {  console.log('File moved to:', newPath);});
+fs.moveFile(fs.BOX, "data/file.txt", fs.BOX, "data/newfile.txt").then(
+  (newPath) => {
+    console.log("File moved to:", newPath);
+  },
+);
 ```
+
 <a name="module_fs.copyFile"></a>
 
 ### fs.copyFile(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Asynchronously copies a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5498,21 +5915,25 @@ Asynchronously copies a file from one location to another within the same scope.
 
 - <code>Error</code> if the source file does not exist.
 
+| Param       | Type                | Description                                                          |
+| ----------- | ------------------- | -------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-fs.copyFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/copy.txt').then(() => {  console.log('File copied successfully');});
+fs.copyFile(fs.BOX, "data/file.txt", fs.BOX, "data/copy.txt").then(() => {
+  console.log("File copied successfully");
+});
 ```
+
 <a name="module_fs.mkdir"></a>
 
 ### fs.mkdir(scope, dirPath) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Asynchronously creates a directory and its parent directories if they do not exist.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5521,19 +5942,23 @@ Asynchronously creates a directory and its parent directories if they do not exi
 
 - <code>Error</code> If the directory path is outside the secure scope or if the directory cannot be created.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| Param   | Type                | Description                                                 |
+| ------- | ------------------- | ----------------------------------------------------------- |
+| scope   | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                 |
 | dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
 
-**Example**  
+**Example**
+
 ```js
-fs.mkdir(fs.BOX, 'data/newdir').then(() => {  console.log('Directory created successfully');});
+fs.mkdir(fs.BOX, "data/newdir").then(() => {
+  console.log("Directory created successfully");
+});
 ```
+
 <a name="module_fs.rmdir"></a>
 
 ### fs.rmdir(scope, dirPath, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Asynchronously removes a directory.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5542,20 +5967,24 @@ Asynchronously removes a directory.
 
 - <code>Error</code> If the directory does not exist or is outside the secure scope.
 
+| Param     | Type                | Description                                                                                          |
+| --------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
+| scope     | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                                                          |
+| dirPath   | <code>string</code> | The path to the directory, relative to the scope or script.                                          |
+| [options] | <code>object</code> | Options for the removal. - `recursive`: If true, removes the directory and its contents recursively. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
-| [options] | <code>object</code> | Options for the removal.  - `recursive`: If true, removes the directory and its contents recursively. |
+**Example**
 
-**Example**  
 ```js
-fs.rmdir(fs.BOX, 'data/oldDir', { recursive: true }).then(() => {  console.log('Directory removed successfully');});
+fs.rmdir(fs.BOX, "data/oldDir", { recursive: true }).then(() => {
+  console.log("Directory removed successfully");
+});
 ```
+
 <a name="module_fs.moveDir"></a>
 
 ### fs.moveDir(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;string&gt;</code>
+
 Asynchronously moves a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5564,21 +5993,25 @@ Asynchronously moves a directory from one location to another within the same sc
 
 - <code>Error</code> if the source directory does not exist.
 
+| Param       | Type                | Description                                                               |
+| ----------- | ------------------- | ------------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-fs.moveDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(newPath => {  console.log('Directory moved to:', newPath);});
+fs.moveDir(fs.BOX, "data/oldDir", fs.BOX, "data/newDir").then((newPath) => {
+  console.log("Directory moved to:", newPath);
+});
 ```
+
 <a name="module_fs.copyDir"></a>
 
 ### fs.copyDir(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Asynchronously copies a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5587,34 +6020,45 @@ Asynchronously copies a directory from one location to another within the same s
 
 - <code>Error</code> if the source directory does not exist.
 
+| Param       | Type                | Description                                                               |
+| ----------- | ------------------- | ------------------------------------------------------------------------- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
+| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
+| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
+| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
-| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
+**Example**
 
-**Example**  
 ```js
-fs.copyDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(() => {  console.log('Directory copied successfully');});
+fs.copyDir(fs.BOX, "data/oldDir", fs.BOX, "data/newDir").then(() => {
+  console.log("Directory copied successfully");
+});
 ```
+
 <a name="module_html"></a>
 
 ## html
-A module for parsing and manipulating HTML using [Cheerio](https://cheerio.js.org/).It provides functions to load HTML from strings, files, and URLs, allowing for easy querying and manipulation of HTML documents.This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in Gingee applications.It abstracts the complexities of working with raw HTML, providing a simple and consistent API for developers.It leverages the Cheerio library to provide a jQuery-like syntax for traversing and manipulating the HTML structure.It supports both synchronous and asynchronous operations, making it flexible for various use cases.
 
+A module for parsing and manipulating HTML using [Cheerio](https://cheerio.js.org/).
+It provides functions to load HTML from strings, files, and URLs, allowing for easy querying and manipulation of HTML documents.
+This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in Gingee applications.
+It abstracts the complexities of working with raw HTML, providing a simple and consistent API for developers.
+It leverages the Cheerio library to provide a jQuery-like syntax for traversing and manipulating the HTML structure.
+It supports both synchronous and asynchronous operations, making it flexible for various use cases.
 
-* [html](#module_html)
-    * [.fromString(htmlString)](#module_html.fromString) ⇒ <code>cheerio.CheerioAPI</code>
-    * [.fromFile(scope, filePath)](#module_html.fromFile) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
-    * [.fromFileSync(scope, filePath)](#module_html.fromFileSync) ⇒ <code>cheerio.CheerioAPI</code>
-    * [.fromUrl(url, [options])](#module_html.fromUrl) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
+- [html](#module_html)
+  - [.fromString(htmlString)](#module_html.fromString) ⇒ <code>cheerio.CheerioAPI</code>
+  - [.fromFile(scope, filePath)](#module_html.fromFile) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
+  - [.fromFileSync(scope, filePath)](#module_html.fromFileSync) ⇒ <code>cheerio.CheerioAPI</code>
+  - [.fromUrl(url, [options])](#module_html.fromUrl) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
 
 <a name="module_html.fromString"></a>
 
 ### html.fromString(htmlString) ⇒ <code>cheerio.CheerioAPI</code>
-Parses an HTML document from a string.This function takes a raw HTML string and returns a Cheerio instance for querying and manipulating the HTML content.It is useful for scenarios where HTML content is dynamically generated or fetched from an external source.
+
+Parses an HTML document from a string.
+This function takes a raw HTML string and returns a Cheerio instance for querying and manipulating the HTML content.
+It is useful for scenarios where HTML content is dynamically generated or fetched from an external source.
 
 **Kind**: static method of [<code>html</code>](#module_html)  
 **Returns**: <code>cheerio.CheerioAPI</code> - The Cheerio instance for querying.  
@@ -5622,19 +6066,26 @@ Parses an HTML document from a string.This function takes a raw HTML string and
 
 - <code>Error</code> If the input is not a string.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param      | Type                | Description                    |
+| ---------- | ------------------- | ------------------------------ |
 | htmlString | <code>string</code> | The raw HTML content to parse. |
 
-**Example**  
+**Example**
+
 ```js
-const $ = html.fromString('<div class="test">Hello, World!</div>');console.log($('.test').text()); // Outputs: Hello, World!
+const $ = html.fromString('<div class="test">Hello, World!</div>');
+console.log($(".test").text()); // Outputs: Hello, World!
 ```
+
 <a name="module_html.fromFile"></a>
 
 ### html.fromFile(scope, filePath) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
-Reads and parses an HTML file from the secure filesystem.This function allows you to load HTML content from a file, ensuring that the file is read securely within the Gingee environment.It uses the secure file system module to read the file content and then parses it into a Cheerio instance.This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem.It abstracts the file reading process, providing a simple interface to work with HTML files.
+
+Reads and parses an HTML file from the secure filesystem.
+This function allows you to load HTML content from a file, ensuring that the file is read securely within the Gingee environment.
+It uses the secure file system module to read the file content and then parses it into a Cheerio instance.
+This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem.
+It abstracts the file reading process, providing a simple interface to work with HTML files.
 
 **Kind**: static method of [<code>html</code>](#module_html)  
 **Returns**: <code>Promise.&lt;cheerio.CheerioAPI&gt;</code> - A Promise that resolves to the Cheerio instance.  
@@ -5642,20 +6093,27 @@ Reads and parses an HTML file from the secure filesystem.This function allows y
 
 - <code>Error</code> If the file cannot be read or parsed.
 
+| Param    | Type                | Description                                 |
+| -------- | ------------------- | ------------------------------------------- |
+| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the HTML file.                  |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the HTML file. |
+**Example**
 
-**Example**  
 ```js
-const $ = await html.fromFile(fs.BOX, 'data/myfile.html');console.log($('.test').text()); // Outputs the text content of the .test element
+const $ = await html.fromFile(fs.BOX, "data/myfile.html");
+console.log($(".test").text()); // Outputs the text content of the .test element
 ```
+
 <a name="module_html.fromFileSync"></a>
 
 ### html.fromFileSync(scope, filePath) ⇒ <code>cheerio.CheerioAPI</code>
-Synchronously reads and parses an HTML file from the secure filesystem.This function allows you to load HTML content from a file in a synchronous manner, ensuring that the file is read securely within the Gingee environment.It uses the secure file system module to read the file content and then parses it into a Cheerio instance.This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem in a synchronous context.It abstracts the file reading process, providing a simple interface to work with HTML files.
+
+Synchronously reads and parses an HTML file from the secure filesystem.
+This function allows you to load HTML content from a file in a synchronous manner, ensuring that the file is read securely within the Gingee environment.
+It uses the secure file system module to read the file content and then parses it into a Cheerio instance.
+This is particularly useful for applications that need to manipulate or query HTML files stored in the Gingee filesystem in a synchronous context.
+It abstracts the file reading process, providing a simple interface to work with HTML files.
 
 **Kind**: static method of [<code>html</code>](#module_html)  
 **Returns**: <code>cheerio.CheerioAPI</code> - The Cheerio instance for querying.  
@@ -5663,20 +6121,27 @@ Synchronously reads and parses an HTML file from the secure filesystem.This fun
 
 - <code>Error</code> If the file cannot be read or parsed.
 
+| Param    | Type                | Description                                 |
+| -------- | ------------------- | ------------------------------------------- |
+| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the HTML file.                  |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the HTML file. |
+**Example**
 
-**Example**  
 ```js
-const $ = html.fromFileSync(fs.BOX, 'data/myfile.html');console.log($('.test').text()); // Outputs the text content of the .test element
+const $ = html.fromFileSync(fs.BOX, "data/myfile.html");
+console.log($(".test").text()); // Outputs the text content of the .test element
 ```
+
 <a name="module_html.fromUrl"></a>
 
 ### html.fromUrl(url, [options]) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
-Asynchronously fetches and parses an HTML document from a URL.This function retrieves HTML content from a specified URL and returns a Cheerio instance for querying and manipulating the HTML.It is useful for web scraping, data extraction, and any scenario where you need to work with HTML content from the web.It abstracts the complexities of making HTTP requests and parsing the response, providing a simple interface for developers.It ensures that the response is of the correct content type (text/html) before parsing. It supports only url with response of content type - 'text/html'.
+
+Asynchronously fetches and parses an HTML document from a URL.
+This function retrieves HTML content from a specified URL and returns a Cheerio instance for querying and manipulating the HTML.
+It is useful for web scraping, data extraction, and any scenario where you need to work with HTML content from the web.
+It abstracts the complexities of making HTTP requests and parsing the response, providing a simple interface for developers.
+It ensures that the response is of the correct content type (text/html) before parsing. It supports only url with response of content type - 'text/html'.
 
 **Kind**: static method of [<code>html</code>](#module_html)  
 **Returns**: <code>Promise.&lt;cheerio.CheerioAPI&gt;</code> - A Promise that resolves to the Cheerio instance.  
@@ -5684,106 +6149,153 @@ Asynchronously fetches and parses an HTML document from a URL.This function ret
 
 - <code>Error</code> If the response is not of type 'text/html' or if the HTML cannot be parsed.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| url | <code>string</code> | The URL of the webpage to scrape. |
+| Param     | Type                | Description                                                    |
+| --------- | ------------------- | -------------------------------------------------------------- |
+| url       | <code>string</code> | The URL of the webpage to scrape.                              |
 | [options] | <code>object</code> | Options to be passed for the http call (like request headers). |
 
-**Example**  
+**Example**
+
 ```js
-const $ = await html.fromUrl('https://example.com');console.log($('.test').text()); // Outputs the text content of the .test element
+const $ = await html.fromUrl("https://example.com");
+console.log($(".test").text()); // Outputs the text content of the .test element
 ```
+
 <a name="module_httpclient"></a>
 
 ## httpclient
-A module for making HTTP requests in Gingee applications.This module provides functions to perform GET and POST requests, supporting various content types.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.It supports both text and binary responses, automatically determining the response type based on the content-type header.It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.It allows for flexible data submission, making it suitable for APIs that require different content types.It provides constants for common POST data types, ensuring that the correct headers are set for the request.<b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to theremaining request budget when available). Concurrent outbound calls are also capped.<b>Egress / SSRF:</b> URLs are checked against <code>gingee.json</code> → <code>egress</code>(default mode <code>protected</code> blocks private/loopback/link-local/metadata). Denied callsreturn status 403 with <code>code: 'EGRESS_DENIED'</code>. When DNS validation yields addresses,connect uses a pinned <code>lookup</code> so resolution cannot rebind between check and TCP connect.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
+A module for making HTTP requests in Gingee applications.
+This module provides functions to perform GET and POST requests, supporting various content types.
+It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
+It supports both text and binary responses, automatically determining the response type based on the content-type header.
+It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
+It allows for flexible data submission, making it suitable for APIs that require different content types.
+It provides constants for common POST data types, ensuring that the correct headers are set for the request.
 
-* [httpclient](#module_httpclient)
-    * [.JSON](#module_httpclient.JSON)
-    * [.FORM](#module_httpclient.FORM)
-    * [.TEXT](#module_httpclient.TEXT)
-    * [.XML](#module_httpclient.XML)
-    * [.MULTIPART](#module_httpclient.MULTIPART)
-    * [.get(url, [options])](#module_httpclient.get) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-    * [.post(url, body, [options])](#module_httpclient.post) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+<b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
+<code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
+remaining request budget when available). Concurrent outbound calls are also capped.
+
+<b>Egress / SSRF:</b> URLs are checked against <code>gingee.json</code> → <code>egress</code>
+(default mode <code>protected</code> blocks private/loopback/link-local/metadata). Denied calls
+return status 403 with <code>code: 'EGRESS_DENIED'</code>. When DNS validation yields addresses,
+connect uses a pinned <code>lookup</code> so resolution cannot rebind between check and TCP connect.
+
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+
+- [httpclient](#module_httpclient)
+  - [.JSON](#module_httpclient.JSON)
+  - [.FORM](#module_httpclient.FORM)
+  - [.TEXT](#module_httpclient.TEXT)
+  - [.XML](#module_httpclient.XML)
+  - [.MULTIPART](#module_httpclient.MULTIPART)
+  - [.get(url, [options])](#module_httpclient.get) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+  - [.post(url, body, [options])](#module_httpclient.post) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
 
 <a name="module_httpclient.JSON"></a>
 
 ### httpclient.JSON
-Constant for JSON content type in POST requests.This constant can be used to specify that the POST request body is in JSON format.
+
+Constant for JSON content type in POST requests.
+This constant can be used to specify that the POST request body is in JSON format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.FORM"></a>
 
 ### httpclient.FORM
-Constant for form-urlencoded content type in POST requests.This constant can be used to specify that the POST request body is in form-urlencoded format.
+
+Constant for form-urlencoded content type in POST requests.
+This constant can be used to specify that the POST request body is in form-urlencoded format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.TEXT"></a>
 
 ### httpclient.TEXT
-Constant for plain text content type in POST requests.This constant can be used to specify that the POST request body is in plain text format.
+
+Constant for plain text content type in POST requests.
+This constant can be used to specify that the POST request body is in plain text format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.XML"></a>
 
 ### httpclient.XML
-Constant for XML content type in POST requests.This constant can be used to specify that the POST request body is in XML format.
+
+Constant for XML content type in POST requests.
+This constant can be used to specify that the POST request body is in XML format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.MULTIPART"></a>
 
 ### httpclient.MULTIPART
-Constant for multipart/form-data content type in POST requests.This constant can be used to specify that the POST request body is in multipart/form-data format.
+
+Constant for multipart/form-data content type in POST requests.
+This constant can be used to specify that the POST request body is in multipart/form-data format.
 
 **Kind**: static constant of [<code>httpclient</code>](#module_httpclient)  
 <a name="module_httpclient.get"></a>
 
 ### httpclient.get(url, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-Performs an HTTP GET request.This function retrieves data from a specified URL and returns the response status, headers, and body.It supports both text and binary responses, automatically determining the response type based on the content-type header.It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.It is particularly useful for applications that need to fetch resources from external APIs or web services.
+
+Performs an HTTP GET request.
+This function retrieves data from a specified URL and returns the response status, headers, and body.
+It supports both text and binary responses, automatically determining the response type based on the content-type header.
+It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.
+It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.
+It is particularly useful for applications that need to fetch resources from external APIs or web services.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
 **Throws**:
 
 - <code>Error</code> If the request fails or if the response body cannot be processed.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| url | <code>string</code> | The URL to request. |
+| Param     | Type                | Description                                                           |
+| --------- | ------------------- | --------------------------------------------------------------------- |
+| url       | <code>string</code> | The URL to request.                                                   |
 | [options] | <code>object</code> | Axios request configuration options (e.g., headers, timeout, signal). |
 
-**Example**  
+**Example**
+
 ```js
-const response = await httpclient.get('https://api.example.com/data');console.log(response.body);
+const response = await httpclient.get("https://api.example.com/data");
+console.log(response.body);
 ```
+
 <a name="module_httpclient.post"></a>
 
 ### httpclient.post(url, body, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-Performs an HTTP POST request.This function sends data to a specified URL and returns the response status, headers, and body.It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.It allows for flexible data submission, making it suitable for APIs that require different content types.
+
+Performs an HTTP POST request.
+This function sends data to a specified URL and returns the response status, headers, and body.
+It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.
+It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.
+It allows for flexible data submission, making it suitable for APIs that require different content types.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
 **Throws**:
 
 - <code>Error</code> If the request fails or if the body cannot be processed.
 
+| Param              | Type                | Default                                  | Description                           |
+| ------------------ | ------------------- | ---------------------------------------- | ------------------------------------- |
+| url                | <code>string</code> |                                          | The URL to post to.                   |
+| body               | <code>any</code>    |                                          | The data to send in the request body. |
+| [options]          | <code>object</code> |                                          | Axios request configuration options.  |
+| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | The type of data being posted.        |
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| url | <code>string</code> |  | The URL to post to. |
-| body | <code>any</code> |  | The data to send in the request body. |
-| [options] | <code>object</code> |  | Axios request configuration options. |
-| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | The type of data being posted. |
+**Example**
 
-**Example**  
 ```js
-const response = await httpclient.post('https://api.example.com/data', { key: 'value' });console.log(response.body);
+const response = await httpclient.post("https://api.example.com/data", {
+  key: "value",
+});
+console.log(response.body);
 ```
+
 <a name="module_image"></a>
 
 ## image
+
 A module for image processing using the [Sharp](https://sharp.pixelplumbing.com/) library.
 It provides a simple and secure way to manipulate images, including resizing, rotating, flipping, and more.
 <b>Optional dependency:</b> requires <code>sharp</code> (package.json optionalDependencies).
@@ -5791,29 +6303,29 @@ Install without <code>--omit=optional</code>, or <code>npm install sharp</code>.
 <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-
-* [image](#module_image)
-    * _static_
-        * [.loadFromFile(filePath)](#module_image.loadFromFile) ⇒ <code>ImageProcessor</code>
-        * [.loadFromBuffer(buffer)](#module_image.loadFromBuffer) ⇒ <code>ImageProcessor</code>
-    * _inner_
-        * [~ImageProcessor](#module_image..ImageProcessor)
-            * [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
-            * [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
-            * [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
-            * [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
-            * [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
-            * [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
-            * [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
-            * [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
-            * [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
-            * [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
-            * [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-            * [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
+- [image](#module_image)
+  - _static_
+    - [.loadFromFile(filePath)](#module_image.loadFromFile) ⇒ <code>ImageProcessor</code>
+    - [.loadFromBuffer(buffer)](#module_image.loadFromBuffer) ⇒ <code>ImageProcessor</code>
+  - _inner_
+    - [~ImageProcessor](#module_image..ImageProcessor)
+      - [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
+      - [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
+      - [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
+      - [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
+      - [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
+      - [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
+      - [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
+      - [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
+      - [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
+      - [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
+      - [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+      - [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_image.loadFromFile"></a>
 
 ### image.loadFromFile(filePath) ⇒ <code>ImageProcessor</code>
+
 Loads an image from a Buffer or a file path.
 This function initializes an ImageProcessor instance with the provided image data.
 It supports both Buffer inputs (for in-memory images) and file paths (for images stored on disk).
@@ -5826,20 +6338,25 @@ It allows for flexible image processing workflows, enabling developers to chain 
 
 - <code>Error</code> If the input is not a Buffer or a valid file path.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param    | Type                | Description                   |
+| -------- | ------------------- | ----------------------------- |
 | filePath | <code>string</code> | a file path to an image file. |
 
-**Example**  
+**Example**
+
 ```js
-const image = require('image');
-const processor = image.load(fs.BOX, './images/gingee.png');
-processor.resize({ width: 200, height: 200 }).greyscale().toFile(fs.WEB, 'output/processed_image.webp');
+const image = require("image");
+const processor = image.load(fs.BOX, "./images/gingee.png");
+processor
+  .resize({ width: 200, height: 200 })
+  .greyscale()
+  .toFile(fs.WEB, "output/processed_image.webp");
 ```
+
 <a name="module_image.loadFromBuffer"></a>
 
 ### image.loadFromBuffer(buffer) ⇒ <code>ImageProcessor</code>
+
 Loads an image from a Buffer.
 This function initializes an ImageProcessor instance with the provided image data.
 
@@ -5849,235 +6366,283 @@ This function initializes an ImageProcessor instance with the provided image dat
 
 - <code>Error</code> If the input is not a Buffer.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                     |
+| ------ | ------------------- | ------------------------------- |
 | buffer | <code>Buffer</code> | A Buffer containing image data. |
 
-**Example**  
+**Example**
+
 ```js
-const image = require('image');
+const image = require("image");
 const processor = image.loadFromBuffer(buffer);
-processor.resize({ width: 200, height: 200 }).greyscale().toFile(fs.WEB, 'output/processed_image.webp');
+processor
+  .resize({ width: 200, height: 200 })
+  .greyscale()
+  .toFile(fs.WEB, "output/processed_image.webp");
 ```
+
 <a name="module_image..ImageProcessor"></a>
 
 ### image~ImageProcessor
-A secure wrapper class for the  [Sharp](https://sharp.pixelplumbing.com/) image processing library.
+
+A secure wrapper class for the [Sharp](https://sharp.pixelplumbing.com/) image processing library.
 Each method returns 'this' to allow for a fluent, chainable API. This class cannot be directly instantiated.
 Instead, use the `load` function of the Image module to create an instance with an image loaded from a Buffer or a file path.
 This class abstracts the complexities of image processing, providing a simple interface for developers to work with images.
 It allows for flexible image manipulation workflows, enabling developers to chain multiple operations on the image.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-**Kind**: inner class of [<code>image</code>](#module_image)  
+**Kind**: inner class of [<code>image</code>](#module_image)
 
-* [~ImageProcessor](#module_image..ImageProcessor)
-    * [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
-    * [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
-    * [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
-    * [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
-    * [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
-    * [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
-    * [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
-    * [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
-    * [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
-    * [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
-    * [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-    * [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
+- [~ImageProcessor](#module_image..ImageProcessor)
+  - [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
+  - [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
+  - [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
+  - [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
+  - [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
+  - [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
+  - [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
+  - [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
+  - [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
+  - [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
+  - [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+  - [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="new_module_image..ImageProcessor_new"></a>
 
 #### new ImageProcessor(sharpInstance)
+
 Creates a new ImageProcessor instance.
 
-
-| Param | Description |
-| --- | --- |
+| Param         | Description                                        |
+| ------------- | -------------------------------------------------- |
 | sharpInstance | An instance of the sharp image processing library. |
 
 <a name="module_image..ImageProcessor+resize"></a>
 
 #### imageProcessor.resize(options) ⇒ <code>ImageProcessor</code>
+
 Resizes the image to the specified dimensions.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| options | <code>object</code> | The resize options. |
-| options.width | <code>number</code> | The new width of the image. |
+| Param          | Type                | Description                  |
+| -------------- | ------------------- | ---------------------------- |
+| options        | <code>object</code> | The resize options.          |
+| options.width  | <code>number</code> | The new width of the image.  |
 | options.height | <code>number</code> | The new height of the image. |
 
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
-processor.resize({ width: 200, height: 200, fit: 'contain', background: '#FFFFFF' });
+const processor = image.load(fs.BOX, "/images/gingee.png");
+processor.resize({
+  width: 200,
+  height: 200,
+  fit: "contain",
+  background: "#FFFFFF",
+});
 ```
+
 <a name="module_image..ImageProcessor+rotate"></a>
 
 #### imageProcessor.rotate(angle) ⇒ <code>ImageProcessor</code>
+
 Rotates the image by the specified angle.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
+| Param | Type                | Default        | Description                                 |
+| ----- | ------------------- | -------------- | ------------------------------------------- |
 | angle | <code>number</code> | <code>0</code> | The angle to rotate the image (in degrees). |
 
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.rotate(90);
 ```
+
 <a name="module_image..ImageProcessor+flip"></a>
 
 #### imageProcessor.flip() ⇒ <code>ImageProcessor</code>
+
 Flips the image horizontally.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.flip();
 ```
+
 <a name="module_image..ImageProcessor+flop"></a>
 
 #### imageProcessor.flop() ⇒ <code>ImageProcessor</code>
+
 Flips the image vertically.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.flop();
 ```
+
 <a name="module_image..ImageProcessor+greyscale"></a>
 
 #### imageProcessor.greyscale() ⇒ <code>ImageProcessor</code>
+
 Converts the image to greyscale.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.greyscale();
 ```
+
 <a name="module_image..ImageProcessor+blur"></a>
 
 #### imageProcessor.blur(sigma) ⇒ <code>ImageProcessor</code>
+
 Applies a blur effect to the image.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param | Type                | Description                                  |
+| ----- | ------------------- | -------------------------------------------- |
 | sigma | <code>number</code> | The blur amount (higher values = more blur). |
 
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.blur(5);
 ```
+
 <a name="module_image..ImageProcessor+sharpen"></a>
 
 #### imageProcessor.sharpen() ⇒ <code>ImageProcessor</code>
+
 Sharpens the image.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.sharpen();
 ```
+
 <a name="module_image..ImageProcessor+composite"></a>
 
 #### imageProcessor.composite(watermarkBuffer, options) ⇒ <code>ImageProcessor</code>
+
 Composites another image onto this one.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| watermarkBuffer | <code>Buffer</code> |  | The image buffer to composite. |
-| options | <code>object</code> |  | The options for compositing. |
-| [options.left] | <code>number</code> | <code>0</code> | The x-coordinate to place the watermark. |
-| [options.top] | <code>number</code> | <code>0</code> | The y-coordinate to place the watermark. |
-| [options.opacity] | <code>number</code> | <code>1</code> | The opacity of the watermark |
+| Param             | Type                | Default        | Description                              |
+| ----------------- | ------------------- | -------------- | ---------------------------------------- |
+| watermarkBuffer   | <code>Buffer</code> |                | The image buffer to composite.           |
+| options           | <code>object</code> |                | The options for compositing.             |
+| [options.left]    | <code>number</code> | <code>0</code> | The x-coordinate to place the watermark. |
+| [options.top]     | <code>number</code> | <code>0</code> | The y-coordinate to place the watermark. |
+| [options.opacity] | <code>number</code> | <code>1</code> | The opacity of the watermark             |
 
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.composite(watermarkBuffer, { left: 10, top: 10, opacity: 0.5 });
 ```
+
 <a name="module_image..ImageProcessor+format"></a>
 
 #### imageProcessor.format(format, [options]) ⇒ <code>ImageProcessor</code>
+
 Converts the image to a specific format.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| format | <code>string</code> | The format to convert to (e.g., 'jpeg', 'png', 'webp'). |
+| Param     | Type                | Description                                                  |
+| --------- | ------------------- | ------------------------------------------------------------ |
+| format    | <code>string</code> | The format to convert to (e.g., 'jpeg', 'png', 'webp').      |
 | [options] | <code>object</code> | Options for the format conversion (see sharp documentation). |
 
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
-processor.format('jpeg', { quality: 80 });
+const processor = image.load(fs.BOX, "/images/gingee.png");
+processor.format("jpeg", { quality: 80 });
 ```
+
 <a name="module_image..ImageProcessor+toBuffer"></a>
 
 #### imageProcessor.toBuffer() ⇒ <code>Promise.&lt;Buffer&gt;</code>
+
 Processes the image and returns the final data as a Buffer.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Example**  
+**Example**
+
 ```js
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.resize({ width: 200, height: 200 });
 const buffer = await processor.toBuffer();
 ```
+
 <a name="module_image..ImageProcessor+toFile"></a>
 
 #### imageProcessor.toFile(scope, filePath) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Processes the image and saves it to a file using our secure fs module.
 
-**Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
+**Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)
 
-| Param | Type | Description |
-| --- | --- | --- |
-| scope | <code>string</code> | The scope to save to (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The destination file path. |
+| Param    | Type                | Description                              |
+| -------- | ------------------- | ---------------------------------------- |
+| scope    | <code>string</code> | The scope to save to (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The destination file path.               |
 
-**Example**  
+**Example**
+
 ```js
-// path with leading slash indicates path from scope root, 
+// path with leading slash indicates path from scope root,
 // path without leading slash indicates path relative to the executing script
 // here image is loaded from <project>/<app_name>/<box>/images/gingee.png
 // image is and saved to <project>/<app_name>/output/processed_image.webp
-const processor = image.load(fs.BOX, '/images/gingee.png');
+const processor = image.load(fs.BOX, "/images/gingee.png");
 processor.resize({ width: 200, height: 200 });
-await processor.toFile(fs.WEB, '/output/processed_image.webp');
+await processor.toFile(fs.WEB, "/output/processed_image.webp");
 ```
+
 <a name="module_pdf"></a>
 
 ## pdf
-This module provides functionality to create PDF documents using pdfmake.It includes a default font configuration with Roboto and a function to create PDFs from document definitions.It is designed to be used in a secure environment, ensuring that only allowed fonts are registered.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+
+This module provides functionality to create PDF documents using pdfmake.
+It includes a default font configuration with Roboto and a function to create PDFs from document definitions.
+It is designed to be used in a secure environment, ensuring that only allowed fonts are registered.
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 <a name="module_pdf.create"></a>
 
 ### pdf.create(documentDefinition) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+
 Creates a PDF document from a document definition object.
 
 **Kind**: static method of [<code>pdf</code>](#module_pdf)  
@@ -6086,74 +6651,98 @@ Creates a PDF document from a document definition object.
 
 - <code>Error</code> If there is an issue creating the PDF document.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param              | Type                | Description                                    |
+| ------------------ | ------------------- | ---------------------------------------------- |
 | documentDefinition | <code>object</code> | A standard pdfmake document definition object. |
 
-**Example**  
+**Example**
+
 ```js
-const pdf = require('pdf');const docDefinition = {    pageSize: 'LETTER',    pageMargins: [40, 60, 40, 60],    header: { text: 'Gingee Weekly Report', alignment: 'center', margin: [0, 20, 0, 0] },    content: [        { text: 'Hello, World!', fontSize: 15 }    ]};const pdfBuffer = await pdf.create(docDefinition);const fileName = `report-${Date.now()}.pdf`;$g.response.headers['Content-Disposition'] = `attachment; filename="${fileName}"`;$g.response.send(pdfBuffer, 200, 'application/pdf');
+const pdf = require("pdf");
+const docDefinition = {
+  pageSize: "LETTER",
+  pageMargins: [40, 60, 40, 60],
+  header: {
+    text: "Gingee Weekly Report",
+    alignment: "center",
+    margin: [0, 20, 0, 0],
+  },
+  content: [{ text: "Hello, World!", fontSize: 15 }],
+};
+const pdfBuffer = await pdf.create(docDefinition);
+const fileName = `report-${Date.now()}.pdf`;
+$g.response.headers["Content-Disposition"] =
+  `attachment; filename="${fileName}"`;
+$g.response.send(pdfBuffer, 200, "application/pdf");
 ```
+
 <a name="module_platform"></a>
 
 ## platform
-A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps. To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.<b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
 
+A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps.
+To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.
+<b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
 
-* [platform](#module_platform)
-    * _static_
-        * [.listApps()](#module_platform.listApps) ⇒ <code>Array.&lt;string&gt;</code>
-        * [.createAppDirectory(appName)](#module_platform.createAppDirectory) ⇒ <code>object</code>
-        * [.writeFile(appName, relativePath, content)](#module_platform.writeFile) ⇒ <code>boolean</code>
-        * [.readFile(appName, relativePath, [encoding])](#module_platform.readFile) ⇒ <code>string</code> \| <code>Buffer</code>
-        * [.registerNewApp(appName)](#module_platform.registerNewApp) ⇒ <code>object</code>
-        * [.reloadApp(appName)](#module_platform.reloadApp) ⇒ <code>boolean</code>
-        * [.deleteApp(appName)](#module_platform.deleteApp) ⇒ <code>boolean</code>
-        * [.unzipToApp(appName, relativePath, zipBuffer)](#module_platform.unzipToApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
-        * [.zipApp(appName)](#module_platform.zipApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-        * [.packageApp(appName)](#module_platform.packageApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-        * [.mockUpgrade(appName, packageBuffer)](#module_platform.mockUpgrade) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [.listBackups(appName)](#module_platform.listBackups) ⇒ <code>Array.&lt;string&gt;</code>
-        * [.mockRollback(appName)](#module_platform.mockRollback) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [.installApp(appName, packageBuffer, permissions)](#module_platform.installApp) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [.upgradeApp(appName, packageBuffer, permissions, [options])](#module_platform.upgradeApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
-        * [.rollbackApp(appName, grantedPermissions)](#module_platform.rollbackApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
-        * [.installFromBackup(appName, [backupVersion])](#module_platform.installFromBackup) ⇒ <code>Promise.&lt;object&gt;</code>
-    * _inner_
-        * [~assertSafeAppName(appName)](#module_platform..assertSafeAppName) ⇒ <code>string</code>
-        * [~isReservedForDelete(appName)](#module_platform..isReservedForDelete) ⇒ <code>boolean</code>
-        * [~assertAppDeletable(appName)](#module_platform..assertAppDeletable) ⇒ <code>string</code>
-        * [~deleteApp(appName, [options])](#module_platform..deleteApp)
-        * [~getAppPermissions(appName)](#module_platform..getAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [~setAppPermissions(appName, permissionsArray, [reload])](#module_platform..setAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [~removeAppPermissions(appName)](#module_platform..removeAppPermissions) ⇒ <code>Promise.&lt;boolean&gt;</code>
-        * [~analyzeAppBackup(appName)](#module_platform..analyzeAppBackup) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [~getQueueStats()](#module_platform..getQueueStats) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [~listQueueLiveJobs([opts])](#module_platform..listQueueLiveJobs) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
-        * [~listQueueDlq([opts])](#module_platform..listQueueDlq) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
-        * [~retryQueueDlqJob(jobId)](#module_platform..retryQueueDlqJob) ⇒ <code>Promise.&lt;object&gt;</code>
-        * [~discardQueueDlqJob(jobId)](#module_platform..discardQueueDlqJob) ⇒ <code>Promise.&lt;boolean&gt;</code>
-        * [~listLogFiles([opts])](#module_platform..listLogFiles) ⇒ <code>object</code>
-        * [~readLogFile([opts])](#module_platform..readLogFile) ⇒ <code>object</code>
-        * [~getSchedulerStatus()](#module_platform..getSchedulerStatus) ⇒ <code>object</code>
-        * [~listSchedulerJobs([opts])](#module_platform..listSchedulerJobs) ⇒ <code>Array.&lt;object&gt;</code>
-        * [~runSchedulerJob(appName, jobName)](#module_platform..runSchedulerJob) ⇒ <code>Promise.&lt;object&gt;</code>
+- [platform](#module_platform)
+  - _static_
+    - [.listApps()](#module_platform.listApps) ⇒ <code>Array.&lt;string&gt;</code>
+    - [.createAppDirectory(appName)](#module_platform.createAppDirectory) ⇒ <code>object</code>
+    - [.writeFile(appName, relativePath, content)](#module_platform.writeFile) ⇒ <code>boolean</code>
+    - [.readFile(appName, relativePath, [encoding])](#module_platform.readFile) ⇒ <code>string</code> \| <code>Buffer</code>
+    - [.registerNewApp(appName)](#module_platform.registerNewApp) ⇒ <code>object</code>
+    - [.reloadApp(appName)](#module_platform.reloadApp) ⇒ <code>boolean</code>
+    - [.deleteApp(appName)](#module_platform.deleteApp) ⇒ <code>boolean</code>
+    - [.unzipToApp(appName, relativePath, zipBuffer)](#module_platform.unzipToApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    - [.zipApp(appName)](#module_platform.zipApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+    - [.packageApp(appName)](#module_platform.packageApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+    - [.mockUpgrade(appName, packageBuffer)](#module_platform.mockUpgrade) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [.listBackups(appName)](#module_platform.listBackups) ⇒ <code>Array.&lt;string&gt;</code>
+    - [.mockRollback(appName)](#module_platform.mockRollback) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [.installApp(appName, packageBuffer, permissions)](#module_platform.installApp) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [.upgradeApp(appName, packageBuffer, permissions, [options])](#module_platform.upgradeApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    - [.rollbackApp(appName, grantedPermissions)](#module_platform.rollbackApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    - [.installFromBackup(appName, [backupVersion])](#module_platform.installFromBackup) ⇒ <code>Promise.&lt;object&gt;</code>
+  - _inner_
+    - [~assertSafeAppName(appName)](#module_platform..assertSafeAppName) ⇒ <code>string</code>
+    - [~isReservedForDelete(appName)](#module_platform..isReservedForDelete) ⇒ <code>boolean</code>
+    - [~assertAppDeletable(appName)](#module_platform..assertAppDeletable) ⇒ <code>string</code>
+    - [~deleteApp(appName, [options])](#module_platform..deleteApp)
+    - [~getAppPermissions(appName)](#module_platform..getAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [~setAppPermissions(appName, permissionsArray, [reload])](#module_platform..setAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [~removeAppPermissions(appName)](#module_platform..removeAppPermissions) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    - [~analyzeAppBackup(appName)](#module_platform..analyzeAppBackup) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [~getQueueStats()](#module_platform..getQueueStats) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [~listQueueLiveJobs([opts])](#module_platform..listQueueLiveJobs) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
+    - [~listQueueDlq([opts])](#module_platform..listQueueDlq) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
+    - [~retryQueueDlqJob(jobId)](#module_platform..retryQueueDlqJob) ⇒ <code>Promise.&lt;object&gt;</code>
+    - [~discardQueueDlqJob(jobId)](#module_platform..discardQueueDlqJob) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    - [~listLogFiles([opts])](#module_platform..listLogFiles) ⇒ <code>object</code>
+    - [~readLogFile([opts])](#module_platform..readLogFile) ⇒ <code>object</code>
+    - [~getSchedulerStatus()](#module_platform..getSchedulerStatus) ⇒ <code>object</code>
+    - [~listSchedulerJobs([opts])](#module_platform..listSchedulerJobs) ⇒ <code>Array.&lt;object&gt;</code>
+    - [~runSchedulerJob(appName, jobName)](#module_platform..runSchedulerJob) ⇒ <code>Promise.&lt;object&gt;</code>
 
 <a name="module_platform.listApps"></a>
 
 ### platform.listApps() ⇒ <code>Array.&lt;string&gt;</code>
+
 Lists the names of all detected applications.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Array.&lt;string&gt;</code> - An array of app names.  
-**Example**  
+**Example**
+
 ```js
-const platform = require('platform');const apps = platform.listApps();console.log(apps); // ['app1', 'app2', ...]
+const platform = require("platform");
+const apps = platform.listApps();
+console.log(apps); // ['app1', 'app2', ...]
 ```
+
 <a name="module_platform.createAppDirectory"></a>
 
 ### platform.createAppDirectory(appName) ⇒ <code>object</code>
+
 Creates a new application directory structure.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6162,18 +6751,21 @@ Creates a new application directory structure.
 
 - <code>Error</code> If the app name is invalid or if the app already exists.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                        |
+| ------- | ------------------- | ---------------------------------- |
 | appName | <code>string</code> | The name of the new app to create. |
 
-**Example**  
+**Example**
+
 ```js
-const result = platform.createAppDirectory('newApp');console.log(result); // { message: 'App "newApp" created successfully.', appPath: '/path/to/newApp', boxPath: '/path/to/newApp/box' }
+const result = platform.createAppDirectory("newApp");
+console.log(result); // { message: 'App "newApp" created successfully.', appPath: '/path/to/newApp', boxPath: '/path/to/newApp/box' }
 ```
+
 <a name="module_platform.writeFile"></a>
 
 ### platform.writeFile(appName, relativePath, content) ⇒ <code>boolean</code>
+
 Writes content to a file within a specified app's directory.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6182,20 +6774,27 @@ Writes content to a file within a specified app's directory.
 
 - <code>Error</code> If the app does not exist or if the path is invalid.
 
+| Param        | Type                                       | Description                                        |
+| ------------ | ------------------------------------------ | -------------------------------------------------- |
+| appName      | <code>string</code>                        | The target application.                            |
+| relativePath | <code>string</code>                        | The path within the app (e.g., 'box/api/test.js'). |
+| content      | <code>string</code> \| <code>Buffer</code> | The content to write.                              |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| appName | <code>string</code> | The target application. |
-| relativePath | <code>string</code> | The path within the app (e.g., 'box/api/test.js'). |
-| content | <code>string</code> \| <code>Buffer</code> | The content to write. |
+**Example**
 
-**Example**  
 ```js
-const result = platform.writeFile('myApp', 'box/api/test.js', 'console.log("Hello World");');console.log(result); // true
+const result = platform.writeFile(
+  "myApp",
+  "box/api/test.js",
+  'console.log("Hello World");',
+);
+console.log(result); // true
 ```
+
 <a name="module_platform.readFile"></a>
 
 ### platform.readFile(appName, relativePath, [encoding]) ⇒ <code>string</code> \| <code>Buffer</code>
+
 Reads the content of a file from a specified app's directory.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6204,20 +6803,23 @@ Reads the content of a file from a specified app's directory.
 
 - <code>Error</code> If the app does not exist or if the file does not exist.
 
+| Param        | Type                                     | Default                                   | Description                                      |
+| ------------ | ---------------------------------------- | ----------------------------------------- | ------------------------------------------------ |
+| appName      | <code>string</code>                      |                                           | The target application.                          |
+| relativePath | <code>string</code>                      |                                           | The path of the file to read.                    |
+| [encoding]   | <code>string</code> \| <code>null</code> | <code>&quot;&#x27;utf8&#x27;&quot;</code> | The encoding to use. Pass null for a raw Buffer. |
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| appName | <code>string</code> |  | The target application. |
-| relativePath | <code>string</code> |  | The path of the file to read. |
-| [encoding] | <code>string</code> \| <code>null</code> | <code>&quot;&#x27;utf8&#x27;&quot;</code> | The encoding to use. Pass null for a raw Buffer. |
+**Example**
 
-**Example**  
 ```js
-const content = platform.readFile('myApp', 'box/api/test.js');console.log(content); // 'console.log("Hello World");'
+const content = platform.readFile("myApp", "box/api/test.js");
+console.log(content); // 'console.log("Hello World");'
 ```
+
 <a name="module_platform.registerNewApp"></a>
 
 ### platform.registerNewApp(appName) ⇒ <code>object</code>
+
 Registers a new application in the server's context.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6226,18 +6828,21 @@ Registers a new application in the server's context.
 
 - <code>Error</code> If the app already exists or if the name is invalid.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                      |
+| ------- | ------------------- | -------------------------------- |
 | appName | <code>string</code> | The name of the app to register. |
 
-**Example**  
+**Example**
+
 ```js
-const result = platform.registerNewApp('myApp');console.log(result); // true if registered successfully
+const result = platform.registerNewApp("myApp");
+console.log(result); // true if registered successfully
 ```
+
 <a name="module_platform.reloadApp"></a>
 
 ### platform.reloadApp(appName) ⇒ <code>boolean</code>
+
 Reloads an application's configuration and clears its caches.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6246,38 +6851,45 @@ Reloads an application's configuration and clears its caches.
 
 - <code>Error</code> If the app does not exist.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description        |
+| ------- | ------------------- | ------------------ |
 | appName | <code>string</code> | The app to reload. |
 
-**Example**  
+**Example**
+
 ```js
-const result = platform.reloadApp('myApp');console.log(result); // true if reloaded successfully
+const result = platform.reloadApp("myApp");
+console.log(result); // true if reloaded successfully
 ```
+
 <a name="module_platform.deleteApp"></a>
 
 ### platform.deleteApp(appName) ⇒ <code>boolean</code>
+
 Recursively deletes an entire application directory. This is a destructive action.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>boolean</code> - True if the app was deleted successfully.  
 **Throws**:
 
-- <code>Error</code> If the app does not exist or if the deletion is outside theweb root.
+- <code>Error</code> If the app does not exist or if the deletion is outside the
+  web root.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                    |
+| ------- | ------------------- | ------------------------------ |
 | appName | <code>string</code> | The name of the app to delete. |
 
-**Example**  
+**Example**
+
 ```js
-const result = platform.deleteApp('myApp');console.log(result); // true if deleted successfully
+const result = platform.deleteApp("myApp");
+console.log(result); // true if deleted successfully
 ```
+
 <a name="module_platform.unzipToApp"></a>
 
 ### platform.unzipToApp(appName, relativePath, zipBuffer) ⇒ <code>Promise.&lt;boolean&gt;</code>
+
 Unzips a buffer into a target folder within an app, validating each entry for security.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6286,20 +6898,23 @@ Unzips a buffer into a target folder within an app, validating each entry for se
 
 - <code>Error</code> If the app does not exist or if the zip contains invalid paths.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| appName | <code>string</code> | The target application. |
+| Param        | Type                | Description                              |
+| ------------ | ------------------- | ---------------------------------------- |
+| appName      | <code>string</code> | The target application.                  |
 | relativePath | <code>string</code> | The folder within the app to extract to. |
-| zipBuffer | <code>Buffer</code> | The zip data as a buffer. |
+| zipBuffer    | <code>Buffer</code> | The zip data as a buffer.                |
 
-**Example**  
+**Example**
+
 ```js
-const result = await platform.unzipToApp('myApp', 'uploads', zipBuffer);console.log(result); // true if unzipped successfully
+const result = await platform.unzipToApp("myApp", "uploads", zipBuffer);
+console.log(result); // true if unzipped successfully
 ```
+
 <a name="module_platform.zipApp"></a>
 
 ### platform.zipApp(appName) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+
 Zips an entire application's directory and returns the data as a buffer.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6308,19 +6923,23 @@ Zips an entire application's directory and returns the data as a buffer.
 
 - <code>Error</code> If the app does not exist or if the zipping fails.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                 |
+| ------- | ------------------- | --------------------------- |
 | appName | <code>string</code> | The name of the app to zip. |
 
-**Example**  
+**Example**
+
 ```js
-const zipBuffer = await platform.zipApp('myApp');console.log(zipBuffer); // The zipped app data
+const zipBuffer = await platform.zipApp("myApp");
+console.log(zipBuffer); // The zipped app data
 ```
+
 <a name="module_platform.packageApp"></a>
 
 ### platform.packageApp(appName) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-Packages an entire application into a distributable .gin archive buffer.Obeys the rules in the app's .gpkg manifest file if it exists.
+
+Packages an entire application into a distributable .gin archive buffer.
+Obeys the rules in the app's .gpkg manifest file if it exists.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;Buffer&gt;</code> - A promise that resolves with the .gin file data.  
@@ -6328,40 +6947,49 @@ Packages an entire application into a distributable .gin archive buffer.Obeys t
 
 - <code>Error</code> If the app does not exist or if the packaging fails.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                     |
+| ------- | ------------------- | ------------------------------- |
 | appName | <code>string</code> | The name of the app to package. |
 
-**Example**  
+**Example**
+
 ```js
-const packageBuffer = await platform.packageApp('myApp');console.log(packageBuffer); // The packaged app data
+const packageBuffer = await platform.packageApp("myApp");
+console.log(packageBuffer); // The packaged app data
 ```
+
 <a name="module_platform.mockUpgrade"></a>
 
 ### platform.mockUpgrade(appName, packageBuffer) ⇒ <code>Promise.&lt;object&gt;</code>
-Mocks an upgrade plan for an app based on a package buffer.This is a utility function for verifying an app upgrade deployment before it happens.
+
+Mocks an upgrade plan for an app based on a package buffer.
+This is a utility function for verifying an app upgrade deployment before it happens.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;object&gt;</code> - A promise that resolves with the upgrade plan.  
 **Throws**:
 
-- <code>Error</code> If the app does not exist or if the package buffer is invalidor contains security issues.
+- <code>Error</code> If the app does not exist or if the package buffer is invalid
+  or contains security issues.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| appName | <code>string</code> | The name of the app to upgrade. |
+| Param         | Type                | Description                        |
+| ------------- | ------------------- | ---------------------------------- |
+| appName       | <code>string</code> | The name of the app to upgrade.    |
 | packageBuffer | <code>Buffer</code> | The .gin file content as a buffer. |
 
-**Example**  
+**Example**
+
 ```js
-const upgradePlan = await platform.mockUpgrade('myApp', zipBuffer);console.log(upgradePlan); // { action: 'Upgrade', fromVersion: '1.0.0', toVersion: '2.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
+const upgradePlan = await platform.mockUpgrade("myApp", zipBuffer);
+console.log(upgradePlan); // { action: 'Upgrade', fromVersion: '1.0.0', toVersion: '2.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
 ```
+
 <a name="module_platform.listBackups"></a>
 
 ### platform.listBackups(appName) ⇒ <code>Array.&lt;string&gt;</code>
-Lists all backups for a specific application.Backups are stored in the 'backups' directory under the project root.
+
+Lists all backups for a specific application.
+Backups are stored in the 'backups' directory under the project root.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Array.&lt;string&gt;</code> - An array of backup file names sorted by date (newest first).  
@@ -6369,19 +6997,23 @@ Lists all backups for a specific application.Backups are stored in the 'backups
 
 - <code>Error</code> If the app does not exist or if the backups directory is inaccessible.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                                      |
+| ------- | ------------------- | ------------------------------------------------ |
 | appName | <code>string</code> | The name of the application to list backups for. |
 
-**Example**  
+**Example**
+
 ```js
-const backups = platform.listBackups('myApp');console.log(backups);
+const backups = platform.listBackups("myApp");
+console.log(backups);
 ```
+
 <a name="module_platform.mockRollback"></a>
 
 ### platform.mockRollback(appName) ⇒ <code>Promise.&lt;object&gt;</code>
-Mocks a rollback plan for an app based on the latest backup.This is a utility function for verifying an app rollback deployment before it happens.
+
+Mocks a rollback plan for an app based on the latest backup.
+This is a utility function for verifying an app rollback deployment before it happens.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;object&gt;</code> - A promise that resolves with the rollback plan.  
@@ -6389,19 +7021,23 @@ Mocks a rollback plan for an app based on the latest backup.This is a utility f
 
 - <code>Error</code> If the app does not exist or if there are no backups available.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                      |
+| ------- | ------------------- | -------------------------------- |
 | appName | <code>string</code> | The name of the app to rollback. |
 
-**Example**  
+**Example**
+
 ```js
-const rollbackPlan = await platform.mockRollback('myApp');console.log(rollbackPlan); // { action: 'Rollback', fromVersion: '2.0.0', toVersion: '1.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
+const rollbackPlan = await platform.mockRollback("myApp");
+console.log(rollbackPlan); // { action: 'Rollback', fromVersion: '2.0.0', toVersion: '1.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
 ```
+
 <a name="module_platform.installApp"></a>
 
 ### platform.installApp(appName, packageBuffer, permissions) ⇒ <code>Promise.&lt;object&gt;</code>
-Installs a new application from a .gin package buffer into a new directory.Fails if an app with the same name already exists.
+
+Installs a new application from a .gin package buffer into a new directory.
+Fails if an app with the same name already exists.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;object&gt;</code> - A promise that resolves with a success message.  
@@ -6409,21 +7045,30 @@ Installs a new application from a .gin package buffer into a new directory.Fail
 
 - <code>Error</code> If the app already exists or if the installation fails.
 
+| Param         | Type                | Description                            |
+| ------------- | ------------------- | -------------------------------------- |
+| appName       | <code>string</code> | The name of the app to create/install. |
+| packageBuffer | <code>Buffer</code> | The .gin file content as a buffer.     |
+| permissions   | <code>object</code> | Permissions to set for the new app.    |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| appName | <code>string</code> | The name of the app to create/install. |
-| packageBuffer | <code>Buffer</code> | The .gin file content as a buffer. |
-| permissions | <code>object</code> | Permissions to set for the new app. |
+**Example**
 
-**Example**  
 ```js
-const grantedPermissions = ["cache", "db", "fs"];const result = await platform.installApp('myApp', packageBuffer, grantedPermissions);console.log(result); // true if installed successfully
+const grantedPermissions = ["cache", "db", "fs"];
+const result = await platform.installApp(
+  "myApp",
+  packageBuffer,
+  grantedPermissions,
+);
+console.log(result); // true if installed successfully
 ```
+
 <a name="module_platform.upgradeApp"></a>
 
 ### platform.upgradeApp(appName, packageBuffer, permissions, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
-Upgrades an existing application to a new version using a .gin package buffer.Preserves files as specified in the app's .gup configuration.
+
+Upgrades an existing application to a new version using a .gin package buffer.
+Preserves files as specified in the app's .gup configuration.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves to true if the upgrade was successful.  
@@ -6431,21 +7076,29 @@ Upgrades an existing application to a new version using a .gin package buffer.P
 
 - <code>Error</code> If the app does not exist or if the upgrade fails.
 
+| Param         | Type                | Default                       | Description                              |
+| ------------- | ------------------- | ----------------------------- | ---------------------------------------- |
+| appName       | <code>string</code> |                               | The name of the app to upgrade.          |
+| packageBuffer | <code>Buffer</code> |                               | The .gin file content as a buffer.       |
+| permissions   | <code>object</code> |                               | Permissions to set for the upgraded app. |
+| [options]     | <code>object</code> | <code>{ backup: true }</code> | Options for the upgrade process.         |
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| appName | <code>string</code> |  | The name of the app to upgrade. |
-| packageBuffer | <code>Buffer</code> |  | The .gin file content as a buffer. |
-| permissions | <code>object</code> |  | Permissions to set for the upgraded app. |
-| [options] | <code>object</code> | <code>{ backup: true }</code> | Options for the upgrade process. |
+**Example**
 
-**Example**  
 ```js
-const grantedPermissions = ["cache", "db", "fs"];const result = await platform.upgradeApp('myApp', packageBuffer, grantedPermissions);console.log(result); // true if upgraded successfully
+const grantedPermissions = ["cache", "db", "fs"];
+const result = await platform.upgradeApp(
+  "myApp",
+  packageBuffer,
+  grantedPermissions,
+);
+console.log(result); // true if upgraded successfully
 ```
+
 <a name="module_platform.rollbackApp"></a>
 
 ### platform.rollbackApp(appName, grantedPermissions) ⇒ <code>Promise.&lt;boolean&gt;</code>
+
 Rolls back an application to its previous version using the latest backup.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6454,19 +7107,22 @@ Rolls back an application to its previous version using the latest backup.
 
 - <code>Error</code> If the app does not exist or if the rollback fails.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
-| appName | <code>string</code> | The name of the app to rollback. |
+| Param              | Type                              | Description                         |
+| ------------------ | --------------------------------- | ----------------------------------- |
+| appName            | <code>string</code>               | The name of the app to rollback.    |
 | grantedPermissions | <code>Array.&lt;string&gt;</code> | The permissions granted to the app. |
 
-**Example**  
+**Example**
+
 ```js
-const result = await platform.rollbackApp('myApp');console.log(result); // true if rolled back successfully
+const result = await platform.rollbackApp("myApp");
+console.log(result); // true if rolled back successfully
 ```
+
 <a name="module_platform.installFromBackup"></a>
 
 ### platform.installFromBackup(appName, [backupVersion]) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Installs an application from a previously created backup file.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6475,20 +7131,25 @@ Installs an application from a previously created backup file.
 
 - <code>Error</code> If the app does not exist, if no backups are found, or if the backup file is missing.
 
-
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| appName | <code>string</code> |  | The name of the application to install. |
+| Param           | Type                | Default                                     | Description                                                       |
+| --------------- | ------------------- | ------------------------------------------- | ----------------------------------------------------------------- |
+| appName         | <code>string</code> |                                             | The name of the application to install.                           |
 | [backupVersion] | <code>string</code> | <code>&quot;&#x27;latest&#x27;&quot;</code> | The specific backup file to use, or 'latest' for the most recent. |
 
-**Example**  
+**Example**
+
 ```js
-const result = await platform.installFromBackup('myApp');console.log(result); // true if installed successfully
+const result = await platform.installFromBackup("myApp");
+console.log(result); // true if installed successfully
 ```
+
 <a name="module_platform..assertSafeAppName"></a>
 
 ### platform~assertSafeAppName(appName) ⇒ <code>string</code>
-Validate an application name used in filesystem paths and platform APIs.Rejects empty names, whitespace, path separators, `..`, and other unsafe forms.When ALS context has `webPath`, also verifies `webPath/appName` stays under web root.
+
+Validate an application name used in filesystem paths and platform APIs.
+Rejects empty names, whitespace, path separators, `..`, and other unsafe forms.
+When ALS context has `webPath`, also verifies `webPath/appName` stays under web root.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>string</code> - trimmed validated name (same as input after trim check — no silent trim)  
@@ -6496,52 +7157,55 @@ Validate an application name used in filesystem paths and platform APIs.Rejects
 
 - <code>Error</code> if invalid
 
-
-| Param | Type |
-| --- | --- |
-| appName | <code>string</code> | 
+| Param   | Type                |
+| ------- | ------------------- |
+| appName | <code>string</code> |
 
 <a name="module_platform..isReservedForDelete"></a>
 
 ### platform~isReservedForDelete(appName) ⇒ <code>boolean</code>
-True if this app must not be deleted via the public delete API.Always includes `glade`; also includes names listed in gingee.json `privileged_apps`.
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+True if this app must not be deleted via the public delete API.
+Always includes `glade`; also includes names listed in gingee.json `privileged_apps`.
 
-| Param | Type | Description |
-| --- | --- | --- |
+**Kind**: inner method of [<code>platform</code>](#module_platform)
+
+| Param   | Type                | Description       |
+| ------- | ------------------- | ----------------- |
 | appName | <code>string</code> | already safe name |
 
 <a name="module_platform..assertAppDeletable"></a>
 
 ### platform~assertAppDeletable(appName) ⇒ <code>string</code>
+
 Ensure app may be uninstalled (not glade / not privileged_apps).
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>string</code> - safe name  
 **Throws**:
 
-- <code>Error</code> 
+- <code>Error</code>
 
-
-| Param | Type |
-| --- | --- |
-| appName | <code>string</code> | 
+| Param   | Type                |
+| ------- | ------------------- |
+| appName | <code>string</code> |
 
 <a name="module_platform..deleteApp"></a>
 
 ### platform~deleteApp(appName, [options])
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| appName | <code>string</code> |  |  |
-| [options] | <code>object</code> |  |  |
-| [options.allowReserved] | <code>boolean</code> | <code>false</code> | when true, allow deleting glade/privileged   apps (used only by upgrade/rollback internal flow). Public Glade uninstall must leave this false. |
+**Kind**: inner method of [<code>platform</code>](#module_platform)
+
+| Param                   | Type                 | Default            | Description                                                                                                                                  |
+| ----------------------- | -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| appName                 | <code>string</code>  |                    |                                                                                                                                              |
+| [options]               | <code>object</code>  |                    |                                                                                                                                              |
+| [options.allowReserved] | <code>boolean</code> | <code>false</code> | when true, allow deleting glade/privileged apps (used only by upgrade/rollback internal flow). Public Glade uninstall must leave this false. |
 
 <a name="module_platform..getAppPermissions"></a>
 
 ### platform~getAppPermissions(appName) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Retrieves the permissions for a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
@@ -6550,14 +7214,14 @@ Retrieves the permissions for a specific application.
 
 - <code>Error</code> If the app is not found.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                  |
+| ------- | ------------------- | ---------------------------- |
 | appName | <code>string</code> | The name of the application. |
 
 <a name="module_platform..setAppPermissions"></a>
 
 ### platform~setAppPermissions(appName, permissionsArray, [reload]) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Sets the permissions for a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
@@ -6566,28 +7230,29 @@ Sets the permissions for a specific application.
 
 - <code>Error</code> If the app is not found.
 
-
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| appName | <code>string</code> |  | The name of the application. |
-| permissionsArray | <code>Array.&lt;string&gt;</code> |  | The permissions to set. |
-| [reload] | <code>boolean</code> | <code>true</code> | Whether to reload the app after setting permissions. |
+| Param            | Type                              | Default           | Description                                          |
+| ---------------- | --------------------------------- | ----------------- | ---------------------------------------------------- |
+| appName          | <code>string</code>               |                   | The name of the application.                         |
+| permissionsArray | <code>Array.&lt;string&gt;</code> |                   | The permissions to set.                              |
+| [reload]         | <code>boolean</code>              | <code>true</code> | Whether to reload the app after setting permissions. |
 
 <a name="module_platform..removeAppPermissions"></a>
 
 ### platform~removeAppPermissions(appName) ⇒ <code>Promise.&lt;boolean&gt;</code>
+
 Removes all permissions for a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
-**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves with a success message.  
+**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves with a success message.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                  |
+| ------- | ------------------- | ---------------------------- |
 | appName | <code>string</code> | The name of the application. |
 
 <a name="module_platform..analyzeAppBackup"></a>
 
 ### platform~analyzeAppBackup(appName) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Analyzes the backup of a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
@@ -6596,147 +7261,164 @@ Analyzes the backup of a specific application.
 
 - <code>Error</code> If the app is not found or the backup is invalid.
 
-
-| Param | Type | Description |
-| --- | --- | --- |
+| Param   | Type                | Description                  |
+| ------- | ------------------- | ---------------------------- |
 | appName | <code>string</code> | The name of the application. |
 
 <a name="module_platform..getQueueStats"></a>
 
 ### platform~getQueueStats() ⇒ <code>Promise.&lt;object&gt;</code>
+
 Queue admin stats for Glade (privileged).
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 <a name="module_platform..listQueueLiveJobs"></a>
 
 ### platform~listQueueLiveJobs([opts]) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
+
 Live queue jobs (running/waiting on this node + pending/delayed in driver).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+**Kind**: inner method of [<code>platform</code>](#module_platform)
 
-| Param | Type |
-| --- | --- |
-| [opts] | <code>object</code> | 
-| [opts.appName] | <code>string</code> | 
-| [opts.limit] | <code>number</code> | 
+| Param          | Type                |
+| -------------- | ------------------- |
+| [opts]         | <code>object</code> |
+| [opts.appName] | <code>string</code> |
+| [opts.limit]   | <code>number</code> |
 
 <a name="module_platform..listQueueDlq"></a>
 
 ### platform~listQueueDlq([opts]) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
+
 List dead-letter queue entries.
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+**Kind**: inner method of [<code>platform</code>](#module_platform)
 
-| Param | Type |
-| --- | --- |
-| [opts] | <code>object</code> | 
-| [opts.appName] | <code>string</code> | 
-| [opts.limit] | <code>number</code> | 
+| Param          | Type                |
+| -------------- | ------------------- |
+| [opts]         | <code>object</code> |
+| [opts.appName] | <code>string</code> |
+| [opts.limit]   | <code>number</code> |
 
 <a name="module_platform..retryQueueDlqJob"></a>
 
 ### platform~retryQueueDlqJob(jobId) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Retry a DLQ job (re-enqueue attempt 1).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+**Kind**: inner method of [<code>platform</code>](#module_platform)
 
-| Param | Type |
-| --- | --- |
-| jobId | <code>string</code> | 
+| Param | Type                |
+| ----- | ------------------- |
+| jobId | <code>string</code> |
 
 <a name="module_platform..discardQueueDlqJob"></a>
 
 ### platform~discardQueueDlqJob(jobId) ⇒ <code>Promise.&lt;boolean&gt;</code>
+
 Discard a DLQ job.
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+**Kind**: inner method of [<code>platform</code>](#module_platform)
 
-| Param | Type |
-| --- | --- |
-| jobId | <code>string</code> | 
+| Param | Type                |
+| ----- | ------------------- |
+| jobId | <code>string</code> |
 
 <a name="module_platform..listLogFiles"></a>
 
 ### platform~listLogFiles([opts]) ⇒ <code>object</code>
+
 List server or app log files (privileged / Glade).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+**Kind**: inner method of [<code>platform</code>](#module_platform)
 
-| Param | Type | Description |
-| --- | --- | --- |
-| [opts] | <code>object</code> |  |
-| [opts.scope] | <code>string</code> | server | app |
-| [opts.appName] | <code>string</code> |  |
+| Param          | Type                | Description |
+| -------------- | ------------------- | ----------- |
+| [opts]         | <code>object</code> |             |
+| [opts.scope]   | <code>string</code> | server      | app |
+| [opts.appName] | <code>string</code> |             |
 
 <a name="module_platform..readLogFile"></a>
 
 ### platform~readLogFile([opts]) ⇒ <code>object</code>
-Tail-read a log file (privileged / Glade).Does not write log line content into the audit trail (metadata only).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+Tail-read a log file (privileged / Glade).
+Does not write log line content into the audit trail (metadata only).
 
-| Param | Type |
-| --- | --- |
-| [opts] | <code>object</code> | 
+**Kind**: inner method of [<code>platform</code>](#module_platform)
+
+| Param  | Type                |
+| ------ | ------------------- |
+| [opts] | <code>object</code> |
 
 <a name="module_platform..getSchedulerStatus"></a>
 
 ### platform~getSchedulerStatus() ⇒ <code>object</code>
+
 Scheduler admin status for Glade (privileged).
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 <a name="module_platform..listSchedulerJobs"></a>
 
 ### platform~listSchedulerJobs([opts]) ⇒ <code>Array.&lt;object&gt;</code>
+
 List registered CRON jobs on this node (privileged).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+**Kind**: inner method of [<code>platform</code>](#module_platform)
 
-| Param | Type |
-| --- | --- |
-| [opts] | <code>object</code> | 
-| [opts.appName] | <code>string</code> | 
+| Param          | Type                |
+| -------------- | ------------------- |
+| [opts]         | <code>object</code> |
+| [opts.appName] | <code>string</code> |
 
 <a name="module_platform..runSchedulerJob"></a>
 
 ### platform~runSchedulerJob(appName, jobName) ⇒ <code>Promise.&lt;object&gt;</code>
+
 Force-run a registered schedule now (privileged; bypasses multi-node coordination).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)  
+**Kind**: inner method of [<code>platform</code>](#module_platform)
 
-| Param | Type |
-| --- | --- |
-| appName | <code>string</code> | 
-| jobName | <code>string</code> | 
+| Param   | Type                |
+| ------- | ------------------- |
+| appName | <code>string</code> |
+| jobName | <code>string</code> |
 
 <a name="module_qrcode"></a>
 
 ## qrcode
+
 Provides functions to generate QR codes and 1D barcodes.
 
-
-* [qrcode](#module_qrcode)
-    * [.BUFFER](#module_qrcode.BUFFER)
-    * [.DATA_URL](#module_qrcode.DATA_URL)
-    * [.qrcode(text, [options])](#module_qrcode.qrcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-    * [.barcode(format, text, [options])](#module_qrcode.barcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+- [qrcode](#module_qrcode)
+  - [.BUFFER](#module_qrcode.BUFFER)
+  - [.DATA_URL](#module_qrcode.DATA_URL)
+  - [.qrcode(text, [options])](#module_qrcode.qrcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+  - [.barcode(format, text, [options])](#module_qrcode.barcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
 
 <a name="module_qrcode.BUFFER"></a>
 
 ### qrcode.BUFFER
-Constant for Buffer output type.This constant can be used to specify that the output should be a Buffer.
+
+Constant for Buffer output type.
+This constant can be used to specify that the output should be a Buffer.
 
 **Kind**: static constant of [<code>qrcode</code>](#module_qrcode)  
 <a name="module_qrcode.DATA_URL"></a>
 
 ### qrcode.DATA\_URL
-Constant for Data URL output type.This constant can be used to specify that the output should be a Data URL.
+
+Constant for Data URL output type.
+This constant can be used to specify that the output should be a Data URL.
 
 **Kind**: static constant of [<code>qrcode</code>](#module_qrcode)  
 <a name="module_qrcode.qrcode"></a>
 
 ### qrcode.qrcode(text, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-Generates a QR code from the provided text.This function uses the 'qrcode' library to create QR codes, allowing for various output formats.It supports both Buffer and Data URL outputs, making it flexible for different use cases.
+
+Generates a QR code from the provided text.
+This function uses the 'qrcode' library to create QR codes, allowing for various output formats.
+It supports both Buffer and Data URL outputs, making it flexible for different use cases.
 
 **Kind**: static method of [<code>qrcode</code>](#module_qrcode)  
 **Returns**: <code>Promise.&lt;(Buffer\|string)&gt;</code> - A promise that resolves with the QR code data.  
@@ -6744,28 +7426,35 @@ Generates a QR code from the provided text.This function uses the 'qrcode' libr
 
 - <code>Error</code> If the input text is not a string or if the output type is invalid.
 
+| Param                          | Type                | Default                                     | Description                             |
+| ------------------------------ | ------------------- | ------------------------------------------- | --------------------------------------- |
+| text                           | <code>string</code> |                                             | The text or data to encode.             |
+| [options]                      | <code>object</code> |                                             | Optional settings.                      |
+| [options.output]               | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
+| [options.errorCorrectionLevel] | <code>string</code> | <code>&quot;&#x27;medium&#x27;&quot;</code> | 'low', 'medium', 'quartile', 'high'.    |
+| [options.margin]               | <code>number</code> | <code>4</code>                              | The width of the quiet zone border.     |
+| [options.width]                | <code>number</code> | <code>200</code>                            | The width of the image in pixels.       |
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| text | <code>string</code> |  | The text or data to encode. |
-| [options] | <code>object</code> |  | Optional settings. |
-| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
-| [options.errorCorrectionLevel] | <code>string</code> | <code>&quot;&#x27;medium&#x27;&quot;</code> | 'low', 'medium', 'quartile', 'high'. |
-| [options.margin] | <code>number</code> | <code>4</code> | The width of the quiet zone border. |
-| [options.width] | <code>number</code> | <code>200</code> | The width of the image in pixels. |
+**Example**
 
-**Example**  
 ```js
-const qrCode = await qrcode('Hello, world!', { output: qrcode.DATA_URL });console.log(qrCode); // Outputs a Data URL of the QR code image
+const qrCode = await qrcode("Hello, world!", { output: qrcode.DATA_URL });
+console.log(qrCode); // Outputs a Data URL of the QR code image
 ```
-**Example**  
+
+**Example**
+
 ```js
-const qrCodeBuffer = await qrcode('Hello, world!', { output: qrcode.BUFFER });console.log(qrCodeBuffer); // Outputs a Buffer of the QR code image
+const qrCodeBuffer = await qrcode("Hello, world!", { output: qrcode.BUFFER });
+console.log(qrCodeBuffer); // Outputs a Buffer of the QR code image
 ```
+
 <a name="module_qrcode.barcode"></a>
 
 ### qrcode.barcode(format, text, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-Generates a 1D barcode from the provided text.This function uses the 'jsbarcode' library to create 1D barcodes.
+
+Generates a 1D barcode from the provided text.
+This function uses the 'jsbarcode' library to create 1D barcodes.
 
 **Kind**: static method of [<code>qrcode</code>](#module_qrcode)  
 **Returns**: <code>Promise.&lt;(Buffer\|string)&gt;</code> - A promise that resolves with the barcode data.  
@@ -6773,75 +7462,92 @@ Generates a 1D barcode from the provided text.This function uses the 'jsbarcode
 
 - <code>Error</code> If the input text is not a string or if the output type is invalid.
 
+| Param                  | Type                 | Default                                     | Description                                           |
+| ---------------------- | -------------------- | ------------------------------------------- | ----------------------------------------------------- |
+| format                 | <code>string</code>  |                                             | The barcode format (e.g., 'CODE128', 'EAN13', 'UPC'). |
+| text                   | <code>string</code>  |                                             | The text or data to encode.                           |
+| [options]              | <code>object</code>  |                                             | Optional settings.                                    |
+| [options.output]       | <code>string</code>  | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'.               |
+| [options.width]        | <code>number</code>  | <code>2</code>                              | The width of a single bar.                            |
+| [options.height]       | <code>number</code>  | <code>100</code>                            | The height of the bars.                               |
+| [options.displayValue] | <code>boolean</code> | <code>true</code>                           | Whether to display the text below the barcode.        |
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| format | <code>string</code> |  | The barcode format (e.g., 'CODE128', 'EAN13', 'UPC'). |
-| text | <code>string</code> |  | The text or data to encode. |
-| [options] | <code>object</code> |  | Optional settings. |
-| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
-| [options.width] | <code>number</code> | <code>2</code> | The width of a single bar. |
-| [options.height] | <code>number</code> | <code>100</code> | The height of the bars. |
-| [options.displayValue] | <code>boolean</code> | <code>true</code> | Whether to display the text below the barcode. |
+**Example**
 
-**Example**  
 ```js
-const barcode = await barcode('CODE128', '123456789012', { output: barcode.DATA_URL });console.log(barcode); // Outputs a Data URL of the barcode image
+const barcode = await barcode("CODE128", "123456789012", {
+  output: barcode.DATA_URL,
+});
+console.log(barcode); // Outputs a Data URL of the barcode image
 ```
-**Example**  
+
+**Example**
+
 ```js
-const barcodeBuffer = await barcode('CODE128', '123456789012', { output: barcode.BUFFER });console.log(barcodeBuffer); // Outputs a Buffer of the barcode image
+const barcodeBuffer = await barcode("CODE128", "123456789012", {
+  output: barcode.BUFFER,
+});
+console.log(barcodeBuffer); // Outputs a Buffer of the barcode image
 ```
+
 <a name="module_utils"></a>
 
 ## utils
-A collection of utility functions for various tasks.This module provides functions for generating random data, validating inputs, manipulating strings, and more.It abstracts common tasks into reusable functions, making it easier to write clean and maintainable code.It is particularly useful for tasks that require randomization, validation, or string manipulation.
 
+A collection of utility functions for various tasks.
+This module provides functions for generating random data, validating inputs, manipulating strings, and more.
+It abstracts common tasks into reusable functions, making it easier to write clean and maintainable code.
+It is particularly useful for tasks that require randomization, validation, or string manipulation.
 
-* [utils](#module_utils)
-    * _static_
-        * [.rnd](#module_utils.rnd) : <code>object</code>
-            * [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
-            * [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
-            * [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
-            * [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
-            * [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
-            * [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
-            * [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
-            * [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
-            * [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
-        * [.string](#module_utils.string) : <code>object</code>
-            * [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
-            * [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
-            * [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
-            * [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
-        * [.misc](#module_utils.misc) : <code>object</code>
-            * [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
-            * [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
-    * _inner_
-        * [~validate](#module_utils..validate)
+- [utils](#module_utils)
+  - _static_
+    - [.rnd](#module_utils.rnd) : <code>object</code>
+      - [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
+      - [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
+      - [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
+      - [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
+      - [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
+      - [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
+      - [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
+      - [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
+      - [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
+    - [.string](#module_utils.string) : <code>object</code>
+      - [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
+      - [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
+      - [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
+      - [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
+    - [.misc](#module_utils.misc) : <code>object</code>
+      - [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
+      - [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
+  - _inner_
+    - [~validate](#module_utils..validate)
 
 <a name="module_utils.rnd"></a>
 
 ### utils.rnd : <code>object</code>
-A util lib for generating various types of random data.It provides functions to generate random integers, floats, booleans, colors, and stringsUses Math.random(), so it is NOT cryptographically secure.For security-sensitive randomness, use the 'crypto' module.
 
-**Kind**: static namespace of [<code>utils</code>](#module_utils)  
+A util lib for generating various types of random data.
+It provides functions to generate random integers, floats, booleans, colors, and strings
+Uses Math.random(), so it is NOT cryptographically secure.
+For security-sensitive randomness, use the 'crypto' module.
 
-* [.rnd](#module_utils.rnd) : <code>object</code>
-    * [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
-    * [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
-    * [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
-    * [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
-    * [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
-    * [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
-    * [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
-    * [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
-    * [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
+**Kind**: static namespace of [<code>utils</code>](#module_utils)
+
+- [.rnd](#module_utils.rnd) : <code>object</code>
+  - [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
+  - [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
+  - [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
+  - [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
+  - [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
+  - [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
+  - [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
+  - [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
+  - [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
 
 <a name="module_utils.rnd.int"></a>
 
 #### rnd.int(max) ⇒ <code>number</code>
+
 Generates a random integer from 0 up to (but not including) max.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -6850,18 +7556,21 @@ Generates a random integer from 0 up to (but not including) max.
 
 - <code>Error</code> If max is not a positive number.
 
+| Param | Type                | Description                  |
+| ----- | ------------------- | ---------------------------- |
+| max   | <code>number</code> | The upper bound (exclusive). |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| max | <code>number</code> | The upper bound (exclusive). |
+**Example**
 
-**Example**  
 ```js
-const randomInt = rnd.int(10); // Returns a random integer between 0 and 9console.log(randomInt); // Outputs a random integer
+const randomInt = rnd.int(10); // Returns a random integer between 0 and 9
+console.log(randomInt); // Outputs a random integer
 ```
+
 <a name="module_utils.rnd.float"></a>
 
 #### rnd.float(max) ⇒ <code>number</code>
+
 Generates a random float from 0 up to (but not including) max.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -6870,18 +7579,21 @@ Generates a random float from 0 up to (but not including) max.
 
 - <code>Error</code> If max is not a positive number.
 
+| Param | Type                | Description                  |
+| ----- | ------------------- | ---------------------------- |
+| max   | <code>number</code> | The upper bound (exclusive). |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| max | <code>number</code> | The upper bound (exclusive). |
+**Example**
 
-**Example**  
 ```js
-const randomFloat = rnd.float(10); // Returns a random float between 0 and 10console.log(randomFloat); // Outputs a random float
+const randomFloat = rnd.float(10); // Returns a random float between 0 and 10
+console.log(randomFloat); // Outputs a random float
 ```
+
 <a name="module_utils.rnd.intInRange"></a>
 
 #### rnd.intInRange(min, max) ⇒ <code>number</code>
+
 Generates a random integer within a given range (inclusive).
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -6890,19 +7602,22 @@ Generates a random integer within a given range (inclusive).
 
 - <code>Error</code> If min is greater than max.
 
+| Param | Type                | Description                     |
+| ----- | ------------------- | ------------------------------- |
+| min   | <code>number</code> | The minimum value of the range. |
+| max   | <code>number</code> | The maximum value of the range. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| min | <code>number</code> | The minimum value of the range. |
-| max | <code>number</code> | The maximum value of the range. |
+**Example**
 
-**Example**  
 ```js
-const randomInt = rnd.intInRange(1, 10); // Returns a random integer between 1 and 10console.log(randomInt); // Outputs a random integer
+const randomInt = rnd.intInRange(1, 10); // Returns a random integer between 1 and 10
+console.log(randomInt); // Outputs a random integer
 ```
+
 <a name="module_utils.rnd.floatInRange"></a>
 
 #### rnd.floatInRange(min, max) ⇒ <code>number</code>
+
 Generates a random float within a given range.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -6911,278 +7626,383 @@ Generates a random float within a given range.
 
 - <code>Error</code> If min is greater than max.
 
+| Param | Type                | Description                     |
+| ----- | ------------------- | ------------------------------- |
+| min   | <code>number</code> | The minimum value of the range. |
+| max   | <code>number</code> | The maximum value of the range. |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| min | <code>number</code> | The minimum value of the range. |
-| max | <code>number</code> | The maximum value of the range. |
+**Example**
 
-**Example**  
 ```js
-const randomFloat = rnd.floatInRange(1.5, 5.5); // Returns a random float between 1.5 and 5.5console.log(randomFloat); // Outputs a random float
+const randomFloat = rnd.floatInRange(1.5, 5.5); // Returns a random float between 1.5 and 5.5
+console.log(randomFloat); // Outputs a random float
 ```
+
 <a name="module_utils.rnd.bool"></a>
 
 #### rnd.bool() ⇒ <code>boolean</code>
+
 Returns a random boolean (true or false).
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Example**  
+**Example**
+
 ```js
-const randomBool = rnd.bool(); // Returns either true or falseconsole.log(randomBool); // Outputs a random boolean
+const randomBool = rnd.bool(); // Returns either true or false
+console.log(randomBool); // Outputs a random boolean
 ```
+
 <a name="module_utils.rnd.choice"></a>
 
 #### rnd.choice(array) ⇒ <code>any</code> \| <code>undefined</code>
+
 Selects a random element from an array.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Returns**: <code>any</code> \| <code>undefined</code> - A random element from the array, or undefined if the array is empty.  
+**Returns**: <code>any</code> \| <code>undefined</code> - A random element from the array, or undefined if the array is empty.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param | Type                           | Description               |
+| ----- | ------------------------------ | ------------------------- |
 | array | <code>Array.&lt;any&gt;</code> | The array to choose from. |
 
-**Example**  
+**Example**
+
 ```js
-const randomChoice = rnd.choice([1, 2, 3, 4, 5]); // Returns a random element from the arrayconsole.log(randomChoice); // Outputs a random element from the array
+const randomChoice = rnd.choice([1, 2, 3, 4, 5]); // Returns a random element from the array
+console.log(randomChoice); // Outputs a random element from the array
 ```
-**Example**  
+
+**Example**
+
 ```js
 const randomChoice = rnd.choice([]); // Returns undefined
 ```
+
 <a name="module_utils.rnd.shuffle"></a>
 
 #### rnd.shuffle(array) ⇒ <code>Array.&lt;any&gt;</code>
+
 Shuffles an array in place using the Fisher-Yates algorithm and returns it.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Returns**: <code>Array.&lt;any&gt;</code> - The shuffled array.  
+**Returns**: <code>Array.&lt;any&gt;</code> - The shuffled array.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param | Type                           | Description           |
+| ----- | ------------------------------ | --------------------- |
 | array | <code>Array.&lt;any&gt;</code> | The array to shuffle. |
 
-**Example**  
+**Example**
+
 ```js
-const shuffledArray = rnd.shuffle([1, 2, 3, 4, 5]); // Returns a shuffled version of the arrayconsole.log(shuffledArray); // Outputs the shuffled array
+const shuffledArray = rnd.shuffle([1, 2, 3, 4, 5]); // Returns a shuffled version of the array
+console.log(shuffledArray); // Outputs the shuffled array
 ```
+
 <a name="module_utils.rnd.color"></a>
 
 #### rnd.color() ⇒ <code>string</code>
+
 Generates a random hex color code.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
 **Returns**: <code>string</code> - A random hex color string (e.g., '#a4c1e8').  
-**Example**  
+**Example**
+
 ```js
-const randomColor = rnd.color(); // Returns a random hex color codeconsole.log(randomColor); // Outputs a random hex color code
+const randomColor = rnd.color(); // Returns a random hex color code
+console.log(randomColor); // Outputs a random hex color code
 ```
+
 <a name="module_utils.rnd.string"></a>
 
 #### rnd.string(length) ⇒ <code>string</code>
-Generates a random string of a given length using only alphabetic characters.NOT cryptographically secure. For secure random strings, use the 'crypto' module.
+
+Generates a random string of a given length using only alphabetic characters.
+NOT cryptographically secure. For secure random strings, use the 'crypto' module.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Returns**: <code>string</code> - A random string of letters.  
+**Returns**: <code>string</code> - A random string of letters.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param  | Type                | Description                       |
+| ------ | ------------------- | --------------------------------- |
 | length | <code>number</code> | The desired length of the string. |
 
-**Example**  
+**Example**
+
 ```js
-const randomString = rnd.string(10); // Returns a random string of 10 charactersconsole.log(randomString); // Outputs a random string of letters
+const randomString = rnd.string(10); // Returns a random string of 10 characters
+console.log(randomString); // Outputs a random string of letters
 ```
+
 <a name="module_utils.string"></a>
 
 ### utils.string : <code>object</code>
-A collection of string manipulation utilities.Provides functions for string formatting, slugification, truncation, and HTML stripping.These functions are useful for preparing strings for display, storage, or further processing.They help ensure strings are in a consistent format, making them easier to work with in applications
 
-**Kind**: static namespace of [<code>utils</code>](#module_utils)  
+A collection of string manipulation utilities.
+Provides functions for string formatting, slugification, truncation, and HTML stripping.
+These functions are useful for preparing strings for display, storage, or further processing.
+They help ensure strings are in a consistent format, making them easier to work with in applications
 
-* [.string](#module_utils.string) : <code>object</code>
-    * [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
-    * [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
-    * [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
-    * [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
+**Kind**: static namespace of [<code>utils</code>](#module_utils)
+
+- [.string](#module_utils.string) : <code>object</code>
+  - [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
+  - [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
+  - [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
+  - [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
 
 <a name="module_utils.string.capitalize"></a>
 
 #### string.capitalize(str) ⇒ <code>string</code>
+
 Converts the first character of a string to uppercase.
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.  
+**Returns**: <code>string</code> - or empty string if input is not a string.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| str | <code>string</code> | The input string. |
+| Param | Type                | Description       |
+| ----- | ------------------- | ----------------- |
+| str   | <code>string</code> | The input string. |
 
-**Example**  
+**Example**
+
 ```js
-const capitalized = string.capitalize('hello world');console.log(capitalized); // Outputs: Hello world
+const capitalized = string.capitalize("hello world");
+console.log(capitalized); // Outputs: Hello world
 ```
+
 <a name="module_utils.string.slugify"></a>
 
 #### string.slugify(str) ⇒ <code>string</code>
+
 Converts a string into a URL-friendly "slug".
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.  
+**Returns**: <code>string</code> - or empty string if input is not a string.
 
-| Param | Type | Description |
-| --- | --- | --- |
-| str | <code>string</code> | The input string. |
+| Param | Type                | Description       |
+| ----- | ------------------- | ----------------- |
+| str   | <code>string</code> | The input string. |
 
-**Example**  
+**Example**
+
 ```js
-const slug = string.slugify('Hello World! This is a test.');console.log(slug); // Outputs: hello-world-this-is-a-test
+const slug = string.slugify("Hello World! This is a test.");
+console.log(slug); // Outputs: hello-world-this-is-a-test
 ```
+
 <a name="module_utils.string.truncate"></a>
 
 #### string.truncate(str, length, [suffix]) ⇒ <code>string</code>
+
 Truncates a string to a maximum length without cutting words in half.
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.  
+**Returns**: <code>string</code> - or empty string if input is not a string.
 
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| str | <code>string</code> |  | The input string. |
-| length | <code>number</code> |  | The maximum length. |
+| Param    | Type                | Default                                  | Description                        |
+| -------- | ------------------- | ---------------------------------------- | ---------------------------------- |
+| str      | <code>string</code> |                                          | The input string.                  |
+| length   | <code>number</code> |                                          | The maximum length.                |
 | [suffix] | <code>string</code> | <code>&quot;&#x27;...&#x27;&quot;</code> | The suffix to append if truncated. |
 
-**Example**  
+**Example**
+
 ```js
-const truncated = string.truncate('This is a long string that needs to be truncated.', 30);console.log(truncated); // Outputs: This is a long string that...
+const truncated = string.truncate(
+  "This is a long string that needs to be truncated.",
+  30,
+);
+console.log(truncated); // Outputs: This is a long string that...
 ```
+
 <a name="module_utils.string.stripHtml"></a>
 
 #### string.stripHtml(htmlString) ⇒ <code>string</code>
+
 Removes all HTML tags from a string.
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.  
+**Returns**: <code>string</code> - or empty string if input is not a string.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param      | Type                | Description                       |
+| ---------- | ------------------- | --------------------------------- |
 | htmlString | <code>string</code> | The input string containing HTML. |
 
-**Example**  
+**Example**
+
 ```js
-const cleanString = string.stripHtml('<p>This is <strong>bold</strong> text.</p>');console.log(cleanString); // Outputs: This is bold text.
+const cleanString = string.stripHtml(
+  "<p>This is <strong>bold</strong> text.</p>",
+);
+console.log(cleanString); // Outputs: This is bold text.
 ```
+
 <a name="module_utils.misc"></a>
 
 ### utils.misc : <code>object</code>
-A collection of miscellaneous utility functions.Provides functions for clamping numbers, grouping arrays, and other common tasks.These functions help with data manipulation and organization, making it easier to work with collections of data.
 
-**Kind**: static namespace of [<code>utils</code>](#module_utils)  
+A collection of miscellaneous utility functions.
+Provides functions for clamping numbers, grouping arrays, and other common tasks.
+These functions help with data manipulation and organization, making it easier to work with collections of data.
 
-* [.misc](#module_utils.misc) : <code>object</code>
-    * [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
-    * [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
+**Kind**: static namespace of [<code>utils</code>](#module_utils)
+
+- [.misc](#module_utils.misc) : <code>object</code>
+  - [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
+  - [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
 
 <a name="module_utils.misc.clamp"></a>
 
 #### misc.clamp(number, min, max) ⇒ <code>number</code>
+
 Restricts a number to be within a specific range.
 
-**Kind**: static method of [<code>misc</code>](#module_utils.misc)  
+**Kind**: static method of [<code>misc</code>](#module_utils.misc)
 
-| Param | Type | Description |
-| --- | --- | --- |
-| number | <code>number</code> | The number to clamp. |
-| min | <code>number</code> | The minimum boundary. |
-| max | <code>number</code> | The maximum boundary. |
+| Param  | Type                | Description           |
+| ------ | ------------------- | --------------------- |
+| number | <code>number</code> | The number to clamp.  |
+| min    | <code>number</code> | The minimum boundary. |
+| max    | <code>number</code> | The maximum boundary. |
 
-**Example**  
+**Example**
+
 ```js
-const clampedValue = misc.clamp(15, 10, 20);console.log(clampedValue); // Outputs: 15
+const clampedValue = misc.clamp(15, 10, 20);
+console.log(clampedValue); // Outputs: 15
 ```
-**Example**  
+
+**Example**
+
 ```js
-const clampedValue = misc.clamp(25, 10, 20);console.log(clampedValue); // Outputs: 20
+const clampedValue = misc.clamp(25, 10, 20);
+console.log(clampedValue); // Outputs: 20
 ```
+
 <a name="module_utils.misc.groupBy"></a>
 
 #### misc.groupBy(array, keyOrFn) ⇒ <code>object</code>
+
 Groups the elements of an array into an object based on a key or function.
 
-**Kind**: static method of [<code>misc</code>](#module_utils.misc)  
+**Kind**: static method of [<code>misc</code>](#module_utils.misc)
 
-| Param | Type | Description |
-| --- | --- | --- |
-| array | <code>Array.&lt;object&gt;</code> | The array to group. |
+| Param   | Type                                         | Description                                          |
+| ------- | -------------------------------------------- | ---------------------------------------------------- |
+| array   | <code>Array.&lt;object&gt;</code>            | The array to group.                                  |
 | keyOrFn | <code>string</code> \| <code>function</code> | The key string or a function to determine the group. |
 
-**Example**  
+**Example**
+
 ```js
-const grouped = misc.groupBy([{ id: 1, category: 'A' }, { id: 2, category: 'B' }, { id: 3, category: 'A' }], 'category');console.log(grouped);// Outputs: { A: [{ id: 1, category: 'A' }, { id: 3, category: 'A' }], B: [{ id: 2, category: 'B' }] }
+const grouped = misc.groupBy(
+  [
+    { id: 1, category: "A" },
+    { id: 2, category: "B" },
+    { id: 3, category: "A" },
+  ],
+  "category",
+);
+console.log(grouped);
+// Outputs: { A: [{ id: 1, category: 'A' }, { id: 3, category: 'A' }], B: [{ id: 2, category: 'B' }] }
 ```
-**Example**  
+
+**Example**
+
 ```js
-const grouped = misc.groupBy([{ id: 1, value: 10 }, { id: 2, value: 20 }, { id: 3, value: 10 }], item => item.value);console.log(grouped);// Outputs: { 10: [{ id: 1, value: 10 }, { id: 3, value: 10 }], 20: [{ id: 2, value: 20 }] }
+const grouped = misc.groupBy(
+  [
+    { id: 1, value: 10 },
+    { id: 2, value: 20 },
+    { id: 3, value: 10 },
+  ],
+  (item) => item.value,
+);
+console.log(grouped);
+// Outputs: { 10: [{ id: 1, value: 10 }, { id: 3, value: 10 }], 20: [{ id: 2, value: 20 }] }
 ```
+
 <a name="module_utils..validate"></a>
 
 ### utils~validate
-A collection of validation utilities for common data types.Provides functions to check if a string is a valid email, URL, phone number, and more.These functions help ensure that data conforms to expected formats, making it easier to validate user input.
+
+A collection of validation utilities for common data types.
+Provides functions to check if a string is a valid email, URL, phone number, and more.
+These functions help ensure that data conforms to expected formats, making it easier to validate user input.
 
 **Kind**: inner property of [<code>utils</code>](#module_utils)  
 <a name="module_uuid"></a>
 
 ## uuid
+
 Provides functions to generate and validate UUIDs (Universally Unique Identifiers).
 
-
-* [uuid](#module_uuid)
-    * [.v4()](#module_uuid.v4) ⇒ <code>string</code>
-    * [.validate(uuidString)](#module_uuid.validate) ⇒ <code>boolean</code>
+- [uuid](#module_uuid)
+  - [.v4()](#module_uuid.v4) ⇒ <code>string</code>
+  - [.validate(uuidString)](#module_uuid.validate) ⇒ <code>boolean</code>
 
 <a name="module_uuid.v4"></a>
 
 ### uuid.v4() ⇒ <code>string</code>
-Generates a random RFC 4122 Version 4 UUID.Uses the built-in, cryptographically secure random UUID generator.
+
+Generates a random RFC 4122 Version 4 UUID.
+Uses the built-in, cryptographically secure random UUID generator.
 
 **Kind**: static method of [<code>uuid</code>](#module_uuid)  
 **Returns**: <code>string</code> - A new UUID string (e.g., "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d").  
-**Example**  
+**Example**
+
 ```js
-const uuid = require('uuid');const newUuid = uuid.v4();console.log(newUuid); // Outputs a random UUID
+const uuid = require("uuid");
+const newUuid = uuid.v4();
+console.log(newUuid); // Outputs a random UUID
 ```
+
 <a name="module_uuid.validate"></a>
 
 ### uuid.validate(uuidString) ⇒ <code>boolean</code>
-Validates if a string is a correctly formatted UUID.This function checks if the string matches the standard UUID format (8-4-4-4-12 hex digits).It does not check if the UUID is actually in use or registered, only its format.
+
+Validates if a string is a correctly formatted UUID.
+This function checks if the string matches the standard UUID format (8-4-4-4-12 hex digits).
+It does not check if the UUID is actually in use or registered, only its format.
 
 **Kind**: static method of [<code>uuid</code>](#module_uuid)  
-**Returns**: <code>boolean</code> - True if the string is a valid UUID, false otherwise.  
+**Returns**: <code>boolean</code> - True if the string is a valid UUID, false otherwise.
 
-| Param | Type | Description |
-| --- | --- | --- |
+| Param      | Type                | Description             |
+| ---------- | ------------------- | ----------------------- |
 | uuidString | <code>string</code> | The string to validate. |
 
-**Example**  
+**Example**
+
 ```js
-const uuid = require('uuid');const isValid = uuid.validate('a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d');console.log(isValid); // Outputs true or false
+const uuid = require("uuid");
+const isValid = uuid.validate("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d");
+console.log(isValid); // Outputs true or false
 ```
+
 <a name="module_zip"></a>
 
 ## zip
-Provides functions to zip and unzip files and directories securely.This module allows you to create zip archives from files or directories, and extract zip files to specified locations.It ensures that all file operations are performed within the secure boundaries defined by the Gingee framework.<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
+Provides functions to zip and unzip files and directories securely.
+This module allows you to create zip archives from files or directories, and extract zip files to specified locations.
+It ensures that all file operations are performed within the secure boundaries defined by the Gingee framework.
+<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
+<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-* [zip](#module_zip)
-    * [.zip(scope, sourcePath, [options])](#module_zip.zip) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-    * [.zipToFile(sourceScope, sourcePath, destScope, destPath, [options])](#module_zip.zipToFile) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.unzip(sourceScope, sourcePath, destScope, destPath)](#module_zip.unzip) ⇒ <code>Promise.&lt;void&gt;</code>
+- [zip](#module_zip)
+  - [.zip(scope, sourcePath, [options])](#module_zip.zip) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+  - [.zipToFile(sourceScope, sourcePath, destScope, destPath, [options])](#module_zip.zipToFile) ⇒ <code>Promise.&lt;void&gt;</code>
+  - [.unzip(sourceScope, sourcePath, destScope, destPath)](#module_zip.unzip) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_zip.zip"></a>
 
 ### zip.zip(scope, sourcePath, [options]) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-Zips a file or directory into an in-memory buffer.This function allows you to create a zip archive from a single file or an entire directory.
+
+Zips a file or directory into an in-memory buffer.
+This function allows you to create a zip archive from a single file or an entire directory.
 
 **Kind**: static method of [<code>zip</code>](#module_zip)  
 **Returns**: <code>Promise.&lt;Buffer&gt;</code> - A promise that resolves with the zip file data as a Buffer.  
@@ -7190,21 +8010,25 @@ Zips a file or directory into an in-memory buffer.This function allows you to c
 
 - <code>Error</code> If the source file or directory does not exist, or if the path traversal is detected.
 
-
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| scope | <code>string</code> |  | The scope of the source (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> |  | The path to the file or directory to zip. |
-| [options] | <code>object</code> |  | Optional settings. |
+| Param                       | Type                 | Default            | Description                                                                                 |
+| --------------------------- | -------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| scope                       | <code>string</code>  |                    | The scope of the source (fs.BOX or fs.WEB).                                                 |
+| sourcePath                  | <code>string</code>  |                    | The path to the file or directory to zip.                                                   |
+| [options]                   | <code>object</code>  |                    | Optional settings.                                                                          |
 | [options.includeRootFolder] | <code>boolean</code> | <code>false</code> | If true and source is a directory, the directory itself is included at the root of the zip. |
 
-**Example**  
+**Example**
+
 ```js
-const zip = require('zip');const zipBuffer = await zip.zip(fs.BOX, '/path/to/source');console.log(zipBuffer); // Outputs a Buffer containing the zip file data
+const zip = require("zip");
+const zipBuffer = await zip.zip(fs.BOX, "/path/to/source");
+console.log(zipBuffer); // Outputs a Buffer containing the zip file data
 ```
+
 <a name="module_zip.zipToFile"></a>
 
 ### zip.zipToFile(sourceScope, sourcePath, destScope, destPath, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Zips a file or directory to a destination zip file.
 
 **Kind**: static method of [<code>zip</code>](#module_zip)  
@@ -7213,23 +8037,35 @@ Zips a file or directory to a destination zip file.
 
 - <code>Error</code> If the source file or directory does not exist, or if the path traversal is detected, or if zipping between scopes is attempted without the allowCrossOrigin option.
 
-
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| sourceScope | <code>string</code> |  | The scope of the source (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> |  | The path to the file or directory to zip. |
-| destScope | <code>string</code> |  | The scope of the destination (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> |  | The path to the destination zip file. |
-| [options] | <code>object</code> |  | Optional settings. |
+| Param                       | Type                 | Default            | Description                                                                                 |
+| --------------------------- | -------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| sourceScope                 | <code>string</code>  |                    | The scope of the source (fs.BOX or fs.WEB).                                                 |
+| sourcePath                  | <code>string</code>  |                    | The path to the file or directory to zip.                                                   |
+| destScope                   | <code>string</code>  |                    | The scope of the destination (fs.BOX or fs.WEB).                                            |
+| destPath                    | <code>string</code>  |                    | The path to the destination zip file.                                                       |
+| [options]                   | <code>object</code>  |                    | Optional settings.                                                                          |
 | [options.includeRootFolder] | <code>boolean</code> | <code>false</code> | If true and source is a directory, the directory itself is included at the root of the zip. |
 
-**Example**  
+**Example**
+
 ```js
-const fs = require('fs'); // Gingee secure fs moduleconst zip = require('zip');await zip.zipToFile(fs.BOX, '/path/to/source', fs.BOX, '/path/to/destination.zip');if(fs.existsSync(fs.BOX, '/path/to/destination.zip')) {    console.log("Zip file created successfully.");}
+const fs = require("fs"); // Gingee secure fs module
+const zip = require("zip");
+await zip.zipToFile(
+  fs.BOX,
+  "/path/to/source",
+  fs.BOX,
+  "/path/to/destination.zip",
+);
+if (fs.existsSync(fs.BOX, "/path/to/destination.zip")) {
+  console.log("Zip file created successfully.");
+}
 ```
+
 <a name="module_zip.unzip"></a>
 
 ### zip.unzip(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;void&gt;</code>
+
 Unzips a source zip file to a destination folder.
 
 **Kind**: static method of [<code>zip</code>](#module_zip)  
@@ -7238,33 +8074,42 @@ Unzips a source zip file to a destination folder.
 
 - <code>Error</code> If the source zip file does not exist, or if the path traversal is detected, or if unzipping between scopes is attempted without the allowCrossOrigin option.
 
+| Param       | Type                | Description                                      |
+| ----------- | ------------------- | ------------------------------------------------ |
+| sourceScope | <code>string</code> | The scope of the source (fs.BOX or fs.WEB).      |
+| sourcePath  | <code>string</code> | The path to the source zip file.                 |
+| destScope   | <code>string</code> | The scope of the destination (fs.BOX or fs.WEB). |
+| destPath    | <code>string</code> | The path to the destination folder.              |
 
-| Param | Type | Description |
-| --- | --- | --- |
-| sourceScope | <code>string</code> | The scope of the source (fs.BOX or fs.WEB). |
-| sourcePath | <code>string</code> | The path to the source zip file. |
-| destScope | <code>string</code> | The scope of the destination (fs.BOX or fs.WEB). |
-| destPath | <code>string</code> | The path to the destination folder. |
+**Example**
 
-**Example**  
 ```js
-const fs = require('fs'); // Gingee secure fs moduleconst zip = require('zip');await zip.unzip(fs.BOX, '/path/to/source.zip', fs.BOX, '/path/to/destination');if(fs.existsSync(fs.BOX, '/path/to/destination')) {    console.log("Unzip operation completed successfully.");}
+const fs = require("fs"); // Gingee secure fs module
+const zip = require("zip");
+await zip.unzip(fs.BOX, "/path/to/source.zip", fs.BOX, "/path/to/destination");
+if (fs.existsSync(fs.BOX, "/path/to/destination")) {
+  console.log("Unzip operation completed successfully.");
+}
 ```
+
 <a name="SAFE_APP_NAME_RE"></a>
 
 ## SAFE\_APP\_NAME\_RE
+
 Safe app directory names only (no path separators, no `..`).
 
 **Kind**: global constant  
 <a name="RESERVED_DELETE_APP_NAMES"></a>
 
 ## RESERVED\_DELETE\_APP\_NAMES
-App names that must never be uninstalled via the public delete API.Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true }).
 
-**Kind**: global constant  
+App names that must never be uninstalled via the public delete API.
+Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true }).
 
+**Kind**: global constant
 
 ## Important points to remember
+
 - Gingee is sandboxed and does not allow usage of any NodeJS builtin modules or other external libraries.
 - Some Gingee modules such as 'fs' sound similar to the NodeJS builtin modules but are not the same. Always refer the API reference to use these modules.
 - Always follow the security and permission guidelines outlined in the documentation.

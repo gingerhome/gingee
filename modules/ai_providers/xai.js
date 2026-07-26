@@ -15,7 +15,7 @@ class XaiAiAdapter {
     this.app = app;
     this.logger = logger;
     throw new Error(
-      "AI provider 'xai' (Grok) is planned for P1 and is not implemented yet. Use type 'gemini' or 'mock'."
+      "AI provider 'xai' (Grok) is planned for P1 and is not implemented yet. Use type 'gemini' or 'mock'.",
     );
   }
 }

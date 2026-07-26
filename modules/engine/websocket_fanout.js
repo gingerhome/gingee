@@ -12,19 +12,19 @@
  *   }
  */
 
-const os = require('os');
+const os = require("os");
 
 const FANOUT_DEFAULTS = {
-  driver: 'none' // none | redis
+  driver: "none", // none | redis
 };
 
 const REDIS_DEFAULTS = {
   url: null,
-  host: '127.0.0.1',
+  host: "127.0.0.1",
   port: 6379,
   password: null,
   db: 0,
-  key_prefix: 'gingee:ws:'
+  key_prefix: "gingee:ws:",
 };
 
 /**
@@ -32,14 +32,14 @@ const REDIS_DEFAULTS = {
  * @returns {object}
  */
 function normalizeRedis(raw) {
-  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   return {
     ...REDIS_DEFAULTS,
     ...r,
     port: r.port != null ? Number(r.port) : REDIS_DEFAULTS.port,
     db: r.db != null ? Number(r.db) : REDIS_DEFAULTS.db,
     key_prefix:
-      (r.key_prefix && String(r.key_prefix)) || REDIS_DEFAULTS.key_prefix
+      (r.key_prefix && String(r.key_prefix)) || REDIS_DEFAULTS.key_prefix,
   };
 }
 
@@ -49,11 +49,11 @@ function normalizeRedis(raw) {
  */
 function normalizeFanout(wsConfig) {
   const c =
-    wsConfig && typeof wsConfig === 'object' && !Array.isArray(wsConfig)
+    wsConfig && typeof wsConfig === "object" && !Array.isArray(wsConfig)
       ? wsConfig
       : {};
   const f =
-    c.fanout && typeof c.fanout === 'object' && !Array.isArray(c.fanout)
+    c.fanout && typeof c.fanout === "object" && !Array.isArray(c.fanout)
       ? c.fanout
       : {};
   const driverRaw =
@@ -63,9 +63,9 @@ function normalizeFanout(wsConfig) {
       ? String(f.node_id).trim()
       : `${os.hostname()}:${process.pid}`;
   return {
-    driver: driverRaw === 'redis' ? 'redis' : 'none',
+    driver: driverRaw === "redis" ? "redis" : "none",
     nodeId,
-    redis: normalizeRedis(c.redis)
+    redis: normalizeRedis(c.redis),
   };
 }
 
@@ -75,27 +75,29 @@ function normalizeFanout(wsConfig) {
  * @returns {object} ioredis client
  */
 function createRedisClient(redisCfg, logger) {
-  const Redis = require('ioredis');
+  const Redis = require("ioredis");
   const r = redisCfg || {};
   let client;
-  if (r.url || (typeof r === 'string' && r)) {
+  if (r.url || (typeof r === "string" && r)) {
     const url = r.url || r;
     client = new Redis(String(url), {
       maxRetriesPerRequest: null,
-      enableReadyCheck: true
+      enableReadyCheck: true,
     });
   } else {
     client = new Redis({
-      host: r.host || '127.0.0.1',
+      host: r.host || "127.0.0.1",
       port: r.port != null ? Number(r.port) : 6379,
       password: r.password || undefined,
       db: r.db != null ? Number(r.db) : 0,
       maxRetriesPerRequest: null,
-      enableReadyCheck: true
+      enableReadyCheck: true,
     });
   }
-  client.on('error', (err) => {
-    (logger || console).error(`[websockets:fanout] Redis error: ${err.message}`);
+  client.on("error", (err) => {
+    (logger || console).error(
+      `[websockets:fanout] Redis error: ${err.message}`,
+    );
   });
   return client;
 }
@@ -107,15 +109,15 @@ function createRedisClient(redisCfg, logger) {
  */
 function encodePayload(data) {
   if (Buffer.isBuffer(data)) {
-    return { encoding: 'base64', body: data.toString('base64') };
+    return { encoding: "base64", body: data.toString("base64") };
   }
-  if (typeof data === 'string') {
-    return { encoding: 'string', body: data };
+  if (typeof data === "string") {
+    return { encoding: "string", body: data };
   }
   if (data === undefined) {
-    return { encoding: 'json', body: 'null' };
+    return { encoding: "json", body: "null" };
   }
-  return { encoding: 'json', body: JSON.stringify(data) };
+  return { encoding: "json", body: JSON.stringify(data) };
 }
 
 /**
@@ -124,11 +126,11 @@ function encodePayload(data) {
  * @returns {string|Buffer}
  */
 function decodePayload(encoding, body) {
-  if (encoding === 'base64') {
-    return Buffer.from(String(body || ''), 'base64');
+  if (encoding === "base64") {
+    return Buffer.from(String(body || ""), "base64");
   }
-  if (encoding === 'string') {
-    return String(body == null ? '' : body);
+  if (encoding === "string") {
+    return String(body == null ? "" : body);
   }
   // json — deliver as object so hub can re-stringify consistently; or pre-stringified
   try {
@@ -160,7 +162,7 @@ class RedisFanout {
   }
 
   enabled() {
-    return this.cfg.driver === 'redis' && !this._closed;
+    return this.cfg.driver === "redis" && !this._closed;
   }
 
   channel() {
@@ -180,14 +182,14 @@ class RedisFanout {
 
     const ch = this.channel();
     await this.sub.subscribe(ch);
-    this.sub.on('message', (channel, message) => {
+    this.sub.on("message", (channel, message) => {
       if (channel !== ch) return;
       this._onMessage(message);
     });
 
     this._started = true;
     this.logger.info(
-      `[websockets:fanout] Redis pub/sub ready channel=${ch} node=${this.cfg.nodeId}`
+      `[websockets:fanout] Redis pub/sub ready channel=${ch} node=${this.cfg.nodeId}`,
     );
   }
 
@@ -207,19 +209,19 @@ class RedisFanout {
 
     let data;
     try {
-      data = decodePayload(msg.encoding || 'json', msg.body);
+      data = decodePayload(msg.encoding || "json", msg.body);
     } catch (e) {
       this.logger.error(`[websockets:fanout] decode failed: ${e.message}`);
       return;
     }
 
     try {
-      if (msg.scope === 'room' && msg.app && msg.room != null) {
-        if (typeof this.handlers.onRoom === 'function') {
+      if (msg.scope === "room" && msg.app && msg.room != null) {
+        if (typeof this.handlers.onRoom === "function") {
           this.handlers.onRoom(String(msg.app), String(msg.room), data);
         }
-      } else if (msg.scope === 'app' && msg.app) {
-        if (typeof this.handlers.onApp === 'function') {
+      } else if (msg.scope === "app" && msg.app) {
+        if (typeof this.handlers.onApp === "function") {
           this.handlers.onApp(String(msg.app), data);
         }
       }
@@ -228,9 +230,9 @@ class RedisFanout {
     }
 
     try {
-      const metrics = require('../metrics.js');
-      metrics.inc('gingee_websocket_fanout_receive_total', {
-        scope: msg.scope || 'unknown'
+      const metrics = require("../metrics.js");
+      metrics.inc("gingee_websocket_fanout_receive_total", {
+        scope: msg.scope || "unknown",
       });
     } catch (_) {
       /* ignore */
@@ -248,10 +250,10 @@ class RedisFanout {
     await this._publish({
       v: 1,
       origin: this.cfg.nodeId,
-      scope: 'room',
+      scope: "room",
       app: appName,
       room,
-      ...encodePayload(data)
+      ...encodePayload(data),
     });
   }
 
@@ -265,9 +267,9 @@ class RedisFanout {
     await this._publish({
       v: 1,
       origin: this.cfg.nodeId,
-      scope: 'app',
+      scope: "app",
       app: appName,
-      ...encodePayload(data)
+      ...encodePayload(data),
     });
   }
 
@@ -279,16 +281,16 @@ class RedisFanout {
       const raw = JSON.stringify(envelope);
       await this.pub.publish(this.channel(), raw);
       try {
-        const metrics = require('../metrics.js');
-        metrics.inc('gingee_websocket_fanout_publish_total', {
-          scope: envelope.scope || 'unknown'
+        const metrics = require("../metrics.js");
+        metrics.inc("gingee_websocket_fanout_publish_total", {
+          scope: envelope.scope || "unknown",
         });
       } catch (_) {
         /* ignore */
       }
     } catch (e) {
       this.logger.error(
-        `[websockets:fanout] publish failed (local delivery still applied): ${e.message}`
+        `[websockets:fanout] publish failed (local delivery still applied): ${e.message}`,
       );
     }
   }
@@ -320,7 +322,7 @@ class RedisFanout {
  * @returns {Promise<void>}
  */
 function waitReady(client) {
-  if (!client || client.status === 'ready') return Promise.resolve();
+  if (!client || client.status === "ready") return Promise.resolve();
   return new Promise((resolve, reject) => {
     const onReady = () => {
       cleanup();
@@ -331,11 +333,11 @@ function waitReady(client) {
       reject(err);
     };
     const cleanup = () => {
-      client.removeListener('ready', onReady);
-      client.removeListener('error', onError);
+      client.removeListener("ready", onReady);
+      client.removeListener("error", onError);
     };
-    client.once('ready', onReady);
-    client.once('error', onError);
+    client.once("ready", onReady);
+    client.once("error", onError);
   });
 }
 
@@ -347,5 +349,5 @@ module.exports = {
   encodePayload,
   decodePayload,
   createRedisClient,
-  RedisFanout
+  RedisFanout,
 };

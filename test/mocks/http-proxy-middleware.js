@@ -3,7 +3,7 @@
  */
 function createProxyMiddleware() {
   return function proxyMiddleware(req, res, next) {
-    if (typeof next === 'function') next();
+    if (typeof next === "function") next();
   };
 }
 
@@ -14,5 +14,5 @@ module.exports = {
   loggerPlugin: {},
   proxyEventsPlugin: {},
   fixRequestBody: () => {},
-  responseInterceptor: () => {}
+  responseInterceptor: () => {},
 };

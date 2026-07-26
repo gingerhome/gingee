@@ -16,8 +16,8 @@ This model ensures that administrators have full control and awareness of an app
 
 When you build an application that you intend to distribute (as a `.gin` file) or share, you must declare the permissions it requires in a manifest file. This file acts as a formal request to the administrator who will install your app.
 
--   **File Name:** `pmft.json` (Permissions Manifest)
--   **Location:** `web/<your-app-name>/box/pmft.json`
+- **File Name:** `pmft.json` (Permissions Manifest)
+- **Location:** `web/<your-app-name>/box/pmft.json`
 
 The `gingee-cli` will read this file directly from your `.gin` package during installation to prompt the administrator for consent.
 
@@ -25,17 +25,15 @@ The `gingee-cli` will read this file directly from your `.gin` package during in
 
 The file contains a single `permissions` object with two keys: `mandatory` and `optional`.
 
--   **`mandatory`**: An array of permission keys that are **essential** for your app's core functionality. If the administrator denies a mandatory permission, the installation process should be aborted.
--   **`optional`**: An array of permission keys for features that are enhancements but not critical. Your application code should be written to handle cases where an optional permission is not granted.
+- **`mandatory`**: An array of permission keys that are **essential** for your app's core functionality. If the administrator denies a mandatory permission, the installation process should be aborted.
+- **`optional`**: An array of permission keys for features that are enhancements but not critical. Your application code should be written to handle cases where an optional permission is not granted.
 
 **Example `pmft.json` for a blog application:**
+
 ```json
 {
   "permissions": {
-    "mandatory": [
-      "db",
-      "fs"
-    ],
+    "mandatory": ["db", "fs"],
     "optional": [
       "httpclient",
       "email",
@@ -47,7 +45,8 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
   }
 }
 ```
-*In this example, the blog requires database and filesystem access to function. Optional features (outbound HTTP, transactional email, generative AI) are listed separately so an administrator can grant only what they approve. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation.*
+
+_In this example, the blog requires database and filesystem access to function. Optional features (outbound HTTP, transactional email, generative AI) are listed separately so an administrator can grant only what they approve. This file is the definitive source of truth that the `gingee-cli` will use to generate the interactive consent prompts for the administrator during installation._
 
 ## For Administrators: Managing Permissions
 
@@ -57,27 +56,23 @@ As a server administrator, you have the final authority on what an application i
 
 This file is the single source of truth for all application grants on your Gingee server.
 
--   **Location:** `project_root/settings/permissions.json`
--   **Structure:** A JSON object where each key is an application's name. The value is an object containing a `granted` array.
+- **Location:** `project_root/settings/permissions.json`
+- **Structure:** A JSON object where each key is an application's name. The value is an object containing a `granted` array.
 
 **Example `settings/permissions.json`:**
+
 ```json
 {
   "glade": {
-    "granted": [
-      "platform",
-      "fs"
-    ]
+    "granted": ["platform", "fs"]
   },
   "my-blog-app": {
-    "granted": [
-      "db",
-      "fs"
-    ]
+    "granted": ["db", "fs"]
   }
 }
 ```
-*In this example, `my-blog-app` was granted its two mandatory permissions, but the administrator chose not to grant the optional `httpclient` permission.*
+
+_In this example, `my-blog-app` was granted its two mandatory permissions, but the administrator chose not to grant the optional `httpclient` permission._
 
 ### Managing Permissions in Glade
 
@@ -89,19 +84,18 @@ Saving your changes in this modal will automatically update the `settings/permis
 
 This is the definitive list of all permission keys available in Gingee.
 
-| Permission Key | Description | Security Implication |
-| :--- | :--- | :--- |
-| **platform** | **PRIVILEGED.** Allows the app to use the `platform` module to manage the lifecycle (install, delete, upgrade, etc.) of other applications on the server. | **Critical.** This is the highest level of privilege. Only grant this to a fully trusted administration application like `glade`. |
-| **cache** | Allows the app to use the caching service for storing and retrieving data. | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data. |
-| **db** | Allows the app to connect to and query the database(s) configured for it in `app.json`. | **High.** Grants access to the application's primary data store. |
-| **email** | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`. | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally. |
-| **ai** | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned). | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications. |
-| **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. Multi-node room delivery needs operator `websockets.fanout.driver: "redis"`. | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. Grant only when needed. |
-| **queue** | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`. | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. Operators manage live jobs + DLQ in Glade. |
-| **scheduler** | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended. |
-| **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets). | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts. |
-| **fs** | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`). | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
-| **pdf** | Allows the app to generate and manipulate PDF documents. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
-| **zip** | Allows the app to create and extract ZIP archives. | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files. |
-| **image** | Allows the app to manipulate image files. | **Medium.** Potential CPU intensive operation that might slow down server performance. |
-
+| Permission Key | Description                                                                                                                                                                                                                                                                                     | Security Implication                                                                                                                                            |
+| :------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **platform**   | **PRIVILEGED.** Allows the app to use the `platform` module to manage the lifecycle (install, delete, upgrade, etc.) of other applications on the server.                                                                                                                                       | **Critical.** This is the highest level of privilege. Only grant this to a fully trusted administration application like `glade`.                               |
+| **cache**      | Allows the app to use the caching service for storing and retrieving data.                                                                                                                                                                                                                      | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data.                                                       |
+| **db**         | Allows the app to connect to and query the database(s) configured for it in `app.json`.                                                                                                                                                                                                         | **High.** Grants access to the application's primary data store.                                                                                                |
+| **email**      | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`.                                                                                               | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally.       |
+| **ai**         | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned).                                                                                                             | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications.             |
+| **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. Multi-node room delivery needs operator `websockets.fanout.driver: "redis"`.                                                                                    | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. Grant only when needed.                          |
+| **queue**      | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`.                                                                                                                                                                                        | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. Operators manage live jobs + DLQ in Glade. |
+| **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended.          |
+| **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                                                                     | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
+| **fs**         | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`).                                                                                                                                                                                   | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
+| **pdf**        | Allows the app to generate and manipulate PDF documents.                                                                                                                                                                                                                                        | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
+| **zip**        | Allows the app to create and extract ZIP archives.                                                                                                                                                                                                                                              | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
+| **image**      | Allows the app to manipulate image files.                                                                                                                                                                                                                                                       | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |

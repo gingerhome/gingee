@@ -24,19 +24,19 @@
  * };
  */
 
-const { getContext } = require('./gingee.js');
-const queueService = require('./engine/queue_service.js');
+const { getContext } = require("./gingee.js");
+const queueService = require("./engine/queue_service.js");
 
 /**
  * @private
  */
 function requireApp() {
   const { app, appName } = getContext();
-  if (!app) throw new Error('queue module cannot determine app context.');
+  if (!app) throw new Error("queue module cannot determine app context.");
   const granted = app.grantedPermissions || [];
-  if (!granted.includes('queue')) {
+  if (!granted.includes("queue")) {
     throw new Error(
-      `Security Error: The app '${appName || app.name}' has not been granted permission to access the 'queue' module.`
+      `Security Error: The app '${appName || app.name}' has not been granted permission to access the 'queue' module.`,
     );
   }
   return app;
@@ -78,5 +78,5 @@ function getStats() {
 module.exports = {
   add,
   isEnabled,
-  getStats
+  getStats,
 };

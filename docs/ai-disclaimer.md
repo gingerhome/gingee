@@ -18,9 +18,9 @@ This project is a testament to the idea that a human and an AI, working in partn
 
 We see you, and we share your excitement. Gingee is a living example of what you believe is possible.
 
--   **Velocity:** The speed at which this feature-rich, multi-platform server was built is a testament to the power of AI as a productivity multiplier.
--   **Breadth of Knowledge:** The ability to instantly generate high-quality adapters for five different database systems, or correctly implement a dozen different cryptographic and encoding standards, showcases the AI's role as an instant "expert" on demand.
--   **Focus on Architecture:** By offloading the line-by-line implementation, the human architect was freed to focus almost entirely on high-level design, security, and the overall developer experience.
+- **Velocity:** The speed at which this feature-rich, multi-platform server was built is a testament to the power of AI as a productivity multiplier.
+- **Breadth of Knowledge:** The ability to instantly generate high-quality adapters for five different database systems, or correctly implement a dozen different cryptographic and encoding standards, showcases the AI's role as an instant "expert" on demand.
+- **Focus on Architecture:** By offloading the line-by-line implementation, the human architect was freed to focus almost entirely on high-level design, security, and the overall developer experience.
 
 We believe Gingee can serve as a powerful case study for this new era of software creation.
 
@@ -28,11 +28,11 @@ We believe Gingee can serve as a powerful case study for this new era of softwar
 
 We see you too, and we acknowledge that your concerns are valid and important. The questions surrounding AI's impact on quality, originality, and the developer community deserve serious consideration.
 
--   **On Quality & "Hallucinations":** We agree that blindly trusting AI-generated code is dangerous. This is precisely why the human role as a **relentless code reviewer and quality gatekeeper** was the most critical part of this project. Every piece of AI-generated code was subjected to scrutiny, testing, and multiple rounds of refinement. You will find bugs, as you do in any software, but we have strived to ensure the final architecture is sound and robust.
+- **On Quality & "Hallucinations":** We agree that blindly trusting AI-generated code is dangerous. This is precisely why the human role as a **relentless code reviewer and quality gatekeeper** was the most critical part of this project. Every piece of AI-generated code was subjected to scrutiny, testing, and multiple rounds of refinement. You will find bugs, as you do in any software, but we have strived to ensure the final architecture is sound and robust.
 
--   **On Job Displacement:** Our experience suggests that this paradigm is not about replacing developers, but about **changing the nature of a developer's work**. The primary skillset shifted from "writing code" to "architecting systems, asking the right questions, and expertly validating technical output." We believe this elevates the role of the developer to be more focused on creative problem-solving and less on repetitive boilerplate.
+- **On Job Displacement:** Our experience suggests that this paradigm is not about replacing developers, but about **changing the nature of a developer's work**. The primary skillset shifted from "writing code" to "architecting systems, asking the right questions, and expertly validating technical output." We believe this elevates the role of the developer to be more focused on creative problem-solving and less on repetitive boilerplate.
 
--   **On Originality and Copyright:** Gingee is a project built by synthesizing existing, publicly known patterns and best practices. The `db` module uses the adapter pattern, the CLI uses a standard `commander` structure, etc. The AI's role was to implement these known solutions. We make no claim that the underlying code patterns are novel inventions. The project is licensed under the permissive **MIT License**, ensuring it is free for all to use, modify, and learn from.
+- **On Originality and Copyright:** Gingee is a project built by synthesizing existing, publicly known patterns and best practices. The `db` module uses the adapter pattern, the CLI uses a standard `commander` structure, etc. The AI's role was to implement these known solutions. We make no claim that the underlying code patterns are novel inventions. The project is licensed under the permissive **MIT License**, ensuring it is free for all to use, modify, and learn from.
 
 ## Our Commitment
 

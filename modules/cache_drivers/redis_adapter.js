@@ -7,7 +7,7 @@
  * or a bare redis options object (tests / legacy).
  */
 
-const Redis = require('ioredis');
+const Redis = require("ioredis");
 
 let redis;
 
@@ -20,7 +20,9 @@ let redis;
  */
 function resolveRedisConnection(config = {}) {
   const nested =
-    config.redis && typeof config.redis === 'object' && !Array.isArray(config.redis)
+    config.redis &&
+    typeof config.redis === "object" &&
+    !Array.isArray(config.redis)
       ? config.redis
       : null;
   // Prefer nested cache.redis; else treat config itself as redis options (legacy / tests).
@@ -29,26 +31,26 @@ function resolveRedisConnection(config = {}) {
   const shared = {
     enableReadyCheck: true,
     connectTimeout: 3000,
-    maxRetriesPerRequest: null
+    maxRetriesPerRequest: null,
   };
 
-  if (r.url || (typeof r === 'string' && r)) {
+  if (r.url || (typeof r === "string" && r)) {
     return {
-      kind: 'url',
+      kind: "url",
       url: String(r.url || r),
-      options: shared
+      options: shared,
     };
   }
 
   return {
-    kind: 'options',
+    kind: "options",
     options: {
-      host: r.host || '127.0.0.1',
+      host: r.host || "127.0.0.1",
       port: r.port != null ? Number(r.port) : 6379,
       password: r.password || undefined,
       db: r.db != null ? Number(r.db) : 0,
-      ...shared
-    }
+      ...shared,
+    },
   };
 }
 
@@ -60,27 +62,27 @@ async function init(config = {}, logger) {
   const log = logger || console;
   const conn = resolveRedisConnection(config);
 
-  if (conn.kind === 'url') {
+  if (conn.kind === "url") {
     redis = new Redis(conn.url, conn.options);
   } else {
     redis = new Redis(conn.options);
   }
 
   return new Promise((resolve, reject) => {
-    redis.on('ready', () => {
+    redis.on("ready", () => {
       log.info(
-        conn.kind === 'url'
-          ? 'Redis cache adapter connected and ready (url).'
-          : `Redis cache adapter connected and ready (${conn.options.host}:${conn.options.port}).`
+        conn.kind === "url"
+          ? "Redis cache adapter connected and ready (url)."
+          : `Redis cache adapter connected and ready (${conn.options.host}:${conn.options.port}).`,
       );
-      redis.removeAllListeners('error');
+      redis.removeAllListeners("error");
       resolve();
     });
 
-    redis.on('error', (err) => {
+    redis.on("error", (err) => {
       const errorMessage = `Redis initial connection failed: ${err.message}`;
       log.error(errorMessage);
-      redis.removeAllListeners('ready');
+      redis.removeAllListeners("ready");
       try {
         redis.disconnect();
       } catch (_) {
@@ -96,20 +98,20 @@ async function get(key) {
 }
 
 async function set(key, value, ttl) {
-  await redis.set(key, value, 'EX', ttl);
+  await redis.set(key, value, "EX", ttl);
 }
 
 async function del(key) {
   await redis.del(key);
 }
 
-async function clear(prefix = '') {
+async function clear(prefix = "") {
   const stream = redis.scanStream({ match: `${prefix}*`, count: 100 });
   const keysToDelete = [];
   await new Promise((resolve, reject) => {
-    stream.on('data', (keys) => keysToDelete.push(...keys));
-    stream.on('end', resolve);
-    stream.on('error', reject);
+    stream.on("data", (keys) => keysToDelete.push(...keys));
+    stream.on("end", resolve);
+    stream.on("error", reject);
   });
   if (keysToDelete.length > 0) {
     await redis.del(keysToDelete);
@@ -123,5 +125,5 @@ module.exports = {
   del,
   clear,
   // test helper
-  _resolveRedisConnection: resolveRedisConnection
+  _resolveRedisConnection: resolveRedisConnection,
 };

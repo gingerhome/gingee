@@ -4,8 +4,8 @@
  * can clear the cookie on logout.
  */
 
-const SESSION_COOKIE_NAME = 'sessionId';
-const SESSION_PATH = '/glade';
+const SESSION_COOKIE_NAME = "sessionId";
+const SESSION_PATH = "/glade";
 /** Match cache session TTL used at login (8 hours). */
 const SESSION_MAX_AGE_SEC = 28800;
 
@@ -16,10 +16,10 @@ const SESSION_MAX_AGE_SEC = 28800;
  */
 function isHttpsRequest(request) {
   if (!request) return false;
-  if (String(request.protocol || '').toLowerCase() === 'https') return true;
+  if (String(request.protocol || "").toLowerCase() === "https") return true;
   const headers = request.headers || {};
-  const xf = headers['x-forwarded-proto'] || headers['X-Forwarded-Proto'];
-  if (xf && String(xf).split(',')[0].trim().toLowerCase() === 'https') {
+  const xf = headers["x-forwarded-proto"] || headers["X-Forwarded-Proto"];
+  if (xf && String(xf).split(",")[0].trim().toLowerCase() === "https") {
     return true;
   }
   return false;
@@ -36,14 +36,14 @@ function isHttpsRequest(request) {
  */
 function buildSessionCookieValue(opts) {
   const o = opts || {};
-  const value = o.value != null ? String(o.value) : '';
+  const value = o.value != null ? String(o.value) : "";
   const parts = [value];
-  parts.push('HttpOnly');
-  parts.push('SameSite=Strict');
+  parts.push("HttpOnly");
+  parts.push("SameSite=Strict");
   parts.push(`Path=${SESSION_PATH}`);
   if (o.clear) {
-    parts.push('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
-    parts.push('Max-Age=0');
+    parts.push("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+    parts.push("Max-Age=0");
   } else {
     const maxAge =
       o.maxAgeSec != null && Number.isFinite(Number(o.maxAgeSec))
@@ -52,9 +52,9 @@ function buildSessionCookieValue(opts) {
     parts.push(`Max-Age=${maxAge}`);
   }
   if (o.secure) {
-    parts.push('Secure');
+    parts.push("Secure");
   }
-  return parts.join('; ');
+  return parts.join("; ");
 }
 
 /**
@@ -68,7 +68,7 @@ function setSessionCookie(sessionId, request) {
     value: sessionId,
     clear: false,
     secure: isHttpsRequest(request),
-    maxAgeSec: SESSION_MAX_AGE_SEC
+    maxAgeSec: SESSION_MAX_AGE_SEC,
   });
 }
 
@@ -79,9 +79,9 @@ function setSessionCookie(sessionId, request) {
  */
 function clearSessionCookie(request) {
   return buildSessionCookieValue({
-    value: 'loggedout',
+    value: "loggedout",
     clear: true,
-    secure: isHttpsRequest(request)
+    secure: isHttpsRequest(request),
   });
 }
 
@@ -92,5 +92,5 @@ module.exports = {
   isHttpsRequest,
   buildSessionCookieValue,
   setSessionCookie,
-  clearSessionCookie
+  clearSessionCookie,
 };

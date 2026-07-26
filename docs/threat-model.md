@@ -16,10 +16,10 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ## 2. Two deployment models (read this first)
 
-| Model | Description | Gingee fit |
-| :--- | :--- | :--- |
-| **A. Cooperative multi-app** | One org (or trusted partners) runs several apps on one Gingee instance. Apps are first-party, reviewed third-party, or installed only after admin review of package + permissions. | **Intended.** Permissions, BOX/WEB, Glade, and `limits` are built for this. |
-| **B. Hostile multi-tenant** | Untrusted parties upload or install apps that may be malicious or compromised. Tenants must not affect each other’s confidentiality, integrity, or availability. | **Not supported as a hard security boundary.** Do not sell or operate Gingee as “shared hosting for arbitrary untrusted code” without process/container isolation **outside** Gingee. |
+| Model                        | Description                                                                                                                                                                        | Gingee fit                                                                                                                                                                            |
+| :--------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A. Cooperative multi-app** | One org (or trusted partners) runs several apps on one Gingee instance. Apps are first-party, reviewed third-party, or installed only after admin review of package + permissions. | **Intended.** Permissions, BOX/WEB, Glade, and `limits` are built for this.                                                                                                           |
+| **B. Hostile multi-tenant**  | Untrusted parties upload or install apps that may be malicious or compromised. Tenants must not affect each other’s confidentiality, integrity, or availability.                   | **Not supported as a hard security boundary.** Do not sell or operate Gingee as “shared hosting for arbitrary untrusted code” without process/container isolation **outside** Gingee. |
 
 **Operator rule of thumb:**
 
@@ -29,15 +29,15 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ## 3. Assets worth protecting
 
-| Asset | Examples | Typical owner |
-| :--- | :--- | :--- |
-| **App private code & data** | `box/` scripts, SQLite files, logs, secrets in `app.json` | App + server admin |
-| **App public assets** | `web/` static files | App (intentionally public) |
-| **Server control plane** | `gingee.json`, `settings/permissions.json`, SSL keys, backups | Server admin |
-| **Other apps on the same process** | Sibling `web/<other-app>/` trees | Other apps / admin |
-| **Outbound identity & budget** | SendGrid keys, AI API keys, ability to hit internal networks | Org / cloud account |
-| **Platform integrity** | Ability to install/delete apps (`platform` module, privileged apps) | Server admin only |
-| **Availability** | Shared event loop, memory, FDs, CPU | All tenants on the node |
+| Asset                              | Examples                                                            | Typical owner              |
+| :--------------------------------- | :------------------------------------------------------------------ | :------------------------- |
+| **App private code & data**        | `box/` scripts, SQLite files, logs, secrets in `app.json`           | App + server admin         |
+| **App public assets**              | `web/` static files                                                 | App (intentionally public) |
+| **Server control plane**           | `gingee.json`, `settings/permissions.json`, SSL keys, backups       | Server admin               |
+| **Other apps on the same process** | Sibling `web/<other-app>/` trees                                    | Other apps / admin         |
+| **Outbound identity & budget**     | SendGrid keys, AI API keys, ability to hit internal networks        | Org / cloud account        |
+| **Platform integrity**             | Ability to install/delete apps (`platform` module, privileged apps) | Server admin only          |
+| **Availability**                   | Shared event loop, memory, FDs, CPU                                 | All tenants on the node    |
 
 ---
 
@@ -76,15 +76,15 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ## 5. Actors and intents
 
-| Actor | Intent | Assumed in cooperative model? |
-| :--- | :--- | :--- |
-| **Server admin** | Configure host, grant permissions, install apps | Trusted |
-| **App developer** (first-party) | Ship business logic; may make mistakes | Semi-trusted (bugs, not malice) |
-| **App packager / store app** | Distributes `.gin`; may request excessive perms | Review before grant |
-| **End user of an app** | Uses HTTP UI/API of one app | Untrusted for input; trusted only within that app’s auth model |
-| **External network attacker** | Exploit exposed HTTP, steal data, DoS | Always untrusted |
-| **Malicious app author** | Escape isolation, steal other apps’ data, mine crypto, SSRF | **Out of scope** for hard isolation on a shared process |
-| **Compromised dependency** | RCE inside process via native module or prototype pollution | Residual supply-chain risk |
+| Actor                           | Intent                                                      | Assumed in cooperative model?                                  |
+| :------------------------------ | :---------------------------------------------------------- | :------------------------------------------------------------- |
+| **Server admin**                | Configure host, grant permissions, install apps             | Trusted                                                        |
+| **App developer** (first-party) | Ship business logic; may make mistakes                      | Semi-trusted (bugs, not malice)                                |
+| **App packager / store app**    | Distributes `.gin`; may request excessive perms             | Review before grant                                            |
+| **End user of an app**          | Uses HTTP UI/API of one app                                 | Untrusted for input; trusted only within that app’s auth model |
+| **External network attacker**   | Exploit exposed HTTP, steal data, DoS                       | Always untrusted                                               |
+| **Malicious app author**        | Escape isolation, steal other apps’ data, mine crypto, SSRF | **Out of scope** for hard isolation on a shared process        |
+| **Compromised dependency**      | RCE inside process via native module or prototype pollution | Residual supply-chain risk                                     |
 
 ---
 
@@ -92,16 +92,16 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 
 ### 6.1 Strengths (work as designed under model A)
 
-| Control | Mechanism | Limits of control |
-| :--- | :--- | :--- |
-| **Default deny modules** | `PROTECTED_MODULES` + `grantedPermissions` | Only modules that check permission; not a full OS sandbox |
-| **Path jail (`fs`, relative `require`)** | `isPathInside` / `resolveSecurePath` under app BOX/WEB | Must be used consistently; leading `/` vs script-relative paths can confuse authors |
-| **BOX not web-served** | Engine blocks `…/box` URLs | Misconfigured reverse proxies could still expose disk if mounted elsewhere |
-| **Privileged apps** | `privileged_apps` + restricted `platform` / engine modules | Anyone who can edit `gingee.json` is root-equivalent for the platform |
-| **Permission consent** | `pmft.json` + Glade / CLI + `settings/permissions.json` | Human factor; over-grant is common under time pressure |
-| **Request / outbound limits** | `limits` (concurrency, timeouts) | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin |
-| **Scheduler gate** | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
-| **Explicit high-risk capabilities** | `httpclient`, `email`, `ai`, `scheduler`, `platform` | Once granted, full capability within that API |
+| Control                                  | Mechanism                                                                                                                       | Limits of control                                                                                                 |
+| :--------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------- |
+| **Default deny modules**                 | `PROTECTED_MODULES` + `grantedPermissions`                                                                                      | Only modules that check permission; not a full OS sandbox                                                         |
+| **Path jail (`fs`, relative `require`)** | `isPathInside` / `resolveSecurePath` under app BOX/WEB                                                                          | Must be used consistently; leading `/` vs script-relative paths can confuse authors                               |
+| **BOX not web-served**                   | Engine blocks `…/box` URLs                                                                                                      | Misconfigured reverse proxies could still expose disk if mounted elsewhere                                        |
+| **Privileged apps**                      | `privileged_apps` + restricted `platform` / engine modules                                                                      | Anyone who can edit `gingee.json` is root-equivalent for the platform                                             |
+| **Permission consent**                   | `pmft.json` + Glade / CLI + `settings/permissions.json`                                                                         | Human factor; over-grant is common under time pressure                                                            |
+| **Request / outbound limits**            | `limits` (concurrency, timeouts)                                                                                                | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin                                         |
+| **Scheduler gate**                       | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
+| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`                                                                            | Once granted, full capability within that API                                                                     |
 
 ### 6.2 Soft sandbox reality (`gbox`)
 
@@ -123,14 +123,14 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 **Therefore:**
 
-| Claim | Valid? |
-| :--- | :--- |
-| “App A cannot `require` host `fs` / `child_process` without grant” | **Yes** (gRequire + forbidden built-ins) |
-| “App A cannot read `process.env` of the host” | **Yes** under default gbox (no `process`) |
-| “App A cannot read App B’s BOX via normal `fs` APIs” | **Yes**, if path jail holds |
-| “App A cannot affect App B’s availability” | **No** — CPU/memory/event loop are shared |
-| “App A cannot inspect App B’s secrets in RAM after resolve” | **No hard guarantee** (same process) |
-| “Permissions equal cloud multi-tenant isolation” | **No** |
+| Claim                                                              | Valid?                                    |
+| :----------------------------------------------------------------- | :---------------------------------------- |
+| “App A cannot `require` host `fs` / `child_process` without grant” | **Yes** (gRequire + forbidden built-ins)  |
+| “App A cannot read `process.env` of the host”                      | **Yes** under default gbox (no `process`) |
+| “App A cannot read App B’s BOX via normal `fs` APIs”               | **Yes**, if path jail holds               |
+| “App A cannot affect App B’s availability”                         | **No** — CPU/memory/event loop are shared |
+| “App A cannot inspect App B’s secrets in RAM after resolve”        | **No hard guarantee** (same process)      |
+| “Permissions equal cloud multi-tenant isolation”                   | **No**                                    |
 
 **Env/file secrets (P2a):** Config may use `env:VAR` / `file:path` refs. The **engine** resolves them at load into that app’s in-memory config. App scripts still **cannot** read host `process.env`. This is **ops hygiene** (keys out of git/JSON packages), **not** inter-app isolation on one process—another reason untrusted apps must not share a process.
 
@@ -140,28 +140,28 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 ### 7.1 Cooperative multi-app (in scope — mitigated)
 
-| ID | Scenario | Primary mitigations | Residual risk |
-| :--- | :--- | :--- | :--- |
-| C1 | Accidental path traversal in app code | Sandboxed `fs` + `isPathInside` | Bugs in new modules that skip jail |
-| C2 | App requests too many permissions | Admin review of `pmft.json` / Glade | Admin grants “all” for convenience |
-| C3 | Hung outbound HTTP | `limits.outbound_timeout_ms`, outbound concurrency | Custom axios options still clamped; other egress paths (AI/email) have their own timeouts |
-| C3b | Accidental SSRF to localhost/metadata | `egress` protected mode on `httpclient` + scheduler URLs | DNS rebinding residual; `mode=off` disables |
-| C4 | Runaway request volume | `max_concurrent_requests` / per-app caps → 503 | No sophisticated rate limit / WAF |
-| C5 | Script never finishes | `request_timeout_ms` / stream idle+hard | Sync infinite loops ignore timers until yield |
-| C6 | Install wrong package version | Backups, Glade rollback, review `.gin` | Supply chain of the package itself |
-| C7 | Secrets in `app.json` | Filesystem permissions, least privilege OS user | Backups, logs, package export may copy secrets |
+| ID  | Scenario                              | Primary mitigations                                      | Residual risk                                                                             |
+| :-- | :------------------------------------ | :------------------------------------------------------- | :---------------------------------------------------------------------------------------- |
+| C1  | Accidental path traversal in app code | Sandboxed `fs` + `isPathInside`                          | Bugs in new modules that skip jail                                                        |
+| C2  | App requests too many permissions     | Admin review of `pmft.json` / Glade                      | Admin grants “all” for convenience                                                        |
+| C3  | Hung outbound HTTP                    | `limits.outbound_timeout_ms`, outbound concurrency       | Custom axios options still clamped; other egress paths (AI/email) have their own timeouts |
+| C3b | Accidental SSRF to localhost/metadata | `egress` protected mode on `httpclient` + scheduler URLs | DNS rebinding residual; `mode=off` disables                                               |
+| C4  | Runaway request volume                | `max_concurrent_requests` / per-app caps → 503           | No sophisticated rate limit / WAF                                                         |
+| C5  | Script never finishes                 | `request_timeout_ms` / stream idle+hard                  | Sync infinite loops ignore timers until yield                                             |
+| C6  | Install wrong package version         | Backups, Glade rollback, review `.gin`                   | Supply chain of the package itself                                                        |
+| C7  | Secrets in `app.json`                 | Filesystem permissions, least privilege OS user          | Backups, logs, package export may copy secrets                                            |
 
 ### 7.2 Hostile multi-tenant (out of scope for hard guarantees)
 
-| ID | Scenario | Why Gingee alone is insufficient |
-| :--- | :--- | :--- |
-| H1 | Malicious app with only “safe” permissions burns CPU | Shared event loop; no preemption of tight loops |
-| H2 | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs | **Mitigated by default** via `egress.mode=protected` (private/loopback/metadata blocked; DNS check; redirect re-validation). Residual: DNS rebinding TOCTOU, `mode=off`, or overly broad `allow_cidrs` |
-| H3 | Malicious app with `fs` + clever bugs tries cross-app read | Path jail is software; hostile code + engine bugs = higher risk |
-| H4 | Malicious app with `platform` (if wrongly privileged) | Full lifecycle control of all apps |
-| H5 | Malicious app with `scheduler` + `httpclient` | Persistent unattended egress |
-| H6 | Tenant escapes to steal other apps’ DB credentials from config in memory | Single process; no crypto boundary between apps |
-| H7 | Resource exhaustion (FD/memory) | `limits` help for HTTP concurrency; not a full cgroup story |
+| ID  | Scenario                                                                 | Why Gingee alone is insufficient                                                                                                                                                                       |
+| :-- | :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1  | Malicious app with only “safe” permissions burns CPU                     | Shared event loop; no preemption of tight loops                                                                                                                                                        |
+| H2  | Malicious app with `httpclient` SSRFs cloud metadata / internal APIs     | **Mitigated by default** via `egress.mode=protected` (private/loopback/metadata blocked; DNS check; redirect re-validation). Residual: DNS rebinding TOCTOU, `mode=off`, or overly broad `allow_cidrs` |
+| H3  | Malicious app with `fs` + clever bugs tries cross-app read               | Path jail is software; hostile code + engine bugs = higher risk                                                                                                                                        |
+| H4  | Malicious app with `platform` (if wrongly privileged)                    | Full lifecycle control of all apps                                                                                                                                                                     |
+| H5  | Malicious app with `scheduler` + `httpclient`                            | Persistent unattended egress                                                                                                                                                                           |
+| H6  | Tenant escapes to steal other apps’ DB credentials from config in memory | Single process; no crypto boundary between apps                                                                                                                                                        |
+| H7  | Resource exhaustion (FD/memory)                                          | `limits` help for HTTP concurrency; not a full cgroup story                                                                                                                                            |
 
 **Required pattern for hostile or untrusted code:** **one Gingee process (or container) per trust domain**, network policy, secrets isolation, and independent resource limits at the orchestrator level.
 
@@ -169,28 +169,28 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 ## 8. STRIDE-style view (platform level)
 
-| Category | Example | Cooperative posture |
-| :--- | :--- | :--- |
-| **S**poofing | Forged admin session on Glade | Harden Glade credentials (set at **`gingee-cli init`**); TLS; session cookie `Path=/glade` + `SameSite=Strict` + `Secure` on HTTPS; **login rate limit** (IP + username) |
-| **C**SRF / same-host | Sibling app XSS calling `/glade/api/*` with credentials | Glade **CSRF** (`X-CSRF-Token` + `glade_csrf` cookie); Origin/Referer checks; prefer **dedicated Glade host/port** |
-| **T**ampering | Modified `permissions.json` on disk | OS file permissions; restrict who can write `settings/` |
-| **R**epudiation | “Who granted `httpclient`?” | Append-only JSONL **`audit`** log (`permission.set`, lifecycle events) + process logs; keep file history on `settings/permissions.json` |
-| **I**nformation disclosure | App data leakage via another app | Path jail + no cross-app API by default; not RAM isolation |
-| **D**enial of service | Heavy PDF/AI script stalls node | `limits`, separate processes for heavy apps, timeouts |
-| **E**levation of privilege | Normal app becomes privileged | Keep `privileged_apps` minimal; never put untrusted apps there |
+| Category                   | Example                                                 | Cooperative posture                                                                                                                                                      |
+| :------------------------- | :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **S**poofing               | Forged admin session on Glade                           | Harden Glade credentials (set at **`gingee-cli init`**); TLS; session cookie `Path=/glade` + `SameSite=Strict` + `Secure` on HTTPS; **login rate limit** (IP + username) |
+| **C**SRF / same-host       | Sibling app XSS calling `/glade/api/*` with credentials | Glade **CSRF** (`X-CSRF-Token` + `glade_csrf` cookie); Origin/Referer checks; prefer **dedicated Glade host/port**                                                       |
+| **T**ampering              | Modified `permissions.json` on disk                     | OS file permissions; restrict who can write `settings/`                                                                                                                  |
+| **R**epudiation            | “Who granted `httpclient`?”                             | Append-only JSONL **`audit`** log (`permission.set`, lifecycle events) + process logs; keep file history on `settings/permissions.json`                                  |
+| **I**nformation disclosure | App data leakage via another app                        | Path jail + no cross-app API by default; not RAM isolation                                                                                                               |
+| **D**enial of service      | Heavy PDF/AI script stalls node                         | `limits`, separate processes for heavy apps, timeouts                                                                                                                    |
+| **E**levation of privilege | Normal app becomes privileged                           | Keep `privileged_apps` minimal; never put untrusted apps there                                                                                                           |
 
 ---
 
 ## 9. Data flow trust notes
 
-| Flow | Trust note |
-| :--- | :--- |
-| Browser → App HTTP script | Validate all input in the app; Gingee parses body with size caps (`max_body_size`) |
-| App → `db` | Credentials from `app.json`; compromise of app with `db` = data plane compromise for that DB |
+| Flow                            | Trust note                                                                                           |
+| :------------------------------ | :--------------------------------------------------------------------------------------------------- |
+| Browser → App HTTP script       | Validate all input in the app; Gingee parses body with size caps (`max_body_size`)                   |
+| App → `db`                      | Credentials from `app.json`; compromise of app with `db` = data plane compromise for that DB         |
 | App → `httpclient` / AI / email | Treat as full egress for that capability; prefer dedicated keys with least privilege at the provider |
-| App → `fs` BOX | Private to app path; still on shared disk volume |
-| Admin → Glade/`platform` | Highest privilege path; protect like root |
-| Scheduler → script/URL | Runs as that app’s permissions; enable only on intended node |
+| App → `fs` BOX                  | Private to app path; still on shared disk volume                                                     |
+| Admin → Glade/`platform`        | Highest privilege path; protect like root                                                            |
+| Scheduler → script/URL          | Runs as that app’s permissions; enable only on intended node                                         |
 
 ---
 
@@ -202,14 +202,14 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 2. Keep **`privileged_apps`** to Glade (or equivalent) only.
 3. Grant permissions **least privilege**; prefer optional over mandatory in packages you publish.
 4. Set **`limits`** appropriately; do not disable timeouts without a reason.
-4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
-4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
+   4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
+   4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
 5. Keep **`scheduler.enabled`** false except on the designated scheduler node, **or** enable on all nodes with `scheduler.coordination.driver: "redis"` and shared `scheduler.redis` (NTP-aligned clocks recommended).
-5b. Treat **Glade Logs** as admin-only: server and app log files may contain secrets or payloads; do not expose Glade publicly.
+   5b. Treat **Glade Logs** as admin-only: server and app log files may contain secrets or payloads; do not expose Glade publicly.
 6. Prefer **Redis** for cache when running more than one node.
 7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.  
-7b. **Glade CSRF:** Mutating Glade APIs require `X-CSRF-Token` (session-bound; double-submit cookie `glade_csrf` Path=/glade). Same-site sibling apps cannot read that cookie. For hostile multi-app hosts, run Glade on a **separate host/port** and set `GLADE_ALLOWED_ORIGINS` in Glade `app.json` `env` if needed.  
-7c. **Glade login rate limit:** Failed logins are throttled by IP and username (cache-backed; default 5 fails / 15 minutes → 429). Password is set at **`gingee-cli init`** — rotate with `reset-pwd` if compromised (see [Glade Admin](./glade-admin.md)).
+   7b. **Glade CSRF:** Mutating Glade APIs require `X-CSRF-Token` (session-bound; double-submit cookie `glade_csrf` Path=/glade). Same-site sibling apps cannot read that cookie. For hostile multi-app hosts, run Glade on a **separate host/port** and set `GLADE_ALLOWED_ORIGINS` in Glade `app.json` `env` if needed.  
+   7c. **Glade login rate limit:** Failed logins are throttled by IP and username (cache-backed; default 5 fails / 15 minutes → 429). Password is set at **`gingee-cli init`** — rotate with `reset-pwd` if compromised (see [Glade Admin](./glade-admin.md)).
 8. Treat **`app.json` secrets** as sensitive; restrict backups and who can download `.gin` exports.
 9. Leave **`box.allowed_modules`** empty unless you fully understand the escape hatch.
 10. Review every new `.gin`’s `pmft.json` before production grant.
@@ -239,13 +239,13 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 Gingee does **not** currently claim:
 
-- Full hostile multi-tenant isolation on one host (even with process isolation)  
-- Formal verification of the sandbox  
-- Built-in WAF or global end-user SSO (Glade admin has **CSRF + Origin** checks; app authors still own their own CSRF)  
-- Perfect SSRF immunity in every edge case (baseline `egress` + **connect-time DNS pin** is on by default; orchestrator network policy still required for hostile tenants)  
-- Multi-tenant billing isolation or noisy-neighbor SLAs  
-- Guaranteed preemption of malicious infinite loops in the **master** process  
-- Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)  
+- Full hostile multi-tenant isolation on one host (even with process isolation)
+- Formal verification of the sandbox
+- Built-in WAF or global end-user SSO (Glade admin has **CSRF + Origin** checks; app authors still own their own CSRF)
+- Perfect SSRF immunity in every edge case (baseline `egress` + **connect-time DNS pin** is on by default; orchestrator network policy still required for hostile tenants)
+- Multi-tenant billing isolation or noisy-neighbor SLAs
+- Guaranteed preemption of malicious infinite loops in the **master** process
+- Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)
 
 These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
 
@@ -255,12 +255,12 @@ These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS qu
 
 ## 13. Mapping to critical assessment P0
 
-| Assessment item | This document |
-| :--- | :--- |
-| Document cooperative vs hostile models | §§2, 7, 10 |
-| Stop false assumptions about sandbox | §§6.2, 7.2, 12 |
-| Align operators with real controls | §§6.1, 10 |
-| Residual risk honesty | Throughout |
+| Assessment item                        | This document  |
+| :------------------------------------- | :------------- |
+| Document cooperative vs hostile models | §§2, 7, 10     |
+| Stop false assumptions about sandbox   | §§6.2, 7.2, 12 |
+| Align operators with real controls     | §§6.1, 10      |
+| Residual risk honesty                  | Throughout     |
 
 **Related P0/P1/P2 (implemented separately):** request/outbound timeouts and concurrency (`limits`), egress SSRF baseline, secrets refs, metrics, audit, process isolation (incl. **worker_limits**), WebSockets (incl. Redis fan-out), scheduler Redis coordination, and background **queue** (incl. DLQ + live jobs Glade admin) — see [Server Config](./server-config.md) and the [critical assessment](../dev-docs/gingee-critical-assessment.md). That reduces **availability** abuse under cooperative load and improves crash containment for opted-in apps; it is not a substitute for full tenant isolation.
 
@@ -268,10 +268,10 @@ These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS qu
 
 ## 14. Document control
 
-| Field | Value |
-| :--- | :--- |
-| Status | Living document |
-| Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS` |
-| Implementation anchors | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `modules/engine/isolation/*`, `gingee.js` |
+| Field                                | Value                                                                                                                                                                                                           |
+| :----------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status                               | Living document                                                                                                                                                                                                 |
+| Source of truth for permissions keys | [Permissions Guide](./permissions-guide.md) + `modules/platform.js` `ALL_PERMISSIONS`                                                                                                                           |
+| Implementation anchors               | `modules/gbox.js`, `modules/fs.js`, `modules/limits.js`, `modules/egress.js`, `modules/secrets.js`, `modules/metrics.js`, `modules/audit.js`, `modules/scheduler.js`, `modules/engine/isolation/*`, `gingee.js` |
 
 When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.

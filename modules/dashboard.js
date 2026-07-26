@@ -1,11 +1,15 @@
-const { loadOptional } = require('./internal_utils.js');
-const chart = require('./chart.js'); // We will use this in the next step
+const { loadOptional } = require("./internal_utils.js");
+const chart = require("./chart.js"); // We will use this in the next step
 
 /**
  * @private
  */
 function loadCanvas() {
-    return loadOptional(() => require('canvas'), 'canvas', 'Dashboard image rendering');
+  return loadOptional(
+    () => require("canvas"),
+    "canvas",
+    "Dashboard image rendering",
+  );
 }
 
 /**
@@ -23,104 +27,109 @@ function loadCanvas() {
  * It provides methods to render charts into specific cells and export the final dashboard image.
  */
 class Dashboard {
-    /**
-     * Initializes the Dashboard instance with a layout object.
-     * The layout should define the grid structure and cell definitions.
-     * @param {object} layout - The JSON object defining the dashboard layout.
-     * @throws {Error} If the layout is invalid or missing required properties.
-     */
-    constructor(layout) {
-        if (!layout || !layout.width || !layout.height || !layout.grid) {
-            throw new Error("Invalid layout: 'width', 'height', and 'grid' are required.");
-        }
-
-        this.layout = layout;
-        const { createCanvas } = loadCanvas();
-        this.canvas = createCanvas(layout.width, layout.height);
-        this.ctx = this.canvas.getContext('2d');
-        this.cells = this._calculateCellGeometry();
-
-        // Set a background color for the entire dashboard
-        this.ctx.fillStyle = layout.backgroundColor || '#FFFFFF';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  /**
+   * Initializes the Dashboard instance with a layout object.
+   * The layout should define the grid structure and cell definitions.
+   * @param {object} layout - The JSON object defining the dashboard layout.
+   * @throws {Error} If the layout is invalid or missing required properties.
+   */
+  constructor(layout) {
+    if (!layout || !layout.width || !layout.height || !layout.grid) {
+      throw new Error(
+        "Invalid layout: 'width', 'height', and 'grid' are required.",
+      );
     }
 
-    /**
-     * Calculates the pixel dimensions and coordinates for each named cell in the layout.
-     * @private
-     */
-    _calculateCellGeometry() {
-        const { grid, cells } = this.layout;
-        const cellWidth = (this.layout.width - (grid.padding * (grid.cols + 1))) / grid.cols;
-        const cellHeight = (this.layout.height - (grid.padding * (grid.rows + 1))) / grid.rows;
+    this.layout = layout;
+    const { createCanvas } = loadCanvas();
+    this.canvas = createCanvas(layout.width, layout.height);
+    this.ctx = this.canvas.getContext("2d");
+    this.cells = this._calculateCellGeometry();
 
-        const geometry = {};
+    // Set a background color for the entire dashboard
+    this.ctx.fillStyle = layout.backgroundColor || "#FFFFFF";
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  }
 
-        for (const cellName in cells) {
-            const cellDef = cells[cellName];
-            const colspan = cellDef.colspan || 1;
-            const rowspan = cellDef.rowspan || 1;
+  /**
+   * Calculates the pixel dimensions and coordinates for each named cell in the layout.
+   * @private
+   */
+  _calculateCellGeometry() {
+    const { grid, cells } = this.layout;
+    const cellWidth =
+      (this.layout.width - grid.padding * (grid.cols + 1)) / grid.cols;
+    const cellHeight =
+      (this.layout.height - grid.padding * (grid.rows + 1)) / grid.rows;
 
-            const x = (cellDef.col * cellWidth) + ((cellDef.col + 1) * grid.padding);
-            const y = (cellDef.row * cellHeight) + ((cellDef.row + 1) * grid.padding);
+    const geometry = {};
 
-            const width = (colspan * cellWidth) + ((colspan - 1) * grid.padding);
-            const height = (rowspan * cellHeight) + ((rowspan - 1) * grid.padding);
+    for (const cellName in cells) {
+      const cellDef = cells[cellName];
+      const colspan = cellDef.colspan || 1;
+      const rowspan = cellDef.rowspan || 1;
 
-            geometry[cellName] = { x, y, width, height };
-        }
+      const x = cellDef.col * cellWidth + (cellDef.col + 1) * grid.padding;
+      const y = cellDef.row * cellHeight + (cellDef.row + 1) * grid.padding;
 
-        return geometry;
+      const width = colspan * cellWidth + (colspan - 1) * grid.padding;
+      const height = rowspan * cellHeight + (rowspan - 1) * grid.padding;
+
+      geometry[cellName] = { x, y, width, height };
     }
 
-    /**
+    return geometry;
+  }
+
+  /**
    * Renders a chart into a specified cell of the dashboard.
    * @param {string} cellName - The name of the cell (defined in the layout) to render into.
    * @param {object} chartConfig - A standard Chart.js configuration object.
    * @returns {Promise<Dashboard>} A promise that resolves with the Dashboard instance for chaining.
    */
-    async renderChart(cellName, chartConfig) {
-        const cell = this.cells[cellName];
-        if (!cell) {
-            throw new Error(`Dashboard cell '${cellName}' is not defined in the layout.`);
-        }
-
-        // 1. Render the chart to a buffer using our chart module.
-        //    We force the width and height to match the cell's dimensions.
-        const chartBuffer = await chart.render(chartConfig, {
-            width: cell.width,
-            height: cell.height,
-            output: chart.BUFFER
-        });
-
-        // 2. Load the rendered chart buffer into a Canvas Image object.
-        const { loadImage } = loadCanvas();
-        const chartImage = await loadImage(chartBuffer);
-
-        // 3. Draw the chart image onto our main dashboard canvas at the cell's coordinates.
-        this.ctx.drawImage(chartImage, cell.x, cell.y, cell.width, cell.height);
-
-        // 4. Return 'this' to allow for chaining.
-        return this;
+  async renderChart(cellName, chartConfig) {
+    const cell = this.cells[cellName];
+    if (!cell) {
+      throw new Error(
+        `Dashboard cell '${cellName}' is not defined in the layout.`,
+      );
     }
 
-    /**
-     * Returns the final dashboard image as a PNG buffer.
-     * @returns {Buffer}
-     */
-    toBuffer() {
-        return this.canvas.toBuffer('image/png');
-    }
+    // 1. Render the chart to a buffer using our chart module.
+    //    We force the width and height to match the cell's dimensions.
+    const chartBuffer = await chart.render(chartConfig, {
+      width: cell.width,
+      height: cell.height,
+      output: chart.BUFFER,
+    });
 
-    /**
-     * Returns the final dashboard image as a Data URL.
-     * @returns {string}
-     */
-    toDataURL() {
-        return this.canvas.toDataURL();
-    }
+    // 2. Load the rendered chart buffer into a Canvas Image object.
+    const { loadImage } = loadCanvas();
+    const chartImage = await loadImage(chartBuffer);
+
+    // 3. Draw the chart image onto our main dashboard canvas at the cell's coordinates.
+    this.ctx.drawImage(chartImage, cell.x, cell.y, cell.width, cell.height);
+
+    // 4. Return 'this' to allow for chaining.
+    return this;
+  }
+
+  /**
+   * Returns the final dashboard image as a PNG buffer.
+   * @returns {Buffer}
+   */
+  toBuffer() {
+    return this.canvas.toBuffer("image/png");
+  }
+
+  /**
+   * Returns the final dashboard image as a Data URL.
+   * @returns {string}
+   */
+  toDataURL() {
+    return this.canvas.toDataURL();
+  }
 }
-
 
 /**
  * @function init
@@ -147,9 +156,9 @@ class Dashboard {
  * $g.response.send(finalImageBuffer, 200, 'image/png');
  */
 function init(layout) {
-    return new Dashboard(layout);
+  return new Dashboard(layout);
 }
 
 module.exports = {
-    init
+  init,
 };

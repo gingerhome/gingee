@@ -1,15 +1,9 @@
 {
   "glade": {
-    "granted": [
-      "platform",
-      "fs"
-    ]
+    "granted": ["platform", "fs"]
   },
   "glide": {
-    "granted": [
-      "httpclient",
-      "platform"
-    ]
+    "granted": ["httpclient", "platform"]
   },
   "lifecycle_app_1756712554187": {
     "granted": []
@@ -18,18 +12,10 @@
     "granted": []
   },
   "gintin": {
-    "granted": [
-      "db",
-      "fs",
-      "image"
-    ]
+    "granted": ["db", "fs", "image"]
   },
   "gindoo": {
-    "granted": [
-      "db",
-      "fs",
-      "image"
-    ]
+    "granted": ["db", "fs", "image"]
   },
   "tests": {
     "granted": [
@@ -48,26 +34,15 @@
     ]
   },
   "ginpin": {
-    "granted": [
-      "db",
-      "fs",
-      "image"
-    ]
+    "granted": ["db", "fs", "image"]
   },
   "gintring": {
-    "granted": [
-      "db",
-      "email"
-    ]
+    "granted": ["db", "email"]
   },
   "ginmind": {
-    "granted": [
-      "ai"
-    ]
+    "granted": ["ai"]
   },
   "ginchat": {
-    "granted": [
-      "websockets"
-    ]
+    "granted": ["websockets"]
   }
 }

@@ -1,7 +1,7 @@
-const { fork } = require('child_process');
-const path = require('path');
-const fs = require('fs');
-const axios = require('axios');
+const { fork } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+const axios = require("axios");
 
 let serverProcess;
 
@@ -11,8 +11,8 @@ let serverProcess;
  */
 function getHttpPort() {
   try {
-    const cfgPath = path.resolve(__dirname, '..', '..', 'gingee.json');
-    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    const cfgPath = path.resolve(__dirname, "..", "..", "gingee.json");
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
     const port = cfg && cfg.server && cfg.server.http && cfg.server.http.port;
     if (port != null && Number.isFinite(Number(port)) && Number(port) > 0) {
       return Number(port);
@@ -31,12 +31,12 @@ async function isGingeeReady() {
     const response = await axios.get(`${BASE_URL}/glade/login.html`, {
       timeout: 800,
       validateStatus: () => true,
-      maxRedirects: 5
+      maxRedirects: 5,
     });
     return (
       response.status === 200 &&
-      typeof response.data === 'string' &&
-      response.data.includes('Glade')
+      typeof response.data === "string" &&
+      response.data.includes("Glade")
     );
   } catch (_) {
     return false;
@@ -49,25 +49,25 @@ async function startServer() {
     return;
   }
 
-  const serverPath = path.resolve(__dirname, '..', '..', 'gingee.js');
+  const serverPath = path.resolve(__dirname, "..", "..", "gingee.js");
   const stderrChunks = [];
 
   // No GINGEE_HTTP_PORT override — child loads gingee.json the same way as production/dev.
   serverProcess = fork(serverPath, [], {
     silent: true,
-    env: { ...process.env }
+    env: { ...process.env },
   });
 
   if (serverProcess.stderr) {
-    serverProcess.stderr.on('data', (d) => stderrChunks.push(d.toString()));
+    serverProcess.stderr.on("data", (d) => stderrChunks.push(d.toString()));
   }
   if (serverProcess.stdout) {
-    serverProcess.stdout.on('data', () => {});
+    serverProcess.stdout.on("data", () => {});
   }
 
-  serverProcess.on('exit', (code, signal) => {
+  serverProcess.on("exit", (code, signal) => {
     if (code && code !== 0) {
-      serverProcess._exitInfo = { code, signal, stderr: stderrChunks.join('') };
+      serverProcess._exitInfo = { code, signal, stderr: stderrChunks.join("") };
     }
   });
 
@@ -87,19 +87,19 @@ async function startServer() {
           reject(
             new Error(
               `Server exited before ready (code=${serverProcess._exitInfo.code}). ` +
-                `stderr: ${serverProcess._exitInfo.stderr || '(none)'}`
-            )
+                `stderr: ${serverProcess._exitInfo.stderr || "(none)"}`,
+            ),
           );
           return;
         }
         if (attempts > maxAttempts) {
           clearInterval(interval);
-          const errOut = stderrChunks.join('') || 'no Glade login response';
+          const errOut = stderrChunks.join("") || "no Glade login response";
           reject(
             new Error(
               `Server failed to start in time on ${BASE_URL} ` +
-                `(port from gingee.json or default 7070). Last error: ${errOut}`
-            )
+                `(port from gingee.json or default 7070). Last error: ${errOut}`,
+            ),
           );
         }
       } catch (e) {

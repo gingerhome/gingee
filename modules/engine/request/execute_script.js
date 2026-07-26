@@ -4,10 +4,10 @@
  * Engine-internal.
  */
 
-const { createGRequire, runInGBox } = require('../../gbox.js');
-const { als } = require('../../gingee.js');
-const limits = require('../../limits.js');
-const workerManager = require('../isolation/worker_manager.js');
+const { createGRequire, runInGBox } = require("../../gbox.js");
+const { als } = require("../../gingee.js");
+const limits = require("../../limits.js");
+const workerManager = require("../isolation/worker_manager.js");
 
 /**
  * Run default_include chain + main script inside gbox (local process).
@@ -29,14 +29,14 @@ async function executeScriptLocal(opts) {
 
     for (const includedPath of app.config.default_include) {
       var includeScript = gRequire(includedPath);
-      if (typeof includeScript === 'function') {
+      if (typeof includeScript === "function") {
         includeScript = await includeScript();
       }
 
       const includeStore = als.getStore();
       if (includeStore && includeStore.$g && includeStore.$g.isCompleted) {
         logger.info(
-          `Request handled by default include '${includedPath}'. Halting execution.`
+          `Request handled by default include '${includedPath}'. Halting execution.`,
         );
         return; // release on res finish/close
       }
@@ -44,11 +44,11 @@ async function executeScriptLocal(opts) {
   }
 
   const script = runInGBox(scriptPath, gBoxConfig);
-  if (typeof script === 'function') {
+  if (typeof script === "function") {
     await script();
   } else {
     throw new Error(
-      `Script ${scriptPath} in app ${app.name || gBoxConfig.appName} did not export a function.`
+      `Script ${scriptPath} in app ${app.name || gBoxConfig.appName} did not export a function.`,
     );
   }
 }
@@ -66,7 +66,7 @@ async function executeScriptRemote(opts) {
     req,
     res,
     logger,
-    useCache
+    useCache,
   } = opts;
 
   // Keep master-side request budget timers tied to the real response.
@@ -79,7 +79,7 @@ async function executeScriptRemote(opts) {
   const maxBodySize =
     (store && store.maxBodySize) ||
     (gBoxConfig.globalConfig && gBoxConfig.globalConfig.max_body_size) ||
-    '25mb';
+    "25mb";
 
   await workerManager.executeOnWorker({
     app,
@@ -90,7 +90,7 @@ async function executeScriptRemote(opts) {
     routeParams,
     maxBodySize,
     useCache: useCache !== false,
-    logger
+    logger,
   });
 }
 
@@ -118,5 +118,5 @@ async function executeScript(opts) {
 module.exports = {
   executeScript,
   executeScriptLocal,
-  executeScriptRemote
+  executeScriptRemote,
 };

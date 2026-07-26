@@ -20,7 +20,7 @@ const DEFAULTS = {
   // Node HTTP server (ms). Slightly above request budget to allow body read + script.
   headers_timeout_ms: 60000,
   request_timeout_server_ms: 120000,
-  keep_alive_timeout_ms: 5000
+  keep_alive_timeout_ms: 5000,
 };
 
 /** @type {object} */
@@ -58,43 +58,58 @@ function positiveInt(value, fallback) {
  */
 function initServer(config, logRef) {
   logger = logRef || console;
-  const c = config && typeof config === 'object' && !Array.isArray(config) ? config : {};
+  const c =
+    config && typeof config === "object" && !Array.isArray(config)
+      ? config
+      : {};
   serverLimits = {
-    request_timeout_ms: positiveInt(c.request_timeout_ms, DEFAULTS.request_timeout_ms),
+    request_timeout_ms: positiveInt(
+      c.request_timeout_ms,
+      DEFAULTS.request_timeout_ms,
+    ),
     request_timeout_stream_ms: positiveInt(
       c.request_timeout_stream_ms,
-      DEFAULTS.request_timeout_stream_ms
+      DEFAULTS.request_timeout_stream_ms,
     ),
     stream_idle_timeout_ms: positiveInt(
       c.stream_idle_timeout_ms,
-      DEFAULTS.stream_idle_timeout_ms
+      DEFAULTS.stream_idle_timeout_ms,
     ),
-    outbound_timeout_ms: positiveInt(c.outbound_timeout_ms, DEFAULTS.outbound_timeout_ms),
+    outbound_timeout_ms: positiveInt(
+      c.outbound_timeout_ms,
+      DEFAULTS.outbound_timeout_ms,
+    ),
     max_concurrent_requests: positiveInt(
       c.max_concurrent_requests,
-      DEFAULTS.max_concurrent_requests
+      DEFAULTS.max_concurrent_requests,
     ),
     max_concurrent_requests_per_app: positiveInt(
       c.max_concurrent_requests_per_app,
-      DEFAULTS.max_concurrent_requests_per_app
+      DEFAULTS.max_concurrent_requests_per_app,
     ),
     max_concurrent_outbound: positiveInt(
       c.max_concurrent_outbound,
-      DEFAULTS.max_concurrent_outbound
+      DEFAULTS.max_concurrent_outbound,
     ),
-    headers_timeout_ms: positiveInt(c.headers_timeout_ms, DEFAULTS.headers_timeout_ms),
+    headers_timeout_ms: positiveInt(
+      c.headers_timeout_ms,
+      DEFAULTS.headers_timeout_ms,
+    ),
     request_timeout_server_ms: positiveInt(
       c.request_timeout_server_ms,
-      DEFAULTS.request_timeout_server_ms
+      DEFAULTS.request_timeout_server_ms,
     ),
-    keep_alive_timeout_ms: positiveInt(c.keep_alive_timeout_ms, DEFAULTS.keep_alive_timeout_ms)
+    keep_alive_timeout_ms: positiveInt(
+      c.keep_alive_timeout_ms,
+      DEFAULTS.keep_alive_timeout_ms,
+    ),
   };
   log().info(
     `[limits] request_timeout_ms=${serverLimits.request_timeout_ms} ` +
       `stream_hard=${serverLimits.request_timeout_stream_ms} stream_idle=${serverLimits.stream_idle_timeout_ms} ` +
       `outbound_timeout_ms=${serverLimits.outbound_timeout_ms} ` +
       `max_concurrent=${serverLimits.max_concurrent_requests}/${serverLimits.max_concurrent_requests_per_app} ` +
-      `max_outbound=${serverLimits.max_concurrent_outbound}`
+      `max_outbound=${serverLimits.max_concurrent_outbound}`,
   );
 }
 
@@ -109,7 +124,7 @@ function resolveForApp(app) {
     app &&
     app.config &&
     app.config.limits &&
-    typeof app.config.limits === 'object' &&
+    typeof app.config.limits === "object" &&
     !Array.isArray(app.config.limits)
       ? app.config.limits
       : null;
@@ -122,22 +137,22 @@ function resolveForApp(app) {
     base[key] = Math.min(base[key], Math.floor(n));
   };
 
-  tighten('request_timeout_ms');
-  tighten('request_timeout_stream_ms');
-  tighten('stream_idle_timeout_ms');
-  tighten('outbound_timeout_ms');
-  tighten('max_concurrent_requests');
+  tighten("request_timeout_ms");
+  tighten("request_timeout_stream_ms");
+  tighten("stream_idle_timeout_ms");
+  tighten("outbound_timeout_ms");
+  tighten("max_concurrent_requests");
   // per-app concurrent: app key is the app's own cap (still capped by server per-app max)
   if (appCfg.max_concurrent_requests != null) {
     const n = Number(appCfg.max_concurrent_requests);
     if (Number.isFinite(n) && n >= 1) {
       base.max_concurrent_requests_per_app = Math.min(
         base.max_concurrent_requests_per_app,
-        Math.floor(n)
+        Math.floor(n),
       );
     }
   } else if (appCfg.max_concurrent_requests_per_app != null) {
-    tighten('max_concurrent_requests_per_app');
+    tighten("max_concurrent_requests_per_app");
   }
 
   return base;
@@ -151,30 +166,30 @@ function resolveForApp(app) {
  */
 function tryAcquireRequest(appName, app) {
   const lim = resolveForApp(app);
-  const name = appName || (app && app.name) || '_unknown';
+  const name = appName || (app && app.name) || "_unknown";
 
   if (globalInFlight >= serverLimits.max_concurrent_requests) {
     log().warn(
-      `[limits] Rejecting request for '${name}': global concurrency ${globalInFlight}/${serverLimits.max_concurrent_requests}`
+      `[limits] Rejecting request for '${name}': global concurrency ${globalInFlight}/${serverLimits.max_concurrent_requests}`,
     );
     return {
       ok: false,
-      scope: 'global',
+      scope: "global",
       statusCode: 503,
-      message: 'TOO_MANY_REQUESTS: server concurrency limit reached'
+      message: "TOO_MANY_REQUESTS: server concurrency limit reached",
     };
   }
 
   const appCount = appInFlight.get(name) || 0;
   if (appCount >= lim.max_concurrent_requests_per_app) {
     log().warn(
-      `[limits] Rejecting request for '${name}': app concurrency ${appCount}/${lim.max_concurrent_requests_per_app}`
+      `[limits] Rejecting request for '${name}': app concurrency ${appCount}/${lim.max_concurrent_requests_per_app}`,
     );
     return {
       ok: false,
-      scope: 'app',
+      scope: "app",
       statusCode: 503,
-      message: 'TOO_MANY_REQUESTS: application concurrency limit reached'
+      message: "TOO_MANY_REQUESTS: application concurrency limit reached",
     };
   }
 
@@ -186,8 +201,8 @@ function tryAcquireRequest(appName, app) {
     token: {
       appName: name,
       released: false,
-      limits: lim
-    }
+      limits: lim,
+    },
   };
 }
 
@@ -251,15 +266,15 @@ function attachRequestContext(store, token, res) {
 
     const logger = store.logger || log();
     logger.warn(
-      `[limits] Request timeout (${reason}) for app '${store.appName}' path=${store.req && store.req.url}`
+      `[limits] Request timeout (${reason}) for app '${store.appName}' path=${store.req && store.req.url}`,
     );
 
     if ($g && $g.isStreaming && store.res && !store.res.writableEnded) {
       try {
-        if (typeof $g.response.writeSSE === 'function') {
-          $g.response.writeSSE({ type: 'error', error: reason });
+        if (typeof $g.response.writeSSE === "function") {
+          $g.response.writeSSE({ type: "error", error: reason });
         }
-        if (typeof $g.response.endStream === 'function') {
+        if (typeof $g.response.endStream === "function") {
           $g.response.endStream();
         } else {
           store.res.end();
@@ -272,13 +287,15 @@ function attachRequestContext(store, token, res) {
 
     if (store.res && !store.res.headersSent) {
       try {
-        store.res.writeHead(statusCode || 504, { 'Content-Type': 'application/json' });
+        store.res.writeHead(statusCode || 504, {
+          "Content-Type": "application/json",
+        });
         store.res.end(
           JSON.stringify({
-            error: 'GATEWAY_TIMEOUT',
+            error: "GATEWAY_TIMEOUT",
             message: reason,
-            timeout_ms: lim.request_timeout_ms
-          })
+            timeout_ms: lim.request_timeout_ms,
+          }),
         );
       } catch (e) {
         logger.error(`[limits] Error sending timeout response: ${e.message}`);
@@ -300,22 +317,22 @@ function attachRequestContext(store, token, res) {
   store._limitsFailRequest = failRequest;
   store._limitsClearTimer = clearTimer;
 
-  clearTimer('request');
+  clearTimer("request");
   store._limitsTimers.request = setTimeout(() => {
     // If already streaming, non-stream budget is replaced by stream timers in onStreamStart.
     if (store.$g && store.$g.isStreaming) return;
-    failRequest('request_timeout', 504);
+    failRequest("request_timeout", 504);
   }, lim.request_timeout_ms);
 
   // Ensure timers cleared when response finishes.
-  if (res && typeof res.on === 'function') {
+  if (res && typeof res.on === "function") {
     const cleanup = () => {
-      clearTimer('request');
-      clearTimer('streamHard');
-      clearTimer('streamIdle');
+      clearTimer("request");
+      clearTimer("streamHard");
+      clearTimer("streamIdle");
     };
-    res.on('finish', cleanup);
-    res.on('close', cleanup);
+    res.on("finish", cleanup);
+    res.on("close", cleanup);
   }
 }
 
@@ -327,15 +344,15 @@ function onStreamStart(store) {
   if (!store || !store.limitsConfig) return;
   const lim = store.limitsConfig;
   const clearTimer = store._limitsClearTimer;
-  if (clearTimer) clearTimer('request');
+  if (clearTimer) clearTimer("request");
 
   const fail = store._limitsFailRequest;
   if (!fail) return;
 
-  if (clearTimer) clearTimer('streamHard');
+  if (clearTimer) clearTimer("streamHard");
   store._limitsTimers = store._limitsTimers || {};
   store._limitsTimers.streamHard = setTimeout(() => {
-    fail('stream_hard_timeout', 504);
+    fail("stream_hard_timeout", 504);
   }, lim.request_timeout_stream_ms);
 
   touchStream(store);
@@ -346,7 +363,8 @@ function onStreamStart(store) {
  * @param {object} store
  */
 function touchStream(store) {
-  if (!store || !store.limitsConfig || !store.$g || !store.$g.isStreaming) return;
+  if (!store || !store.limitsConfig || !store.$g || !store.$g.isStreaming)
+    return;
   if (store.$g.isCompleted || store._limitsTimedOut) return;
 
   const lim = store.limitsConfig;
@@ -354,10 +372,10 @@ function touchStream(store) {
   const fail = store._limitsFailRequest;
   if (!clearTimer || !fail) return;
 
-  clearTimer('streamIdle');
+  clearTimer("streamIdle");
   store._limitsTimers = store._limitsTimers || {};
   store._limitsTimers.streamIdle = setTimeout(() => {
-    fail('stream_idle_timeout', 504);
+    fail("stream_idle_timeout", 504);
   }, lim.stream_idle_timeout_ms);
 }
 
@@ -367,9 +385,9 @@ function touchStream(store) {
  */
 function clearRequestTimers(store) {
   if (!store || !store._limitsClearTimer) return;
-  store._limitsClearTimer('request');
-  store._limitsClearTimer('streamHard');
-  store._limitsClearTimer('streamIdle');
+  store._limitsClearTimer("request");
+  store._limitsClearTimer("streamHard");
+  store._limitsClearTimer("streamIdle");
 }
 
 /**
@@ -397,7 +415,10 @@ function resolveOutboundTimeoutMs(optionsTimeout, store) {
     serverLimits;
 
   // Ceiling: app-tightened outbound, never above server default ceiling.
-  const ceiling = Math.min(lim.outbound_timeout_ms, serverLimits.outbound_timeout_ms);
+  const ceiling = Math.min(
+    lim.outbound_timeout_ms,
+    serverLimits.outbound_timeout_ms,
+  );
 
   let base =
     optionsTimeout != null && Number.isFinite(Number(optionsTimeout))
@@ -423,7 +444,7 @@ function tryAcquireOutbound() {
   if (outboundInFlight >= serverLimits.max_concurrent_outbound) {
     return {
       ok: false,
-      message: 'TOO_MANY_OUTBOUND: server outbound concurrency limit reached'
+      message: "TOO_MANY_OUTBOUND: server outbound concurrency limit reached",
     };
   }
   outboundInFlight += 1;
@@ -434,7 +455,7 @@ function tryAcquireOutbound() {
       if (released) return;
       released = true;
       outboundInFlight = Math.max(0, outboundInFlight - 1);
-    }
+    },
   };
 }
 
@@ -445,13 +466,13 @@ function tryAcquireOutbound() {
 function applyServerTimeouts(server) {
   if (!server) return;
   try {
-    if (typeof server.headersTimeout !== 'undefined') {
+    if (typeof server.headersTimeout !== "undefined") {
       server.headersTimeout = serverLimits.headers_timeout_ms;
     }
-    if (typeof server.requestTimeout !== 'undefined') {
+    if (typeof server.requestTimeout !== "undefined") {
       server.requestTimeout = serverLimits.request_timeout_server_ms;
     }
-    if (typeof server.keepAliveTimeout !== 'undefined') {
+    if (typeof server.keepAliveTimeout !== "undefined") {
       server.keepAliveTimeout = serverLimits.keep_alive_timeout_ms;
     }
   } catch (e) {
@@ -468,7 +489,7 @@ function getStats() {
     globalInFlight,
     appInFlight: Object.fromEntries(appInFlight),
     outboundInFlight,
-    limits: getServerLimits()
+    limits: getServerLimits(),
   };
 }
 
@@ -497,5 +518,5 @@ module.exports = {
   applyServerTimeouts,
   getServerLimits,
   getStats,
-  _resetForTests
+  _resetForTests,
 };

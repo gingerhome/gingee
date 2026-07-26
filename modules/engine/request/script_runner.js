@@ -4,12 +4,12 @@
  * Engine-internal.
  */
 
-const fs = require('fs');
-const path = require('path');
-const limits = require('../../limits.js');
-const metrics = require('../../metrics.js');
-const { resolveAllowDynamicCodeForApp } = require('../../gbox.js');
-const { executeScript } = require('./execute_script.js');
+const fs = require("fs");
+const path = require("path");
+const limits = require("../../limits.js");
+const metrics = require("../../metrics.js");
+const { resolveAllowDynamicCodeForApp } = require("../../gbox.js");
+const { executeScript } = require("./execute_script.js");
 
 /**
  * Run a box server script for this request (or 404 if missing).
@@ -29,7 +29,7 @@ async function runServerScript(opts) {
     config,
     logger,
     cacheConfig,
-    requestStartedAt
+    requestStartedAt,
   } = opts;
 
   if (!scriptPath || !fs.existsSync(scriptPath)) {
@@ -40,27 +40,27 @@ async function runServerScript(opts) {
 
   const acquire = limits.tryAcquireRequest(appName, app);
   if (!acquire.ok) {
-    metrics.inc('gingee_limits_rejected_total', {
-      scope: acquire.scope || 'global'
+    metrics.inc("gingee_limits_rejected_total", {
+      scope: acquire.scope || "global",
     });
     if (!res.headersSent) {
       res.writeHead(acquire.statusCode || 503, {
-        'Content-Type': 'application/json',
-        'Retry-After': '1'
+        "Content-Type": "application/json",
+        "Retry-After": "1",
       });
       res.end(
         JSON.stringify({
-          error: 'TOO_MANY_REQUESTS',
+          error: "TOO_MANY_REQUESTS",
           scope: acquire.scope,
-          message: acquire.message
-        })
+          message: acquire.message,
+        }),
       );
     }
     metrics.recordHttpRequest({
       app: appName,
-      kind: 'script',
+      kind: "script",
       statusCode: acquire.statusCode || 503,
-      durationSeconds: (Date.now() - requestStartedAt) / 1000
+      durationSeconds: (Date.now() - requestStartedAt) / 1000,
     });
     return true;
   }
@@ -79,16 +79,16 @@ async function runServerScript(opts) {
         const code = res.statusCode || 200;
         metrics.recordHttpRequest({
           app: appName,
-          kind: 'script',
+          kind: "script",
           statusCode: code,
-          durationSeconds: (Date.now() - requestStartedAt) / 1000
+          durationSeconds: (Date.now() - requestStartedAt) / 1000,
         });
       } catch (_) {
         /* ignore metrics errors */
       }
     };
-    res.on('finish', done);
-    res.on('close', done);
+    res.on("finish", done);
+    res.on("close", done);
   };
   hookReleaseOnResponse();
 
@@ -98,7 +98,7 @@ async function runServerScript(opts) {
 
     if (useCache) {
       const isNoCachePath = serverCacheConfig.no_cache_regex.some((r) =>
-        new RegExp(r).test(req.url)
+        new RegExp(r).test(req.url),
       );
       if (isNoCachePath) {
         useCache = false;
@@ -110,9 +110,10 @@ async function runServerScript(opts) {
       logger.info(`Reloading script (cache disabled): ${scriptPath}`);
     }
 
-    const appBoxPath = path.join(webPath, appName, 'box');
-    const globalModulesPath = path.join(engineRoot, 'modules');
-    const allowedBuiltinModules = (config.box && config.box.allowed_modules) || [];
+    const appBoxPath = path.join(webPath, appName, "box");
+    const globalModulesPath = path.join(engineRoot, "modules");
+    const allowedBuiltinModules =
+      (config.box && config.box.allowed_modules) || [];
     const privilegedApps = config.privileged_apps || [];
 
     const gBoxConfig = {
@@ -125,7 +126,7 @@ async function runServerScript(opts) {
       useCache,
       logger,
       globalConfig: config,
-      allowDynamicCode: resolveAllowDynamicCodeForApp(config.box, app.config)
+      allowDynamicCode: resolveAllowDynamicCodeForApp(config.box, app.config),
     };
 
     await executeScript({
@@ -136,12 +137,12 @@ async function runServerScript(opts) {
       req,
       res,
       logger,
-      useCache
+      useCache,
     });
   } catch (e) {
     logger.error(`Error executing script: ${scriptPath} in app ${appName}`, e);
     if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.writeHead(500, { "Content-Type": "text/plain" });
       res.end(`INTERNAL_SERVER_ERROR - ${e.message}`);
     }
   }
@@ -150,5 +151,5 @@ async function runServerScript(opts) {
 }
 
 module.exports = {
-  runServerScript
+  runServerScript,
 };

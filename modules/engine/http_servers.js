@@ -4,11 +4,11 @@
  * Engine-internal — not for sandboxed app require.
  */
 
-const http = require('http');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
-const limits = require('../limits.js');
+const http = require("http");
+const https = require("https");
+const fs = require("fs");
+const path = require("path");
+const limits = require("../limits.js");
 
 /**
  * @param {Error} error
@@ -17,8 +17,8 @@ const limits = require('../limits.js');
  * @param {object} logger
  */
 function handleServerError(error, port, protocol, logger) {
-  const proto = protocol || 'HTTP';
-  if (error.code === 'EADDRINUSE') {
+  const proto = protocol || "HTTP";
+  if (error.code === "EADDRINUSE") {
     const message = `FATAL: Port ${port} is already in use. \r\nPlease stop the other process or configure a different port in your gingee.json file.`;
     logger.error(message);
     console.error(message);
@@ -41,7 +41,13 @@ function handleServerError(error, port, protocol, logger) {
  * @param {function} [options.onServer] - (server, protocol) => void after create, before listen
  * @returns {{ httpServer: object|null, httpsServer: object|null }} HTTP/HTTPS server instances (or null if disabled)
  */
-function startHttpServers({ config, logger, projectRoot, reqHandler, onServer }) {
+function startHttpServers({
+  config,
+  logger,
+  projectRoot,
+  reqHandler,
+  onServer,
+}) {
   let httpServer = null;
   let httpsServer = null;
 
@@ -50,10 +56,10 @@ function startHttpServers({ config, logger, projectRoot, reqHandler, onServer })
     try {
       httpServer = http.createServer(reqHandler);
       limits.applyServerTimeouts(httpServer);
-      if (typeof onServer === 'function') onServer(httpServer, 'http');
+      if (typeof onServer === "function") onServer(httpServer, "http");
 
-      httpServer.on('error', (error) => {
-        handleServerError(error, config.server.http.port, 'HTTP', logger);
+      httpServer.on("error", (error) => {
+        handleServerError(error, config.server.http.port, "HTTP", logger);
       });
 
       httpServer.listen(config.server.http.port, () => {
@@ -62,7 +68,7 @@ function startHttpServers({ config, logger, projectRoot, reqHandler, onServer })
         console.log(message);
       });
     } catch (err) {
-      handleServerError(err, config.server.http.port, 'HTTP', logger);
+      handleServerError(err, config.server.http.port, "HTTP", logger);
     }
   }
 
@@ -77,15 +83,15 @@ function startHttpServers({ config, logger, projectRoot, reqHandler, onServer })
 
       const options = {
         key: fs.readFileSync(keyPath),
-        cert: fs.readFileSync(certPath)
+        cert: fs.readFileSync(certPath),
       };
 
       httpsServer = https.createServer(options, reqHandler);
       limits.applyServerTimeouts(httpsServer);
-      if (typeof onServer === 'function') onServer(httpsServer, 'https');
+      if (typeof onServer === "function") onServer(httpsServer, "https");
 
-      httpsServer.on('error', (error) => {
-        handleServerError(error, config.server.https.port, 'HTTPS', logger);
+      httpsServer.on("error", (error) => {
+        handleServerError(error, config.server.https.port, "HTTPS", logger);
       });
 
       httpsServer.listen(config.server.https.port, () => {
@@ -95,7 +101,7 @@ function startHttpServers({ config, logger, projectRoot, reqHandler, onServer })
       });
     } catch (err) {
       // This will catch errors like missing SSL cert files
-      handleServerError(err, config.server.https.port, 'HTTPS', logger);
+      handleServerError(err, config.server.https.port, "HTTPS", logger);
     }
   }
 
@@ -104,5 +110,5 @@ function startHttpServers({ config, logger, projectRoot, reqHandler, onServer })
 
 module.exports = {
   handleServerError,
-  startHttpServers
+  startHttpServers,
 };

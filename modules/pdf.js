@@ -1,7 +1,7 @@
-const path = require('path');
-const fs = require('./fs.js');
-const { getContext } = require('./gingee.js');
-const { resolveSecurePath, loadOptional } = require('./internal_utils.js');
+const path = require("path");
+const fs = require("./fs.js");
+const { getContext } = require("./gingee.js");
+const { resolveSecurePath, loadOptional } = require("./internal_utils.js");
 
 /**
  * @module pdf
@@ -19,7 +19,11 @@ let defaultPrinter;
  * @private
  */
 function getPdfMake() {
-    return loadOptional(() => require('pdfmake'), 'pdfmake', 'PDF generation (pdf module)');
+  return loadOptional(
+    () => require("pdfmake"),
+    "pdfmake",
+    "PDF generation (pdf module)",
+  );
 }
 
 /**
@@ -28,35 +32,44 @@ function getPdfMake() {
  * @private
  */
 function init() {
-    try {
-        const PdfPrinter = getPdfMake();
-        const engineRoot = path.dirname(__dirname);
-        const fontDescriptors = {
-            Roboto: {
-                normal: path.join(engineRoot, 'settings/fonts/Roboto/Roboto-Regular.ttf'),
-                bold: path.join(engineRoot, 'settings/fonts/Roboto/Roboto-Bold.ttf'),
-                italics: path.join(engineRoot, 'settings/fonts/Roboto/Roboto-Italic.ttf'),
-                bolditalics: path.join(engineRoot, 'settings/fonts/Roboto/Roboto-BoldItalic.ttf')
-            }
-        };
-        defaultPrinter = PdfPrinter;
+  try {
+    const PdfPrinter = getPdfMake();
+    const engineRoot = path.dirname(__dirname);
+    const fontDescriptors = {
+      Roboto: {
+        normal: path.join(
+          engineRoot,
+          "settings/fonts/Roboto/Roboto-Regular.ttf",
+        ),
+        bold: path.join(engineRoot, "settings/fonts/Roboto/Roboto-Bold.ttf"),
+        italics: path.join(
+          engineRoot,
+          "settings/fonts/Roboto/Roboto-Italic.ttf",
+        ),
+        bolditalics: path.join(
+          engineRoot,
+          "settings/fonts/Roboto/Roboto-BoldItalic.ttf",
+        ),
+      },
+    };
+    defaultPrinter = PdfPrinter;
 
-        defaultPrinter.setUrlAccessPolicy((url) => {
-            // this can be used to restrict allowed domains
-            return true;
-        });
+    defaultPrinter.setUrlAccessPolicy((url) => {
+      // this can be used to restrict allowed domains
+      return true;
+    });
 
-        // eslint-disable-next-line no-unused-vars
-        defaultPrinter.setLocalAccessPolicy((path) => {
-            // this can be used to restrict access to local file system
-            return true;
-        });
+    // eslint-disable-next-line no-unused-vars
+    defaultPrinter.setLocalAccessPolicy((path) => {
+      // this can be used to restrict access to local file system
+      return true;
+    });
 
-        defaultPrinter.addFonts(fontDescriptors);
-        return { status: true };
-    } catch (error) {
-        return { status: false, error };
-    }
+    defaultPrinter.addFonts(fontDescriptors);
+    return { status: true };
+  } catch (error) {
+    return { status: false, error };
+  }
 }
 
 /**
@@ -82,37 +95,42 @@ function init() {
  * $g.response.send(pdfBuffer, 200, 'application/pdf');
  */
 function create(documentDefinition) {
-    if (!defaultPrinter) {
-        const status = init();
-        if (!status.status) {
-            throw status.error || new Error('PDF module is not initialized (is optional package pdfmake installed?)');
-        }
+  if (!defaultPrinter) {
+    const status = init();
+    if (!status.status) {
+      throw (
+        status.error ||
+        new Error(
+          "PDF module is not initialized (is optional package pdfmake installed?)",
+        )
+      );
     }
-    let printerToUse = defaultPrinter;
+  }
+  let printerToUse = defaultPrinter;
 
-    if (documentDefinition.fonts) {
-        const { app } = getContext();
-        const customFontDescriptors = {};
+  if (documentDefinition.fonts) {
+    const { app } = getContext();
+    const customFontDescriptors = {};
 
-        // Process each font family defined by the developer
-        for (const fontFamily in documentDefinition.fonts) {
-            const fontStyles = documentDefinition.fonts[fontFamily];
-            customFontDescriptors[fontFamily] = {};
-            // Process each style (normal, bold, etc.)
-            for (const style in fontStyles) {
-                const fontPath = fontStyles[style];
-                // Securely resolve the font path from within the app's BOX scope.
-                const absolutePath = resolveSecurePath(fs.BOX, fontPath);
-                customFontDescriptors[fontFamily][style] = absolutePath;
-            }
-        }
-
-        // Create a temporary, request-specific printer with the custom fonts.
-        printerToUse.addFonts(customFontDescriptors);
+    // Process each font family defined by the developer
+    for (const fontFamily in documentDefinition.fonts) {
+      const fontStyles = documentDefinition.fonts[fontFamily];
+      customFontDescriptors[fontFamily] = {};
+      // Process each style (normal, bold, etc.)
+      for (const style in fontStyles) {
+        const fontPath = fontStyles[style];
+        // Securely resolve the font path from within the app's BOX scope.
+        const absolutePath = resolveSecurePath(fs.BOX, fontPath);
+        customFontDescriptors[fontFamily][style] = absolutePath;
+      }
     }
 
-    return printerToUse.createPdf(documentDefinition).getBuffer();
-    /*return new Promise((resolve, reject) => {
+    // Create a temporary, request-specific printer with the custom fonts.
+    printerToUse.addFonts(customFontDescriptors);
+  }
+
+  return printerToUse.createPdf(documentDefinition).getBuffer();
+  /*return new Promise((resolve, reject) => {
         try {
             // Create the PDF document
             const pdfDoc = printerToUse.createPdf(documentDefinition);
@@ -138,6 +156,6 @@ function create(documentDefinition) {
 // but bundling a default like Roboto is a great start.
 
 module.exports = {
-    init,
-    create
+  init,
+  create,
 };

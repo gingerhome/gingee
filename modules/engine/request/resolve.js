@@ -4,35 +4,37 @@
  * Engine-internal.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { URL } = require('url');
-const metrics = require('../../metrics.js');
-const { confineScriptPath } = require('./path_confine.js');
+const fs = require("fs");
+const path = require("path");
+const { URL } = require("url");
+const metrics = require("../../metrics.js");
+const { confineScriptPath } = require("./path_confine.js");
 
 /**
  * Apply default_app rewrite for `/`.
  * Mutates req.url when applicable.
  */
 function applyDefaultAppRoute(req, apps, config, logger) {
-  const urlPath = req.url.split('?')[0];
-  const queryIndex = req.url.indexOf('?');
-  const queryString = queryIndex !== -1 ? req.url.substring(queryIndex) : '';
+  const urlPath = req.url.split("?")[0];
+  const queryIndex = req.url.indexOf("?");
+  const queryString = queryIndex !== -1 ? req.url.substring(queryIndex) : "";
 
-  if (urlPath === '/') {
+  if (urlPath === "/") {
     const defaultApp = config.default_app;
     if (defaultApp && apps[defaultApp]) {
       req.url = `/${defaultApp}/${queryString}`;
-      logger.info(`Routing root request to default app '${defaultApp}'. New URL: ${req.url}`);
+      logger.info(
+        `Routing root request to default app '${defaultApp}'. New URL: ${req.url}`,
+      );
     }
   }
 
-  const urlWithoutQuery = req.url.split('?')[0];
-  const qIdx = req.url.indexOf('?');
+  const urlWithoutQuery = req.url.split("?")[0];
+  const qIdx = req.url.indexOf("?");
   return {
     urlWithoutQuery,
-    queryString: qIdx !== -1 ? req.url.substring(qIdx) : '',
-    urlParts: urlWithoutQuery.split('/').filter(Boolean)
+    queryString: qIdx !== -1 ? req.url.substring(qIdx) : "",
+    urlParts: urlWithoutQuery.split("/").filter(Boolean),
   };
 }
 
@@ -45,7 +47,7 @@ function resolveApp(req, apps, config, logger) {
     req,
     apps,
     config,
-    logger
+    logger,
   );
 
   let appName = urlParts[0];
@@ -54,15 +56,15 @@ function resolveApp(req, apps, config, logger) {
   if (!app && req.headers.referer) {
     try {
       const refererUrl = new URL(req.headers.referer);
-      const refererPathParts = refererUrl.pathname.split('/').filter(Boolean);
+      const refererPathParts = refererUrl.pathname.split("/").filter(Boolean);
       const contextualAppName = refererPathParts[0];
       const contextualApp = apps[contextualAppName];
 
-      if (contextualApp && contextualApp.config.type === 'SPA') {
+      if (contextualApp && contextualApp.config.type === "SPA") {
         app = contextualApp;
         appName = contextualAppName;
         logger.info(
-          `[SPA Context] Inferred app '${appName}' from Referer header for request: ${req.url}`
+          `[SPA Context] Inferred app '${appName}' from Referer header for request: ${req.url}`,
         );
       }
     } catch (e) {
@@ -85,13 +87,12 @@ function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
 
   if (app && app.compiledRoutes) {
     for (const route of app.compiledRoutes) {
-      if (req.method === route.method || route.method === 'ALL') {
+      if (req.method === route.method || route.method === "ALL") {
         const matchResult = route.matcher(requestPath);
         if (matchResult) {
           // Prefer pre-resolved absolute path from app_registry when present
           const confined =
-            route.scriptPath ||
-            confineScriptPath(app.appBoxPath, route.script);
+            route.scriptPath || confineScriptPath(app.appBoxPath, route.script);
           if (confined) {
             targetScriptPath = confined;
             routeParams = matchResult.params;
@@ -109,7 +110,7 @@ function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
     const potentialScriptPath = confineScriptPath(
       app.appBoxPath,
       urlParts.slice(1),
-      { appendJs: true }
+      { appendJs: true },
     );
     if (potentialScriptPath && fs.existsSync(potentialScriptPath)) {
       targetScriptPath = potentialScriptPath;
@@ -125,16 +126,18 @@ function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
  */
 function rejectIfMaintenance(res, app, appName, req, logger, requestStartedAt) {
   if (!(app && app.in_maintenance)) return false;
-  logger.warn(`Request to '${req.url}' blocked because app '${appName}' is in maintenance mode.`);
-  res.writeHead(503, { 'Content-Type': 'text/html' });
+  logger.warn(
+    `Request to '${req.url}' blocked because app '${appName}' is in maintenance mode.`,
+  );
+  res.writeHead(503, { "Content-Type": "text/html" });
   res.end(
-    '<h1>503 Service Unavailable</h1><p>This application is currently undergoing maintenance. Please try again shortly.</p>'
+    "<h1>503 Service Unavailable</h1><p>This application is currently undergoing maintenance. Please try again shortly.</p>",
   );
   metrics.recordHttpRequest({
     app: appName,
-    kind: 'other',
+    kind: "other",
     statusCode: 503,
-    durationSeconds: (Date.now() - requestStartedAt) / 1000
+    durationSeconds: (Date.now() - requestStartedAt) / 1000,
   });
   return true;
 }
@@ -144,13 +147,13 @@ function rejectIfMaintenance(res, app, appName, req, logger, requestStartedAt) {
  */
 function rejectIfAppMissing(res, app, appName, requestStartedAt) {
   if (app) return false;
-  res.writeHead(404, { 'Content-Type': 'text/plain' });
-  res.end('APP_NOT_FOUND');
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("APP_NOT_FOUND");
   metrics.recordHttpRequest({
-    app: appName || '_none',
-    kind: 'other',
+    app: appName || "_none",
+    kind: "other",
     statusCode: 404,
-    durationSeconds: (Date.now() - requestStartedAt) / 1000
+    durationSeconds: (Date.now() - requestStartedAt) / 1000,
   });
   return true;
 }
@@ -181,5 +184,5 @@ module.exports = {
   resolveScriptTarget,
   rejectIfMaintenance,
   rejectIfAppMissing,
-  privilegeScope
+  privilegeScope,
 };

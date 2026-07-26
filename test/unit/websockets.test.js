@@ -1,46 +1,48 @@
 /**
  * WebSocket hub + public module tests.
  */
-const http = require('http');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const WebSocket = require('ws');
-const hub = require('../../modules/engine/websocket_hub');
-const { als } = require('../../modules/gingee');
-const websockets = require('../../modules/websockets');
+const http = require("http");
+const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const WebSocket = require("ws");
+const hub = require("../../modules/engine/websocket_hub");
+const { als } = require("../../modules/gingee");
+const websockets = require("../../modules/websockets");
 
-describe('websocket hub helpers', () => {
+describe("websocket hub helpers", () => {
   afterEach(() => {
     hub.shutdownAll();
   });
 
-  test('normalizePath and fullPathFor', () => {
-    expect(hub.normalizePath('ws')).toBe('/ws');
-    expect(hub.normalizePath('/ws/')).toBe('/ws');
-    expect(hub.fullPathFor('demo', '/realtime')).toBe('/demo/realtime');
+  test("normalizePath and fullPathFor", () => {
+    expect(hub.normalizePath("ws")).toBe("/ws");
+    expect(hub.normalizePath("/ws/")).toBe("/ws");
+    expect(hub.fullPathFor("demo", "/realtime")).toBe("/demo/realtime");
   });
 
-  test('parseUpgradeUrl', () => {
-    const p = hub.parseUpgradeUrl('/demo/ws?x=1');
-    expect(p.appName).toBe('demo');
-    expect(p.restPath).toBe('/ws');
-    expect(p.searchParams.get('x')).toBe('1');
-    expect(hub.parseUpgradeUrl('/onlyapp')).toBeNull();
+  test("parseUpgradeUrl", () => {
+    const p = hub.parseUpgradeUrl("/demo/ws?x=1");
+    expect(p.appName).toBe("demo");
+    expect(p.restPath).toBe("/ws");
+    expect(p.searchParams.get("x")).toBe("1");
+    expect(hub.parseUpgradeUrl("/onlyapp")).toBeNull();
   });
 
-  test('tenantRoom and assertRoomTenant', () => {
-    expect(hub.tenantRoom('acme', 'lobby')).toBe('t:acme:lobby');
-    expect(hub.assertRoomTenant('t:acme:lobby', 'acme')).toBe(true);
-    expect(() => hub.assertRoomTenant('t:other:lobby', 'acme')).toThrow(/tenant/);
+  test("tenantRoom and assertRoomTenant", () => {
+    expect(hub.tenantRoom("acme", "lobby")).toBe("t:acme:lobby");
+    expect(hub.assertRoomTenant("t:acme:lobby", "acme")).toBe(true);
+    expect(() => hub.assertRoomTenant("t:other:lobby", "acme")).toThrow(
+      /tenant/,
+    );
   });
 
-  test('sendToRoom publishes fan-out when bridge enabled', async () => {
+  test("sendToRoom publishes fan-out when bridge enabled", async () => {
     const published = [];
     hub.initServer(
-      { enabled: true, fanout: { driver: 'none' } },
+      { enabled: true, fanout: { driver: "none" } },
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      {}
+      {},
     );
     hub._setFanoutForTests({
       enabled: () => true,
@@ -48,38 +50,40 @@ describe('websocket hub helpers', () => {
         published.push({ app, room, data });
       },
       publishApp: async () => {},
-      shutdown: async () => {}
+      shutdown: async () => {},
     });
-    hub.sendToRoom('chat', 'lobby', { type: 'x' });
+    hub.sendToRoom("chat", "lobby", { type: "x" });
     await new Promise((r) => setImmediate(r));
-    expect(published).toEqual([{ app: 'chat', room: 'lobby', data: { type: 'x' } }]);
+    expect(published).toEqual([
+      { app: "chat", room: "lobby", data: { type: "x" } },
+    ]);
   });
 });
 
-describe('websocket hub live upgrade', () => {
+describe("websocket hub live upgrade", () => {
   let tmp;
   let server;
   let port;
   let app;
 
   beforeEach(async () => {
-    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gingee-ws-'));
-    const appWeb = path.join(tmp, 'web', 'chat');
-    const box = path.join(appWeb, 'box');
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gingee-ws-"));
+    const appWeb = path.join(tmp, "web", "chat");
+    const box = path.join(appWeb, "box");
     fs.mkdirSync(box, { recursive: true });
     fs.writeFileSync(
-      path.join(box, 'app.json'),
+      path.join(box, "app.json"),
       JSON.stringify({
-        name: 'chat',
+        name: "chat",
         websockets: {
           enabled: true,
-          path: '/ws',
-          handler: 'ws_handler.js'
-        }
-      })
+          path: "/ws",
+          handler: "ws_handler.js",
+        },
+      }),
     );
     fs.writeFileSync(
-      path.join(box, 'ws_handler.js'),
+      path.join(box, "ws_handler.js"),
       `
 module.exports = async function (socket, ctx) {
   socket.join('lobby');
@@ -99,20 +103,20 @@ module.exports = async function (socket, ctx) {
     }
   });
 };
-`
+`,
     );
 
     app = {
-      name: 'chat',
+      name: "chat",
       config: {
-        name: 'chat',
-        websockets: { enabled: true, path: '/ws', handler: 'ws_handler.js' }
+        name: "chat",
+        websockets: { enabled: true, path: "/ws", handler: "ws_handler.js" },
       },
       appWebPath: appWeb,
       appBoxPath: box,
-      grantedPermissions: ['websockets'],
+      grantedPermissions: ["websockets"],
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      in_maintenance: false
+      in_maintenance: false,
     };
 
     hub.shutdownAll();
@@ -123,25 +127,28 @@ module.exports = async function (socket, ctx) {
         max_connections_per_app: 50,
         max_message_bytes: 65536,
         idle_timeout_ms: 60000,
-        heartbeat_ms: 10000
+        heartbeat_ms: 10000,
       },
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      { box: { allowed_modules: [], allow_dynamic_code: true }, privileged_apps: [] }
+      {
+        box: { allowed_modules: [], allow_dynamic_code: true },
+        privileged_apps: [],
+      },
     );
     hub.setAppsRegistry({ chat: app });
     const ok = await hub.registerApp(app, {
       box: { allowed_modules: [], allow_dynamic_code: true },
-      privileged_apps: []
+      privileged_apps: [],
     });
     expect(ok).toBe(true);
 
     server = http.createServer((req, res) => {
       res.writeHead(200);
-      res.end('ok');
+      res.end("ok");
     });
     hub.attachServer(server);
     await new Promise((resolve) => {
-      server.listen(0, '127.0.0.1', resolve);
+      server.listen(0, "127.0.0.1", resolve);
     });
     port = server.address().port;
   });
@@ -160,45 +167,47 @@ module.exports = async function (socket, ctx) {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/chat/ws`);
       const messages = [];
-      ws.on('message', (data) => {
+      ws.on("message", (data) => {
         try {
           messages.push(JSON.parse(String(data)));
         } catch (_) {
           messages.push(String(data));
         }
       });
-      ws.on('open', () => resolve({ ws, messages }));
-      ws.on('error', reject);
+      ws.on("open", () => resolve({ ws, messages }));
+      ws.on("error", reject);
     });
   }
 
-  test('connects and receives welcome', async () => {
+  test("connects and receives welcome", async () => {
     const { ws, messages } = await connect();
     await new Promise((r) => setTimeout(r, 50));
-    expect(messages.some((m) => m.type === 'welcome' && m.app === 'chat')).toBe(true);
-    expect(hub.getConnectionCount('chat')).toBe(1);
+    expect(messages.some((m) => m.type === "welcome" && m.app === "chat")).toBe(
+      true,
+    );
+    expect(hub.getConnectionCount("chat")).toBe(1);
     ws.close();
     await new Promise((r) => setTimeout(r, 30));
   }, 10000);
 
-  test('room echo between two clients', async () => {
+  test("room echo between two clients", async () => {
     const a = await connect();
     const b = await connect();
     await new Promise((r) => setTimeout(r, 40));
     a.messages.length = 0;
     b.messages.length = 0;
-    a.ws.send(JSON.stringify({ text: 'hi' }));
+    a.ws.send(JSON.stringify({ text: "hi" }));
     await new Promise((r) => setTimeout(r, 80));
-    expect(b.messages.some((m) => m.type === 'echo' && m.msg && m.msg.text === 'hi')).toBe(
-      true
-    );
+    expect(
+      b.messages.some((m) => m.type === "echo" && m.msg && m.msg.text === "hi"),
+    ).toBe(true);
     // sender excluded from to(room)
-    expect(a.messages.some((m) => m.type === 'echo')).toBe(false);
+    expect(a.messages.some((m) => m.type === "echo")).toBe(false);
     a.ws.close();
     b.ws.close();
   }, 10000);
 
-  test('toRoom from require(websockets) in handler context', async () => {
+  test("toRoom from require(websockets) in handler context", async () => {
     const a = await connect();
     const b = await connect();
     await new Promise((r) => setTimeout(r, 40));
@@ -206,44 +215,44 @@ module.exports = async function (socket, ctx) {
     b.messages.length = 0;
     a.ws.send(JSON.stringify({ broadcast: true }));
     await new Promise((r) => setTimeout(r, 100));
-    const err = a.messages.find((m) => m.type === 'broadcast_error');
+    const err = a.messages.find((m) => m.type === "broadcast_error");
     expect(err).toBeUndefined();
     // toRoom includes all members including sender
-    expect(a.messages.some((m) => m.type === 'system')).toBe(true);
-    expect(b.messages.some((m) => m.type === 'system')).toBe(true);
+    expect(a.messages.some((m) => m.type === "system")).toBe(true);
+    expect(b.messages.some((m) => m.type === "system")).toBe(true);
     a.ws.close();
     b.ws.close();
   }, 10000);
 
-  test('public module toRoom from HTTP-like ALS context', async () => {
+  test("public module toRoom from HTTP-like ALS context", async () => {
     const { ws, messages } = await connect();
     await new Promise((r) => setTimeout(r, 40));
     messages.length = 0;
-    await als.run({ appName: 'chat', app }, async () => {
-      websockets.toRoom('lobby', { type: 'from-http', ok: true });
+    await als.run({ appName: "chat", app }, async () => {
+      websockets.toRoom("lobby", { type: "from-http", ok: true });
     });
     await new Promise((r) => setTimeout(r, 50));
-    expect(messages.some((m) => m.type === 'from-http')).toBe(true);
+    expect(messages.some((m) => m.type === "from-http")).toBe(true);
     ws.close();
   }, 10000);
 
-  test('rejects unknown path', async () => {
+  test("rejects unknown path", async () => {
     await expect(
       new Promise((resolve, reject) => {
         const ws = new WebSocket(`ws://127.0.0.1:${port}/chat/nope`);
-        ws.on('open', () => {
+        ws.on("open", () => {
           ws.close();
-          reject(new Error('should not open'));
+          reject(new Error("should not open"));
         });
-        ws.on('unexpected-response', (_req, res) => {
+        ws.on("unexpected-response", (_req, res) => {
           expect(res.statusCode).toBe(404);
           resolve();
         });
-        ws.on('error', () => {
+        ws.on("error", () => {
           /* may also error */
           resolve();
         });
-      })
+      }),
     ).resolves.toBeUndefined();
   }, 10000);
 });

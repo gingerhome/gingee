@@ -1,5 +1,5 @@
-const nodeFs = require('fs');
-const path = require('path');
+const nodeFs = require("fs");
+const path = require("path");
 
 /**
  * @module secrets
@@ -24,18 +24,18 @@ const DEFAULTS = {
    * Absolute or project-relative directories allowed for file: secrets.
    * Paths outside these roots are rejected.
    */
-  file_roots: ['./settings/secrets', '/run/secrets'],
+  file_roots: ["./settings/secrets", "/run/secrets"],
   /**
    * When true (default), missing env:/file: targets throw.
    * When false, missing secrets resolve to null.
    */
-  required: true
+  required: true,
 };
 
 /** @type {object} */
 let config = {
   ...DEFAULTS,
-  file_roots: [...DEFAULTS.file_roots]
+  file_roots: [...DEFAULTS.file_roots],
 };
 
 /** @type {string} */
@@ -55,7 +55,12 @@ function log() {
  * @private
  */
 function isPlainObject(v) {
-  return v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Buffer);
+  return (
+    v !== null &&
+    typeof v === "object" &&
+    !Array.isArray(v) &&
+    !(v instanceof Buffer)
+  );
 }
 
 /**
@@ -67,8 +72,8 @@ function parseDotEnv(content) {
   const lines = String(content).split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
     if (eq <= 0) continue;
     const key = trimmed.slice(0, eq).trim();
     let val = trimmed.slice(eq + 1).trim();
@@ -92,19 +97,21 @@ function parseDotEnv(content) {
 function initServer(cfg, root, logRef) {
   logger = logRef || console;
   projectRoot = root || process.cwd();
-  const c = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? cfg : {};
-  const roots = Array.isArray(c.file_roots) ? c.file_roots : DEFAULTS.file_roots;
+  const c = cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
+  const roots = Array.isArray(c.file_roots)
+    ? c.file_roots
+    : DEFAULTS.file_roots;
   config = {
     load_dotenv: c.load_dotenv === true,
     required: c.required !== false,
-    file_roots: roots.map((r) => String(r))
+    file_roots: roots.map((r) => String(r)),
   };
 
   if (config.load_dotenv) {
-    const envPath = path.join(projectRoot, '.env');
+    const envPath = path.join(projectRoot, ".env");
     if (nodeFs.existsSync(envPath)) {
       try {
-        const parsed = parseDotEnv(nodeFs.readFileSync(envPath, 'utf8'));
+        const parsed = parseDotEnv(nodeFs.readFileSync(envPath, "utf8"));
         let n = 0;
         for (const [k, v] of Object.entries(parsed)) {
           if (process.env[k] === undefined) {
@@ -120,7 +127,7 @@ function initServer(cfg, root, logRef) {
   }
 
   log().info(
-    `[secrets] ready (load_dotenv=${config.load_dotenv}, required=${config.required}, file_roots=${config.file_roots.length})`
+    `[secrets] ready (load_dotenv=${config.load_dotenv}, required=${config.required}, file_roots=${config.file_roots.length})`,
   );
 }
 
@@ -130,7 +137,7 @@ function initServer(cfg, root, logRef) {
  */
 function resolvedFileRoots() {
   return config.file_roots.map((r) =>
-    path.isAbsolute(r) ? path.normalize(r) : path.resolve(projectRoot, r)
+    path.isAbsolute(r) ? path.normalize(r) : path.resolve(projectRoot, r),
   );
 }
 
@@ -140,7 +147,7 @@ function resolvedFileRoots() {
  */
 function isUnderRoot(candidate, root) {
   // Shared jail helper: lexical sibling-prefix safe + symlink realpath (H12).
-  const { isPathInside } = require('./internal_utils.js');
+  const { isPathInside } = require("./internal_utils.js");
   return isPathInside(candidate, root);
 }
 
@@ -150,7 +157,7 @@ function isUnderRoot(candidate, root) {
 function resolveFileSecret(spec, required) {
   let filePath = String(spec).trim();
   if (!filePath) {
-    if (required) throw new Error('[secrets] file: reference is empty');
+    if (required) throw new Error("[secrets] file: reference is empty");
     return null;
   }
   if (!path.isAbsolute(filePath)) {
@@ -163,7 +170,7 @@ function resolveFileSecret(spec, required) {
   const allowed = roots.some((root) => isUnderRoot(filePath, root));
   if (!allowed) {
     throw new Error(
-      `[secrets] file path not under allowed secrets.file_roots: ${filePath}`
+      `[secrets] file path not under allowed secrets.file_roots: ${filePath}`,
     );
   }
 
@@ -174,19 +181,22 @@ function resolveFileSecret(spec, required) {
     return null;
   }
 
-  return nodeFs.readFileSync(filePath, 'utf8').replace(/\r?\n$/, '');
+  return nodeFs.readFileSync(filePath, "utf8").replace(/\r?\n$/, "");
 }
 
 /**
  * @private
  */
 function resolveEnvSecret(name, required) {
-  const key = String(name || '').trim();
+  const key = String(name || "").trim();
   if (!key) {
-    if (required) throw new Error('[secrets] env: reference is empty');
+    if (required) throw new Error("[secrets] env: reference is empty");
     return null;
   }
-  if (Object.prototype.hasOwnProperty.call(process.env, key) && process.env[key] !== undefined) {
+  if (
+    Object.prototype.hasOwnProperty.call(process.env, key) &&
+    process.env[key] !== undefined
+  ) {
     return process.env[key];
   }
   if (required) {
@@ -201,24 +211,37 @@ function resolveEnvSecret(name, required) {
  * @private
  */
 function parseSecretRef(value) {
-  if (typeof value === 'string') {
-    if (value.startsWith('env:')) {
-      return { kind: 'ref', scheme: 'env', spec: value.slice(4), required: config.required };
+  if (typeof value === "string") {
+    if (value.startsWith("env:")) {
+      return {
+        kind: "ref",
+        scheme: "env",
+        spec: value.slice(4),
+        required: config.required,
+      };
     }
-    if (value.startsWith('file:')) {
-      return { kind: 'ref', scheme: 'file', spec: value.slice(5), required: config.required };
+    if (value.startsWith("file:")) {
+      return {
+        kind: "ref",
+        scheme: "file",
+        spec: value.slice(5),
+        required: config.required,
+      };
     }
-    return { kind: 'literal', value };
+    return { kind: "literal", value };
   }
-  if (isPlainObject(value) && Object.prototype.hasOwnProperty.call(value, '$secret')) {
-    const ref = String(value.$secret || '');
+  if (
+    isPlainObject(value) &&
+    Object.prototype.hasOwnProperty.call(value, "$secret")
+  ) {
+    const ref = String(value.$secret || "");
     const required =
       value.required !== undefined ? value.required !== false : config.required;
-    if (ref.startsWith('env:')) {
-      return { kind: 'ref', scheme: 'env', spec: ref.slice(4), required };
+    if (ref.startsWith("env:")) {
+      return { kind: "ref", scheme: "env", spec: ref.slice(4), required };
     }
-    if (ref.startsWith('file:')) {
-      return { kind: 'ref', scheme: 'file', spec: ref.slice(5), required };
+    if (ref.startsWith("file:")) {
+      return { kind: "ref", scheme: "file", spec: ref.slice(5), required };
     }
     throw new Error(`[secrets] unsupported $secret reference: ${ref}`);
   }
@@ -236,9 +259,11 @@ function resolveValue(value) {
     // Not a secret ref form — return as-is (objects/arrays handled by resolveDeep)
     return value;
   }
-  if (parsed.kind === 'literal') return parsed.value;
-  if (parsed.scheme === 'env') return resolveEnvSecret(parsed.spec, parsed.required);
-  if (parsed.scheme === 'file') return resolveFileSecret(parsed.spec, parsed.required);
+  if (parsed.kind === "literal") return parsed.value;
+  if (parsed.scheme === "env")
+    return resolveEnvSecret(parsed.spec, parsed.required);
+  if (parsed.scheme === "file")
+    return resolveFileSecret(parsed.spec, parsed.required);
   throw new Error(`[secrets] unknown scheme`);
 }
 
@@ -253,10 +278,10 @@ function resolveDeep(input) {
 
   // Secret object form must be handled before generic object walk
   const asRef = parseSecretRef(input);
-  if (asRef && asRef.kind === 'ref') {
+  if (asRef && asRef.kind === "ref") {
     return resolveValue(input);
   }
-  if (asRef && asRef.kind === 'literal' && typeof input === 'string') {
+  if (asRef && asRef.kind === "literal" && typeof input === "string") {
     return asRef.value;
   }
 
@@ -273,7 +298,7 @@ function resolveDeep(input) {
     return out;
   }
 
-  if (typeof input === 'string') {
+  if (typeof input === "string") {
     return resolveValue(input);
   }
 
@@ -287,14 +312,14 @@ function resolveDeep(input) {
  */
 function isSecretRef(value) {
   const p = parseSecretRef(value);
-  return !!(p && p.kind === 'ref');
+  return !!(p && p.kind === "ref");
 }
 
 function getConfig() {
   return {
     ...config,
     file_roots: [...config.file_roots],
-    projectRoot
+    projectRoot,
   };
 }
 
@@ -313,5 +338,5 @@ module.exports = {
   isSecretRef,
   getConfig,
   parseDotEnv,
-  _resetForTests
+  _resetForTests,
 };

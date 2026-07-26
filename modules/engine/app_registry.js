@@ -7,22 +7,25 @@
  * server can still start with remaining apps.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { match } = require('path-to-regexp');
-const { als } = require('../gingee.js');
-const { runStartupScripts, loadPermissionsForApp } = require('../gapp_start.js');
-const db = require('../db.js');
-const email = require('../email.js');
-const ai = require('../ai.js');
-const scheduler = require('../scheduler.js');
-const secrets = require('../secrets.js');
-const appLogger = require('../logger.js');
-const gdev = require('../gdev.js');
-const { projectRoot } = require('./paths.js');
-const workerManager = require('./isolation/worker_manager.js');
-const { loadJsonFile } = require('../internal_utils.js');
-const { confineScriptPath } = require('./request/path_confine.js');
+const fs = require("fs");
+const path = require("path");
+const { match } = require("path-to-regexp");
+const { als } = require("../gingee.js");
+const {
+  runStartupScripts,
+  loadPermissionsForApp,
+} = require("../gapp_start.js");
+const db = require("../db.js");
+const email = require("../email.js");
+const ai = require("../ai.js");
+const scheduler = require("../scheduler.js");
+const secrets = require("../secrets.js");
+const appLogger = require("../logger.js");
+const gdev = require("../gdev.js");
+const { projectRoot } = require("./paths.js");
+const workerManager = require("./isolation/worker_manager.js");
+const { loadJsonFile } = require("../internal_utils.js");
+const { confineScriptPath } = require("./request/path_confine.js");
 
 /**
  * Initialize a single app directory. Throws on fatal config errors for that app.
@@ -30,8 +33,8 @@ const { confineScriptPath } = require('./request/path_confine.js');
  */
 async function initializeOneApp(appName, webPath, config, logger) {
   const appWebPath = path.join(webPath, appName);
-  const appBoxPath = path.join(webPath, appName, 'box');
-  const appConfigPath = path.join(appBoxPath, 'app.json');
+  const appBoxPath = path.join(webPath, appName, "box");
+  const appConfigPath = path.join(appBoxPath, "app.json");
 
   if (!fs.existsSync(appConfigPath)) {
     return null;
@@ -40,38 +43,46 @@ async function initializeOneApp(appName, webPath, config, logger) {
   // Create a dedicated logger for this app (fall back to server logger if factory not ready)
   let dedicatedLogger = logger;
   try {
-    dedicatedLogger = appLogger.createAppLogger(appName, appBoxPath, config.logging);
+    dedicatedLogger = appLogger.createAppLogger(
+      appName,
+      appBoxPath,
+      config.logging,
+    );
   } catch (logErr) {
     logger.warn(
-      `App logger unavailable for '${appName}' (${logErr.message}); using server logger.`
+      `App logger unavailable for '${appName}' (${logErr.message}); using server logger.`,
     );
     dedicatedLogger = logger;
   }
 
   // Resolve env:/file: refs so jwt_secret, db passwords, api keys never need process in the sandbox.
   const userAppConfig = secrets.resolveDeep(loadJsonFile(appConfigPath));
-  if (!userAppConfig || typeof userAppConfig !== 'object' || Array.isArray(userAppConfig)) {
+  if (
+    !userAppConfig ||
+    typeof userAppConfig !== "object" ||
+    Array.isArray(userAppConfig)
+  ) {
     throw new Error(`app.json must be a JSON object`);
   }
 
   const defaultAppConfig = {
-    name: 'Untitled Gingee App',
-    description: '',
-    version: '1.0.0',
-    type: 'MPA',
+    name: "Untitled Gingee App",
+    description: "",
+    version: "1.0.0",
+    type: "MPA",
     db: [],
     default_include: [],
     env: {},
     jwt_secret: null,
     cache: {
       client: { enabled: false, no_cache_regex: [] },
-      server: { enabled: false, no_cache_regex: [] }
+      server: { enabled: false, no_cache_regex: [] },
     },
     logging: {
-      level: 'error'
+      level: "error",
     },
     in_maintenance: false,
-    mode: 'production'
+    mode: "production",
   };
 
   const appConfig = {
@@ -79,13 +90,19 @@ async function initializeOneApp(appName, webPath, config, logger) {
     ...userAppConfig,
     env: { ...defaultAppConfig.env, ...(userAppConfig.env || {}) },
     cache: { ...defaultAppConfig.cache, ...(userAppConfig.cache || {}) },
-    logging: { ...defaultAppConfig.logging, ...(userAppConfig.logging || {}) }
+    logging: { ...defaultAppConfig.logging, ...(userAppConfig.logging || {}) },
   };
-  const isDevelopment = appConfig.mode === 'development';
+  const isDevelopment = appConfig.mode === "development";
 
-  const app = { name: appName, config: appConfig, appWebPath, appBoxPath, logger: dedicatedLogger };
+  const app = {
+    name: appName,
+    config: appConfig,
+    appWebPath,
+    appBoxPath,
+    logger: dedicatedLogger,
+  };
 
-  const routesPath = path.join(appBoxPath, 'routes.json');
+  const routesPath = path.join(appBoxPath, "routes.json");
   if (fs.existsSync(routesPath)) {
     try {
       const routesConfig = loadJsonFile(routesPath);
@@ -95,26 +112,30 @@ async function initializeOneApp(appName, webPath, config, logger) {
           const scriptPath = confineScriptPath(appBoxPath, route.script);
           if (!scriptPath) {
             logger.error(
-              `Skipping route '${route.path || '?'}' for app '${appName}': ` +
-                `script path escapes box or is invalid (${route.script}).`
+              `Skipping route '${route.path || "?"}' for app '${appName}': ` +
+                `script path escapes box or is invalid (${route.script}).`,
             );
             continue;
           }
           app.compiledRoutes.push({
-            method: route.method ? route.method.toUpperCase() : 'GET',
+            method: route.method ? route.method.toUpperCase() : "GET",
             script: route.script,
             scriptPath,
-            matcher: match(route.path, { decode: decodeURIComponent })
+            matcher: match(route.path, { decode: decodeURIComponent }),
           });
         }
-        logger.info(`Initialized ${app.compiledRoutes.length} manifest routes for app '${appName}'.`);
+        logger.info(
+          `Initialized ${app.compiledRoutes.length} manifest routes for app '${appName}'.`,
+        );
       }
     } catch (e) {
-      logger.error(`Failed to parse or compile routes.json for app '${appName}': ${e.message}`);
+      logger.error(
+        `Failed to parse or compile routes.json for app '${appName}': ${e.message}`,
+      );
     }
   }
 
-  if (appConfig.type === 'SPA' && isDevelopment) {
+  if (appConfig.type === "SPA" && isDevelopment) {
     await als.run({ logger }, () => gdev.startDevServer(app));
   }
 
@@ -122,15 +143,15 @@ async function initializeOneApp(appName, webPath, config, logger) {
     appConfig.db.forEach((dbConfig) => {
       if (dbConfig.name && dbConfig.type) {
         const uniqueDbName = `${dbConfig.name}`;
-        app.appBoxPath = path.join(webPath, appName, 'box');
+        app.appBoxPath = path.join(webPath, appName, "box");
         try {
           db.init(uniqueDbName, dbConfig, app, dedicatedLogger);
           logger.info(
-            `Initialized database '${uniqueDbName}' for app '${appName}' with type '${dbConfig.type}'`
+            `Initialized database '${uniqueDbName}' for app '${appName}' with type '${dbConfig.type}'`,
           );
         } catch (err) {
           logger.error(
-            `Failed to initialize database '${uniqueDbName}' for app '${appName}': ${err.message}`
+            `Failed to initialize database '${uniqueDbName}' for app '${appName}': ${err.message}`,
           );
         }
       }
@@ -140,13 +161,17 @@ async function initializeOneApp(appName, webPath, config, logger) {
   try {
     email.initApp(app, dedicatedLogger);
   } catch (err) {
-    logger.error(`Failed to initialize email for app '${appName}': ${err.message}`);
+    logger.error(
+      `Failed to initialize email for app '${appName}': ${err.message}`,
+    );
   }
 
   try {
     ai.initApp(app, dedicatedLogger);
   } catch (err) {
-    logger.error(`Failed to initialize AI for app '${appName}': ${err.message}`);
+    logger.error(
+      `Failed to initialize AI for app '${appName}': ${err.message}`,
+    );
   }
 
   await als.run({ app, logger, projectRoot }, async () => {
@@ -162,7 +187,9 @@ async function initializeOneApp(appName, webPath, config, logger) {
   try {
     await scheduler.registerApp(app);
   } catch (err) {
-    logger.error(`Failed to register schedules for app '${appName}': ${err.message}`);
+    logger.error(
+      `Failed to register schedules for app '${appName}': ${err.message}`,
+    );
   }
 
   return app;
@@ -197,7 +224,7 @@ async function initializeApps(config, logger, webPath) {
     }
     if (!isDir) continue;
 
-    const appConfigPath = path.join(appPath, 'box', 'app.json');
+    const appConfigPath = path.join(appPath, "box", "app.json");
     if (!fs.existsSync(appConfigPath)) continue;
 
     try {
@@ -209,12 +236,10 @@ async function initializeApps(config, logger, webPath) {
       // Invalid JSON, secret resolve failure, unexpected init error — skip this app only.
       const detail = err && err.message ? err.message : String(err);
       logger.error(
-        `Skipping app '${appName}': failed to load or initialize (${detail}). Fix box/app.json (or related config) and reload.`
+        `Skipping app '${appName}': failed to load or initialize (${detail}). Fix box/app.json (or related config) and reload.`,
       );
       try {
-        console.error(
-          `[gingee] Skipping app '${appName}': ${detail}`
-        );
+        console.error(`[gingee] Skipping app '${appName}': ${detail}`);
       } catch (_) {
         /* ignore */
       }
@@ -223,7 +248,7 @@ async function initializeApps(config, logger, webPath) {
 
   const loaded = Object.keys(apps);
   logger.info(
-    `App registry: ${loaded.length} app(s) loaded${loaded.length ? ` (${loaded.join(', ')})` : ''}.`
+    `App registry: ${loaded.length} app(s) loaded${loaded.length ? ` (${loaded.join(", ")})` : ""}.`,
   );
 
   // Process isolation: start workers after full registry is known (supports isolation groups).
@@ -242,12 +267,14 @@ async function initializeApps(config, logger, webPath) {
       }
     } catch (err) {
       logger.error(
-        `Failed to start isolation worker for app '${appName}': ${err.message}`
+        `Failed to start isolation worker for app '${appName}': ${err.message}`,
       );
     }
   }
   if (startedKeys.size) {
-    logger.info(`[isolation] Started ${startedKeys.size} worker(s): ${[...startedKeys].join(', ')}`);
+    logger.info(
+      `[isolation] Started ${startedKeys.size} worker(s): ${[...startedKeys].join(", ")}`,
+    );
   }
 
   return apps;
@@ -258,5 +285,5 @@ module.exports = {
   /** @private */
   _initializeOneApp: initializeOneApp,
   /** @private */
-  _loadJsonFile: loadJsonFile
+  _loadJsonFile: loadJsonFile,
 };

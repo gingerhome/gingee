@@ -2,29 +2,29 @@
  * Integration-style unit test: fork a real app_worker, init, run scripts.
  * Covers buffered IPC, SSE stream IPC, isolation groups, and auto-restart.
  */
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const workerManager = require('../../modules/engine/isolation/worker_manager');
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const workerManager = require("../../modules/engine/isolation/worker_manager");
 
 function writeApp(root, name, scripts) {
-  const appWeb = path.join(root, 'web', name);
-  const appBox = path.join(appWeb, 'box');
+  const appWeb = path.join(root, "web", name);
+  const appBox = path.join(appWeb, "box");
   fs.mkdirSync(appBox, { recursive: true });
   fs.writeFileSync(
-    path.join(appBox, 'app.json'),
-    JSON.stringify({ name, isolation: 'process' }),
-    'utf8'
+    path.join(appBox, "app.json"),
+    JSON.stringify({ name, isolation: "process" }),
+    "utf8",
   );
   for (const [file, body] of Object.entries(scripts)) {
-    fs.writeFileSync(path.join(appBox, file), body, 'utf8');
+    fs.writeFileSync(path.join(appBox, file), body, "utf8");
   }
   return {
     name,
-    config: { name, isolation: 'process' },
+    config: { name, isolation: "process" },
     appWebPath: appWeb,
     appBoxPath: appBox,
-    grantedPermissions: []
+    grantedPermissions: [],
   };
 }
 
@@ -50,7 +50,7 @@ function mockRes() {
       if (buf) chunks.push(Buffer.isBuffer(buf) ? buf : Buffer.from(buf));
       res.writableEnded = true;
       res.headersSent = true;
-    })
+    }),
   };
   return { res, chunks, headers };
 }
@@ -58,8 +58,8 @@ function mockRes() {
 function baseConfig(extraIso = {}) {
   return {
     isolation: {
-      mode: 'process',
-      default: 'inprocess',
+      mode: "process",
+      default: "inprocess",
       apps: [],
       worker_ready_timeout_ms: 20000,
       request_timeout_ms: 15000,
@@ -68,19 +68,19 @@ function baseConfig(extraIso = {}) {
       restart_delay_ms: 100,
       restart_backoff_max_ms: 500,
       restart_stable_ms: 60000,
-      ...extraIso
+      ...extraIso,
     },
-    privileged_apps: ['glade'],
+    privileged_apps: ["glade"],
     box: { allowed_modules: [], allow_dynamic_code: true },
-    max_body_size: '1mb'
+    max_body_size: "1mb",
   };
 }
 
-describe('isolation worker IPC', () => {
+describe("isolation worker IPC", () => {
   let tmpRoot;
 
   beforeEach(() => {
-    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gingee-iso-'));
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "gingee-iso-"));
   });
 
   afterEach(() => {
@@ -92,22 +92,22 @@ describe('isolation worker IPC', () => {
     }
   });
 
-  test('worker runs script and returns JSON body', async () => {
-    const app = writeApp(tmpRoot, 'demo', {
-      'hello.js': `
+  test("worker runs script and returns JSON body", async () => {
+    const app = writeApp(tmpRoot, "demo", {
+      "hello.js": `
 module.exports = async function() {
   gingee(async ($g) => {
     $g.response.send({ hello: 'worker' }, 200, 'application/json');
   });
 };
-`
+`,
     });
 
-    const cfg = baseConfig({ apps: ['demo'] });
+    const cfg = baseConfig({ apps: ["demo"] });
     workerManager.init(
       cfg,
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      path.join(tmpRoot, 'web')
+      path.join(tmpRoot, "web"),
     );
     workerManager.setAppsRegistry({ demo: app });
     await workerManager.startWorker(app, cfg);
@@ -116,24 +116,28 @@ module.exports = async function() {
     await workerManager.executeOnWorker({
       app,
       config: cfg,
-      req: { method: 'GET', url: '/demo/hello', headers: { host: 'localhost' } },
+      req: {
+        method: "GET",
+        url: "/demo/hello",
+        headers: { host: "localhost" },
+      },
       res,
-      scriptPath: path.join(app.appBoxPath, 'hello.js'),
+      scriptPath: path.join(app.appBoxPath, "hello.js"),
       routeParams: {},
-      maxBodySize: '1mb',
+      maxBodySize: "1mb",
       useCache: false,
-      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() }
+      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
     });
 
     expect(res.end).toHaveBeenCalled();
-    const body = Buffer.concat(chunks).toString('utf8');
-    expect(JSON.parse(body)).toEqual({ hello: 'worker' });
+    const body = Buffer.concat(chunks).toString("utf8");
+    expect(JSON.parse(body)).toEqual({ hello: "worker" });
     expect(res.statusCode).toBe(200);
   }, 30000);
 
-  test('stream IPC flushes start/chunk/end to master res', async () => {
-    const app = writeApp(tmpRoot, 'streamy', {
-      'sse.js': `
+  test("stream IPC flushes start/chunk/end to master res", async () => {
+    const app = writeApp(tmpRoot, "streamy", {
+      "sse.js": `
 module.exports = async function() {
   gingee(async ($g) => {
     $g.response.startStream(200, 'text/event-stream; charset=utf-8');
@@ -142,14 +146,14 @@ module.exports = async function() {
     $g.response.endStream();
   });
 };
-`
+`,
     });
 
-    const cfg = baseConfig({ apps: ['streamy'] });
+    const cfg = baseConfig({ apps: ["streamy"] });
     workerManager.init(
       cfg,
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      path.join(tmpRoot, 'web')
+      path.join(tmpRoot, "web"),
     );
     workerManager.setAppsRegistry({ streamy: app });
     await workerManager.startWorker(app, cfg);
@@ -158,118 +162,128 @@ module.exports = async function() {
     await workerManager.executeOnWorker({
       app,
       config: cfg,
-      req: { method: 'GET', url: '/streamy/sse', headers: { host: 'localhost' } },
+      req: {
+        method: "GET",
+        url: "/streamy/sse",
+        headers: { host: "localhost" },
+      },
       res,
-      scriptPath: path.join(app.appBoxPath, 'sse.js'),
+      scriptPath: path.join(app.appBoxPath, "sse.js"),
       routeParams: {},
-      maxBodySize: '1mb',
+      maxBodySize: "1mb",
       useCache: false,
-      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() }
+      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
     });
 
     expect(res.flushHeaders).toHaveBeenCalled();
     expect(res.write).toHaveBeenCalled();
     expect(res.end).toHaveBeenCalled();
-    const body = Buffer.concat(chunks).toString('utf8');
+    const body = Buffer.concat(chunks).toString("utf8");
     expect(body).toContain('data: {"token":"hi"}');
     expect(body).toContain('data: {"token":"there"}');
-    expect(String(headers['content-type'] || '')).toMatch(/text\/event-stream/i);
+    expect(String(headers["content-type"] || "")).toMatch(
+      /text\/event-stream/i,
+    );
   }, 30000);
 
-  test('isolation group shares one worker for multiple apps', async () => {
-    const appA = writeApp(tmpRoot, 'a', {
-      'ping.js': `
+  test("isolation group shares one worker for multiple apps", async () => {
+    const appA = writeApp(tmpRoot, "a", {
+      "ping.js": `
 module.exports = async function() {
   gingee(async ($g) => {
     $g.response.send({ app: 'a' }, 200, 'application/json');
   });
 };
-`
+`,
     });
-    const appB = writeApp(tmpRoot, 'b', {
-      'ping.js': `
+    const appB = writeApp(tmpRoot, "b", {
+      "ping.js": `
 module.exports = async function() {
   gingee(async ($g) => {
     $g.response.send({ app: 'b' }, 200, 'application/json');
   });
 };
-`
+`,
     });
 
     const cfg = baseConfig({
-      groups: { shared: ['a', 'b'] }
+      groups: { shared: ["a", "b"] },
     });
     workerManager.init(
       cfg,
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      path.join(tmpRoot, 'web')
+      path.join(tmpRoot, "web"),
     );
     workerManager.setAppsRegistry({ a: appA, b: appB });
 
     const handleA = await workerManager.startWorker(appA, cfg);
-    expect(handleA.workerKey).toBe('group:shared');
-    expect(handleA.appNames.sort()).toEqual(['a', 'b']);
+    expect(handleA.workerKey).toBe("group:shared");
+    expect(handleA.appNames.sort()).toEqual(["a", "b"]);
 
     // Second start for group member reuses / restarts same key — still one worker entry
     await workerManager.startWorker(appB, cfg);
     const stats = workerManager.getWorkerStats();
-    expect(stats.filter((s) => s.workerKey === 'group:shared')).toHaveLength(1);
+    expect(stats.filter((s) => s.workerKey === "group:shared")).toHaveLength(1);
 
     const run = async (app) => {
       const { res, chunks } = mockRes();
       await workerManager.executeOnWorker({
         app,
         config: cfg,
-        req: { method: 'GET', url: `/${app.name}/ping`, headers: { host: 'localhost' } },
+        req: {
+          method: "GET",
+          url: `/${app.name}/ping`,
+          headers: { host: "localhost" },
+        },
         res,
-        scriptPath: path.join(app.appBoxPath, 'ping.js'),
+        scriptPath: path.join(app.appBoxPath, "ping.js"),
         routeParams: {},
-        maxBodySize: '1mb',
+        maxBodySize: "1mb",
         useCache: false,
-        logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() }
+        logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
       });
-      return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      return JSON.parse(Buffer.concat(chunks).toString("utf8"));
     };
 
-    expect(await run(appA)).toEqual({ app: 'a' });
-    expect(await run(appB)).toEqual({ app: 'b' });
+    expect(await run(appA)).toEqual({ app: "a" });
+    expect(await run(appB)).toEqual({ app: "b" });
   }, 30000);
 
-  test('auto-restart brings worker back after unexpected kill', async () => {
-    const app = writeApp(tmpRoot, 'demo', {
-      'hello.js': `
+  test("auto-restart brings worker back after unexpected kill", async () => {
+    const app = writeApp(tmpRoot, "demo", {
+      "hello.js": `
 module.exports = async function() {
   gingee(async ($g) => {
     $g.response.send({ ok: true }, 200, 'application/json');
   });
 };
-`
+`,
     });
 
     const cfg = baseConfig({
-      apps: ['demo'],
+      apps: ["demo"],
       restart_delay_ms: 50,
       restart_backoff_max_ms: 200,
-      restart_max: 5
+      restart_max: 5,
     });
     workerManager.init(
       cfg,
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      path.join(tmpRoot, 'web')
+      path.join(tmpRoot, "web"),
     );
     workerManager.setAppsRegistry({ demo: app });
     const handle = await workerManager.startWorker(app, cfg);
     const firstPid = handle.child.pid;
 
     // Unexpected kill (not intentional stop)
-    handle.child.kill('SIGKILL');
+    handle.child.kill("SIGKILL");
 
     // Wait for auto-restart
     const deadline = Date.now() + 8000;
     let recovered = null;
     while (Date.now() < deadline) {
       const stats = workerManager.getWorkerStats();
-      const w = stats.find((s) => s.workerKey === 'app:demo');
+      const w = stats.find((s) => s.workerKey === "app:demo");
       if (w && w.ready && w.pid && w.pid !== firstPid) {
         recovered = w;
         break;
@@ -283,20 +297,26 @@ module.exports = async function() {
     await workerManager.executeOnWorker({
       app,
       config: cfg,
-      req: { method: 'GET', url: '/demo/hello', headers: { host: 'localhost' } },
+      req: {
+        method: "GET",
+        url: "/demo/hello",
+        headers: { host: "localhost" },
+      },
       res,
-      scriptPath: path.join(app.appBoxPath, 'hello.js'),
+      scriptPath: path.join(app.appBoxPath, "hello.js"),
       routeParams: {},
-      maxBodySize: '1mb',
+      maxBodySize: "1mb",
       useCache: false,
-      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() }
+      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
     });
-    expect(JSON.parse(Buffer.concat(chunks).toString('utf8'))).toEqual({ ok: true });
+    expect(JSON.parse(Buffer.concat(chunks).toString("utf8"))).toEqual({
+      ok: true,
+    });
   }, 30000);
 
-  test('worker re-inits AI from app.json so require(ai) works', async () => {
-    const app = writeApp(tmpRoot, 'aibot', {
-      'chat.js': `
+  test("worker re-inits AI from app.json so require(ai) works", async () => {
+    const app = writeApp(tmpRoot, "aibot", {
+      "chat.js": `
 module.exports = async function() {
   // Must await gingee — worker sends http_result when this function returns
   await gingee(async ($g) => {
@@ -311,17 +331,17 @@ module.exports = async function() {
     }
   });
 };
-`
+`,
     });
     // Mock AI provider — no external key; proves worker calls ai.initApp
-    app.config.ai = { type: 'mock', default_model: 'mock-1' };
-    app.grantedPermissions = ['ai'];
+    app.config.ai = { type: "mock", default_model: "mock-1" };
+    app.grantedPermissions = ["ai"];
 
-    const cfg = baseConfig({ apps: ['aibot'] });
+    const cfg = baseConfig({ apps: ["aibot"] });
     workerManager.init(
       cfg,
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      path.join(tmpRoot, 'web')
+      path.join(tmpRoot, "web"),
     );
     workerManager.setAppsRegistry({ aibot: app });
     await workerManager.startWorker(app, cfg);
@@ -330,56 +350,60 @@ module.exports = async function() {
     await workerManager.executeOnWorker({
       app,
       config: cfg,
-      req: { method: 'GET', url: '/aibot/chat', headers: { host: 'localhost' } },
+      req: {
+        method: "GET",
+        url: "/aibot/chat",
+        headers: { host: "localhost" },
+      },
       res,
-      scriptPath: path.join(app.appBoxPath, 'chat.js'),
+      scriptPath: path.join(app.appBoxPath, "chat.js"),
       routeParams: {},
-      maxBodySize: '1mb',
+      maxBodySize: "1mb",
       useCache: false,
-      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() }
+      logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn() },
     });
 
-    const raw = Buffer.concat(chunks).toString('utf8');
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw);
     expect(body.error).toBeUndefined();
     expect(res.statusCode).toBe(200);
     expect(body.text).toBeTruthy();
-    expect(body.provider).toBe('mock');
+    expect(body.provider).toBe("mock");
   }, 30000);
 
-  test('intentional stop does not auto-restart', async () => {
-    const app = writeApp(tmpRoot, 'demo', {
-      'hello.js': `
+  test("intentional stop does not auto-restart", async () => {
+    const app = writeApp(tmpRoot, "demo", {
+      "hello.js": `
 module.exports = async function() {
   gingee(async ($g) => {
     $g.response.send({ ok: true }, 200, 'application/json');
   });
 };
-`
+`,
     });
 
     const cfg = baseConfig({
-      apps: ['demo'],
-      restart_delay_ms: 50
+      apps: ["demo"],
+      restart_delay_ms: 50,
     });
     workerManager.init(
       cfg,
       { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
-      path.join(tmpRoot, 'web')
+      path.join(tmpRoot, "web"),
     );
     workerManager.setAppsRegistry({ demo: app });
     await workerManager.startWorker(app, cfg);
-    workerManager.stopWorker('demo');
+    workerManager.stopWorker("demo");
 
     await new Promise((r) => setTimeout(r, 300));
     const stats = workerManager.getWorkerStats();
-    expect(stats.find((s) => s.workerKey === 'app:demo')).toBeUndefined();
+    expect(stats.find((s) => s.workerKey === "app:demo")).toBeUndefined();
   }, 15000);
 
   // --- M4: request timeout cancels worker work ---
-  test('request timeout sends cancel_request and returns 504 without hanging', async () => {
-    const app = writeApp(tmpRoot, 'slow', {
-      'hang.js': `
+  test("request timeout sends cancel_request and returns 504 without hanging", async () => {
+    const app = writeApp(tmpRoot, "slow", {
+      "hang.js": `
 module.exports = async function() {
   gingee(async ($g) => {
     // Busy-wait longer than master request_timeout_ms
@@ -393,48 +417,52 @@ module.exports = async function() {
     $g.response.send({ late: true }, 200, 'application/json');
   });
 };
-`
+`,
     });
 
     const cfg = baseConfig({
-      apps: ['slow'],
+      apps: ["slow"],
       request_timeout_ms: 400,
-      kill_worker_on_request_timeout: false
+      kill_worker_on_request_timeout: false,
     });
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
-    workerManager.init(cfg, logger, path.join(tmpRoot, 'web'));
+    workerManager.init(cfg, logger, path.join(tmpRoot, "web"));
     workerManager.setAppsRegistry({ slow: app });
     await workerManager.startWorker(app, cfg);
 
-    const handle = workerManager._workers.get('app:slow');
+    const handle = workerManager._workers.get("app:slow");
     expect(handle).toBeTruthy();
-    const sendSpy = jest.spyOn(handle.child, 'send');
+    const sendSpy = jest.spyOn(handle.child, "send");
 
     const { res, chunks } = mockRes();
     await expect(
       workerManager.executeOnWorker({
         app,
         config: cfg,
-        req: { method: 'GET', url: '/slow/hang', headers: { host: 'localhost' } },
+        req: {
+          method: "GET",
+          url: "/slow/hang",
+          headers: { host: "localhost" },
+        },
         res,
-        scriptPath: path.join(app.appBoxPath, 'hang.js'),
+        scriptPath: path.join(app.appBoxPath, "hang.js"),
         routeParams: {},
-        maxBodySize: '1mb',
+        maxBodySize: "1mb",
         useCache: false,
-        logger
-      })
+        logger,
+      }),
     ).rejects.toThrow(/timed out/i);
 
     // Client got 504 from cancelWorkerRequest
     expect(res.statusCode).toBe(504);
     expect(res.end).toHaveBeenCalled();
-    const body = Buffer.concat(chunks).toString('utf8');
+    const body = Buffer.concat(chunks).toString("utf8");
     expect(body).toMatch(/GATEWAY_TIMEOUT|timed out/i);
 
     // Master sent cancel_request IPC
     const cancelMsgs = sendSpy.mock.calls
       .map((c) => c[0])
-      .filter((m) => m && m.type === 'cancel_request');
+      .filter((m) => m && m.type === "cancel_request");
     expect(cancelMsgs.length).toBeGreaterThanOrEqual(1);
     expect(cancelMsgs[0].requestId).toBeTruthy();
 
@@ -443,30 +471,34 @@ module.exports = async function() {
     sendSpy.mockRestore();
   }, 30000);
 
-  test('cancelWorkerRequest ends open response and marks cancelled id', () => {
+  test("cancelWorkerRequest ends open response and marks cancelled id", () => {
     const { res } = mockRes();
     const send = jest.fn();
     const handle = {
-      workerKey: 'app:test',
+      workerKey: "app:test",
       child: { send, killed: false, kill: jest.fn() },
       pending: new Map(),
-      streams: new Map([['rid-1', { res, started: false }]]),
-      cancelledIds: new Set()
+      streams: new Map([["rid-1", { res, started: false }]]),
+      cancelledIds: new Set(),
     };
     const timer = setTimeout(() => {}, 99999);
-    handle.pending.set('rid-1', { resolve: jest.fn(), reject: jest.fn(), timer });
+    handle.pending.set("rid-1", {
+      resolve: jest.fn(),
+      reject: jest.fn(),
+      timer,
+    });
 
-    workerManager.cancelWorkerRequest(handle, 'rid-1', {
+    workerManager.cancelWorkerRequest(handle, "rid-1", {
       timeoutMs: 1000,
-      reason: 'test cancel'
+      reason: "test cancel",
     });
 
     expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'cancel_request', requestId: 'rid-1' })
+      expect.objectContaining({ type: "cancel_request", requestId: "rid-1" }),
     );
-    expect(handle.pending.has('rid-1')).toBe(false);
-    expect(handle.streams.has('rid-1')).toBe(false);
-    expect(handle.cancelledIds.has('rid-1')).toBe(true);
+    expect(handle.pending.has("rid-1")).toBe(false);
+    expect(handle.streams.has("rid-1")).toBe(false);
+    expect(handle.cancelledIds.has("rid-1")).toBe(true);
     expect(res.statusCode).toBe(504);
     expect(res.end).toHaveBeenCalled();
     clearTimeout(timer);

@@ -13,10 +13,10 @@
  * Dedicated Glade host/port remains the strongest deployment isolation.
  */
 
-const { isHttpsRequest, SESSION_PATH } = require('./session_cookie.js');
+const { isHttpsRequest, SESSION_PATH } = require("./session_cookie.js");
 
-const CSRF_COOKIE_NAME = 'glade_csrf';
-const CSRF_HEADER_NAME = 'x-csrf-token';
+const CSRF_COOKIE_NAME = "glade_csrf";
+const CSRF_HEADER_NAME = "x-csrf-token";
 const CSRF_MAX_AGE_SEC = 28800; // align with session
 
 /**
@@ -25,8 +25,8 @@ const CSRF_MAX_AGE_SEC = 28800; // align with session
  * @returns {boolean}
  */
 function isUnsafeMethod(method) {
-  const m = String(method || 'GET').toUpperCase();
-  return m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS';
+  const m = String(method || "GET").toUpperCase();
+  return m !== "GET" && m !== "HEAD" && m !== "OPTIONS";
 }
 
 /**
@@ -34,8 +34,13 @@ function isUnsafeMethod(method) {
  * @returns {string}
  */
 function createCsrfToken(cryptoMod) {
-  if (!cryptoMod || typeof cryptoMod.generateSecureRandomString !== 'function') {
-    throw new Error('createCsrfToken requires crypto.generateSecureRandomString');
+  if (
+    !cryptoMod ||
+    typeof cryptoMod.generateSecureRandomString !== "function"
+  ) {
+    throw new Error(
+      "createCsrfToken requires crypto.generateSecureRandomString",
+    );
   }
   return cryptoMod.generateSecureRandomString(32);
 }
@@ -51,14 +56,14 @@ function createCsrfToken(cryptoMod) {
  */
 function buildCsrfCookieValue(opts) {
   const o = opts || {};
-  const value = o.value != null ? String(o.value) : '';
+  const value = o.value != null ? String(o.value) : "";
   const parts = [value];
   // Readable by Glade scripts under Path=/glade only — sibling apps cannot document.cookie this.
-  parts.push('SameSite=Strict');
+  parts.push("SameSite=Strict");
   parts.push(`Path=${SESSION_PATH}`);
   if (o.clear) {
-    parts.push('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
-    parts.push('Max-Age=0');
+    parts.push("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+    parts.push("Max-Age=0");
   } else {
     const maxAge =
       o.maxAgeSec != null && Number.isFinite(Number(o.maxAgeSec))
@@ -67,9 +72,9 @@ function buildCsrfCookieValue(opts) {
     parts.push(`Max-Age=${maxAge}`);
   }
   if (o.secure) {
-    parts.push('Secure');
+    parts.push("Secure");
   }
-  return parts.join('; ');
+  return parts.join("; ");
 }
 
 /**
@@ -82,7 +87,7 @@ function setCsrfCookie(token, request) {
     value: token,
     clear: false,
     secure: isHttpsRequest(request),
-    maxAgeSec: CSRF_MAX_AGE_SEC
+    maxAgeSec: CSRF_MAX_AGE_SEC,
   });
 }
 
@@ -92,9 +97,9 @@ function setCsrfCookie(token, request) {
  */
 function clearCsrfCookie(request) {
   return buildCsrfCookieValue({
-    value: 'cleared',
+    value: "cleared",
     clear: true,
-    secure: isHttpsRequest(request)
+    secure: isHttpsRequest(request),
   });
 }
 
@@ -106,7 +111,7 @@ function clearCsrfCookie(request) {
 function extractCsrfFromRequest(request) {
   if (!request) return null;
   const headers = request.headers || {};
-  const headerKeys = [CSRF_HEADER_NAME, 'X-CSRF-Token', 'x-csrf-token'];
+  const headerKeys = [CSRF_HEADER_NAME, "X-CSRF-Token", "x-csrf-token"];
   for (const k of headerKeys) {
     if (headers[k] != null && String(headers[k]).length > 0) {
       return String(headers[k]).trim();
@@ -114,12 +119,16 @@ function extractCsrfFromRequest(request) {
   }
   // Node lowercases headers
   for (const [k, v] of Object.entries(headers)) {
-    if (String(k).toLowerCase() === CSRF_HEADER_NAME && v != null && String(v).length > 0) {
+    if (
+      String(k).toLowerCase() === CSRF_HEADER_NAME &&
+      v != null &&
+      String(v).length > 0
+    ) {
       return String(v).trim();
     }
   }
   const body = request.body;
-  if (body && typeof body === 'object' && !Buffer.isBuffer(body)) {
+  if (body && typeof body === "object" && !Buffer.isBuffer(body)) {
     if (body._csrf != null && String(body._csrf).length > 0) {
       return String(body._csrf).trim();
     }
@@ -142,8 +151,8 @@ function extractCsrfFromRequest(request) {
  * @returns {boolean}
  */
 function timingSafeEqualString(a, b) {
-  const sa = String(a || '');
-  const sb = String(b || '');
+  const sa = String(a || "");
+  const sb = String(b || "");
   if (sa.length !== sb.length) return false;
   let out = 0;
   for (let i = 0; i < sa.length; i++) {
@@ -163,25 +172,29 @@ function timingSafeEqualString(a, b) {
  */
 function validateCsrf(request, sessionData) {
   const expected = sessionData && sessionData.csrfToken;
-  if (!expected || typeof expected !== 'string' || expected.length < 16) {
+  if (!expected || typeof expected !== "string" || expected.length < 16) {
     return {
       ok: false,
-      reason: 'CSRF_MISSING_SESSION',
-      message: 'Session has no CSRF token; re-login required.'
+      reason: "CSRF_MISSING_SESSION",
+      message: "Session has no CSRF token; re-login required.",
     };
   }
 
   const headers = (request && request.headers) || {};
   let headerToken = null;
   for (const [k, v] of Object.entries(headers)) {
-    if (String(k).toLowerCase() === CSRF_HEADER_NAME && v != null && String(v).length > 0) {
+    if (
+      String(k).toLowerCase() === CSRF_HEADER_NAME &&
+      v != null &&
+      String(v).length > 0
+    ) {
       headerToken = String(v).trim();
       break;
     }
   }
   const body = request && request.body;
   let bodyToken = null;
-  if (body && typeof body === 'object' && !Buffer.isBuffer(body)) {
+  if (body && typeof body === "object" && !Buffer.isBuffer(body)) {
     if (body._csrf != null) bodyToken = String(body._csrf).trim();
     else if (body.csrfToken != null) bodyToken = String(body.csrfToken).trim();
   }
@@ -196,23 +209,23 @@ function validateCsrf(request, sessionData) {
   if (!presented) {
     return {
       ok: false,
-      reason: 'CSRF_TOKEN_REQUIRED',
-      message: 'Missing X-CSRF-Token header for mutating request.'
+      reason: "CSRF_TOKEN_REQUIRED",
+      message: "Missing X-CSRF-Token header for mutating request.",
     };
   }
   if (!timingSafeEqualString(presented, expected)) {
     return {
       ok: false,
-      reason: 'CSRF_MISMATCH',
-      message: 'Invalid CSRF token.'
+      reason: "CSRF_MISMATCH",
+      message: "Invalid CSRF token.",
     };
   }
   // Optional: cookie should match when present (double-submit)
   if (cookieToken && !timingSafeEqualString(cookieToken, expected)) {
     return {
       ok: false,
-      reason: 'CSRF_COOKIE_MISMATCH',
-      message: 'CSRF cookie does not match session.'
+      reason: "CSRF_COOKIE_MISMATCH",
+      message: "CSRF cookie does not match session.",
     };
   }
   return { ok: true };
@@ -229,15 +242,20 @@ function validateCsrf(request, sessionData) {
 function resolveAllowedOrigins(request, appEnv) {
   const allowed = new Set();
   const host =
-    (request && request.headers && (request.headers.host || request.headers.Host)) ||
+    (request &&
+      request.headers &&
+      (request.headers.host || request.headers.Host)) ||
     request.hostname ||
     null;
   if (host) {
     const https = isHttpsRequest(request);
     // Trust x-forwarded-proto already via isHttpsRequest
-    allowed.add(`${https ? 'https' : 'http'}://${host}`);
+    allowed.add(`${https ? "https" : "http"}://${host}`);
     // Common local dev variants
-    if (String(host).startsWith('localhost') || String(host).startsWith('127.0.0.1')) {
+    if (
+      String(host).startsWith("localhost") ||
+      String(host).startsWith("127.0.0.1")
+    ) {
       allowed.add(`http://${host}`);
       allowed.add(`https://${host}`);
     }
@@ -248,13 +266,13 @@ function resolveAllowedOrigins(request, appEnv) {
     env.GLADE_ALLOWED_ORIGINS ||
     env.ALLOWED_ORIGINS ||
     env.glade_allowed_origins ||
-    '';
+    "";
   if (raw) {
     String(raw)
-      .split(',')
+      .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
-      .forEach((o) => allowed.add(o.replace(/\/$/, '')));
+      .forEach((o) => allowed.add(o.replace(/\/$/, "")));
   }
   return [...allowed];
 }
@@ -269,7 +287,7 @@ function extractRequestOrigin(request) {
   const headers = request.headers;
   const origin = headers.origin || headers.Origin;
   if (origin && String(origin).trim()) {
-    return String(origin).trim().replace(/\/$/, '');
+    return String(origin).trim().replace(/\/$/, "");
   }
   const referer = headers.referer || headers.Referer;
   if (referer) {
@@ -295,7 +313,7 @@ function validateOrigin(request, appEnv) {
   // No Origin/Referer: allow only if CSRF will still be enforced (browser fetch usually sends Origin).
   // Reject empty Origin when we cannot establish same-host — still ok for CSRF path.
   if (!presented) {
-    return { ok: true, reason: 'ORIGIN_ABSENT' };
+    return { ok: true, reason: "ORIGIN_ABSENT" };
   }
   const allowed = resolveAllowedOrigins(request, appEnv);
   if (allowed.includes(presented)) {
@@ -303,8 +321,8 @@ function validateOrigin(request, appEnv) {
   }
   return {
     ok: false,
-    reason: 'ORIGIN_MISMATCH',
-    message: `Origin not allowed for Glade admin: ${presented}`
+    reason: "ORIGIN_MISMATCH",
+    message: `Origin not allowed for Glade admin: ${presented}`,
   };
 }
 
@@ -345,5 +363,5 @@ module.exports = {
   resolveAllowedOrigins,
   extractRequestOrigin,
   validateOrigin,
-  assertMutatingRequestAllowed
+  assertMutatingRequestAllowed,
 };

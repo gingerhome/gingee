@@ -1,6 +1,6 @@
-const QRCode = require('qrcode');
-const JsBarcode = require('jsbarcode');
-const { loadOptional } = require('./internal_utils.js');
+const QRCode = require("qrcode");
+const JsBarcode = require("jsbarcode");
+const { loadOptional } = require("./internal_utils.js");
 
 /**
  * node-canvas is optional (used for 1D barcodes / some outputs).
@@ -8,9 +8,9 @@ const { loadOptional } = require('./internal_utils.js');
  */
 function getCreateCanvas() {
   const canvas = loadOptional(
-    () => require('canvas'),
-    'canvas',
-    'QR/barcode canvas rendering'
+    () => require("canvas"),
+    "canvas",
+    "QR/barcode canvas rendering",
   );
   return canvas.createCanvas;
 }
@@ -21,8 +21,8 @@ function getCreateCanvas() {
  */
 
 const OUTPUT_TYPES = {
-    BUFFER: 'buffer',
-    DATA_URL: 'dataurl'
+  BUFFER: "buffer",
+  DATA_URL: "dataurl",
 };
 
 /**
@@ -47,25 +47,25 @@ const OUTPUT_TYPES = {
  * console.log(qrCodeBuffer); // Outputs a Buffer of the QR code image
  */
 async function qrcode(text, options = {}) {
-    const finalOptions = {
-        output: OUTPUT_TYPES.BUFFER,
-        errorCorrectionLevel: 'medium',
-        margin: 4,
-        width: 200,
-        ...options,
-    };
+  const finalOptions = {
+    output: OUTPUT_TYPES.BUFFER,
+    errorCorrectionLevel: "medium",
+    margin: 4,
+    width: 200,
+    ...options,
+  };
 
-    const qrOptions = {
-        errorCorrectionLevel: finalOptions.errorCorrectionLevel,
-        margin: finalOptions.margin,
-        width: finalOptions.width,
-    };
+  const qrOptions = {
+    errorCorrectionLevel: finalOptions.errorCorrectionLevel,
+    margin: finalOptions.margin,
+    width: finalOptions.width,
+  };
 
-    if (finalOptions.output === OUTPUT_TYPES.DATA_URL) {
-        return QRCode.toDataURL(text, qrOptions);
-    }
-    // Default to buffer
-    return QRCode.toBuffer(text, qrOptions);
+  if (finalOptions.output === OUTPUT_TYPES.DATA_URL) {
+    return QRCode.toDataURL(text, qrOptions);
+  }
+  // Default to buffer
+  return QRCode.toBuffer(text, qrOptions);
 }
 
 /**
@@ -90,47 +90,46 @@ async function qrcode(text, options = {}) {
  * console.log(barcodeBuffer); // Outputs a Buffer of the barcode image
  */
 async function barcode(format, text, options = {}) {
-    const finalOptions = {
-        output: OUTPUT_TYPES.BUFFER,
-        width: 2,
-        height: 100,
-        displayValue: true,
-        ...options,
-    };
+  const finalOptions = {
+    output: OUTPUT_TYPES.BUFFER,
+    width: 2,
+    height: 100,
+    displayValue: true,
+    ...options,
+  };
 
-    const canvas = getCreateCanvas()(200, 200); // Initial canvas size, jsbarcode will resize if needed.
+  const canvas = getCreateCanvas()(200, 200); // Initial canvas size, jsbarcode will resize if needed.
 
-    // jsbarcode renders the barcode onto the canvas
-    JsBarcode(canvas, text, {
-        format: format,
-        width: finalOptions.width,
-        height: finalOptions.height,
-        displayValue: finalOptions.displayValue,
-    });
+  // jsbarcode renders the barcode onto the canvas
+  JsBarcode(canvas, text, {
+    format: format,
+    width: finalOptions.width,
+    height: finalOptions.height,
+    displayValue: finalOptions.displayValue,
+  });
 
-    if (finalOptions.output === OUTPUT_TYPES.DATA_URL) {
-        return canvas.toDataURL('image/png');
-    }
-    // Default to buffer
-    return canvas.toBuffer('image/png');
+  if (finalOptions.output === OUTPUT_TYPES.DATA_URL) {
+    return canvas.toDataURL("image/png");
+  }
+  // Default to buffer
+  return canvas.toBuffer("image/png");
 }
 
-
 module.exports = {
-    qrcode,
-    barcode,
-    /**
-     * @constant BUFFER
-     * @memberof module:qrcode
-     * @description Constant for Buffer output type.
-     * This constant can be used to specify that the output should be a Buffer.
-     */
-    BUFFER: OUTPUT_TYPES.BUFFER,
-    /**
-     * @constant DATA_URL
-     * @memberof module:qrcode
-     * @description Constant for Data URL output type.
-     * This constant can be used to specify that the output should be a Data URL.
-     */
-    DATA_URL: OUTPUT_TYPES.DATA_URL,
+  qrcode,
+  barcode,
+  /**
+   * @constant BUFFER
+   * @memberof module:qrcode
+   * @description Constant for Buffer output type.
+   * This constant can be used to specify that the output should be a Buffer.
+   */
+  BUFFER: OUTPUT_TYPES.BUFFER,
+  /**
+   * @constant DATA_URL
+   * @memberof module:qrcode
+   * @description Constant for Data URL output type.
+   * This constant can be used to specify that the output should be a Data URL.
+   */
+  DATA_URL: OUTPUT_TYPES.DATA_URL,
 };

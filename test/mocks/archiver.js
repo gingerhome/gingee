@@ -29,7 +29,7 @@ function createInstance() {
     },
     pointer() {
       return 0;
-    }
+    },
   };
   return instance;
 }
@@ -45,7 +45,7 @@ const archiver = {
   ZipArchive,
   Archiver: ZipArchive,
   TarArchive: ZipArchive,
-  JsonArchive: ZipArchive
+  JsonArchive: ZipArchive,
 };
 
 module.exports = archiver;
