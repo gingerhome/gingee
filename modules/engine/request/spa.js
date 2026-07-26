@@ -5,11 +5,16 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const {
+  resolveConfinedPath,
+  isInsideAppWeb,
+  isInsideAppBox
+} = require('./path_confine.js');
 
 /**
  * Handle SPA when no script target matched.
+ * Build / asset / fallback paths are confined to app.appWebPath (never box).
  * @returns {object} `{ handled: boolean, filePath: string|undefined }` —
  *   handled=true means response already sent (or handed to proxy).
  *   filePath set means treat as static asset under SPA build path.
@@ -37,16 +42,41 @@ function handleSpa(opts) {
     return { handled: true };
   }
 
-  // Production: static asset under build or index fallback
-  const buildPath = path.resolve(app.appWebPath, app.config.spa.build_path || './dist');
-  const assetPath = path.join(buildPath, ...urlParts.slice(1));
+  // Production: build_path must stay under app web root
+  const buildPath = resolveConfinedPath(
+    app.appWebPath,
+    app.config.spa.build_path || 'dist'
+  );
+  if (!buildPath) {
+    logger.error(
+      `[SPA] App '${appName}' spa.build_path escapes app web root; refusing to serve.`
+    );
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('INTERNAL SERVER ERROR - SPA app misconfigured (build_path).');
+    return { handled: true };
+  }
 
-  if (fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
+  const assetPath = resolveConfinedPath(buildPath, urlParts.slice(1));
+  if (
+    assetPath &&
+    isInsideAppWeb(assetPath, app.appWebPath) &&
+    !isInsideAppBox(assetPath, app.appBoxPath) &&
+    fs.existsSync(assetPath) &&
+    fs.statSync(assetPath).isFile()
+  ) {
     return { handled: false, filePath: assetPath };
   }
 
-  const fallbackPath = path.resolve(buildPath, app.config.spa.fallback_path || 'index.html');
-  if (fs.existsSync(fallbackPath)) {
+  const fallbackPath = resolveConfinedPath(
+    buildPath,
+    app.config.spa.fallback_path || 'index.html'
+  );
+  if (
+    fallbackPath &&
+    isInsideAppWeb(fallbackPath, app.appWebPath) &&
+    !isInsideAppBox(fallbackPath, app.appBoxPath) &&
+    fs.existsSync(fallbackPath)
+  ) {
     res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
     fs.createReadStream(fallbackPath).pipe(res);
     return { handled: true };

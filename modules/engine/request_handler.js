@@ -24,6 +24,11 @@ const {
 const { handleSpa } = require('./request/spa.js');
 const { serveStaticFile, serveDirectoryOr404 } = require('./request/static.js');
 const { runServerScript } = require('./request/script_runner.js');
+const {
+  resolveConfinedPath,
+  isInsideAppBox,
+  isInsideAppWeb
+} = require('./request/path_confine.js');
 
 /**
  * @param {object} deps
@@ -88,6 +93,7 @@ function createRequestHandler(deps) {
           maxBodySize: config.max_body_size
         },
         async () => {
+          // Early string check (fast path); resolved-path checks below are authoritative.
           if (req.url.includes(`/${appName}/box`)) {
             res.writeHead(403, { 'Content-Type': 'text/plain' });
             res.end('ACCESS_DENIED');
@@ -98,7 +104,20 @@ function createRequestHandler(deps) {
           const canCompress =
             config.content_encoding.enabled && acceptEncoding.includes('gzip');
 
-          let filePath = path.join(webPath, ...urlParts);
+          // Static / directory paths are confined to this app's WEB root only.
+          // Reject `..` and any resolve that leaves appWebPath (C1 path traversal).
+          let filePath = resolveConfinedPath(app.appWebPath, urlParts.slice(1));
+          if (!filePath) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('ACCESS_DENIED');
+            return;
+          }
+          // Never serve files under box/ as static content
+          if (isInsideAppBox(filePath, app.appBoxPath)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('ACCESS_DENIED');
+            return;
+          }
 
           const defaultCacheConfig = {
             client: { enabled: false, no_cache_regex: [] },
@@ -121,10 +140,30 @@ function createRequestHandler(deps) {
               logger
             });
             if (spaResult.handled) return;
-            if (spaResult.filePath) filePath = spaResult.filePath;
+            if (spaResult.filePath) {
+              // Double-check SPA asset confinement
+              if (
+                !isInsideAppWeb(spaResult.filePath, app.appWebPath) ||
+                isInsideAppBox(spaResult.filePath, app.appBoxPath)
+              ) {
+                res.writeHead(403, { 'Content-Type': 'text/plain' });
+                res.end('ACCESS_DENIED');
+                return;
+              }
+              filePath = spaResult.filePath;
+            }
           }
 
           if (!targetScriptPath && path.extname(filePath)) {
+            // Final static gate (SPA may have replaced filePath)
+            if (
+              !isInsideAppWeb(filePath, app.appWebPath) ||
+              isInsideAppBox(filePath, app.appBoxPath)
+            ) {
+              res.writeHead(403, { 'Content-Type': 'text/plain' });
+              res.end('ACCESS_DENIED');
+              return;
+            }
             const headers = {};
             await serveStaticFile({
               req,
@@ -136,6 +175,16 @@ function createRequestHandler(deps) {
               logger,
               headers
             });
+            return;
+          }
+
+          // Script path already confined in resolveScriptTarget; re-check before execute
+          if (
+            targetScriptPath &&
+            !isInsideAppBox(targetScriptPath, app.appBoxPath)
+          ) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('ACCESS_DENIED');
             return;
           }
 
@@ -154,6 +203,16 @@ function createRequestHandler(deps) {
           });
           if (ran) return;
 
+          // Directory listing / index only for confined web paths
+          if (
+            !filePath ||
+            !isInsideAppWeb(filePath, app.appWebPath) ||
+            isInsideAppBox(filePath, app.appBoxPath)
+          ) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('ACCESS_DENIED');
+            return;
+          }
           serveDirectoryOr404(res, filePath, urlWithoutQuery, queryString);
         }
       );

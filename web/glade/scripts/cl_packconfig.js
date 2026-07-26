@@ -1,6 +1,17 @@
 
 // This module exports functions to handle the client-side installation wizard.
 const InstallerWizard = (() => {
+    const esc =
+        typeof GladeEscape !== 'undefined' && GladeEscape.escapeHtml
+            ? GladeEscape.escapeHtml
+            : function (s) {
+                  return String(s == null ? '' : s)
+                      .replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#39;');
+              };
 
     const PERMISSION_DESCRIPTIONS = {
         "cache": "Allows the app to use the caching service for storing and retrieving data.",
@@ -26,68 +37,90 @@ const InstallerWizard = (() => {
         return { appJson, pmft };
     }
 
+    function renderPermissionCheckbox(p, mandatory) {
+        const key = String(p == null ? '' : p);
+        const safeKey = esc(key);
+        // id must be HTML-id safe; keep only safe chars for id (value still uses full escaped key for form)
+        const idSafe = key.replace(/[^a-zA-Z0-9_-]/g, '_') || 'perm';
+        const desc = esc(PERMISSION_DESCRIPTIONS[key] || '');
+        const checkedDisabled = mandatory ? ' checked disabled' : '';
+        const kind = mandatory ? 'Mandatory' : 'Optional';
+        return `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${safeKey}" id="perm-install-${esc(idSafe)}"${checkedDisabled}>
+                        <label class="form-check-label" for="perm-install-${esc(idSafe)}"><strong>${safeKey}</strong> (${kind}): ${desc}</label>
+                    </div>`;
+    }
+
+    function renderDbFieldInputs(dbReq, index) {
+        const safeName = esc(dbReq.name);
+        return Object.keys(dbReq)
+            .filter((k) => k !== 'name' && k !== 'type')
+            .map((key) => {
+                const safeKey = esc(key);
+                const isPassword = key === 'password';
+                const inputType = isPassword ? 'password' : 'text';
+                const rawVal = isPassword ? '' : dbReq[key] != null ? String(dbReq[key]) : '';
+                const safeVal = esc(rawVal);
+                const placeholder = esc(key.charAt(0).toUpperCase() + key.slice(1));
+                return `
+                        <div class="mb-2">
+                            <label class="form-label-sm">${placeholder}:</label>
+                            <input type="${inputType}" class="form-control form-control-sm" data-db-index="${index}" data-db-name="${safeName}" name="${safeKey}" placeholder="${placeholder}" value="${safeVal}">
+                        </div>`;
+            })
+            .join('');
+    }
+
     function renderWizardTabs(panes, appJson, pmft) {
         const { permsPane, dbPane, confirmPane } = panes;
 
         // Render Permissions Tab
-        const mandatoryPerms = pmft.permissions.mandatory || [];
-        const optionalPerms = pmft.permissions.optional || [];
-        permsPane.innerHTML = (mandatoryPerms.length > 0 || optionalPerms.length > 0) ? `
+        const mandatoryPerms = (pmft.permissions && pmft.permissions.mandatory) || [];
+        const optionalPerms = (pmft.permissions && pmft.permissions.optional) || [];
+        permsPane.innerHTML =
+            mandatoryPerms.length > 0 || optionalPerms.length > 0
+                ? `
             <p class="text-muted">Review the permissions requested by this application. Mandatory permissions are pre-selected.</p>
             <div id="permissions-form-glade">
-                ${mandatoryPerms.map(p => `
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="${p}" id="perm-install-${p}" checked disabled>
-                        <label class="form-check-label" for="perm-install-${p}"><strong>${p}</strong> (Mandatory): ${PERMISSION_DESCRIPTIONS[p] || ''}</label>
-                    </div>`).join('')}
-                ${optionalPerms.map(p => `
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="${p}" id="perm-install-${p}">
-                        <label class="form-check-label" for="perm-install-${p}"><strong>${p}</strong> (Optional): ${PERMISSION_DESCRIPTIONS[p] || ''}</label>
-                    </div>`).join('')}
-            </div>` : '<p>This application requires no special permissions.</p>';
+                ${mandatoryPerms.map((p) => renderPermissionCheckbox(p, true)).join('')}
+                ${optionalPerms.map((p) => renderPermissionCheckbox(p, false)).join('')}
+            </div>`
+                : '<p>This application requires no special permissions.</p>';
 
         // Render Database Tab
         const dbConnections = appJson.db || [];
         if (dbConnections.length === 0) {
             dbPane.innerHTML = '<p>This application does not require any special configuration.</p>';
         } else if (dbConnections.length === 1) {
-            // If there is only one connection, render the simple view.
             const dbReq = dbConnections[0];
             dbPane.innerHTML = `
                 <p class="text-muted">Please provide or confirm the database connection details for your server.</p>
                 <div class="p-2 border rounded mb-2">
-                    <p class="mb-1"><strong>Connection:</strong> ${dbReq.name} (Type: ${dbReq.type})</p>
-                    ${Object.keys(dbReq).filter(k => k !== 'name' && k !== 'type').map(key => `
-                        <div class="mb-2">
-                            <input type="${key === 'password' ? 'password' : 'text'}" class="form-control form-control-sm" data-db-index="0" data-db-name="${dbReq.name}" name="${key}" placeholder="${key.charAt(0).toUpperCase() + key.slice(1)}" value="${key === 'password' ? '' : (dbReq[key] || '')}">
-                        </div>
-                    `).join('')}
+                    <p class="mb-1"><strong>Connection:</strong> ${esc(dbReq.name)} (Type: ${esc(dbReq.type)})</p>
+                    ${renderDbFieldInputs(dbReq, 0)}
                 </div>`;
         } else {
-            // If there are multiple connections, render the accordion.
             dbPane.innerHTML = `
                 <p class="text-muted">This application requires multiple database connections. Please configure each one.</p>
                 <div class="accordion" id="db-config-accordion">
-                    ${dbConnections.map((dbReq, index) => `
+                    ${dbConnections
+                        .map(
+                            (dbReq, index) => `
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="heading-${index}">
                                 <button class="accordion-button ${index > 0 ? 'collapsed' : ''}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${index}">
-                                    Connection #${index + 1}: ${dbReq.name} (${dbReq.type})
+                                    Connection #${index + 1}: ${esc(dbReq.name)} (${esc(dbReq.type)})
                                 </button>
                             </h2>
                             <div id="collapse-${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" data-bs-parent="#db-config-accordion">
                                 <div class="accordion-body">
-                                    ${Object.keys(dbReq).filter(k => k !== 'name' && k !== 'type').map(key => `
-                                        <div class="mb-2">
-                                            <label class="form-label-sm">${key.charAt(0).toUpperCase() + key.slice(1)}:</label>
-                                            <input type="${key === 'password' ? 'password' : 'text'}" class="form-control form-control-sm" data-db-index="${index}" data-db-name="${dbReq.name}" name="${key}" placeholder="${key}" value="${key === 'password' ? '' : (dbReq[key] || '')}">
-                                        </div>
-                                    `).join('')}
+                                    ${renderDbFieldInputs(dbReq, index)}
                                 </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        </div>`
+                        )
+                        .join('')}
                 </div>`;
         }
 
@@ -96,8 +129,8 @@ const InstallerWizard = (() => {
             <h4>Ready to Install</h4>
             <p>Please review the details below. Clicking the final confirmation button will begin the installation process.</p>
             <div class="alert alert-info">
-                <strong>App:</strong> ${appJson.name} (v${appJson.version})<br>
-                <strong>Description:</strong> <em>${appJson.description}</em>
+                <strong>App:</strong> ${esc(appJson.name)} (v${esc(appJson.version)})<br>
+                <strong>Description:</strong> <em>${esc(appJson.description)}</em>
             </div>
         `;
     }
@@ -108,8 +141,9 @@ const InstallerWizard = (() => {
         originalDbConfig.forEach((dbReq, index) => {
             const newConfig = { ...dbReq };
             const inputs = document.querySelectorAll(`#install-modal-body [data-db-index="${index}"]`);
-            inputs.forEach(input => {
-                if (input.value || input.name === 'password') { // Always include password field even if empty
+            inputs.forEach((input) => {
+                if (input.value || input.name === 'password') {
+                    // Always include password field even if empty
                     newConfig[input.name] = input.value;
                 }
             });
