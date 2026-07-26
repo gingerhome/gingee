@@ -46,7 +46,7 @@ These are the core architectural features that define the Gingee development exp
     Server scripts can stream progressive output (for example Server-Sent Events for AI tokens) via `$g.response.startStream()`, `write()` / `writeSSE()`, and `endStream()`, without exposing Node’s raw response object to the sandbox.
 
 *   **CRON Scheduler**
-    Apps declare recurring jobs in `app.json` → `schedules` (script path under `box/` or absolute external URL). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`); enable it on **one** node in multi-server deployments. Requires the `scheduler` permission (and `httpclient` for URL targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
+    Apps declare recurring jobs in `app.json` → `schedules` (script, URL, or **queue** handoff). The in-process scheduler is **off by default** (`gingee.json` → `scheduler.enabled`). Multi-server: enable on one node, **or** set `scheduler.coordination.driver: "redis"` with sibling `scheduler.redis` (same connection shape as queue/cache) so every node can enable the scheduler with single-fire locks (or global leader). Requires the `scheduler` permission (`httpclient` for URL; `queue` for queue targets). Overlap policy is skip; jobs are skipped while the app is in maintenance.
 
 *   **Request & Outbound Limits**
     Process-wide and per-app **concurrency caps**, **request wall-clock timeouts**, **stream idle/hard timeouts**, and default **`httpclient` outbound timeouts** (`gingee.json` → `limits`). Overload returns **503**; request budget expiry returns **504**. Apps may only tighten limits in `app.json`.

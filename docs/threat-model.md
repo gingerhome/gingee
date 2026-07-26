@@ -100,7 +100,7 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 | **Privileged apps** | `privileged_apps` + restricted `platform` / engine modules | Anyone who can edit `gingee.json` is root-equivalent for the platform |
 | **Permission consent** | `pmft.json` + Glade / CLI + `settings/permissions.json` | Human factor; over-grant is common under time pressure |
 | **Request / outbound limits** | `limits` (concurrency, timeouts) | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin |
-| **Scheduler gate** | `scheduler.enabled` default off; one-node ops model | Prevents multi-node double-fire; does not prove job code is safe |
+| **Scheduler gate** | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
 | **Explicit high-risk capabilities** | `httpclient`, `email`, `ai`, `scheduler`, `platform` | Once granted, full capability within that API |
 
 ### 6.2 Soft sandbox reality (`gbox`)
@@ -201,7 +201,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 4. Set **`limits`** appropriately; do not disable timeouts without a reason.
 4b. Keep **`metrics`** scrape ACL localhost-only (or private scrape network); never leave `/metrics` open on a public bind without proxy ACL + optional `bearer_token`.
 4c. Retain **`audit`** JSONL (and rotate/archive with host log policy) for permission and lifecycle changes.
-5. Keep **`scheduler.enabled`** false except on the designated scheduler node.
+5. Keep **`scheduler.enabled`** false except on the designated scheduler node, **or** enable on all nodes with `scheduler.coordination.driver: "redis"` and shared `scheduler.redis` (NTP-aligned clocks recommended).
 6. Prefer **Redis** for cache when running more than one node.
 7. Put TLS at reverse proxy or Gingee HTTPS; do not expose Glade to the public internet without strong auth and network restriction.
 8. Treat **`app.json` secrets** as sensitive; restrict backups and who can download `.gin` exports.

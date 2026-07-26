@@ -16,8 +16,29 @@ describe('engine/config', () => {
     const d = buildDefaultConfig();
     expect(d.server.http.port).toBe(7070);
     expect(d.scheduler.enabled).toBe(false);
+    expect(d.scheduler.coordination.driver).toBe('none');
+    expect(d.scheduler.coordination.strategy).toBe('tick');
+    expect(d.scheduler.redis.key_prefix).toBe('gingee:scheduler:');
     expect(d.metrics.allow_from).toEqual(expect.arrayContaining(['127.0.0.1']));
     expect(d.privileged_apps).toContain('glade');
+  });
+
+  test('mergeUserConfig deep-merges scheduler.redis sibling (queue/cache pattern)', () => {
+    const merged = mergeUserConfig(buildDefaultConfig(), {
+      scheduler: {
+        enabled: true,
+        coordination: {
+          driver: 'redis'
+        },
+        redis: { url: 'redis://127.0.0.1:6379', key_prefix: 'g:s:' }
+      }
+    });
+    expect(merged.scheduler.enabled).toBe(true);
+    expect(merged.scheduler.coordination.driver).toBe('redis');
+    expect(merged.scheduler.coordination.strategy).toBe('tick');
+    expect(merged.scheduler.redis.url).toBe('redis://127.0.0.1:6379');
+    expect(merged.scheduler.redis.key_prefix).toBe('g:s:');
+    expect(merged.scheduler.redis.port).toBe(6379);
   });
 
   test('mergeUserConfig deep-merges server and egress lists from user', () => {

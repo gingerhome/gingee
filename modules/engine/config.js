@@ -52,10 +52,26 @@ function buildDefaultConfig() {
       // (e.g. Handlebars) load. Host process is still blocked. Set false for stricter lockdown.
       allow_code_generation: true
     },
-    // Scheduler is off by default. Enable on at most one node in multi-server deployments.
+    // Scheduler is off by default. Multi-node: coordination.driver "redis" + sibling redis (like queue).
     scheduler: {
       enabled: false,
-      timezone: 'UTC'
+      timezone: 'UTC',
+      coordination: {
+        driver: 'none',
+        strategy: 'tick',
+        lock_ttl_ms: 300000,
+        slot_granularity_ms: 10000,
+        node_id: null
+      },
+      // Same connection field set as queue.redis / cache.redis (used when coordination.driver is redis).
+      redis: {
+        url: null,
+        host: '127.0.0.1',
+        port: 6379,
+        password: null,
+        db: 0,
+        key_prefix: 'gingee:scheduler:'
+      }
     },
     // Request/outbound timeouts and concurrency (app.json limits may only tighten these).
     limits: { ...limits.DEFAULTS },
@@ -106,7 +122,23 @@ function mergeUserConfig(defaultConfig, userConfig) {
       }
     },
     box: { ...defaultConfig.box, ...uc.box },
-    scheduler: { ...defaultConfig.scheduler, ...(uc.scheduler || {}) },
+    scheduler: {
+      ...defaultConfig.scheduler,
+      ...(uc.scheduler || {}),
+      coordination: {
+        ...(defaultConfig.scheduler.coordination || {}),
+        ...((uc.scheduler && uc.scheduler.coordination) || {})
+      },
+      // Sibling redis block (queue/cache pattern). Also merge legacy coordination.redis if present.
+      redis: {
+        ...((defaultConfig.scheduler && defaultConfig.scheduler.redis) || {}),
+        ...((uc.scheduler &&
+          uc.scheduler.coordination &&
+          uc.scheduler.coordination.redis) ||
+          {}),
+        ...((uc.scheduler && uc.scheduler.redis) || {})
+      }
+    },
     limits: { ...defaultConfig.limits, ...(uc.limits || {}) },
     egress: {
       ...defaultConfig.egress,

@@ -6,6 +6,11 @@ const { als } = require('./gingee.js');
 const { runInGBox } = require('./gbox.js');
 const { isPathInside } = require('./internal_utils.js');
 const egress = require('./egress.js');
+const {
+  normalizeCoordination,
+  COORDINATION_DEFAULTS,
+  RedisCoordinator
+} = require('./scheduler_coordination.js');
 
 const engineRoot = path.resolve(__dirname, '..');
 
@@ -15,28 +20,40 @@ const engineRoot = path.resolve(__dirname, '..');
  * Time-based job runner for Gingee apps (declarative schedules in `app.json`).
  *
  * <b>Server gate:</b> `gingee.json` → `scheduler.enabled` (default <code>false</code>).
- * Only enable on one node in multi-server deployments.
+ *
+ * <b>Multi-node:</b> set <code>scheduler.coordination.driver: "redis"</code> and configure
+ * sibling <code>scheduler.redis</code> (same shape as queue.redis / cache.redis) so only one
+ * node runs each occurrence (tick locks) or only the elected leader runs jobs
+ * (strategy <code>leader</code>). Without coordination, enable the scheduler on at most one
+ * node for script/url targets (or use queue targets with redis queue).
  *
  * <b>App config:</b> `app.json` → `schedules` array. Each job needs a unique `name`, a
- * `cron` expression, and a `target` of type <code>script</code> (path relative to `box/`)
- * or <code>url</code> (absolute http/https URL).
+ * `cron` expression, and a `target` of type <code>script</code>, <code>url</code>, or
+ * <code>queue</code>.
  *
  * <b>Permissions:</b> App must be granted <code>scheduler</code> to register any jobs.
- * URL targets also require <code>httpclient</code>.
+ * URL targets also require <code>httpclient</code>; queue targets also require <code>queue</code>.
  *
  * <b>Defaults:</b> overlap = skip, misfire = skip, timezone from job or server default (UTC).
  *
  * This module is engine-internal (not for sandboxed app <code>require</code> in v1).
  */
 
-/** @type {{ enabled: boolean, timezone: string }} */
-let serverConfig = { enabled: false, timezone: 'UTC' };
+/** @type {{ enabled: boolean, timezone: string, coordination: object }} */
+let serverConfig = {
+  enabled: false,
+  timezone: 'UTC',
+  coordination: normalizeCoordination(COORDINATION_DEFAULTS)
+};
 
 /** @type {object|null} */
 let serverLogger = null;
 
 /** @type {object|null} */
 let globalConfigRef = null;
+
+/** @type {import('./scheduler_coordination.js').RedisCoordinator|null} */
+let coordinator = null;
 
 /**
  * appName → Map(jobName → jobRuntime)
@@ -392,10 +409,31 @@ async function executeUrlJob(app, job) {
 }
 
 /**
+ * @private
+ * @param {string} appName
+ * @param {string} status
+ */
+function incRunMetric(appName, status) {
+  try {
+    const metrics = require('./metrics.js');
+    metrics.inc('gingee_scheduler_job_runs_total', {
+      app: appName,
+      status
+    });
+  } catch (_) {
+    /* metrics optional */
+  }
+}
+
+/**
  * Run a single job once (shared by CRON tick and tests).
+ * @param {object} app
+ * @param {object} runtime
+ * @param {{ force?: boolean }} [opts] - force skips multi-node coordination (admin / tests)
  * @private
  */
-async function runJob(app, runtime) {
+async function runJob(app, runtime, opts) {
+  const force = opts && opts.force === true;
   const job = runtime.def;
   const logger = app.logger || log();
 
@@ -405,15 +443,7 @@ async function runJob(app, runtime) {
     );
     runtime.lastStatus = 'skipped_maintenance';
     runtime.lastError = null;
-    try {
-      const metrics = require('./metrics.js');
-      metrics.inc('gingee_scheduler_job_runs_total', {
-        app: app.name,
-        status: 'skipped_maintenance'
-      });
-    } catch (_) {
-      /* ignore */
-    }
+    incRunMetric(app.name, 'skipped_maintenance');
     return;
   }
 
@@ -422,16 +452,41 @@ async function runJob(app, runtime) {
       `[scheduler] Skipping job '${job.name}' for app '${app.name}': previous run still in progress (overlap=skip).`
     );
     runtime.lastStatus = 'skipped_overlap';
-    try {
-      const metrics = require('./metrics.js');
-      metrics.inc('gingee_scheduler_job_runs_total', {
-        app: app.name,
-        status: 'skipped_overlap'
-      });
-    } catch (_) {
-      /* ignore */
-    }
+    incRunMetric(app.name, 'skipped_overlap');
     return;
+  }
+
+  // Multi-node coordination (Redis tick lock or global leader). Fail-closed on Redis errors.
+  if (!force && coordinator && coordinator.enabled()) {
+    const decision = await coordinator.tryAllowRun({
+      appName: app.name,
+      jobName: job.name,
+      runtime
+    });
+    if (!decision.allow) {
+      const status =
+        decision.reason === 'redis_error'
+          ? 'skipped_coord_error'
+          : decision.reason === 'not_leader'
+            ? 'skipped_not_leader'
+            : 'skipped_coordination';
+      runtime.lastStatus = status;
+      runtime.lastError =
+        decision.reason === 'redis_error'
+          ? decision.detail || 'redis error'
+          : null;
+      if (decision.reason === 'redis_error') {
+        logger.error(
+          `[scheduler] Skipping job '${job.name}' for app '${app.name}': coordination Redis error (${decision.detail || 'unknown'}). Fail-closed.`
+        );
+      } else {
+        logger.info(
+          `[scheduler] Skipping job '${job.name}' for app '${app.name}': another node holds the schedule (${decision.reason}).`
+        );
+      }
+      incRunMetric(app.name, status);
+      return;
+    }
   }
 
   const scheduledAt = new Date().toISOString();
@@ -476,15 +531,7 @@ async function runJob(app, runtime) {
     );
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
-    try {
-      const metrics = require('./metrics.js');
-      metrics.inc('gingee_scheduler_job_runs_total', {
-        app: app.name,
-        status: runtime.lastStatus || 'unknown'
-      });
-    } catch (_) {
-      /* metrics optional */
-    }
+    incRunMetric(app.name, runtime.lastStatus || 'unknown');
   }
 
   // Wait for underlying work to settle so overlap protection stays accurate.
@@ -554,13 +601,37 @@ function initServer(config, logger, globalConfig) {
   serverLogger = logger || console;
   globalConfigRef = globalConfig || null;
   const c = config && typeof config === 'object' && !Array.isArray(config) ? config : {};
+  // Full scheduler section: coordination.driver + sibling redis (queue/cache pattern)
+  const coordination = normalizeCoordination(c);
   serverConfig = {
     enabled: c.enabled === true,
-    timezone: (c.timezone && String(c.timezone).trim()) || 'UTC'
+    timezone: (c.timezone && String(c.timezone).trim()) || 'UTC',
+    coordination: {
+      driver: coordination.driver,
+      strategy: coordination.strategy,
+      lock_ttl_ms: coordination.lock_ttl_ms,
+      slot_granularity_ms: coordination.slot_granularity_ms,
+      node_id: coordination.node_id
+    },
+    redis: { ...coordination.redis }
   };
+
+  // Tear down previous coordinator (tests / re-init)
+  if (coordinator) {
+    coordinator.shutdown().catch(() => {});
+    coordinator = null;
+  }
+  if (coordination.driver === 'redis') {
+    coordinator = new RedisCoordinator(coordination, log());
+  }
+
   if (serverConfig.enabled) {
+    const coordMsg =
+      coordination.driver === 'redis'
+        ? ` coordination.driver=redis strategy=${coordination.strategy} node=${coordination.node_id} prefix=${coordination.redis.key_prefix}`
+        : ' coordination.driver=none (enable on at most one node for script/url multi-server)';
     log().info(
-      `[scheduler] Enabled (default timezone: ${serverConfig.timezone}). Jobs will register from app.json schedules.`
+      `[scheduler] Enabled (default timezone: ${serverConfig.timezone}).${coordMsg} Jobs will register from app.json schedules.`
     );
   } else {
     log().info(
@@ -686,6 +757,10 @@ function shutdown() {
   for (const appName of [...appJobs.keys()]) {
     unregisterApp(appName);
   }
+  if (coordinator) {
+    coordinator.shutdown().catch(() => {});
+    coordinator = null;
+  }
   log().info('[scheduler] Shutdown complete.');
 }
 
@@ -719,6 +794,7 @@ function listJobs() {
 
 /**
  * Force-run a registered job (tests / future admin "Run now").
+ * Bypasses multi-node coordination so an operator can always trigger a run.
  * @param {string} appName
  * @param {string} jobName
  */
@@ -731,7 +807,7 @@ async function runNow(appName, jobName) {
   if (!runtime.app) {
     throw new Error(`Internal error: runtime missing app for '${appName}/${jobName}'.`);
   }
-  await runJob(runtime.app, runtime);
+  await runJob(runtime.app, runtime, { force: true });
 }
 
 /**
@@ -751,9 +827,32 @@ function _resetForTests() {
     }
     appJobs.delete(appName);
   }
-  serverConfig = { enabled: false, timezone: 'UTC' };
+  if (coordinator) {
+    coordinator.shutdown().catch(() => {});
+    coordinator = null;
+  }
+  serverConfig = {
+    enabled: false,
+    timezone: 'UTC',
+    coordination: {
+      driver: COORDINATION_DEFAULTS.driver,
+      strategy: COORDINATION_DEFAULTS.strategy,
+      lock_ttl_ms: COORDINATION_DEFAULTS.lock_ttl_ms,
+      slot_granularity_ms: COORDINATION_DEFAULTS.slot_granularity_ms,
+      node_id: null
+    },
+    redis: null
+  };
   serverLogger = null;
   globalConfigRef = null;
+}
+
+/**
+ * Inject a coordinator (unit tests). Pass null to clear.
+ * @private
+ */
+function _setCoordinatorForTests(c) {
+  coordinator = c;
 }
 
 module.exports = {
@@ -767,6 +866,10 @@ module.exports = {
   // private test helpers
   _normalizeSchedule: normalizeSchedule,
   _resetForTests,
-  _getServerConfig: () => ({ ...serverConfig }),
-  _runJob: runJob
+  _getServerConfig: () => ({
+    ...serverConfig,
+    coordination: { ...serverConfig.coordination }
+  }),
+  _runJob: runJob,
+  _setCoordinatorForTests
 };

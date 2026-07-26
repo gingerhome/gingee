@@ -21,6 +21,7 @@
 	"cache": {
 		"provider": "redis",
 		"redis": {
+			"url": "env:REDIS_URL",
 			"host": "127.0.0.1",
 			"port": 6379,
 			"password": null
@@ -37,7 +38,20 @@
 	},
 	"scheduler": {
 		"enabled": false,
-		"timezone": "UTC"
+		"timezone": "UTC",
+		"coordination": {
+			"driver": "redis",
+			"strategy": "tick",
+			"lock_ttl_ms": 300000
+		},
+		"redis": {
+			"url": "env:REDIS_URL",
+			"host": "127.0.0.1",
+			"port": 6379,
+			"password": null,
+			"db": 0,
+			"key_prefix": "gingee:scheduler:"
+		}
 	},
 	"limits": {
 		"request_timeout_ms": 30000,
@@ -107,7 +121,7 @@
 		"default_backoff_ms": 1000,
 		"jobs_dir": "jobs",
 		"redis": {
-			"url": null,
+			"url": "env:REDIS_URL",
 			"host": "127.0.0.1",
 			"port": 6379,
 			"password": null,

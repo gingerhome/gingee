@@ -16,8 +16,9 @@ This phase is focused on adding major new modules that unlock entirely new categ
     -   **Done:** Master HTTP upgrade (`ws`), per-app `app.json` handler/auth, `require('websockets')` rooms/broadcast, `websockets` permission, connection limits, metrics, tenant room helpers, sample app **`ginchat`**.
     -   **Later:** Redis fan-out for multi-node, optional isolation bridge, Glade connection admin UI.
 
--   **CRON Scheduler** *(v1 shipped: declarative `app.json` schedules; server gate `scheduler.enabled` default off)*
-    -   **Next:** Redis leader election for multi-node, runtime API / “Run now” in Glade, optional handoff to `queue`.
+-   **CRON Scheduler** *(v1 + Redis coordination shipped)*
+    -   **Done:** Declarative `app.json` schedules; server gate `scheduler.enabled` (default off); targets script/url/queue; **Redis multi-node coordination** (`coordination.driver: "redis"` + sibling `scheduler.redis` like queue/cache; strategies `tick` / `leader`, fail-closed).
+    -   **Next:** Runtime API / “Run now” in Glade, richer schedule admin.
 
 -   **Job Queues & Background Processing (`queue` Module)** *(v1 + Glade DLQ shipped)*
     -   **Done:** `require('queue').add`, memory + redis drivers, concurrency, retries/backoff, `$g.queue`, CRON `target.type: "queue"`, metrics, **DLQ**, **Glade** top-nav **Queue / DLQ** (list, filter, retry with fresh attempts, discard).

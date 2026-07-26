@@ -34,7 +34,17 @@ Here is a comprehensive breakdown of all available properties.
   },
   "scheduler": {
     "enabled": false,
-    "timezone": "UTC"
+    "timezone": "UTC",
+    "coordination": {
+      "driver": "none",
+      "strategy": "tick"
+    },
+    "redis": {
+      "host": "127.0.0.1",
+      "port": 6379,
+      "password": null,
+      "key_prefix": "gingee:scheduler:"
+    }
   },
   "limits": {
     "request_timeout_ms": 30000,
@@ -157,10 +167,34 @@ An object that configures the HTTP and HTTPS servers.
   - **Example:** `"prefix": "my-prod-gingee:"`
 
 - **`cache.redis`** (object, optional):
-  - **Description:** Contains the connection details, used only when `provider` is set to `"redis"`.
-  - **`host`** (string): The hostname or IP address of your Redis server.
-  - **`port`** (number): The port of your Redis server.
-  - **`password`** (string | null): The password for your Redis server, or `null` if none is set.
+  - **Description:** Connection details used only when `provider` is `"redis"`. **Same field set as `queue.redis` / `scheduler.redis`.**
+  - **`url`** (string, optional): Redis URL (literal or `env:` / `file:` secret ref). When set, used instead of host/port.
+  - **`host`** / **`port`** / **`password`** / **`db`**: Classic connection fields (defaults `127.0.0.1` / `6379` / none / `0`).
+
+```json
+"cache": {
+  "provider": "redis",
+  "prefix": "gingee:",
+  "redis": {
+    "url": "env:REDIS_URL"
+  }
+}
+```
+
+Or without a URL:
+
+```json
+"cache": {
+  "provider": "redis",
+  "prefix": "gingee:",
+  "redis": {
+    "host": "127.0.0.1",
+    "port": 6379,
+    "password": null,
+    "db": 0
+  }
+}
+```
 
 ### email
 
@@ -189,10 +223,52 @@ An object that configures the HTTP and HTTPS servers.
   - **Default:** `false`
   - When `false`, this node does **not** register or fire any schedules (safe default for multi-server load-balanced fleets).
   - When `true`, this node registers schedules for all installed apps that have the `scheduler` permission and valid `schedules` entries.
-  - **Multi-server:** for `"script"` / `"url"` targets, enable on **at most one** node. For `"queue"` targets with a shared Redis queue, every node may run the scheduler **or** only one — jobs still process once via the queue.
+  - **Multi-server without coordination:** for `"script"` / `"url"` targets, enable on **at most one** node. For `"queue"` targets with a shared Redis queue, every node may run the scheduler **or** only one — workers still process each enqueued job once (enqueue may multi-fire without coordination).
+  - **Multi-server with Redis coordination:** set `coordination.driver: "redis"` and configure sibling **`scheduler.redis`** (same connection shape as `queue.redis` / `cache.redis`); enable the scheduler on **every** node — only one node runs each occurrence.
 - **`timezone`** (string, optional):
   - **Default:** `"UTC"`
   - Default IANA timezone for jobs that omit `timezone` in `app.json`.
+- **`coordination`** (object, optional): multi-node single-fire policy (does **not** hold Redis connection fields — those live on sibling **`redis`**, matching queue/cache).
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `driver` | `"none"` | `"none"` (ops designates one scheduler node) or `"redis"` (distributed coordination). Same idea as `queue.driver` / `cache.provider`. |
+| `strategy` | `"tick"` | **`tick`**: per app+job+fire-slot lock (recommended HA). **`leader`**: one global leader lease; only the leader runs any schedule. |
+| `lock_ttl_ms` | `300000` | Lock / leader lease TTL (ms). Leader renews at ~ttl/3. |
+| `slot_granularity_ms` | `10000` | Tick slot bucket when planned fire time is unavailable (absorbs small clock skew). |
+| `node_id` | `hostname:pid` | Identity stored in Redis lock values. |
+
+- **`redis`** (object, optional): connection details used when `coordination.driver` is `"redis"`. **Same fields as `queue.redis` / `cache.redis`.**
+
+| Key | Default | Meaning |
+| :--- | :--- | :--- |
+| `url` | `null` | Redis URL (e.g. `env:REDIS_URL`). When set, used instead of host/port. |
+| `host` / `port` / `password` / `db` | `127.0.0.1` / `6379` / `null` / `0` | Classic connection fields. |
+| `key_prefix` | `"gingee:scheduler:"` | Namespace for lock keys (use a dedicated prefix; do not share `gingee:queue:`). |
+
+```json
+"scheduler": {
+  "enabled": true,
+  "timezone": "UTC",
+  "coordination": {
+    "driver": "redis",
+    "strategy": "tick",
+    "lock_ttl_ms": 300000
+  },
+  "redis": {
+    "url": "env:REDIS_URL",
+    "key_prefix": "gingee:scheduler:"
+  }
+}
+```
+
+**Behavior notes:**
+
+- Coordination is **fail-closed**: if Redis is down, the job is **skipped** (`skipped_coord_error`) rather than double-firing.
+- Admin **Run now** / internal `force` runs **bypass** coordination so operators can always trigger a job.
+- Metrics status labels include `skipped_coordination`, `skipped_not_leader`, `skipped_coord_error` on `gingee_scheduler_job_runs_total`.
+- Prefer **`strategy: "tick"`** for fleets; use **`leader`** when you want a single active scheduler process with automatic failover.
+- Legacy `coordination.mode` / nested `coordination.redis` still merge for compatibility; prefer `driver` + sibling `redis`.
 
 ### limits
 
