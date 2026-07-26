@@ -41,7 +41,8 @@ The file contains a single `permissions` object with two keys: `mandatory` and `
       "email",
       "ai",
       "scheduler",
-      "websockets"
+      "websockets",
+      "queue"
     ]
   }
 }
