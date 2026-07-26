@@ -1490,7 +1490,18 @@ async function listQueueDlq(opts) {
  */
 async function retryQueueDlqJob(jobId) {
   if (!jobId) throw new Error('jobId is required');
-  return queueService.retryDlqJob(String(jobId));
+  const id = String(jobId);
+  const result = await queueService.retryDlqJob(id);
+  audit.emit(
+    'queue.dlq.retry',
+    {
+      jobId: id,
+      jobName: result && result.name != null ? result.name : null,
+      maxAttempts: result && result.maxAttempts != null ? result.maxAttempts : null
+    },
+    { app: result && result.appName != null ? result.appName : null }
+  );
+  return result;
 }
 
 /**
@@ -1500,7 +1511,28 @@ async function retryQueueDlqJob(jobId) {
  */
 async function discardQueueDlqJob(jobId) {
   if (!jobId) throw new Error('jobId is required');
-  return queueService.discardDlqJob(String(jobId));
+  const id = String(jobId);
+  // Capture app/job name before discard removes the record
+  let meta = null;
+  try {
+    if (typeof queueService.getDlqJob === 'function') {
+      meta = await queueService.getDlqJob(id);
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  const ok = await queueService.discardDlqJob(id);
+  if (ok) {
+    audit.emit(
+      'queue.dlq.discard',
+      {
+        jobId: id,
+        jobName: meta && meta.name != null ? meta.name : null
+      },
+      { app: meta && meta.appName != null ? meta.appName : null }
+    );
+  }
+  return ok;
 }
 
 /**
@@ -1516,15 +1548,25 @@ function listLogFiles(opts) {
   if (o.scope === 'app' || (o.appName != null && String(o.appName).trim())) {
     o.appName = assertSafeAppName(String(o.appName).trim());
   }
-  return logViewer.listLogFiles({
+  const result = logViewer.listLogFiles({
     ...o,
     projectRoot,
     webPath
   });
+  audit.emit(
+    'logs.list',
+    {
+      scope: result.scope || o.scope || 'server',
+      fileCount: Array.isArray(result.files) ? result.files.length : 0
+    },
+    { app: result.appName || o.appName || null }
+  );
+  return result;
 }
 
 /**
  * Tail-read a log file (privileged / Glade).
+ * Does not write log line content into the audit trail (metadata only).
  * @param {object} [opts]
  * @returns {object}
  */
@@ -1534,11 +1576,25 @@ function readLogFile(opts) {
   if (o.scope === 'app' || (o.appName != null && String(o.appName).trim())) {
     o.appName = assertSafeAppName(String(o.appName).trim());
   }
-  return logViewer.readLogFile({
+  const result = logViewer.readLogFile({
     ...o,
     projectRoot,
     webPath
   });
+  audit.emit(
+    'logs.read',
+    {
+      scope: result.scope || o.scope || 'server',
+      file: result.file || o.file || null,
+      level: result.level || o.level || null,
+      lineCountReturned: result.lineCountReturned != null ? result.lineCountReturned : null,
+      lineCountRequested: result.lineCountRequested != null ? result.lineCountRequested : null,
+      engineOnly: !!result.engineOnly,
+      hideLogQueries: result.hideLogQueries !== false
+    },
+    { app: result.appName || o.appName || null }
+  );
+  return result;
 }
 
 /**
@@ -1579,7 +1635,24 @@ async function runSchedulerJob(appName, jobName) {
   if (!appName) throw new Error('appName is required');
   if (!jobName) throw new Error('jobName is required');
   appName = assertSafeAppName(String(appName));
-  return scheduler.runNow(appName, String(jobName));
+  const name = String(jobName);
+  const result = await scheduler.runNow(appName, name);
+  audit.emit(
+    'scheduler.run_now',
+    {
+      jobName: name,
+      force: true,
+      lastStatus: result && result.lastStatus != null ? result.lastStatus : null,
+      lastError:
+        result && result.lastError != null
+          ? String(result.lastError).slice(0, 500)
+          : null,
+      lastStartedAt: result && result.lastStartedAt != null ? result.lastStartedAt : null,
+      lastFinishedAt: result && result.lastFinishedAt != null ? result.lastFinishedAt : null
+    },
+    { app: appName }
+  );
+  return result;
 }
 
 module.exports = {

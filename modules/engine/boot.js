@@ -46,8 +46,8 @@ async function startServer(options) {
   // Initialize the app logger factory with the main server logger instance.
   appLogger.init(logger);
 
-  // Initialize the cache service as configured, else fall back to in-memory cache
-  await cache.init(config.cache, logger);
+  // Cache: redis is fail-closed by default (cache.fail_closed); set false only for dev fallback
+  await cache.init(config.cache || {}, logger);
 
   // Server-level email defaults (optional); per-app email is initialized in initializeApps
   email.initServer(config.email, logger);

@@ -2,7 +2,7 @@
  * @module audit
  * @description
  * Append-only JSONL audit trail for privileged platform actions
- * (permissions changes and app lifecycle).
+ * (permissions, app lifecycle, queue DLQ, scheduler run-now, log access).
  *
  * <b>Config:</b> <code>gingee.json</code> → <code>audit</code>
  *

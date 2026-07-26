@@ -61,7 +61,7 @@ These are the core architectural features that define the Gingee development exp
     Engine-scoped `/metrics` (default) in Prometheus text format for scrapes. Default **localhost-only** (`metrics.allow_from`); optional bearer token. Series cover HTTP scripts, concurrency rejects, egress denials, scheduler runs, WebSocket upgrades/connections/fan-out, queue/DLQ counters, and process gauges—not cross-app data APIs for untrusted code.
 
 -   **Audit Trail:**
-    Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants and app lifecycle (install, upgrade, reload, delete, rollback). Complements application request logs.
+    Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants, app lifecycle (install, upgrade, reload, delete, rollback), scheduler Run now, queue DLQ retry/discard, and log list/read metadata. Complements application request logs.
 
 -   **Optional feature packages:**
     Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.

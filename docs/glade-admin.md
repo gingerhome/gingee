@@ -169,7 +169,16 @@ State legend: **running** / **waiting** = this node; **pending** / **delayed** =
 
 ### Audit trail (server-side)
 
-Glade actions that change permissions or app lifecycle (install, upgrade, reload, rollback, uninstall, permission save) are recorded by the **engine** in an append-only JSONL audit log. By default this is `logs/audit.jsonl` relative to the project root (`gingee.json` → `audit`). Each line includes timestamp, event name, actor (typically `glade`), target app, and details (for example previous vs granted permissions). This is separate from application request logs—see [Server Config](./server-config.md) → `audit`.
+Glade actions are recorded by the **engine** in an append-only JSONL audit log. By default this is `logs/audit.jsonl` relative to the project root (`gingee.json` → `audit`). Each line includes timestamp, event name, actor (typically `glade`), target app when applicable, and details.
+
+Covered events include:
+
+- Permissions and app lifecycle (install, upgrade, reload, rollback, uninstall, permission save)
+- **Schedules → Run now** (`scheduler.run_now`)
+- **Queue / DLQ** retry and discard (`queue.dlq.retry`, `queue.dlq.discard`)
+- **Logs** list and read (`logs.list`, `logs.read` — metadata only; log line bodies are not copied into the audit file)
+
+This is separate from application request logs—see [Server Config](./server-config.md) → `audit`.
 
 ## Administration & Security
 

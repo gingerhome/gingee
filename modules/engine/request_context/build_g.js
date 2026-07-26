@@ -217,7 +217,15 @@ function attachHttpContext(store) {
     },
 
     request: (req) => {
-      const isHttps = req.connection.encrypted;
+      // Direct TLS (socket) or reverse-proxy forwarded proto (first hop)
+      const sockEncrypted = !!(
+        (req.socket && req.socket.encrypted) ||
+        (req.connection && req.connection.encrypted)
+      );
+      const xf = req.headers && (req.headers['x-forwarded-proto'] || req.headers['X-Forwarded-Proto']);
+      const forwardedHttps =
+        xf && String(xf).split(',')[0].trim().toLowerCase() === 'https';
+      const isHttps = sockEncrypted || forwardedHttps;
       const protocol = isHttps ? 'https' : 'http';
       const fullUrl = new URL(req.url, `${protocol}://${req.headers.host}`);
 

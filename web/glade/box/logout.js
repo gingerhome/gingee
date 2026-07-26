@@ -1,21 +1,21 @@
-module.exports = async function() {
-    gingee(async ($g) => {
-        const cacheService = require('cache_service');
+module.exports = async function () {
+  gingee(async ($g) => {
+    const cacheService = require('cache_service');
+    const sessionCookie = require('./session_cookie.js');
 
-        try {
-            const sessionId = $g.request.cookies.sessionId;
-            if (sessionId) {
-                await cacheService.del(`session:${sessionId}`);
-            }
+    try {
+      const sessionId = $g.request.cookies.sessionId;
+      if (sessionId) {
+        await cacheService.del(`session:${sessionId}`);
+      }
 
-            // Also clear the cookie on the browser by setting an expired one.
-            // This is a good practice for immediate logout.
-            $g.response.cookies.sessionId = 'loggedout; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
-            
-            $g.response.send({ status: 'success', message: 'Logged out successfully.' });
-        } catch(err) {
-            $g.log.error('Error during logout:', { error: err.message });
-            $g.response.send({ error: 'Logout failed.' }, 500);
-        }
-    });
+      // Clear cookie with the same Path (/glade) and Secure flag as login so the browser removes it.
+      $g.response.cookies.sessionId = sessionCookie.clearSessionCookie($g.request);
+
+      $g.response.send({ status: 'success', message: 'Logged out successfully.' });
+    } catch (err) {
+      $g.log.error('Error during logout:', { error: err.message });
+      $g.response.send({ error: 'Logout failed.' }, 500);
+    }
+  });
 };

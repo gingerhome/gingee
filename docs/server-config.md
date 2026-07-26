@@ -162,6 +162,11 @@ An object that configures the HTTP and HTTPS servers.
     - `"memory"`: Uses a fast, dependency-free, in-process memory cache. Perfect for local development or single-node deployments. This cache is cleared on every server restart.
     - `"redis"`: Uses an external Redis server, enabling a shared, distributed cache for multi-node, horizontally-scaled deployments.
 
+- **`cache.fail_closed`** (boolean, optional):
+
+  - **Default:** `true` when `provider` is `"redis"`; ignored for memory.
+  - **Description:** If Redis cannot be reached at boot and `fail_closed` is **true**, **server startup fails** (no silent in-process memory cache). Set to **`false`** only for local convenience — multi-node deployments would otherwise get **node-local sessions** and split-brain cache.
+
 - **`cache.prefix`** (string, optional):
 
   - **Description:** A global prefix that will be prepended to all cache keys. This is highly recommended when using a shared Redis instance to prevent key collisions with other applications.
@@ -175,6 +180,7 @@ An object that configures the HTTP and HTTPS servers.
 ```json
 "cache": {
   "provider": "redis",
+  "fail_closed": true,
   "prefix": "gingee:",
   "redis": {
     "url": "env:REDIS_URL"
@@ -371,7 +377,7 @@ curl -s http://127.0.0.1:7070/metrics
 ### audit
 
 - **Type:** `object` (optional)
-- **Description:** Append-only **JSONL** audit trail for privileged platform actions: permission changes and app lifecycle (install, upgrade, reload, delete, rollback, register). Written by the engine when Glade / `platform` APIs mutate state—not request-level access logs.
+- **Description:** Append-only **JSONL** audit trail for privileged platform actions. Written by the engine when Glade / `platform` APIs mutate state or access sensitive ops data—not full request-level access logs.
 
 | Key | Default | Meaning |
 | :--- | :--- | :--- |
@@ -386,10 +392,20 @@ Each line is one JSON object, for example:
 
 | Field | Meaning |
 | :--- | :--- |
-| `event` | Stable name: `permission.set`, `app.install`, `app.upgrade`, `app.reload`, `app.delete`, `app.rollback`, `app.register` |
+| `event` | Stable event name (see table below) |
 | `actor` | Privileged app that performed the action when available; otherwise `system` |
-| `app` | Target application name |
-| `details` | Event-specific payload (previous/granted permissions, versions, etc.) |
+| `app` | Target application name (when applicable) |
+| `details` | Event-specific payload (no raw log line bodies) |
+
+| Event | When |
+| :--- | :--- |
+| `permission.set` | Permissions saved for an app |
+| `app.install` / `app.upgrade` / `app.reload` / `app.delete` / `app.rollback` / `app.register` | App lifecycle |
+| `scheduler.run_now` | Glade **Run now** (force schedule; bypasses multi-node coordination) |
+| `queue.dlq.retry` | DLQ job re-enqueued |
+| `queue.dlq.discard` | DLQ job discarded |
+| `logs.list` | Log file list (scope + count) |
+| `logs.read` | Log file tail/read (file name, filters, line counts — **not** line content) |
 
 ### isolation
 
@@ -563,16 +579,24 @@ Same connection shape as **queue.redis** / **scheduler.redis** / **cache.redis**
 | `default_attempts` | `3` | Retries after handler failure (exponential backoff). |
 | `default_backoff_ms` | `1000` | Base delay between retries. |
 | `jobs_dir` | `"jobs"` | Default folder under `box/` for job scripts. |
+| `visibility_timeout_ms` | `300000` | **Redis only:** claim lease (ms). If a worker dies mid-job, the claim is reclaimed after this and the job returns to the ready list. Long handlers should finish within this window (lease is refreshed when processing starts). |
+| `shutdown_drain_ms` | `30000` | Graceful shutdown: stop claiming, return local wait-queue claims to the driver, wait up to this many ms for in-flight jobs, then force-release remaining claims and disconnect. |
+| `fail_closed` | `true` | When `driver` is `"redis"` and Redis is unreachable at boot: **`true`** aborts queue init (server boot fails) — no silent memory fallback. Set **`false`** only for local dev (multi-node would otherwise split jobs across node-local memory queues). |
 | `redis` | see defaults | `url` or `host`/`port`/`password`/`db`/`key_prefix` when `driver` is `redis`. |
 
 ```json
 "queue": {
   "enabled": true,
   "driver": "redis",
+  "fail_closed": true,
   "concurrency": 10,
+  "visibility_timeout_ms": 300000,
+  "shutdown_drain_ms": 30000,
   "redis": { "url": "env:REDIS_URL", "key_prefix": "gingee:queue:" }
 }
 ```
+
+**Redis durability notes:** Jobs use a ready list + delayed ZSET + **processing ZSET** (visibility leases). Claims are leased; crash/OOM of a node reclaims expired leases. Graceful process exit drains local wait/active claims back to Redis so other nodes can run them. **Fail-closed** is the default for redis driver so a dead Redis cannot silently partition the fleet onto per-node memory queues. Memory driver is still process-local and not crash-durable.
 
 **App (`app.json` optional):**
 
@@ -606,7 +630,9 @@ await queue.add('echo', { hello: true }, { delayMs: 0, attempts: 3 });
 
 **Metrics:** `gingee_queue_jobs_enqueued_total`, `_completed_total`, `_failed_total`, `_retried_total`, `gingee_queue_dlq_total` / `_retry_total` / `_discard_total`, histogram `gingee_queue_job_duration_seconds`.
 
-**Admin (Glade):** top menu **Queue / DLQ** — **Live jobs** (running/waiting on this node + pending/delayed in the driver; optional auto-refresh) and **DLQ** (retry/discard). App filter (3+ letters). APIs: `getQueueStats` / `listQueueLiveJobs` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (`/glade/api/queue-*`). Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared.
+**Admin (Glade):** top menu **Queue / DLQ** — **Live jobs** (running/waiting on this node + pending/delayed/processing in the driver; optional auto-refresh) and **DLQ** (retry/discard). App filter (3+ letters). APIs: `getQueueStats` / `listQueueLiveJobs` / `listQueueDlq` / `retryQueueDlqJob` / `discardQueueDlqJob` (`/glade/api/queue-*`). Memory live+DLQ is process-local; Redis pending/delayed/DLQ are shared.
+
+**DLQ atomicity (Redis):** discard and retry use **Lua scripts** so concurrent Glade/admin actions cannot double-enqueue or delete a live job hash that is not on the DLQ. Memory driver claims DLQ entries synchronously (no await between check and remove) before re-enqueue.
 
 ### Optional npm feature packages
 
