@@ -6,9 +6,7 @@
 
 [**See AI Disclaimer**](./docs/ai-disclaimer.md)
 
-The objective of the project is to validate the feasibility of GenAI in platform/framework level programming as opposed to generating simplistic applications and in the process be the world's first AI authored and human co-authored production ready application server. To ensure full transparency, a key part of the development has been the meticulous recording of the chat transcript. You can find the link to the transcript below
-
-**[Chat Transcript](https://gingerhome.github.io/gingee-docs/docs/ai-transcript/index.html)** - Click here to see the full AI chat transcript from start of this project till date|
+The objective of the project is to validate the feasibility of GenAI in platform/framework level programming as opposed to generating simplistic applications and in the process be the world's first AI authored and human co-authored production ready application server.
 
 **What is Gingee?**
 
@@ -148,8 +146,8 @@ Gingee is licensed under the **MIT License**. See the `LICENSE` file for details
 | Role            | Contributor                                                  |
 | :-------------- | :----------------------------------------------------------- |
 | **Ideation**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
-| **Author**      | [Google Gemini](https://deepmind.google/models/gemini/pro/)  |
+| **Author**      | AI Provider                                                  |
 | **Co-Author**   | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
 | **Tester**      | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |
-| **Tech Writer** | [Google Gemini](https://deepmind.google/models/gemini/pro/)  |
+| **Tech Writer** | AI Provider                                                  |
 | **Reviewer**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/) |

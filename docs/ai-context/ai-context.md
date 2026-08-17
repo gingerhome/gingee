@@ -143,7 +143,7 @@ You are encouraged to adopt this same powerful workflow. The key is to provide t
 **How to Start an AI-Assisted App Development Session:**
 
 1.  **Get the Context:** Locate the `ai-context.md` file in the project's `docs/ai-context` directory.
-2.  **Prime the AI:** Begin a new session with a capable AI (like Google Gemini) by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called Gingee. Analyze the following documentation and API reference and be prepared to help me build an application."
+2.  **Prime the AI:** Begin a new session with a capable AI Provider by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called Gingee. Analyze the following documentation and API reference and be prepared to help me build an application."
 3.  **Give it a Task:** Once the AI has processed the context, you can give it high-level, goal-oriented tasks, and it will generate high-quality, idiomatic Gingee code.
 
 
@@ -2833,7 +2833,7 @@ Gingee was co-authored with a Generative AI, and you can leverage this same powe
 
 1.  **Get the Context File:** Locate the pre-built `docs/ai-context/ai-context.md` file in the Gingee repo. This file contains all the core concepts and API references of Gingee that an AI needs.
 
-2.  **Start a New Chat:** Open a new session with a capable coding AI partner (like Google Gemini).
+2.  **Start a New Chat:** Open a new session with a capable coding AI Provider.
 
 3.  **Use the Priming Prompt:** Your very first message should be to upload or paste the **entire contents** of the `ai-context.md` file, preceded by this simple instruction:
 

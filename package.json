@@ -1,6 +1,6 @@
 {
   "name": "gingee",
-  "version": "1.0.4",
+  "version": "1.5.0",
   "description": "Gingee, a secure, batteries included, feature rich, multi-database, enterprise ready application server, co-authored by a human architect and a Generative AI partner.",
   "main": "gingee.js",
   "scripts": {
@@ -39,10 +39,9 @@
     "multi-database",
     "enterprise"
   ],
-  "author": "Google Gemini (Developer, Test Writer, Tech Writer), Grok (Developer, Test Writer, Tech Writer), Vignesh Swaminathan (Architect, Tester, Reviewer)",
+  "author": "AI Provider (Developer, Test Writer, Tech Writer), Vignesh Swaminathan (Architect, Tester, Reviewer)",
   "contributors": [
-    "Google Gemini (GenAI Partner)",
-    "Grok (GenAI Partner)",
+    "AI Provider (GenAI Partner)",
     "Vignesh Swaminathan (Human Architect, Reviewer, Tester)"
   ],
   "license": "MIT",
@@ -51,7 +50,7 @@
   },
   "genai": {
     "methodology": "Dialog-Driven Development",
-    "partner": "Google Gemini",
+    "partner": "AI Provider",
     "workflow": "See ai-disclaimer.md for details on the human-AI collaborative process."
   },
   "dependencies": {

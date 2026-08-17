@@ -143,8 +143,8 @@ Gingee is licensed under the **MIT License**. See the `LICENSE` file for details
 | Role            | Contributor                                                         |
 | :-------------- | :------------------------------------------------------------------ |
 | **Ideation**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/)        |
-| **Author**      | [Google Gemini 2.5 Pro](https://deepmind.google/models/gemini/pro/) |
+| **Author**      | AI Provider                                                         |
 | **Co-Author**   | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/)        |
 | **Tester**      | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/)        |
-| **Tech Writer** | [Google Gemini 2.5 Pro](https://deepmind.google/models/gemini/pro/) |
+| **Tech Writer** | AI Provider                                                         |
 | **Reviewer**    | [Vignesh Swaminathan](https://www.linkedin.com/in/vigneshs/)        |

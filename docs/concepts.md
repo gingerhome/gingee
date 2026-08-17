@@ -134,5 +134,5 @@ You are encouraged to adopt this same powerful workflow. The key is to provide t
 **How to Start an AI-Assisted App Development Session:**
 
 1.  **Get the Context:** Locate the `ai-context.md` file in the project's `docs/ai-context` directory.
-2.  **Prime the AI:** Begin a new session with a capable AI (like Google Gemini) by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called Gingee. Analyze the following documentation and API reference and be prepared to help me build an application."
+2.  **Prime the AI:** Begin a new session with a capable AI Provider by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called Gingee. Analyze the following documentation and API reference and be prepared to help me build an application."
 3.  **Give it a Task:** Once the AI has processed the context, you can give it high-level, goal-oriented tasks, and it will generate high-quality, idiomatic Gingee code.

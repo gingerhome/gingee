@@ -397,7 +397,7 @@ Gingee was co-authored with a Generative AI, and you can leverage this same powe
 
 1.  **Get the Context File:** Locate the pre-built `docs/ai-context/ai-context.md` file in the Gingee repo. This file contains all the core concepts and API references of Gingee that an AI needs.
 
-2.  **Start a New Chat:** Open a new session with a capable coding AI partner (like Google Gemini).
+2.  **Start a New Chat:** Open a new session with a capable coding AI Provider.
 
 3.  **Use the Priming Prompt:** Your very first message should be to upload or paste the **entire contents** of the `ai-context.md` file, preceded by this simple instruction:
 
