@@ -71,29 +71,26 @@ module.exports = async function () {
 
 #### Module overrides from middleware (optional, permission-gated)
 
-With the **`module_override`** permission, middleware may rebind a **granted** protected module for the rest of the request so later scripts still write `require('fs')` but load an app box wrapper:
+With **`module_override`**, middleware may rebind require specifiers for the rest of the request (protected bare names, other bare names, relative or box-root paths). The replacement script must live under the app **box**. Nested `require` inside that script uses normal gbox jailing; the override map is not re-applied so wrappers can load the real platform module.
 
 ```javascript
 // box/middleware/fs_policy.js — listed in app.json default_include
 module.exports = async function () {
   await gingee(async ($g) => {
-    // Path of the *main* script relative to box/ (set by the engine)
     const rel = String($g.boxRelativeScript || "");
     if (rel.startsWith("sandboxed/")) {
-      // Requires permission module_override; target module (fs) still needs grant
+      // Only module_override required to install; real fs still needs fs if the wrapper uses it
       $g.overrideModule("fs", "library/fswrapper.js");
+      $g.overrideModule("crypto", "library/crypto_wrap.js");
+      // Prefer box-relative map keys for relative requires
+      $g.overrideModule("sandboxed/helper", "library/helper_wrap.js");
+      $g.overrideModule("shared/bare_util", "library/bare_util_wrap.js");
     }
   });
 };
 ```
 
-| Piece | Role |
-| :--- | :--- |
-| `$g.boxRelativeScript` | Main handler path under `box/` (e.g. `sandboxed/run.js`) |
-| `$g.overrideModule(name, boxPath)` | Map protected name → box-relative script for this request |
-| Wrapper’s `require('fs')` | Real platform module (override target loads with overrides disabled) |
-
-See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and sample app **`web/appsandboxtest/`**.
+See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and **`web/appsandboxtest/`**.
 
 ### 3. Startup Scripts (Initialization)
 

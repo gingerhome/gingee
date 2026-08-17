@@ -50,13 +50,15 @@ function initializeGContext(store) {
   }
 
   /**
-   * Redirect a protected module name for the remainder of this request.
-   * Requires the **module_override** permission. App middleware may map e.g. 'fs'
-   * → any box-relative script path. The target module must still be permission-granted
-   * at require() time. Override loads use applyModuleOverrides: false (no recursion).
+   * Redirect a require specifier for the remainder of this request.
+   * Requires **module_override** only (no extra grant for the overridden name).
+   * Specifiers: protected bare names (e.g. fs), other bare names (e.g. crypto, url),
+   * relative paths (./x), or box-root paths (lib/x). Target path must be under the app box.
+   * Restricted / engine / forbidden names cannot be overridden.
+   * Override target loads with applyModuleOverrides: false (nested require = normal jailing).
    *
-   * @param {string} moduleName - e.g. 'fs'
-   * @param {string} boxRelativePath - path under the app box (app-defined layout)
+   * @param {string} moduleName - require specifier to intercept
+   * @param {string} boxRelativePath - replacement script under the app box
    */
   store.$g.overrideModule = function overrideModule(moduleName, boxRelativePath) {
     const granted =
@@ -70,10 +72,33 @@ function initializeGContext(store) {
     if (!moduleName || boxRelativePath == null || boxRelativePath === '') {
       throw new Error('overrideModule(moduleName, boxRelativePath) requires both arguments');
     }
+    const name = String(moduleName).replace(/\\/g, '/');
+    const norm = name.startsWith('node:') ? name.slice(5) : name;
+    // Keep in sync with gbox isNonOverridableSpecifier (restricted / engine / host-dangerous).
+    // Bare 'fs' is the Gingee module and is overridable; only host forms (node:fs, fs/promises)
+    // are blocked — do not treat bare names as node:<name>.
+    const blocked = new Set([
+      'gingee', 'gbox', 'gdev', 'gapp-start', 'cache_service', 'internal_utils',
+      'platform', 'scheduler', 'limits', 'egress', 'secrets', 'metrics', 'audit',
+      'child_process', 'cluster', 'worker_threads', 'vm', 'v8', 'module', 'inspector',
+      'repl', 'fs/promises', 'node:fs', 'node:fs/promises', 'node:child_process',
+      'node:vm', 'node:worker_threads', 'node:module', 'node:inspector'
+    ]);
+    if (
+      blocked.has(name) ||
+      blocked.has(norm) ||
+      norm === 'engine' ||
+      norm.startsWith('engine/')
+    ) {
+      throw new Error(
+        `Security Error: require('${moduleName}') cannot be overridden (restricted or forbidden).`
+      );
+    }
     if (!store.moduleOverrides) {
       store.moduleOverrides = Object.create(null);
     }
-    store.moduleOverrides[String(moduleName)] = String(boxRelativePath).replace(/\\/g, '/');
+    // Store under the key as provided; gbox also matches resolved box-relative paths.
+    store.moduleOverrides[name] = String(boxRelativePath).replace(/\\/g, '/');
   };
 
   // Platform limits (request budget / abort) when attached by the engine.

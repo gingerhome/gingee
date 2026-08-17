@@ -2135,29 +2135,24 @@ module.exports = async function () {
 
 #### Module overrides from middleware (optional, permission-gated)
 
-With the **`module_override`** permission, middleware may rebind a **granted** protected module for the rest of the request so later scripts still write `require('fs')` but load an app box wrapper:
+With **`module_override`**, middleware may rebind require specifiers for the rest of the request (protected bare names, other bare names, relative or box-root paths). The replacement script must live under the app **box**. Nested `require` inside that script uses normal gbox jailing; the override map is not re-applied so wrappers can load the real platform module.
 
 ```javascript
 // box/middleware/fs_policy.js — listed in app.json default_include
 module.exports = async function () {
   await gingee(async ($g) => {
-    // Path of the *main* script relative to box/ (set by the engine)
     const rel = String($g.boxRelativeScript || "");
     if (rel.startsWith("sandboxed/")) {
-      // Requires permission module_override; target module (fs) still needs grant
+      // Only module_override required to install; real fs still needs fs if the wrapper uses it
       $g.overrideModule("fs", "library/fswrapper.js");
+      // Optional: rebind a relative dependency (prefer box-relative map keys)
+      // $g.overrideModule("sandboxed/helper", "library/helper_wrap.js");
     }
   });
 };
 ```
 
-| Piece | Role |
-| :--- | :--- |
-| `$g.boxRelativeScript` | Main handler path under `box/` (e.g. `sandboxed/run.js`) |
-| `$g.overrideModule(name, boxPath)` | Map protected name → box-relative script for this request |
-| Wrapper’s `require('fs')` | Real platform module (override target loads with overrides disabled) |
-
-See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and sample app **`web/appsandboxtest/`**.
+See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and **`web/appsandboxtest/`**.
 
 ### 3. Startup Scripts (Initialization)
 
@@ -3118,34 +3113,45 @@ This is the definitive list of all permission keys available in Gingee.
 | **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended.          |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                                                                     | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
 | **fs**         | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`).                                                                                                                                                                                   | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
-| **module_override** | Allows `$g.overrideModule(name, boxRelativePath)` so that, for the rest of the request, `require(name)` of a **still-granted** protected module can load an app box script instead of the platform module. Typical use: middleware rebinds `fs` to an app wrapper. See **Module overrides** below. | **High.** Changes the meaning of platform `require()` for that request. Grant only to trusted apps with reviewed wrappers. Does not open host modules or skip the target module’s own permission. |
+| **module_override** | Allows `$g.overrideModule(specifier, boxRelativePath)` so that, for the rest of the request, matching `require(specifier)` loads an app box script instead. Specifiers: protected bare names (`fs`, …), other bare names (`crypto`, `url`, …), relative (`./x`) or box-root paths. **Only this permission** is required to install/apply overrides. See **Module overrides** below. | **High.** Changes what `require()` means for that request. Restricted/forbidden names cannot be overridden. Wrappers still run under normal gbox jailing. Grant only to trusted apps. |
 | **pdf**        | Allows the app to generate and manipulate PDF documents.                                                                                                                                                                                                                                        | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
 | **zip**        | Allows the app to create and extract ZIP archives.                                                                                                                                                                                                                                              | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
 | **image**      | Allows the app to manipulate image files.                                                                                                                                                                                                                                                       | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
 
 ## Module overrides (`module_override`)
 
-**Purpose:** Let a trusted app install **request-scoped** redirects of protected module names (for example so `require('fs')` loads an app box wrapper instead of the platform `fs` module). Scripts keep writing normal `require('fs')`; middleware decides the binding.
+**Purpose:** Let a trusted app install **request-scoped** redirects of require specifiers to another script **inside the same app box**. Scripts keep normal `require(...)` call sites; middleware (or any `gingee` handler) decides the binding.
+
+### What can be overridden
+
+| Specifier kind | Example | Notes |
+| :--- | :--- | :--- |
+| Protected bare name | `fs`, `db`, `httpclient` | **`module_override` alone** is enough to redirect; the real platform module is only loaded if something (usually the wrapper) `require`s it under normal rules (then that permission is needed). |
+| Other bare name | `crypto`, `uuid`, `url` | Same — redirect with `module_override` only. |
+| Relative path | `./helper`, `../shared/x` | Matched after resolving against the **calling** script, then as a box-relative key. Prefer map keys like `sandboxed/helper` (box-relative, no leading `./`). |
+| Box-root path | `lib/util` (no `./`) | Matched as path under `box/`. |
+
+**Never overridable:** restricted modules (`platform`, `gingee`, `scheduler`, …), `engine/*`, and forbidden host builtins (`child_process`, `node:fs`, …).
 
 ### API
 
-Inside any `gingee(async ($g) => { … })` for an app that has **`module_override`**:
-
 ```javascript
-// box-relative path to the wrapper script (layout is entirely app-defined)
+// Replacement script is always box-relative (app-defined layout)
 $g.overrideModule("fs", "library/fswrapper.js");
+// Relative require from a script under sandboxed/ can match box-relative keys:
+$g.overrideModule("sandboxed/helper", "library/helper_wrap.js");
 ```
 
-- **`$g.boxRelativeScript`** — path of the **main** request script relative to `box/` (e.g. `sandboxed/run.js`). Useful in `default_include` middleware to decide whether to install an override.
-- Overrides apply for the **rest of that HTTP request** (ALS store). They do not affect other apps or later requests.
-- Without **`module_override`**, `$g.overrideModule` throws; gbox ignores any override map entries.
+- **`$g.boxRelativeScript`** — main request script under `box/` (e.g. `sandboxed/run.js`).
+- Overrides last for the **rest of that HTTP request** (ALS). No effect on other apps.
+- Without **`module_override`**, `$g.overrideModule` throws; gbox ignores the map.
 
 ### Rules (platform)
 
-1. App must be granted **`module_override`**.
-2. The **target** module (e.g. `fs`) must still be granted; override does not replace that check.
-3. The wrapper path must resolve **inside the app box** (`isPathInside`).
-4. When the wrapper is loaded, its own `require` tree runs with **`applyModuleOverrides: false`**, so `require('fs')` inside the wrapper is the **real platform module** (no recursion). Gingee does **not** special-case any folder name (e.g. `library/`).
+1. App must be granted **`module_override`** (only permission needed to install/apply a redirect).
+2. Override **target path** must resolve **inside the app box**.
+3. Loading the target uses **`applyModuleOverrides: false`** for that script and its nested requires: normal gbox jailing (permissions, path jail, restricted/forbidden), but the override map is not re-applied (so a wrapper can `require('fs')` and get the real platform module).
+4. No app folder names are special-cased by the engine.
 
 ### Typical pattern
 
@@ -3154,19 +3160,19 @@ default_include middleware
   → if $g.boxRelativeScript is under sandboxed/
   → $g.overrideModule('fs', 'my/wrapper.js')
 main script
-  → require('fs')  →  app wrapper
+  → require('fs')  →  app wrapper (box only)
 wrapper
-  → require('fs')  →  modules/fs.js (platform)
-  → extra app policy (e.g. only allow writes under a subfolder)
+  → require('fs')  →  modules/fs.js (needs fs grant; overrides off)
+  → extra app policy
 ```
 
-Sample: **`web/appsandboxtest/`** (permissions `fs` + `module_override`).
+Sample: **`web/appsandboxtest/`** (`fs` + `module_override`; `fs` still needed for the real module inside the wrapper).
 
 ### Security notes for operators
 
-- This is an **app policy** hook, not a stronger OS sandbox. Platform path jails still apply when wrappers compose on platform modules.
-- Grant **`module_override` only to packages you trust**. A wrapper can use **other** grants of the same app (e.g. `httpclient`, `email`, `db`) on every intercepted `require('fs')` call—folder rules do not cover those channels.
-- Prefer reviewed, minimal wrappers that only call platform APIs after checks; do not grant unused High permissions alongside `module_override`.
+- App policy hook, not an OS sandbox. Target must stay in-box; nested `require` uses regular jailing.
+- Grant only to trusted packages. Wrappers can still use **other** grants (`httpclient`, `email`, …) on intercepted calls.
+- Do not grant unused High permissions alongside `module_override`.
 
 
 ---

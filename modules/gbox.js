@@ -84,6 +84,146 @@ function blockedHostAccess(name) {
 }
 
 /**
+ * Specifiers that must never be redirected via module_override.
+ * @private
+ */
+function isNonOverridableSpecifier(moduleName, normalized) {
+  const raw = String(moduleName || "");
+  const norm = normalized != null ? normalized : raw.startsWith("node:") ? raw.slice(5) : raw;
+  // Match the specifier as given (and bare form of node:X). Do NOT map bare names to
+  // node: bare — bare 'fs' is the Gingee sandbox module and is overridable; only
+  // 'node:fs' / 'fs/promises' (host) are forbidden.
+  if (FORBIDDEN_BUILTINS.has(raw) || FORBIDDEN_BUILTINS.has(norm)) {
+    return true;
+  }
+  if (
+    restrictedGlobalModules.includes(raw) ||
+    restrictedGlobalModules.includes(norm)
+  ) {
+    return true;
+  }
+  if (
+    norm === "engine" ||
+    norm.startsWith("engine/") ||
+    norm.startsWith("engine\\") ||
+    raw === "engine" ||
+    raw.startsWith("engine/") ||
+    raw.startsWith("engine\\")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Normalize a path under the app box to a stable forward-slash key (optional .js strip).
+ * @private
+ */
+function toBoxRelativeKey(absPath, appBoxPath) {
+  let rel = path.relative(appBoxPath, absPath).split(path.sep).join("/");
+  if (rel.startsWith("..")) return null;
+  if (rel.endsWith(".js")) rel = rel.slice(0, -3);
+  return rel;
+}
+
+/**
+ * Look up store.moduleOverrides for this require specifier.
+ * Matches bare names, node: aliases, and relative/box paths (resolved under the box).
+ * @private
+ * @returns {string|null} box-relative override target path
+ */
+function findModuleOverride(
+  store,
+  moduleName,
+  normalized,
+  callingScriptPath,
+  appBoxPath,
+) {
+  if (!store || !store.moduleOverrides) return null;
+  const map = store.moduleOverrides;
+  const candidates = new Set();
+
+  const add = (k) => {
+    if (k == null || k === "") return;
+    const s = String(k).replace(/\\/g, "/");
+    candidates.add(s);
+    if (s.endsWith(".js")) candidates.add(s.slice(0, -3));
+    else candidates.add(s + ".js");
+  };
+
+  add(moduleName);
+  add(normalized);
+
+  if (moduleName.startsWith("./") || moduleName.startsWith("../")) {
+    let resolved = path.resolve(path.dirname(callingScriptPath), moduleName);
+    if (!path.extname(resolved)) resolved += ".js";
+    const boxKey = toBoxRelativeKey(resolved, appBoxPath);
+    if (boxKey) {
+      add(boxKey);
+      add("./" + boxKey);
+    }
+  } else if (
+    (moduleName.includes("/") || moduleName.includes("\\")) &&
+    !moduleName.startsWith("node:")
+  ) {
+    // Bare path treated as box-root-relative (same as default_include style requires)
+    let resolved = path.resolve(appBoxPath, moduleName);
+    if (!path.extname(resolved) && !nodeFs.existsSync(resolved)) {
+      if (nodeFs.existsSync(resolved + ".js")) resolved += ".js";
+    } else if (!path.extname(resolved)) {
+      resolved += ".js";
+    }
+    const boxKey = toBoxRelativeKey(resolved, appBoxPath);
+    if (boxKey) add(boxKey);
+  }
+
+  for (const c of candidates) {
+    if (Object.prototype.hasOwnProperty.call(map, c) && map[c]) {
+      return String(map[c]);
+    }
+  }
+  return null;
+}
+
+/**
+ * Load an override target from the app box (always with overrides disabled for nested require).
+ * @private
+ */
+function loadModuleOverrideTarget(overrideRel, gBoxConfig) {
+  let targetPath = path.resolve(gBoxConfig.appBoxPath, overrideRel);
+  if (!path.extname(targetPath)) {
+    targetPath += ".js";
+  }
+  if (!isPathInside(targetPath, gBoxConfig.appBoxPath)) {
+    throw new Error(
+      `Security Error: module override '${overrideRel}' escapes the app box.`,
+    );
+  }
+  if (!nodeFs.existsSync(targetPath)) {
+    throw new Error(
+      `Security Error: module override target not found: ${overrideRel}`,
+    );
+  }
+  return runInGBox(targetPath, {
+    ...gBoxConfig,
+    applyModuleOverrides: false,
+  });
+}
+
+/**
+ * @private
+ */
+function appHasModuleOverridePermission(gBoxConfig, store) {
+  const fromApp = (gBoxConfig.app && gBoxConfig.app.grantedPermissions) || [];
+  if (fromApp.includes("module_override")) return true;
+  const fromStore =
+    store && store.app && Array.isArray(store.app.grantedPermissions)
+      ? store.app.grantedPermissions
+      : [];
+  return fromStore.includes("module_override");
+}
+
+/**
  * Read a boolean flag from an object: only explicit <code>false</code> disables.
  * Accepts new and legacy key names.
  * @param {object|null|undefined} obj
@@ -247,67 +387,7 @@ function createGRequire(callingScriptPath, gBoxConfig) {
     const rawName = String(moduleName || "");
     const normalized = rawName.startsWith("node:") ? rawName.slice(5) : rawName;
 
-    // Check if the module is a protected module (Gingee app modules: fs, db, …)
-    if (
-      PROTECTED_MODULES.includes(moduleName) ||
-      PROTECTED_MODULES.includes(normalized)
-    ) {
-      const granted = gBoxConfig.app.grantedPermissions || [];
-      const key = PROTECTED_MODULES.includes(moduleName)
-        ? moduleName
-        : normalized;
-      if (!granted.includes(key)) {
-        throw new Error(
-          `Security Error: The app '${gBoxConfig.app.name}' has not been granted permission to access the '${key}' module. Please grant permission in Glade or settings/permissions.json.`,
-        );
-      }
-
-      // Per-request module overrides ($g.overrideModule; requires module_override).
-      // Override target loads with applyModuleOverrides: false (real platform require).
-      if (gBoxConfig.applyModuleOverrides !== false) {
-        try {
-          const store = gingee.getContext();
-          const canOverride =
-            granted.includes('module_override') ||
-            (store.app &&
-              Array.isArray(store.app.grantedPermissions) &&
-              store.app.grantedPermissions.includes('module_override'));
-          const overrides = store && store.moduleOverrides;
-          const overrideRel =
-            canOverride &&
-            overrides &&
-            (overrides[key] || overrides[moduleName] || overrides[normalized]);
-          if (overrideRel) {
-            let targetPath = path.resolve(gBoxConfig.appBoxPath, overrideRel);
-            if (!path.extname(targetPath)) {
-              targetPath += '.js';
-            }
-            if (!isPathInside(targetPath, gBoxConfig.appBoxPath)) {
-              throw new Error(
-                `Security Error: module override '${overrideRel}' escapes the app box.`,
-              );
-            }
-            if (!nodeFs.existsSync(targetPath)) {
-              throw new Error(
-                `Security Error: module override target not found: ${overrideRel}`,
-              );
-            }
-            return runInGBox(targetPath, {
-              ...gBoxConfig,
-              applyModuleOverrides: false
-            });
-          }
-        } catch (e) {
-          if (e && e.message && /No context found/i.test(e.message)) {
-            /* non-request load */
-          } else {
-            throw e;
-          }
-        }
-      }
-    }
-
-    // Check if the module is a restricted module (engine control plane, etc.)
+    // Restricted / engine / forbidden: never overridable (check restricted before overrides).
     const isEngineInternal =
       normalized === "engine" ||
       normalized.startsWith("engine/") ||
@@ -337,6 +417,53 @@ function createGRequire(callingScriptPath, gBoxConfig) {
           `Security Error: The app '${appName}' does not have permission to access the '${moduleName}' module.`,
         );
       }
+    }
+
+    // Per-request overrides: protected bare names, other bare names, and relative/box paths.
+    // Only module_override is required to apply a redirect; target stays in-box.
+    // Nested requires under the override script use applyModuleOverrides: false (current).
+    if (
+      gBoxConfig.applyModuleOverrides !== false &&
+      !isNonOverridableSpecifier(moduleName, normalized)
+    ) {
+      try {
+        const store = gingee.getContext();
+        if (appHasModuleOverridePermission(gBoxConfig, store)) {
+          const overrideRel = findModuleOverride(
+            store,
+            moduleName,
+            normalized,
+            callingScriptPath,
+            gBoxConfig.appBoxPath,
+          );
+          if (overrideRel) {
+            return loadModuleOverrideTarget(overrideRel, gBoxConfig);
+          }
+        }
+      } catch (e) {
+        if (e && e.message && /No context found/i.test(e.message)) {
+          /* non-request load */
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    // Check if the module is a protected module (Gingee app modules: fs, db, …)
+    if (
+      PROTECTED_MODULES.includes(moduleName) ||
+      PROTECTED_MODULES.includes(normalized)
+    ) {
+      const granted = gBoxConfig.app.grantedPermissions || [];
+      const key = PROTECTED_MODULES.includes(moduleName)
+        ? moduleName
+        : normalized;
+      if (!granted.includes(key)) {
+        throw new Error(
+          `Security Error: The app '${gBoxConfig.app.name}' has not been granted permission to access the '${key}' module. Please grant permission in Glade or settings/permissions.json.`,
+        );
+      }
+      // Fall through to global modules/ load below (or continue resolution).
     }
 
     // --- RULE 2: Module with relative path check ---
@@ -410,7 +537,15 @@ function createGRequire(callingScriptPath, gBoxConfig) {
     // --- RULE 4: NEW - App-Box-Relative Path Check (for default_includes) ---
     // This rule catches paths like 'utils/formatters.js' which don't start with './'
     // but are not global modules. We treat them as relative to the app's box root.
-    const appBoxRelativePath = path.resolve(gBoxConfig.appBoxPath, moduleName);
+    // Also accept extensionless keys (e.g. shared/bare_util → shared/bare_util.js).
+    let appBoxRelativePath = path.resolve(gBoxConfig.appBoxPath, moduleName);
+    if (
+      !nodeFs.existsSync(appBoxRelativePath) &&
+      !path.extname(appBoxRelativePath) &&
+      nodeFs.existsSync(appBoxRelativePath + ".js")
+    ) {
+      appBoxRelativePath = appBoxRelativePath + ".js";
+    }
     if (nodeFs.existsSync(appBoxRelativePath)) {
       // We still must verify it's inside the boundary (reject path traversal / prefix tricks).
       if (!isPathInside(appBoxRelativePath, gBoxConfig.appBoxPath)) {

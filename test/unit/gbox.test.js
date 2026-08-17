@@ -56,7 +56,8 @@ describe("gbox.js - Sandbox Execution", () => {
       expect(() => {
         runInGBox("/project/web/test_app/box/script.js", mockGBoxConfig);
       }).toThrow(
-        "has not been granted permission to access the 'platform' module",
+        // platform is restricted: non-privileged apps get this wording (not the PROTECTED_MODULES grant text)
+        "does not have permission to access the 'platform' module",
       );
     });
   });

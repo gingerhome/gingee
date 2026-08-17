@@ -47,7 +47,7 @@ const ALL_PERMISSIONS = {
   queue:
     "Allows the app to enqueue background jobs via require('queue') and run box/jobs handlers.",
   module_override:
-    "Allows the app to use $g.overrideModule() so require() of a granted protected module can resolve to an app box script for the rest of the request (advanced; app-defined policy).",
+    "Allows the app to use $g.overrideModule() so require() of bare names or relative/box paths can resolve to an app box script for the rest of the request (advanced). Only this permission is required to install/apply overrides; restricted and forbidden modules cannot be overridden.",
 };
 
 /** Safe app directory names only (no path separators, no `..`). */
