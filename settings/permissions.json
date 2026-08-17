@@ -1,21 +1,9 @@
 {
   "glade": {
-    "granted": ["platform", "fs"]
-  },
-  "glide": {
-    "granted": ["httpclient", "platform"]
-  },
-  "lifecycle_app_1756712554187": {
-    "granted": []
-  },
-  "recovery_test_app_1756712560587": {
-    "granted": []
-  },
-  "gintin": {
-    "granted": ["db", "fs", "image"]
-  },
-  "gindoo": {
-    "granted": ["db", "fs", "image"]
+    "granted": [
+      "platform",
+      "fs"
+    ]
   },
   "tests": {
     "granted": [
@@ -32,17 +20,5 @@
       "scheduler",
       "queue"
     ]
-  },
-  "ginpin": {
-    "granted": ["db", "fs", "image"]
-  },
-  "gintring": {
-    "granted": ["db", "email"]
-  },
-  "ginmind": {
-    "granted": ["ai"]
-  },
-  "ginchat": {
-    "granted": ["websockets"]
   }
 }
