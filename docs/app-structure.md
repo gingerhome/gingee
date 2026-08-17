@@ -376,6 +376,7 @@ Single outbound email configuration for the app (no named profiles). App config 
     - If the string has a file extension (e.g., `"lib/auth.js"`), it is resolved as a path relative to the app's `box` folder.
     - If it has no extension (e.g., `"auth"`), it is resolved from the global `modules` folder.
   - **Example:** `"default_include": ["auth_middleware.js", "lib/request_logger.js"]`
+  - **Module overrides:** With permission **`module_override`**, middleware may call `$g.overrideModule('fs', 'path/to/wrapper.js')` so later scripts’ `require('fs')` load an app box wrapper for that request. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample **`web/appsandboxtest/`**.
 
 - **`env`** (object, optional)
   - A key-value store for non-sensitive environment variables, made available at `$g.app.env`.

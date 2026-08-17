@@ -4,6 +4,7 @@ You are an expert developer for a Node.js application server called Gingee. Your
 
 ---
 
+
 # Gingee: Core Concepts
 
 # Gingee: Core Concepts
@@ -117,7 +118,7 @@ Configuration in Gingee is declarative and split across several manifest files, 
 
 - **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
 - **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
-- **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
+- **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`, `module_override`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 - **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
 
 For a full breakdown, see the **[Server Config](./server-config.md)** and **[App Structure](./app-structure.md)** reference guides.
@@ -145,7 +146,9 @@ You are encouraged to adopt this same powerful workflow. The key is to provide t
 2.  **Prime the AI:** Begin a new session with a capable AI (like Google Gemini) by providing the entire contents of the context file with a simple instruction: "You are an expert developer for a platform called Gingee. Analyze the following documentation and API reference and be prepared to help me build an application."
 3.  **Give it a Task:** Once the AI has processed the context, you can give it high-level, goal-oriented tasks, and it will generate high-quality, idiomatic Gingee code.
 
+
 ---
+
 
 # Gingee CLI: Command Reference
 
@@ -501,7 +504,9 @@ Commands for running Gingee as a native background service. These commands must 
 - **`reset-pwd`**: A local recovery tool. Prompts for a new admin user password for `glade` admin panel.
 - **`reset-glade`**: A local recovery tool that performs a clean re-installation or reset of the `glade` admin panel.
 
+
 ---
+
 
 # Server Configuration Reference - The gingee.json File
 
@@ -1320,9 +1325,11 @@ Enable the HTTPS server in your configuration. Since we used the default file pa
 
 Now, start your server (`npm start`). You can navigate to `https://localhost:7443` and your browser will show a secure connection with no warnings.
 
+
 ---
 
-#
+
+# Glade: The Gingee Admin Panel
 
 # Glade: The Gingee Admin Panel
 
@@ -1552,7 +1559,9 @@ The password is set during **`gingee-cli init`** (hashed with Argon2 into `ADMIN
 
 **Note:** The hash that may appear in the Gingee **source repository** under `web/glade/` is for development only. Production projects should only use credentials produced by `init` / `reset-pwd`, never a copied repo default.
 
+
 ---
+
 
 # Anatomy of a Gingee App
 
@@ -1934,6 +1943,7 @@ Single outbound email configuration for the app (no named profiles). App config 
     - If the string has a file extension (e.g., `"lib/auth.js"`), it is resolved as a path relative to the app's `box` folder.
     - If it has no extension (e.g., `"auth"`), it is resolved from the global `modules` folder.
   - **Example:** `"default_include": ["auth_middleware.js", "lib/request_logger.js"]`
+  - **Module overrides:** With permission **`module_override`**, middleware may call `$g.overrideModule('fs', 'path/to/wrapper.js')` so later scripts’ `require('fs')` load an app box wrapper for that request. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample **`web/appsandboxtest/`**.
 
 - **`env`** (object, optional)
   - A key-value store for non-sensitive environment variables, made available at `$g.app.env`.
@@ -2046,7 +2056,9 @@ When a route with dynamic parameters is matched, Gingee automatically parses the
   };
   ```
 
+
 ---
+
 
 # Understanding Gingee Scripts
 
@@ -2120,6 +2132,32 @@ module.exports = async function () {
   });
 };
 ```
+
+#### Module overrides from middleware (optional, permission-gated)
+
+With the **`module_override`** permission, middleware may rebind a **granted** protected module for the rest of the request so later scripts still write `require('fs')` but load an app box wrapper:
+
+```javascript
+// box/middleware/fs_policy.js — listed in app.json default_include
+module.exports = async function () {
+  await gingee(async ($g) => {
+    // Path of the *main* script relative to box/ (set by the engine)
+    const rel = String($g.boxRelativeScript || "");
+    if (rel.startsWith("sandboxed/")) {
+      // Requires permission module_override; target module (fs) still needs grant
+      $g.overrideModule("fs", "library/fswrapper.js");
+    }
+  });
+};
+```
+
+| Piece | Role |
+| :--- | :--- |
+| `$g.boxRelativeScript` | Main handler path under `box/` (e.g. `sandboxed/run.js`) |
+| `$g.overrideModule(name, boxPath)` | Map protected name → box-relative script for this request |
+| Wrapper’s `require('fs')` | Real platform module (override target loads with overrides disabled) |
+
+See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and sample app **`web/appsandboxtest/`**.
 
 ### 3. Startup Scripts (Initialization)
 
@@ -2390,7 +2428,9 @@ An object containing safe, read-only configuration data for the current applicat
 
 **NOTE:** The $g object will not have the $g.request and $g.response objects for a startup script.
 
+
 ---
+
 
 # Gingee: The App Developer's Guide
 
@@ -2560,6 +2600,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     ```json
     "default_include": ["auth_middleware.js"]
     ```
+    Advanced (permission **`module_override`**): middleware can rebind platform modules for the rest of the request via `$g.overrideModule('fs', 'lib/my_fs.js')` while handlers still call `require('fs')`. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample `web/appsandboxtest/`.
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
@@ -2861,7 +2902,9 @@ gingee-cli package-app --appName my-app
 
 This will generate a versioned `.gin` file (e.g., `my-app-v1.2.0.gin`) in your current directory. This single file is all anyone needs to install your application on their own Gingee server using the `gingee-cli install-app` command.
 
+
 ---
+
 
 # Gingee App Packaging Guide (`.gin` & `.gpkg`)
 
@@ -2971,7 +3014,9 @@ When an administrator installs your `.gin` package using the `gingee-cli`, the C
 
 For a complete guide on the permissions system and the structure of this file, please see the **Gingee Permissions Guide** [MD](./permissions-guide.md) [HTML](./permissions-guide.html).
 
+
 ---
+
 
 # Gingee Permissions Guide
 
@@ -3073,11 +3118,59 @@ This is the definitive list of all permission keys available in Gingee.
 | **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended.          |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                                                                     | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
 | **fs**         | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`).                                                                                                                                                                                   | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
+| **module_override** | Allows `$g.overrideModule(name, boxRelativePath)` so that, for the rest of the request, `require(name)` of a **still-granted** protected module can load an app box script instead of the platform module. Typical use: middleware rebinds `fs` to an app wrapper. See **Module overrides** below. | **High.** Changes the meaning of platform `require()` for that request. Grant only to trusted apps with reviewed wrappers. Does not open host modules or skip the target module’s own permission. |
 | **pdf**        | Allows the app to generate and manipulate PDF documents.                                                                                                                                                                                                                                        | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
 | **zip**        | Allows the app to create and extract ZIP archives.                                                                                                                                                                                                                                              | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
 | **image**      | Allows the app to manipulate image files.                                                                                                                                                                                                                                                       | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
 
+## Module overrides (`module_override`)
+
+**Purpose:** Let a trusted app install **request-scoped** redirects of protected module names (for example so `require('fs')` loads an app box wrapper instead of the platform `fs` module). Scripts keep writing normal `require('fs')`; middleware decides the binding.
+
+### API
+
+Inside any `gingee(async ($g) => { … })` for an app that has **`module_override`**:
+
+```javascript
+// box-relative path to the wrapper script (layout is entirely app-defined)
+$g.overrideModule("fs", "library/fswrapper.js");
+```
+
+- **`$g.boxRelativeScript`** — path of the **main** request script relative to `box/` (e.g. `sandboxed/run.js`). Useful in `default_include` middleware to decide whether to install an override.
+- Overrides apply for the **rest of that HTTP request** (ALS store). They do not affect other apps or later requests.
+- Without **`module_override`**, `$g.overrideModule` throws; gbox ignores any override map entries.
+
+### Rules (platform)
+
+1. App must be granted **`module_override`**.
+2. The **target** module (e.g. `fs`) must still be granted; override does not replace that check.
+3. The wrapper path must resolve **inside the app box** (`isPathInside`).
+4. When the wrapper is loaded, its own `require` tree runs with **`applyModuleOverrides: false`**, so `require('fs')` inside the wrapper is the **real platform module** (no recursion). Gingee does **not** special-case any folder name (e.g. `library/`).
+
+### Typical pattern
+
+```text
+default_include middleware
+  → if $g.boxRelativeScript is under sandboxed/
+  → $g.overrideModule('fs', 'my/wrapper.js')
+main script
+  → require('fs')  →  app wrapper
+wrapper
+  → require('fs')  →  modules/fs.js (platform)
+  → extra app policy (e.g. only allow writes under a subfolder)
+```
+
+Sample: **`web/appsandboxtest/`** (permissions `fs` + `module_override`).
+
+### Security notes for operators
+
+- This is an **app policy** hook, not a stronger OS sandbox. Platform path jails still apply when wrappers compose on platform modules.
+- Grant **`module_override` only to packages you trust**. A wrapper can use **other** grants of the same app (e.g. `httpclient`, `email`, `db`) on every intercepted `require('fs')` call—folder rules do not cover those channels.
+- Prefer reviewed, minimal wrappers that only call platform APIs after checks; do not grant unused High permissions alongside `module_override`.
+
+
 ---
+
 
 # Gingee Threat Model
 
@@ -3184,7 +3277,8 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 | **Permission consent**                   | `pmft.json` + Glade / CLI + `settings/permissions.json`                                                                         | Human factor; over-grant is common under time pressure                                                            |
 | **Request / outbound limits**            | `limits` (concurrency, timeouts)                                                                                                | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin                                         |
 | **Scheduler gate**                       | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
-| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`                                                                            | Once granted, full capability within that API                                                                     |
+| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`, **`module_override`**                                                     | Once granted, full capability within that API; `module_override` rebinds `require()` of granted modules per request |
+| **Module override (opt-in)**             | `$g.overrideModule` + gbox redirect; target stays in box; wrapper `require` uses real platform module                           | App-defined policy only; wrappers can still use **other** grants (e.g. exfil via `httpclient`). Not multi-tenant isolation. |
 
 ### 6.2 Soft sandbox reality (`gbox`)
 
@@ -3196,6 +3290,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 - **Path jails** use `realpath` of existing ancestors (`resolveRealPath` / `isPathInside`) so symlink escapes from a writable box are rejected.
 - **Egress DNS** is checked and **pinned at connect** (`lookup`) to reduce rebinding between policy DNS and TCP connect; redirects re-validate each hop.
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
+- **`module_override`** (if granted): request-scoped redirect of protected module names to an app box script; permission + box path + target-module grant still required. Does not special-case app folder names.
 
 **Still shared across all apps on the instance:**
 
@@ -3359,7 +3454,9 @@ These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS qu
 
 When changing isolation guarantees (e.g. worker-per-app), **update this document in the same PR** so the threat model never lies.
 
+
 ---
+
 
 # Gingee: The Modern SPA Developer's Guide
 
@@ -3547,7 +3644,9 @@ With the frontend built and manifests in place, you are ready to create your dis
 
 Congratulations! You have successfully built and packaged a modern Single Page Application on the Gingee platform
 
+
 ---
+
 
 # GStore - Hosting a Gingee App Store
 
@@ -3677,7 +3776,9 @@ gingee-cli list-store-apps -g "https://<your-username>.github.io/my-gingee-store
 gingee-cli install-store-app my-blog-app -g "https://<your-username>.github.io/my-gingee-store/" -s "https://<target-gingee-server.com>"
 ```
 
+
 ---
+
 
 # Gingee Feature Overview
 
@@ -3758,6 +3859,9 @@ These are the core architectural features that define the Gingee development exp
 * **Background job queue (`queue` module):**
   Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** **Queue / DLQ**: live jobs (running/waiting/pending/delayed, auto-refresh) and DLQ (retry/discard). CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
+* **Module override (permission `module_override`):**
+  Trusted apps may call `$g.overrideModule(name, boxRelativePath)` (often from `default_include` middleware) so that for the rest of the request `require(name)` of a still-granted protected module loads an app box wrapper instead of the platform module. Scripts keep writing `require('fs')`. Wrappers compose on platform modules (no recursion). Sample: **`web/appsandboxtest/`**. See [Permissions Guide](./permissions-guide.md) → Module overrides.
+
 - **Application Startup Hooks**
   Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
@@ -3822,7 +3926,9 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 - **`platform`** (Privileged)
   The privileged, admin-level module for the **Glade Admin Tool**. It provides the APIs to manage the full lifecycle of all applications on the server.
 
+
 ---
+
 
 # App Module API Reference
 
@@ -3851,7 +3957,7 @@ via provider adapters — similar to <code>db</code> / <code>email</code>.</p>
 <dd><p>Provides authentication-related functions, including JWT creation and verification.</p>
 </dd>
 <dt><a href="#module_cache">cache</a></dt>
-<dd><p>Provides a secure interface for caching data within the Gingee application context. 
+<dd><p>Provides a secure interface for caching data within the Gingee application context.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_chart">chart</a></dt>
@@ -3873,7 +3979,7 @@ The final dashboard image can be exported as a PNG buffer or Data URL.</p>
 <dt><a href="#module_db">db</a></dt>
 <dd><p>Provides a unified interface for database operations, allowing dynamic loading of different database adapters.
 This module supports multiple database types by loading the appropriate adapter based on configuration.
-It provides methods for querying, executing commands, and managing transactions. 
+It provides methods for querying, executing commands, and managing transactions.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_email">email</a></dt>
@@ -3945,7 +4051,7 @@ It is designed to be used in a secure environment, ensuring that only allowed fo
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_platform">platform</a></dt>
-<dd><p>A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps. 
+<dd><p>A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps.
 To use this module the app needs to be declared in the <code>privilegedApps</code> list in the gingee.json server config.
 <b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
@@ -3985,18 +4091,15 @@ Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true
 <a name="module_ai"></a>
 
 ## ai
-
 Generative AI for Gingee apps (chat, multimodal, document parsing, content safety)
 via provider adapters — similar to `db` / `email`.
 
 <b>Configuration (single config):</b>
-
 - Server defaults: `gingee.json` → `ai`
 - App override: `app.json` → `ai`
 - Per-call override: pass `{ config: { … } }` as the second argument to any method
 
 <b>Providers:</b>
-
 - `mock` — local deterministic responses (dev/tests)
 - `gemini` — Google Gemini (v1)
 - `xai` — Grok via xAI (P1 — stub until implemented)
@@ -4005,177 +4108,159 @@ via provider adapters — similar to `db` / `email`.
 
 <b>IMPORTANT:</b> Requires the `ai` permission. See docs/permissions-guide.
 
-- [ai](#module_ai)
-  - _static_
-    - [.chat(request, [options])](#module_ai.chat) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [.chatStream(request, [options])](#module_ai.chatStream) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
-    - [.complete()](#module_ai.complete)
-    - [.parseDocument()](#module_ai.parseDocument)
-    - [.moderate()](#module_ai.moderate)
-  - _inner_
-    - [~serverAiConfig](#module_ai..serverAiConfig) : <code>object</code> \| <code>null</code>
-    - [~aiInstances](#module_ai..aiInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+
+* [ai](#module_ai)
+    * _static_
+        * [.chat(request, [options])](#module_ai.chat) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.chatStream(request, [options])](#module_ai.chatStream) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
+        * [.complete()](#module_ai.complete)
+        * [.parseDocument()](#module_ai.parseDocument)
+        * [.moderate()](#module_ai.moderate)
+    * _inner_
+        * [~serverAiConfig](#module_ai..serverAiConfig) : <code>object</code> \| <code>null</code>
+        * [~aiInstances](#module_ai..aiInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
 
 <a name="module_ai.chat"></a>
 
 ### ai.chat(request, [options]) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Chat / text generation (supports multimodal content parts). Non-streaming.
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
-**Returns**: <code>Promise.&lt;object&gt;</code> - Result with `text`, `model`, `provider`, `usage`, etc.
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with `text`, `model`, `provider`, `usage`, etc.  
 
-| Param                 | Type                              | Description                                                                    |
-| --------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
-| request               | <code>object</code>               |                                                                                |
-| request.messages      | <code>Array.&lt;object&gt;</code> | Chat messages: `{ role, content }` where content is a string or array of parts |
-| [request.system]      | <code>string</code>               |                                                                                |
-| [request.model]       | <code>string</code>               |                                                                                |
-| [request.temperature] | <code>number</code>               |                                                                                |
-| [request.maxTokens]   | <code>number</code>               |                                                                                |
-| [options]             | <code>object</code>               |                                                                                |
-| [options.config]      | <code>object</code>               | Per-call AI config override                                                    |
+| Param | Type | Description |
+| --- | --- | --- |
+| request | <code>object</code> |  |
+| request.messages | <code>Array.&lt;object&gt;</code> | Chat messages: `{ role, content }` where content is a string or array of parts |
+| [request.system] | <code>string</code> |  |
+| [request.model] | <code>string</code> |  |
+| [request.temperature] | <code>number</code> |  |
+| [request.maxTokens] | <code>number</code> |  |
+| [options] | <code>object</code> |  |
+| [options.config] | <code>object</code> | Per-call AI config override |
 
 <a name="module_ai.chatStream"></a>
 
 ### ai.chatStream(request, [options]) ⇒ <code>AsyncGenerator.&lt;object&gt;</code>
-
 Streaming chat. Async generator yielding `{ textDelta, done, … }`.
 Final chunk has `done: true` and full `text`.
 
-**Kind**: static method of [<code>ai</code>](#module_ai)
+**Kind**: static method of [<code>ai</code>](#module_ai)  
 
-| Param            | Type                | Description                     |
-| ---------------- | ------------------- | ------------------------------- |
-| request          | <code>object</code> | Same as [chat](#module_ai.chat) |
-| [options]        | <code>object</code> |                                 |
-| [options.config] | <code>object</code> |                                 |
+| Param | Type | Description |
+| --- | --- | --- |
+| request | <code>object</code> | Same as [chat](#module_ai.chat) |
+| [options] | <code>object</code> |  |
+| [options.config] | <code>object</code> |  |
 
-**Example**
-
+**Example**  
 ```js
-for await (const chunk of ai.chatStream({
-  messages: [{ role: "user", content: "Hi" }],
-})) {
+for await (const chunk of ai.chatStream({ messages: [{ role: 'user', content: 'Hi' }] })) {
   if (!chunk.done) process.stdout.write(chunk.textDelta);
 }
 ```
-
 <a name="module_ai.complete"></a>
 
 ### ai.complete()
-
 Single-prompt completion (wrapper over chat).
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
 <a name="module_ai.parseDocument"></a>
 
 ### ai.parseDocument()
-
 OCR / extract / summarize a document (buffer, text, or sandboxed path).
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
 <a name="module_ai.moderate"></a>
 
 ### ai.moderate()
-
 Content safety check for text (and provider-dependent media later).
 
 **Kind**: static method of [<code>ai</code>](#module_ai)  
 <a name="module_ai..serverAiConfig"></a>
 
 ### ai~serverAiConfig : <code>object</code> \| <code>null</code>
-
 **Kind**: inner property of [<code>ai</code>](#module_ai)  
 <a name="module_ai..aiInstances"></a>
 
 ### ai~aiInstances : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
-
 **Kind**: inner constant of [<code>ai</code>](#module_ai)  
 <a name="module_auth"></a>
 
 ## auth
-
 Provides authentication-related functions, including JWT creation and verification.
 
-- [auth](#module_auth)
-  - [.jwt](#module_auth.jwt) : <code>object</code>
-    - [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
-    - [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
+
+* [auth](#module_auth)
+    * [.jwt](#module_auth.jwt) : <code>object</code>
+        * [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
+        * [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
 
 <a name="module_auth.jwt"></a>
 
 ### auth.jwt : <code>object</code>
-
 Provides methods for creating and verifying JSON Web Tokens (JWTs).
 
-**Kind**: static namespace of [<code>auth</code>](#module_auth)
+**Kind**: static namespace of [<code>auth</code>](#module_auth)  
 
-- [.jwt](#module_auth.jwt) : <code>object</code>
-  - [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
-  - [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
+* [.jwt](#module_auth.jwt) : <code>object</code>
+    * [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
+    * [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
 
 <a name="module_auth.jwt.create"></a>
 
 #### jwt.create(payload, [expiresIn]) ⇒ <code>string</code>
-
 Creates a JSON Web Token (JWT) with the given payload and expiration.
 
 **Kind**: static method of [<code>jwt</code>](#module_auth.jwt)  
-**Returns**: <code>string</code> - The JWT string.
+**Returns**: <code>string</code> - The JWT string.  
 
-| Param       | Type                | Default                                 | Description                       |
-| ----------- | ------------------- | --------------------------------------- | --------------------------------- |
-| payload     | <code>object</code> |                                         | The data to include in the token. |
-| [expiresIn] | <code>string</code> | <code>&quot;&#x27;1h&#x27;&quot;</code> | The token's lifespan.             |
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| payload | <code>object</code> |  | The data to include in the token. |
+| [expiresIn] | <code>string</code> | <code>&quot;&#x27;1h&#x27;&quot;</code> | The token's lifespan. |
 
-**Example**
-
+**Example**  
 ```js
-const token = auth.jwt.create({ userId: 42, role: "admin" }, "2h");
+const token = auth.jwt.create({ userId: 42, role: 'admin' }, '2h');
 ```
-
 <a name="module_auth.jwt.verify"></a>
 
 #### jwt.verify(token) ⇒ <code>object</code> \| <code>null</code>
-
 Verifies a JWT and returns its payload if valid.
 
 **Kind**: static method of [<code>jwt</code>](#module_auth.jwt)  
-**Returns**: <code>object</code> \| <code>null</code> - The token's payload if valid and not expired, otherwise null.
+**Returns**: <code>object</code> \| <code>null</code> - The token's payload if valid and not expired, otherwise null.  
 
-| Param | Type                | Description               |
-| ----- | ------------------- | ------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | token | <code>string</code> | The JWT string to verify. |
 
-**Example**
-
+**Example**  
 ```js
 const payload = auth.jwt.verify(token);
 if (payload) {
-  console.log("Token is valid:", payload);
+    console.log("Token is valid:", payload);
 } else {
-  console.log("Token is invalid or expired.");
+    console.log("Token is invalid or expired.");
 }
 ```
-
 <a name="module_cache"></a>
 
 ## cache
-
 Provides a secure interface for caching data within the Gingee application context.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [cache](#module_cache)
-  - [.get(key)](#module_cache.get) ⇒ <code>Promise.&lt;any&gt;</code>
-  - [.set(key, value, [ttl])](#module_cache.set) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.del(key)](#module_cache.del) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.clear()](#module_cache.clear) ⇒ <code>Promise.&lt;void&gt;</code>
+
+* [cache](#module_cache)
+    * [.get(key)](#module_cache.get) ⇒ <code>Promise.&lt;any&gt;</code>
+    * [.set(key, value, [ttl])](#module_cache.set) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.del(key)](#module_cache.del) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.clear()](#module_cache.clear) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_cache.get"></a>
 
 ### cache.get(key) ⇒ <code>Promise.&lt;any&gt;</code>
-
 Retrieves a value from the application's cache using a namespaced key.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4184,26 +4269,24 @@ Retrieves a value from the application's cache using a namespaced key.
 
 - <code>Error</code> If the key is invalid or retrieval fails.
 
-| Param | Type                | Description          |
-| ----- | ------------------- | -------------------- |
-| key   | <code>string</code> | The key to retrieve. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| key | <code>string</code> | The key to retrieve. |
 
+**Example**  
 ```js
-const cache = require("cache");
-const value = await cache.get("my_key");
+const cache = require('cache');
+const value = await cache.get('my_key');
 if (value) {
-  console.log(`Value found: ${JSON.stringify(value)}`);
+   console.log(`Value found: ${JSON.stringify(value)}`);
 } else {
-  console.log("Key not found in cache.");
+   console.log("Key not found in cache.");
 }
 ```
-
 <a name="module_cache.set"></a>
 
 ### cache.set(key, value, [ttl]) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Stores a value in the application's cache.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4211,24 +4294,22 @@ Stores a value in the application's cache.
 
 - <code>Error</code> If the key is invalid or storage fails.
 
-| Param | Type                | Description                                                                |
-| ----- | ------------------- | -------------------------------------------------------------------------- |
-| key   | <code>string</code> | The key to store the value under.                                          |
-| value | <code>any</code>    | The JSON-serializable value to store.                                      |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| key | <code>string</code> | The key to store the value under. |
+| value | <code>any</code> | The JSON-serializable value to store. |
 | [ttl] | <code>number</code> | Optional Time-To-Live in seconds. Uses the server default if not provided. |
 
-**Example**
-
+**Example**  
 ```js
-const cache = require("cache");
-await cache.set("my_key", { message: "Hello, world!" }, 3600);
+const cache = require('cache');
+await cache.set('my_key', { message: 'Hello, world!' }, 3600);
 console.log("Value stored in cache.");
 ```
-
 <a name="module_cache.del"></a>
 
 ### cache.del(key) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Deletes a value from the application's cache using a namespaced key.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4236,22 +4317,20 @@ Deletes a value from the application's cache using a namespaced key.
 
 - <code>Error</code> If the key is invalid or deletion fails.
 
-| Param | Type                | Description        |
-| ----- | ------------------- | ------------------ |
-| key   | <code>string</code> | The key to delete. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| key | <code>string</code> | The key to delete. |
 
+**Example**  
 ```js
-const cache = require("cache");
-await cache.del("my_key");
+const cache = require('cache');
+await cache.del('my_key');
 console.log("Value deleted from cache.");
 ```
-
 <a name="module_cache.clear"></a>
 
 ### cache.clear() ⇒ <code>Promise.&lt;void&gt;</code>
-
 Clears all cached values for the current application. This does not affect other applications' caches.
 
 **Kind**: static method of [<code>cache</code>](#module_cache)  
@@ -4259,18 +4338,15 @@ Clears all cached values for the current application. This does not affect other
 
 - <code>Error</code> If the clear operation fails.
 
-**Example**
-
+**Example**  
 ```js
-const cache = require("cache");
+const cache = require('cache');
 await cache.clear();
 console.log("All cache cleared.");
 ```
-
 <a name="module_chart"></a>
 
 ## chart
-
 This module provides functionality to create and manipulate charts using Chart.js.
 It includes a renderer for generating chart images and a font registration system.
 
@@ -4278,18 +4354,18 @@ It includes a renderer for generating chart images and a font registration syste
 (package.json optionalDependencies). Install without <code>--omit=optional</code>, or
 <code>npm install chartjs-node-canvas canvas</code>.
 
-- [chart](#module_chart)
-  - _static_
-    - [.render(configuration, [options])](#module_chart.render) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-    - [.registerFont(scope, filePath, options)](#module_chart.registerFont)
-  - _inner_
-    - [~ChartJSNodeCanvas](#module_chart..ChartJSNodeCanvas) : <code>function</code> \| <code>null</code>
-    - [~defaultRenderer](#module_chart..defaultRenderer) : <code>object</code> \| <code>null</code>
+
+* [chart](#module_chart)
+    * _static_
+        * [.render(configuration, [options])](#module_chart.render) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+        * [.registerFont(scope, filePath, options)](#module_chart.registerFont)
+    * _inner_
+        * [~ChartJSNodeCanvas](#module_chart..ChartJSNodeCanvas) : <code>function</code> \| <code>null</code>
+        * [~defaultRenderer](#module_chart..defaultRenderer) : <code>object</code> \| <code>null</code>
 
 <a name="module_chart.render"></a>
 
 ### chart.render(configuration, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-
 Renders a chart based on a Chart.js configuration object.
 
 **Kind**: static method of [<code>chart</code>](#module_chart)  
@@ -4298,39 +4374,35 @@ Renders a chart based on a Chart.js configuration object.
 
 - <code>Error</code> If the configuration is invalid or rendering fails.
 
-| Param            | Type                | Default                                     | Description                                                     |
-| ---------------- | ------------------- | ------------------------------------------- | --------------------------------------------------------------- |
-| configuration    | <code>object</code> |                                             | A standard Chart.js configuration object (type, data, options). |
-| [options]        | <code>object</code> |                                             | Optional settings for the output.                               |
-| [options.width]  | <code>number</code> | <code>800</code>                            | The width of the final image in pixels.                         |
-| [options.height] | <code>number</code> | <code>600</code>                            | The height of the final image in pixels.                        |
-| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'.                         |
 
-**Example**
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| configuration | <code>object</code> |  | A standard Chart.js configuration object (type, data, options). |
+| [options] | <code>object</code> |  | Optional settings for the output. |
+| [options.width] | <code>number</code> | <code>800</code> | The width of the final image in pixels. |
+| [options.height] | <code>number</code> | <code>600</code> | The height of the final image in pixels. |
+| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
 
+**Example**  
 ```js
-const chart = require("chart");
+const chart = require('chart');
 const config = {
-  type: "bar",
-  data: {
-    labels: ["January", "February", "March"],
-    datasets: [
-      {
-        label: "Sales",
-        data: [100, 200, 300],
-      },
-    ],
-  },
+    type: 'bar',
+    data: {
+        labels: ['January', 'February', 'March'],
+        datasets: [{
+            label: 'Sales',
+            data: [100, 200, 300]
+        }]
+    }
 };
 const imageBuffer = await chart.render(config);
 // To send the image in a http response:
-$g.response.send(imageBuffer, 200, "image/png");
+$g.response.send(imageBuffer, 200, 'image/png');
 ```
-
 <a name="module_chart.registerFont"></a>
 
 ### chart.registerFont(scope, filePath, options)
-
 Registers a custom font from a file to be used in charts.
 This should be called at the application's startup or in a default_include script.
 
@@ -4339,200 +4411,171 @@ This should be called at the application's startup or in a default_include scrip
 
 - <code>Error</code> If the font file cannot be found or registered.
 
-| Param          | Type                | Description                                                       |
-| -------------- | ------------------- | ----------------------------------------------------------------- |
-| scope          | <code>string</code> | The scope where the font file is located (fs.BOX or fs.WEB).      |
-| filePath       | <code>string</code> | The path to the .ttf or .otf font file.                           |
-| options        | <code>object</code> | Font registration options.                                        |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope where the font file is located (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the .ttf or .otf font file. |
+| options | <code>object</code> | Font registration options. |
 | options.family | <code>string</code> | The font-family name to use in Chart.js configs (e.g., 'Roboto'). |
 
-**Example**
-
+**Example**  
 ```js
-chart.registerFont(fs.BOX, "path/to/Roboto-Regular.ttf", { family: "Roboto" });
+chart.registerFont(fs.BOX, 'path/to/Roboto-Regular.ttf', { family: 'Roboto' });
 ```
-
 <a name="module_chart..ChartJSNodeCanvas"></a>
 
 ### chart~ChartJSNodeCanvas : <code>function</code> \| <code>null</code>
-
 **Kind**: inner property of [<code>chart</code>](#module_chart)  
 <a name="module_chart..defaultRenderer"></a>
 
 ### chart~defaultRenderer : <code>object</code> \| <code>null</code>
-
 **Kind**: inner property of [<code>chart</code>](#module_chart)  
 <a name="module_crypto"></a>
 
 ## crypto
-
 Provides cryptographic functions for hashing, encryption, and secure random string generation.
 
-- [crypto](#module_crypto)
-  - [.CRC32(inputString)](#module_crypto.CRC32) ⇒ <code>number</code>
-  - [.MD5(inputString)](#module_crypto.MD5) ⇒ <code>string</code>
-  - [.SHA2(inputString)](#module_crypto.SHA2) ⇒ <code>string</code>
-  - [.SHA3(inputString)](#module_crypto.SHA3) ⇒ <code>string</code>
-  - [.hmacSha256Encrypt(inputString, secret)](#module_crypto.hmacSha256Encrypt) ⇒ <code>string</code>
-  - [.hmacSha256Verify(encryptedString, originalString, secret)](#module_crypto.hmacSha256Verify) ⇒ <code>boolean</code>
-  - [.encrypt(textToEncrypt, secret)](#module_crypto.encrypt) ⇒ <code>string</code>
-  - [.decrypt(encryptedPackage, secret)](#module_crypto.decrypt) ⇒ <code>string</code> \| <code>null</code>
-  - [.hashPassword(plainTextPassword)](#module_crypto.hashPassword) ⇒ <code>Promise.&lt;string&gt;</code>
-  - [.verifyPassword(plainTextPassword, hash)](#module_crypto.verifyPassword) ⇒ <code>Promise.&lt;boolean&gt;</code>
-  - [.generateSecureRandomString(length)](#module_crypto.generateSecureRandomString) ⇒ <code>string</code>
+
+* [crypto](#module_crypto)
+    * [.CRC32(inputString)](#module_crypto.CRC32) ⇒ <code>number</code>
+    * [.MD5(inputString)](#module_crypto.MD5) ⇒ <code>string</code>
+    * [.SHA2(inputString)](#module_crypto.SHA2) ⇒ <code>string</code>
+    * [.SHA3(inputString)](#module_crypto.SHA3) ⇒ <code>string</code>
+    * [.hmacSha256Encrypt(inputString, secret)](#module_crypto.hmacSha256Encrypt) ⇒ <code>string</code>
+    * [.hmacSha256Verify(encryptedString, originalString, secret)](#module_crypto.hmacSha256Verify) ⇒ <code>boolean</code>
+    * [.encrypt(textToEncrypt, secret)](#module_crypto.encrypt) ⇒ <code>string</code>
+    * [.decrypt(encryptedPackage, secret)](#module_crypto.decrypt) ⇒ <code>string</code> \| <code>null</code>
+    * [.hashPassword(plainTextPassword)](#module_crypto.hashPassword) ⇒ <code>Promise.&lt;string&gt;</code>
+    * [.verifyPassword(plainTextPassword, hash)](#module_crypto.verifyPassword) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    * [.generateSecureRandomString(length)](#module_crypto.generateSecureRandomString) ⇒ <code>string</code>
 
 <a name="module_crypto.CRC32"></a>
 
 ### crypto.CRC32(inputString) ⇒ <code>number</code>
-
 Computes the CRC32 checksum for a string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>number</code> - The CRC32 checksum as an integer.
+**Returns**: <code>number</code> - The CRC32 checksum as an integer.  
 
-| Param       | Type                | Description            |
-| ----------- | ------------------- | ---------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**
-
+**Example**  
 ```js
 const checksum = crypto.CRC32("Hello, World!");
 console.log("CRC32 Checksum:", checksum);
 ```
-
 <a name="module_crypto.MD5"></a>
 
 ### crypto.MD5(inputString) ⇒ <code>string</code>
-
 Computes the MD5 hash for a string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The MD5 hash as a hex string.
+**Returns**: <code>string</code> - The MD5 hash as a hex string.  
 
-| Param       | Type                | Description            |
-| ----------- | ------------------- | ---------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**
-
+**Example**  
 ```js
 const hash = crypto.MD5("Hello, World!");
 console.log("MD5 Hash:", hash);
 ```
-
 <a name="module_crypto.SHA2"></a>
 
 ### crypto.SHA2(inputString) ⇒ <code>string</code>
-
 Computes the SHA256 hash for a string. (SHA2 is a family, SHA256 is the most common)
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The SHA256 hash as a hex string.
+**Returns**: <code>string</code> - The SHA256 hash as a hex string.  
 
-| Param       | Type                | Description            |
-| ----------- | ------------------- | ---------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**
-
+**Example**  
 ```js
 const hash = crypto.SHA2("Hello, World!");
 console.log("SHA256 Hash:", hash);
 ```
-
 <a name="module_crypto.SHA3"></a>
 
 ### crypto.SHA3(inputString) ⇒ <code>string</code>
-
 Computes the SHA3-256 hash for a string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The SHA3-256 hash as a hex string.
+**Returns**: <code>string</code> - The SHA3-256 hash as a hex string.  
 
-| Param       | Type                | Description            |
-| ----------- | ------------------- | ---------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to process. |
 
-**Example**
-
+**Example**  
 ```js
 const hash = crypto.SHA3("Hello, World!");
 console.log("SHA3-256 Hash:", hash);
 ```
-
 <a name="module_crypto.hmacSha256Encrypt"></a>
 
 ### crypto.hmacSha256Encrypt(inputString, secret) ⇒ <code>string</code>
-
 Encrypts (signs) a string using HMAC-SHA256.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - The HMAC signature as a hex string.
+**Returns**: <code>string</code> - The HMAC signature as a hex string.  
 
-| Param       | Type                | Description                 |
-| ----------- | ------------------- | --------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to encrypt/sign. |
-| secret      | <code>string</code> | The secret key.             |
+| secret | <code>string</code> | The secret key. |
 
-**Example**
-
+**Example**  
 ```js
 const signature = crypto.hmacSha256Encrypt("Hello, World!", "my-secret");
 console.log("HMAC-SHA256 Signature:", signature);
 ```
-
 <a name="module_crypto.hmacSha256Verify"></a>
 
 ### crypto.hmacSha256Verify(encryptedString, originalString, secret) ⇒ <code>boolean</code>
-
 Verifies an HMAC-SHA256 signature.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>boolean</code> - True if the signature is valid, false otherwise.
+**Returns**: <code>boolean</code> - True if the signature is valid, false otherwise.  
 
-| Param           | Type                | Description                           |
-| --------------- | ------------------- | ------------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | encryptedString | <code>string</code> | The signature (hex string) to verify. |
-| originalString  | <code>string</code> | The original, unencrypted string.     |
-| secret          | <code>string</code> | The secret key used for signing.      |
+| originalString | <code>string</code> | The original, unencrypted string. |
+| secret | <code>string</code> | The secret key used for signing. |
 
-**Example**
-
+**Example**  
 ```js
-const isValid = crypto.hmacSha256Verify(
-  signature,
-  "Hello, World!",
-  "my-secret",
-);
+const isValid = crypto.hmacSha256Verify(signature, "Hello, World!", "my-secret");
 console.log("Is the signature valid? - ", isValid);
 ```
-
 <a name="module_crypto.encrypt"></a>
 
 ### crypto.encrypt(textToEncrypt, secret) ⇒ <code>string</code>
-
 Encrypts text using AES-256-GCM.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - A combined string "iv:authtag:encryptedtext" in hex format.
+**Returns**: <code>string</code> - A combined string "iv:authtag:encryptedtext" in hex format.  
 
-| Param         | Type                | Description                           |
-| ------------- | ------------------- | ------------------------------------- |
-| textToEncrypt | <code>string</code> | The plaintext string.                 |
-| secret        | <code>string</code> | The secret key to use for encryption. |
+| Param | Type | Description |
+| --- | --- | --- |
+| textToEncrypt | <code>string</code> | The plaintext string. |
+| secret | <code>string</code> | The secret key to use for encryption. |
 
-**Example**
-
+**Example**  
 ```js
 const encrypted = crypto.encrypt("Hello, World!", "my-secret");
 console.log("Encrypted Text:", encrypted);
 ```
-
 <a name="module_crypto.decrypt"></a>
 
 ### crypto.decrypt(encryptedPackage, secret) ⇒ <code>string</code> \| <code>null</code>
-
 Decrypts text that was encrypted with the encrypt() function.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
@@ -4541,152 +4584,137 @@ Decrypts text that was encrypted with the encrypt() function.
 
 - <code>Error</code> If the decryption fails due to an invalid format or other issues.
 
-| Param            | Type                | Description                            |
-| ---------------- | ------------------- | -------------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | encryptedPackage | <code>string</code> | The "iv:authtag:encryptedtext" string. |
-| secret           | <code>string</code> | The secret key used for encryption.    |
+| secret | <code>string</code> | The secret key used for encryption. |
 
-**Example**
-
+**Example**  
 ```js
 const decrypted = crypto.decrypt("iv:authtag:encryptedtext", "my-secret");
 console.log("Decrypted Text:", decrypted);
 ```
-
 <a name="module_crypto.hashPassword"></a>
 
 ### crypto.hashPassword(plainTextPassword) ⇒ <code>Promise.&lt;string&gt;</code>
-
 Securely hashes a password using Argon2.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>Promise.&lt;string&gt;</code> - A promise that resolves to the full hash string.
+**Returns**: <code>Promise.&lt;string&gt;</code> - A promise that resolves to the full hash string.  
 
-| Param             | Type                | Description          |
-| ----------------- | ------------------- | -------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | plainTextPassword | <code>string</code> | The user's password. |
 
-**Example**
-
+**Example**  
 ```js
 const hash = await crypto.hashPassword("mySecurePassword");
 console.log("Hashed Password:", hash);
 ```
-
 <a name="module_crypto.verifyPassword"></a>
 
 ### crypto.verifyPassword(plainTextPassword, hash) ⇒ <code>Promise.&lt;boolean&gt;</code>
-
 Verifies a plaintext password against an Argon2 hash.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves to true if they match, false otherwise.
+**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves to true if they match, false otherwise.  
 
-| Param             | Type                | Description                        |
-| ----------------- | ------------------- | ---------------------------------- |
-| plainTextPassword | <code>string</code> | The password to check.             |
-| hash              | <code>string</code> | The hash string from the database. |
+| Param | Type | Description |
+| --- | --- | --- |
+| plainTextPassword | <code>string</code> | The password to check. |
+| hash | <code>string</code> | The hash string from the database. |
 
-**Example**
-
+**Example**  
 ```js
 const isValid = await crypto.verifyPassword("mySecurePassword", hash);
 console.log("Is the password valid? - ", isValid);
 ```
-
 <a name="module_crypto.generateSecureRandomString"></a>
 
 ### crypto.generateSecureRandomString(length) ⇒ <code>string</code>
-
 Generates a cryptographically secure random string.
 
 **Kind**: static method of [<code>crypto</code>](#module_crypto)  
-**Returns**: <code>string</code> - A random, URL-safe string.
+**Returns**: <code>string</code> - A random, URL-safe string.  
 
-| Param  | Type                | Description                             |
-| ------ | ------------------- | --------------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | length | <code>number</code> | The desired length of the final string. |
 
-**Example**
-
+**Example**  
 ```js
 const randomString = crypto.generateSecureRandomString(32);
 console.log("Random String:", randomString);
 ```
-
 <a name="module_dashboard"></a>
 
 ## dashboard
-
 This module provides functionality to create and manage a dashboard layout with multiple charts.
 It allows for rendering charts into specific cells of a defined grid layout.
 The dashboard can be initialized with a JSON layout object, and charts can be rendered into specified cells.
 The final dashboard image can be exported as a PNG buffer or Data URL.
 
-- [dashboard](#module_dashboard)
-  - _static_
-    - [.init(layout)](#module_dashboard.init) ⇒ <code>Dashboard</code>
-  - _inner_
-    - [~Dashboard](#module_dashboard..Dashboard)
-      - [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
-      - [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
-      - [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
-      - [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
+
+* [dashboard](#module_dashboard)
+    * _static_
+        * [.init(layout)](#module_dashboard.init) ⇒ <code>Dashboard</code>
+    * _inner_
+        * [~Dashboard](#module_dashboard..Dashboard)
+            * [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
+            * [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
+            * [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
+            * [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
 
 <a name="module_dashboard.init"></a>
 
 ### dashboard.init(layout) ⇒ <code>Dashboard</code>
-
 Initializes a new dashboard layout.
 
 **Kind**: static method of [<code>dashboard</code>](#module_dashboard)  
-**Returns**: <code>Dashboard</code> - An instance of the Dashboard class, ready for rendering.
+**Returns**: <code>Dashboard</code> - An instance of the Dashboard class, ready for rendering.  
 
-| Param  | Type                | Description                                    |
-| ------ | ------------------- | ---------------------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | layout | <code>object</code> | The JSON object defining the dashboard layout. |
 
-**Example**
-
+**Example**  
 ```js
 const dashboardLayout = {
-  width: 1200,
-  height: 800,
-  backgroundColor: "#F5F5F5",
-  grid: { rows: 2, cols: 2, padding: 20 },
-  cells: {
-    "bar-chart": { row: 0, col: 0, colspan: 2 },
-    "pie-chart": { row: 1, col: 0 },
-    "line-chart": { row: 1, col: 1 },
-  },
+    width: 1200,
+    height: 800,
+    backgroundColor: '#F5F5F5',
+    grid: { rows: 2, cols: 2, padding: 20 },
+    cells: {
+        "bar-chart": { "row": 0, "col": 0, "colspan": 2 },
+        "pie-chart": { "row": 1, "col": 0 },
+        "line-chart": { "row": 1, "col": 1 }
+    }
 };
 const myDashboard = dashboard.init(dashboardLayout);
 // Now you can render charts into the dashboard:
 const finalImageBuffer = myDashboard.toBuffer();
 // To send the image in a http response:
-$g.response.send(finalImageBuffer, 200, "image/png");
+$g.response.send(finalImageBuffer, 200, 'image/png');
 ```
-
 <a name="module_dashboard..Dashboard"></a>
 
 ### dashboard~Dashboard
-
 The Dashboard class manages the layout, canvas, and rendering of multiple charts.
 This class is returned by the init() function.
 It provides methods to render charts into specific cells and export the final dashboard image.
 
-**Kind**: inner class of [<code>dashboard</code>](#module_dashboard)
+**Kind**: inner class of [<code>dashboard</code>](#module_dashboard)  
 
-- [~Dashboard](#module_dashboard..Dashboard)
-  - [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
-  - [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
-  - [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
-  - [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
+* [~Dashboard](#module_dashboard..Dashboard)
+    * [new Dashboard(layout)](#new_module_dashboard..Dashboard_new)
+    * [.renderChart(cellName, chartConfig)](#module_dashboard..Dashboard+renderChart) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
+    * [.toBuffer()](#module_dashboard..Dashboard+toBuffer) ⇒ <code>Buffer</code>
+    * [.toDataURL()](#module_dashboard..Dashboard+toDataURL) ⇒ <code>string</code>
 
 <a name="new_module_dashboard..Dashboard_new"></a>
 
 #### new Dashboard(layout)
-
 Initializes the Dashboard instance with a layout object.
 The layout should define the grid structure and cell definitions.
 
@@ -4694,58 +4722,55 @@ The layout should define the grid structure and cell definitions.
 
 - <code>Error</code> If the layout is invalid or missing required properties.
 
-| Param  | Type                | Description                                    |
-| ------ | ------------------- | ---------------------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | layout | <code>object</code> | The JSON object defining the dashboard layout. |
 
 <a name="module_dashboard..Dashboard+renderChart"></a>
 
 #### dashboard.renderChart(cellName, chartConfig) ⇒ <code>Promise.&lt;Dashboard&gt;</code>
-
 Renders a chart into a specified cell of the dashboard.
 
 **Kind**: instance method of [<code>Dashboard</code>](#module_dashboard..Dashboard)  
-**Returns**: <code>Promise.&lt;Dashboard&gt;</code> - A promise that resolves with the Dashboard instance for chaining.
+**Returns**: <code>Promise.&lt;Dashboard&gt;</code> - A promise that resolves with the Dashboard instance for chaining.  
 
-| Param       | Type                | Description                                                  |
-| ----------- | ------------------- | ------------------------------------------------------------ |
-| cellName    | <code>string</code> | The name of the cell (defined in the layout) to render into. |
-| chartConfig | <code>object</code> | A standard Chart.js configuration object.                    |
+| Param | Type | Description |
+| --- | --- | --- |
+| cellName | <code>string</code> | The name of the cell (defined in the layout) to render into. |
+| chartConfig | <code>object</code> | A standard Chart.js configuration object. |
 
 <a name="module_dashboard..Dashboard+toBuffer"></a>
 
 #### dashboard.toBuffer() ⇒ <code>Buffer</code>
-
 Returns the final dashboard image as a PNG buffer.
 
 **Kind**: instance method of [<code>Dashboard</code>](#module_dashboard..Dashboard)  
 <a name="module_dashboard..Dashboard+toDataURL"></a>
 
 #### dashboard.toDataURL() ⇒ <code>string</code>
-
 Returns the final dashboard image as a Data URL.
 
 **Kind**: instance method of [<code>Dashboard</code>](#module_dashboard..Dashboard)  
 <a name="module_db"></a>
 
 ## db
-
 Provides a unified interface for database operations, allowing dynamic loading of different database adapters.
 This module supports multiple database types by loading the appropriate adapter based on configuration.
 It provides methods for querying, executing commands, and managing transactions.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [db](#module_db)
-  - [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
-    - [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
-    - [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
-  - [.execute(dbName, sql, params)](#module_db.execute) ⇒ <code>Promise.&lt;Object&gt;</code>
-  - [.transaction(dbName, callback)](#module_db.transaction) ⇒ <code>Promise.&lt;any&gt;</code>
+
+* [db](#module_db)
+    * [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
+        * [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
+        * [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
+    * [.execute(dbName, sql, params)](#module_db.execute) ⇒ <code>Promise.&lt;Object&gt;</code>
+    * [.transaction(dbName, callback)](#module_db.transaction) ⇒ <code>Promise.&lt;any&gt;</code>
 
 <a name="module_db.query"></a>
 
 ### db.query(dbName, sql, params) ⇒ <code>Promise.&lt;Object&gt;</code>
-
 Executes a SQL query against the specified database.
 
 **Kind**: static method of [<code>db</code>](#module_db)  
@@ -4755,31 +4780,26 @@ Executes a SQL query against the specified database.
 - <code>Error</code> If the database connection is not configured or the query fails.
 - <code>Error</code> If the SQL query is invalid or the parameters do not match.
 
-| Param  | Type                | Description                        |
-| ------ | ------------------- | ---------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | dbName | <code>string</code> | The name of the database to query. |
-| sql    | <code>string</code> | The SQL query string.              |
-| params | <code>Array</code>  | The parameters for the query.      |
+| sql | <code>string</code> | The SQL query string. |
+| params | <code>Array</code> | The parameters for the query. |
 
-**Example**
-
+**Example**  
 ```js
-const result = await db.query(
-  "myDatabase",
-  "SELECT * FROM users WHERE id = ?",
-  [userId],
-);
+const result = await db.query('myDatabase', 'SELECT * FROM users WHERE id = ?', [userId]);
 console.log(result);
 ```
 
-- [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
-  - [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
-  - [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
+* [.query(dbName, sql, params)](#module_db.query) ⇒ <code>Promise.&lt;Object&gt;</code>
+    * [.one(dbName, sql, params)](#module_db.query.one) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
+    * [.many(dbName, sql, params)](#module_db.query.many) ⇒ <code>Promise.&lt;Array&gt;</code>
 
 <a name="module_db.query.one"></a>
 
 #### query.one(dbName, sql, params) ⇒ <code>Promise.&lt;(Object\|null)&gt;</code>
-
 Executes a SQL query against the specified database and returns a single result.
 
 **Kind**: static method of [<code>query</code>](#module_db.query)  
@@ -4789,31 +4809,25 @@ Executes a SQL query against the specified database and returns a single result.
 - <code>Error</code> If the database connection is not configured or the query fails.
 - <code>Error</code> If the SQL query is invalid or the parameters do not match.
 
-| Param  | Type                | Description                        |
-| ------ | ------------------- | ---------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | dbName | <code>string</code> | The name of the database to query. |
-| sql    | <code>string</code> | The SQL query string.              |
-| params | <code>Array</code>  | The parameters for the query.      |
+| sql | <code>string</code> | The SQL query string. |
+| params | <code>Array</code> | The parameters for the query. |
 
-**Example**
-
+**Example**  
 ```js
-const user = await db.query.one(
-  "myDatabase",
-  "SELECT * FROM users WHERE id = ?",
-  [userId],
-);
+const user = await db.query.one('myDatabase', 'SELECT * FROM users WHERE id = ?', [userId]);
 if (user) {
-  console.log(`User found: ${user.name}`);
+    console.log(`User found: ${user.name}`);
 } else {
-  console.log("User not found");
+    console.log("User not found");
 }
 ```
-
 <a name="module_db.query.many"></a>
 
 #### query.many(dbName, sql, params) ⇒ <code>Promise.&lt;Array&gt;</code>
-
 Executes a SQL query against the specified database and returns multiple results.
 
 **Kind**: static method of [<code>query</code>](#module_db.query)  
@@ -4823,27 +4837,21 @@ Executes a SQL query against the specified database and returns multiple results
 - <code>Error</code> If the database connection is not configured or the query fails.
 - <code>Error</code> If the SQL query is invalid or the parameters do not match.
 
-| Param  | Type                | Description                        |
-| ------ | ------------------- | ---------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | dbName | <code>string</code> | The name of the database to query. |
-| sql    | <code>string</code> | The SQL query string.              |
-| params | <code>Array</code>  | The parameters for the query.      |
+| sql | <code>string</code> | The SQL query string. |
+| params | <code>Array</code> | The parameters for the query. |
 
-**Example**
-
+**Example**  
 ```js
-const users = await db.query.many(
-  "myDatabase",
-  "SELECT * FROM users WHERE active = ?",
-  [true],
-);
+const users = await db.query.many('myDatabase', 'SELECT * FROM users WHERE active = ?', [true]);
 console.log(`Found ${users.length} active users.`);
 ```
-
 <a name="module_db.execute"></a>
 
 ### db.execute(dbName, sql, params) ⇒ <code>Promise.&lt;Object&gt;</code>
-
 Executes a SQL update/insert/delete command against the specified database.
 
 **Kind**: static method of [<code>db</code>](#module_db)  
@@ -4853,27 +4861,21 @@ Executes a SQL update/insert/delete command against the specified database.
 - <code>Error</code> If the database connection is not configured or the command fails.
 - <code>Error</code> If the SQL command is invalid or the parameters do not match.
 
-| Param  | Type                | Description                                         |
-| ------ | ------------------- | --------------------------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | dbName | <code>string</code> | The name of the database to execute the command on. |
-| sql    | <code>string</code> | The SQL insert/update/delete command string.        |
-| params | <code>Array</code>  | The parameters for the command.                     |
+| sql | <code>string</code> | The SQL insert/update/delete command string. |
+| params | <code>Array</code> | The parameters for the command. |
 
-**Example**
-
+**Example**  
 ```js
-const result = await db.execute(
-  "myDatabase",
-  "UPDATE users SET active = ? WHERE id = ?",
-  [false, userId],
-);
+const result = await db.execute('myDatabase', 'UPDATE users SET active = ? WHERE id = ?', [false, userId]);
 console.log(`Rows affected: ${result.rowCount}`);
 ```
-
 <a name="module_db.transaction"></a>
 
 ### db.transaction(dbName, callback) ⇒ <code>Promise.&lt;any&gt;</code>
-
 Executes a transaction with the provided callback function.
 
 **Kind**: static method of [<code>db</code>](#module_db)  
@@ -4883,27 +4885,24 @@ Executes a transaction with the provided callback function.
 - <code>Error</code> If the transaction fails or the callback throws an error.
 - <code>Error</code> If the database connection is not configured.
 
-| Param    | Type                  | Description                                             |
-| -------- | --------------------- | ------------------------------------------------------- |
-| dbName   | <code>string</code>   | The name of the database to use for the transaction.    |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| dbName | <code>string</code> | The name of the database to use for the transaction. |
 | callback | <code>function</code> | The function to execute within the transaction context. |
 
-**Example**
-
+**Example**  
 ```js
-await db.transaction("myDatabase", async (client) => {
-  await client.execute("INSERT INTO users (name) VALUES (?)", ["Alice"]);
+await db.transaction('myDatabase', async (client) => {
+    await client.execute('INSERT INTO users (name) VALUES (?)', ['Alice']);
 });
 ```
-
 <a name="module_email"></a>
 
 ## email
-
 Transactional email for Gingee apps using a provider adapter pattern (similar to `db` / `cache`).
 
 <b>Configuration (single config, no named profiles):</b>
-
 - Optional server defaults: `gingee.json` → `email`
 - Optional app config: `app.json` → `email` (overrides server for that app)
 - Runtime override: [sendWithConfig](#module_email.sendWithConfig) merges on top for one send only
@@ -4912,438 +4911,383 @@ Transactional email for Gingee apps using a provider adapter pattern (similar to
 
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [email](#module_email)
-  - _static_
-    - [.send(message)](#module_email.send) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [.sendWithConfig(configOverride, message)](#module_email.sendWithConfig) ⇒ <code>Promise.&lt;object&gt;</code>
-  - _inner_
-    - [~serverEmailConfig](#module_email..serverEmailConfig) : <code>object</code> \| <code>null</code>
-    - [~emailInstances](#module_email..emailInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+
+* [email](#module_email)
+    * _static_
+        * [.send(message)](#module_email.send) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.sendWithConfig(configOverride, message)](#module_email.sendWithConfig) ⇒ <code>Promise.&lt;object&gt;</code>
+    * _inner_
+        * [~serverEmailConfig](#module_email..serverEmailConfig) : <code>object</code> \| <code>null</code>
+        * [~emailInstances](#module_email..emailInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
 
 <a name="module_email.send"></a>
 
 ### email.send(message) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Sends an email using the app's resolved config (app.json overrides gingee.json).
 
 **Kind**: static method of [<code>email</code>](#module_email)  
-**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status  
 
-| Param                 | Type                                                     | Description                                             |
-| --------------------- | -------------------------------------------------------- | ------------------------------------------------------- |
-| message               | <code>object</code>                                      | Outbound message.                                       |
-| message.to            | <code>string</code> \| <code>Array.&lt;string&gt;</code> | Recipient(s).                                           |
-| message.subject       | <code>string</code>                                      | Subject line.                                           |
-| [message.text]        | <code>string</code>                                      | Plain-text body.                                        |
-| [message.html]        | <code>string</code>                                      | HTML body.                                              |
-| [message.from]        | <code>string</code>                                      | Override default from address for this message only.    |
-| [message.fromName]    | <code>string</code>                                      | Override default from name.                             |
-| [message.cc]          | <code>string</code> \| <code>Array.&lt;string&gt;</code> |                                                         |
-| [message.bcc]         | <code>string</code> \| <code>Array.&lt;string&gt;</code> |                                                         |
-| [message.replyTo]     | <code>string</code>                                      |                                                         |
-| [message.attachments] | <code>Array.&lt;object&gt;</code>                        | filename, content (Buffer or base64), type, disposition |
+| Param | Type | Description |
+| --- | --- | --- |
+| message | <code>object</code> | Outbound message. |
+| message.to | <code>string</code> \| <code>Array.&lt;string&gt;</code> | Recipient(s). |
+| message.subject | <code>string</code> | Subject line. |
+| [message.text] | <code>string</code> | Plain-text body. |
+| [message.html] | <code>string</code> | HTML body. |
+| [message.from] | <code>string</code> | Override default from address for this message only. |
+| [message.fromName] | <code>string</code> | Override default from name. |
+| [message.cc] | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  |
+| [message.bcc] | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  |
+| [message.replyTo] | <code>string</code> |  |
+| [message.attachments] | <code>Array.&lt;object&gt;</code> | filename, content (Buffer or base64), type, disposition |
 
-**Example**
-
+**Example**  
 ```js
-const email = require("email");
+const email = require('email');
 await email.send({
-  to: "user@example.com",
-  subject: "Welcome",
-  text: "Thanks for joining.",
-  html: "<p>Thanks for joining.</p>",
+  to: 'user@example.com',
+  subject: 'Welcome',
+  text: 'Thanks for joining.',
+  html: '<p>Thanks for joining.</p>'
 });
 ```
-
 <a name="module_email.sendWithConfig"></a>
 
 ### email.sendWithConfig(configOverride, message) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Sends a single email using a runtime config that overrides both server and app.json
 settings for this transaction only. Does not persist or change the app's default adapter.
 
 **Kind**: static method of [<code>email</code>](#module_email)  
-**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status  
 
-| Param          | Type                | Description                                                          |
-| -------------- | ------------------- | -------------------------------------------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | configOverride | <code>object</code> | Partial or full email config (type, api_key, from, from_name, etc.). |
-| message        | <code>object</code> | Same shape as [send](#module_email.send).                            |
+| message | <code>object</code> | Same shape as [send](#module_email.send). |
 
-**Example**
-
+**Example**  
 ```js
-const email = require("email");
+const email = require('email');
 await email.sendWithConfig(
-  { type: "sendgrid", api_key: userApiKey, from: "billing@example.com" },
-  {
-    to: "customer@example.com",
-    subject: "Invoice",
-    text: "Your invoice is attached.",
-  },
+  { type: 'sendgrid', api_key: userApiKey, from: 'billing@example.com' },
+  { to: 'customer@example.com', subject: 'Invoice', text: 'Your invoice is attached.' }
 );
 ```
-
 <a name="module_email..serverEmailConfig"></a>
 
 ### email~serverEmailConfig : <code>object</code> \| <code>null</code>
-
 **Kind**: inner property of [<code>email</code>](#module_email)  
 <a name="module_email..emailInstances"></a>
 
 ### email~emailInstances : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
-
 **Kind**: inner constant of [<code>email</code>](#module_email)  
 <a name="module_encode"></a>
 
 ## encode
-
 Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
 This module is designed to handle common encoding tasks in a web application context.
 It includes methods for encoding and decoding strings in different formats, ensuring compatibility with various data transmission and storage requirements.
 It also provides URL-safe encoding methods and HTML entity encoding to prevent XSS attacks.
 
-- [encode](#module_encode)
-  - [.base64](#module_encode.base64) : <code>object</code>
-    - [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
-    - [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
-    - [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
-    - [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
-  - [.uri](#module_encode.uri) : <code>object</code>
-    - [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
-    - [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
-  - [.hex](#module_encode.hex) : <code>object</code>
-    - [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
-    - [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
-  - [.html](#module_encode.html) : <code>object</code>
-    - [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
-    - [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
-  - [.base58](#module_encode.base58) : <code>object</code>
-    - [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
-    - [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
+
+* [encode](#module_encode)
+    * [.base64](#module_encode.base64) : <code>object</code>
+        * [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
+        * [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
+        * [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
+        * [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
+    * [.uri](#module_encode.uri) : <code>object</code>
+        * [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
+        * [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
+    * [.hex](#module_encode.hex) : <code>object</code>
+        * [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
+        * [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
+    * [.html](#module_encode.html) : <code>object</code>
+        * [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
+        * [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
+    * [.base58](#module_encode.base58) : <code>object</code>
+        * [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
+        * [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
 
 <a name="module_encode.base64"></a>
 
 ### encode.base64 : <code>object</code>
-
 Provides methods for Base64 encoding and decoding.
 This namespace includes functions to encode and decode strings in Base64 format, which is commonly used for data transmission in web applications.
 It supports both standard Base64 and URL-safe Base64 encoding.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)
+**Kind**: static namespace of [<code>encode</code>](#module_encode)  
 
-- [.base64](#module_encode.base64) : <code>object</code>
-  - [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
-  - [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
-  - [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
-  - [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
+* [.base64](#module_encode.base64) : <code>object</code>
+    * [.encode(inputString)](#module_encode.base64.encode) ⇒ <code>string</code>
+    * [.decode(base64String)](#module_encode.base64.decode) ⇒ <code>string</code>
+    * [.encodeUrl(input)](#module_encode.base64.encodeUrl) ⇒ <code>string</code>
+    * [.decodeUrl(input)](#module_encode.base64.decodeUrl) ⇒ <code>string</code>
 
 <a name="module_encode.base64.encode"></a>
 
 #### base64.encode(inputString) ⇒ <code>string</code>
-
 Encodes a UTF-8 string into a Base64 string.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The Base64 encoded string or null if the input is not a string.
+**Returns**: <code>string</code> - The Base64 encoded string or null if the input is not a string.  
 
-| Param       | Type                | Description           |
-| ----------- | ------------------- | --------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**
-
+**Example**  
 ```js
-const encoded = base64.encode("Hello, World!");
+const encoded = base64.encode('Hello, World!');
 console.log(encoded); // Outputs: SGVsbG8sIFdvcmxkIQ==
 ```
-
 <a name="module_encode.base64.decode"></a>
 
 #### base64.decode(base64String) ⇒ <code>string</code>
-
 Decodes a Base64 string back into a UTF-8 string.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The original UTF-8 string or null if the input is not a string.
+**Returns**: <code>string</code> - The original UTF-8 string or null if the input is not a string.  
 
-| Param        | Type                | Description                  |
-| ------------ | ------------------- | ---------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | base64String | <code>string</code> | The Base64 string to decode. |
 
-**Example**
-
+**Example**  
 ```js
-const decoded = base64.decode("SGVsbG8sIFdvcmxkIQ==");
+const decoded = base64.decode('SGVsbG8sIFdvcmxkIQ==');
 console.log(decoded); // Outputs: Hello, World!
 ```
-
 <a name="module_encode.base64.encodeUrl"></a>
 
 #### base64.encodeUrl(input) ⇒ <code>string</code>
-
 Encodes a string using the URL-safe Base64 variant.
 This replaces '+' with '-', '/' with '_', and removes padding ('=').
 It is useful for encoding data that will be included in URLs or HTTP headers.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The Base64Url encoded string.
+**Returns**: <code>string</code> - The Base64Url encoded string.  
 
-| Param | Type                | Description                     |
-| ----- | ------------------- | ------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | input | <code>string</code> | The string or buffer to encode. |
 
-**Example**
-
+**Example**  
 ```js
-const encodedUrl = base64.encodeUrl("Hello, World!");
+const encodedUrl = base64.encodeUrl('Hello, World!');
 console.log(encodedUrl); // Outputs: SGVsbG8sIFdvcmxkIQ==
 ```
-
 <a name="module_encode.base64.decodeUrl"></a>
 
 #### base64.decodeUrl(input) ⇒ <code>string</code>
-
 Decodes a Base64Url encoded string.
 This reverses the URL-safe encoding by replacing '-' with '+', '_' with '/', and adding padding if necessary.
 It is useful for decoding data that was encoded for use in URLs or HTTP headers.
 
 **Kind**: static method of [<code>base64</code>](#module_encode.base64)  
-**Returns**: <code>string</code> - The decoded string.
+**Returns**: <code>string</code> - The decoded string.  
 
-| Param | Type                | Description           |
-| ----- | ------------------- | --------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | input | <code>string</code> | The Base64Url string. |
 
-**Example**
-
+**Example**  
 ```js
-const decodedUrl = base64.decodeUrl("SGVsbG8sIFdvcmxkIQ");
+const decodedUrl = base64.decodeUrl('SGVsbG8sIFdvcmxkIQ');
 console.log(decodedUrl); // Outputs: Hello, World!
 ```
-
 <a name="module_encode.uri"></a>
 
 ### encode.uri : <code>object</code>
-
 Provides methods for URI encoding and decoding.
 This namespace includes functions to safely encode and decode strings for use in URIs, ensuring that special characters are properly handled.
 It is useful for preparing data to be included in URLs, query parameters, or path segments
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)
+**Kind**: static namespace of [<code>encode</code>](#module_encode)  
 
-- [.uri](#module_encode.uri) : <code>object</code>
-  - [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
-  - [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
+* [.uri](#module_encode.uri) : <code>object</code>
+    * [.encode(inputString)](#module_encode.uri.encode) ⇒ <code>string</code>
+    * [.decode(encodedString)](#module_encode.uri.decode) ⇒ <code>string</code>
 
 <a name="module_encode.uri.encode"></a>
 
 #### uri.encode(inputString) ⇒ <code>string</code>
-
 Encodes a string for use in a URI.
 
 **Kind**: static method of [<code>uri</code>](#module_encode.uri)  
-**Returns**: <code>string</code> - The encoded URI component.
+**Returns**: <code>string</code> - The encoded URI component.  
 
-| Param       | Type                | Description           |
-| ----------- | ------------------- | --------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**
-
+**Example**  
 ```js
-const encoded = uri.encode("Hello, World!");
+const encoded = uri.encode('Hello, World!');
 console.log(encoded); // Outputs: Hello%2C%20World%21
 ```
-
 <a name="module_encode.uri.decode"></a>
 
 #### uri.decode(encodedString) ⇒ <code>string</code>
-
 Decodes a URI-encoded string.
 
 **Kind**: static method of [<code>uri</code>](#module_encode.uri)  
-**Returns**: <code>string</code> - The decoded string.
+**Returns**: <code>string</code> - The decoded string.  
 
-| Param         | Type                | Description                   |
-| ------------- | ------------------- | ----------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | encodedString | <code>string</code> | The encoded string to decode. |
 
-**Example**
-
+**Example**  
 ```js
-const decoded = uri.decode("Hello%2C%20World%21");
+const decoded = uri.decode('Hello%2C%20World%21');
 console.log(decoded); // Outputs: Hello, World!
 ```
-
 <a name="module_encode.hex"></a>
 
 ### encode.hex : <code>object</code>
-
 Provides methods for hexadecimal encoding and decoding.
 This namespace includes functions to convert strings to and from hexadecimal format, which is often used for data representation in computing.
 It is useful for encoding binary data as a readable string format, commonly used in cryptography and data transmission.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)
+**Kind**: static namespace of [<code>encode</code>](#module_encode)  
 
-- [.hex](#module_encode.hex) : <code>object</code>
-  - [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
-  - [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
+* [.hex](#module_encode.hex) : <code>object</code>
+    * [.encode(inputString)](#module_encode.hex.encode) ⇒ <code>string</code>
+    * [.decode(hexString)](#module_encode.hex.decode) ⇒ <code>string</code>
 
 <a name="module_encode.hex.encode"></a>
 
 #### hex.encode(inputString) ⇒ <code>string</code>
-
 Encodes a string into hexadecimal format.
 
 **Kind**: static method of [<code>hex</code>](#module_encode.hex)  
-**Returns**: <code>string</code> - The hexadecimal encoded string.
+**Returns**: <code>string</code> - The hexadecimal encoded string.  
 
-| Param       | Type                | Description           |
-| ----------- | ------------------- | --------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**
-
+**Example**  
 ```js
-const encoded = hex.encode("Hello, World!");
+const encoded = hex.encode('Hello, World!');
 console.log(encoded); // Outputs: 48656c6c6f2c20576f726c6421
 ```
-
 <a name="module_encode.hex.decode"></a>
 
 #### hex.decode(hexString) ⇒ <code>string</code>
-
 Decodes a hexadecimal string back into a UTF-8 string.
 
 **Kind**: static method of [<code>hex</code>](#module_encode.hex)  
-**Returns**: <code>string</code> - The original UTF-8 string.
+**Returns**: <code>string</code> - The original UTF-8 string.  
 
-| Param     | Type                | Description                       |
-| --------- | ------------------- | --------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | hexString | <code>string</code> | The hexadecimal string to decode. |
 
-**Example**
-
+**Example**  
 ```js
-const decoded = hex.decode("48656c6c6f2c20576f726c6421");
+const decoded = hex.decode('48656c6c6f2c20576f726c6421');
 console.log(decoded); // Outputs: Hello, World!
 ```
-
 <a name="module_encode.html"></a>
 
 ### encode.html : <code>object</code>
-
 Provides methods for HTML encoding and decoding.
 This namespace includes functions to safely encode and decode strings for use in HTML contexts, preventing XSS (Cross-Site Scripting) attacks.
 It is useful for sanitizing user input before displaying it in web pages, ensuring that special characters are properly escaped.
 It helps to prevent security vulnerabilities by converting characters like `<`, `>`, and `&` into their corresponding HTML entities.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)
+**Kind**: static namespace of [<code>encode</code>](#module_encode)  
 
-- [.html](#module_encode.html) : <code>object</code>
-  - [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
-  - [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
+* [.html](#module_encode.html) : <code>object</code>
+    * [.encode(inputString)](#module_encode.html.encode) ⇒ <code>string</code>
+    * [.decode(encodedString)](#module_encode.html.decode) ⇒ <code>string</code>
 
 <a name="module_encode.html.encode"></a>
 
 #### html.encode(inputString) ⇒ <code>string</code>
-
 Encodes a string for safe HTML display.
 
 **Kind**: static method of [<code>html</code>](#module_encode.html)  
-**Returns**: <code>string</code> - The HTML encoded string.
+**Returns**: <code>string</code> - The HTML encoded string.  
 
-| Param       | Type                | Description           |
-| ----------- | ------------------- | --------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputString | <code>string</code> | The string to encode. |
 
-**Example**
-
+**Example**  
 ```js
 const encoded = html.encode('<script>alert("XSS")</script>');
 console.log(encoded); // Outputs: &lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;
 ```
-
 <a name="module_encode.html.decode"></a>
 
 #### html.decode(encodedString) ⇒ <code>string</code>
-
 Decodes an HTML encoded string back to its original form.
 
 **Kind**: static method of [<code>html</code>](#module_encode.html)  
-**Returns**: <code>string</code> - The decoded string.
+**Returns**: <code>string</code> - The decoded string.  
 
-| Param         | Type                | Description                        |
-| ------------- | ------------------- | ---------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | encodedString | <code>string</code> | The HTML encoded string to decode. |
 
-**Example**
-
+**Example**  
 ```js
-const decoded = html.decode(
-  "&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;",
-);
+const decoded = html.decode('&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;');
 console.log(decoded); // Outputs: <script>alert("XSS")</script>
 ```
-
 <a name="module_encode.base58"></a>
 
 ### encode.base58 : <code>object</code>
-
 Provides methods for Base58 encoding and decoding.
 This namespace includes functions to encode and decode strings in Base58 format, which is commonly used for data representation in applications like Bitcoin addresses.
 
-**Kind**: static namespace of [<code>encode</code>](#module_encode)
+**Kind**: static namespace of [<code>encode</code>](#module_encode)  
 
-- [.base58](#module_encode.base58) : <code>object</code>
-  - [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
-  - [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
+* [.base58](#module_encode.base58) : <code>object</code>
+    * [.encode(inputBuffer)](#module_encode.base58.encode) ⇒ <code>string</code>
+    * [.decode(base58String)](#module_encode.base58.decode) ⇒ <code>Buffer</code>
 
 <a name="module_encode.base58.encode"></a>
 
 #### base58.encode(inputBuffer) ⇒ <code>string</code>
-
 Encodes a Buffer or string into Base58 format.
 
 **Kind**: static method of [<code>base58</code>](#module_encode.base58)  
-**Returns**: <code>string</code> - The Base58 encoded string.
+**Returns**: <code>string</code> - The Base58 encoded string.  
 
-| Param       | Type                                       | Description         |
-| ----------- | ------------------------------------------ | ------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | inputBuffer | <code>Buffer</code> \| <code>string</code> | The data to encode. |
 
-**Example**
-
+**Example**  
 ```js
-const encoded = base58.encode(Buffer.from("Hello, World!"));
+const encoded = base58.encode(Buffer.from('Hello, World!'));
 console.log(encoded); // Outputs: 2NEpo7TZRRrLZSi2U
 ```
-
 <a name="module_encode.base58.decode"></a>
 
 #### base58.decode(base58String) ⇒ <code>Buffer</code>
-
 Decodes a Base58 encoded string back into a Buffer.
 
 **Kind**: static method of [<code>base58</code>](#module_encode.base58)  
-**Returns**: <code>Buffer</code> - The decoded Buffer.
+**Returns**: <code>Buffer</code> - The decoded Buffer.  
 
-| Param        | Type                | Description                  |
-| ------------ | ------------------- | ---------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | base58String | <code>string</code> | The Base58 string to decode. |
 
-**Example**
-
+**Example**  
 ```js
-const decoded = base58.decode("2NEpo7TZRRrLZSi2U");
+const decoded = base58.decode('2NEpo7TZRRrLZSi2U');
 console.log(decoded.toString()); // Outputs: Hello, World!
 ```
-
 <a name="module_formdata"></a>
 
 ## formdata
-
 Provides a factory function to create FormData instances.
 This module is used to handle form data in HTTP requests, allowing for easy construction of multipart/form-data requests.
 It simplifies the process of appending fields and files to the form data, and provides a method to get headers for use with HTTP clients.
@@ -5353,7 +5297,6 @@ It abstracts the complexities of constructing multipart requests, making it easi
 <a name="module_formdata.create"></a>
 
 ### formdata.create() ⇒ <code>FormData</code>
-
 Creates a new FormData instance.
 This function initializes a FormData object that can be used to append fields and files for HTTP requests.
 It provides a simple interface for constructing multipart/form-data requests, which is commonly used for file uploads and form submissions.
@@ -5362,60 +5305,53 @@ and retrieve the necessary headers for sending the form data in HTTP requests.
 
 **Kind**: static method of [<code>formdata</code>](#module_formdata)  
 **Returns**: <code>FormData</code> - A new FormData instance.  
-**Example**
-
+**Example**  
 ```js
 const form = formdata.create();
-form.append("name", "Gingee App Server");
-form.append("description", "This is the Gingee mascot.");
-form.append(
-  "image",
-  fs.readFileSync(fs.BOX, "./images/gingee.png"),
-  "gingee.png",
-);
+form.append('name', 'Gingee App Server');
+form.append('description', 'This is the Gingee mascot.');
+form.append('image', fs.readFileSync(fs.BOX, './images/gingee.png'), 'gingee.png');
 const headers = form.getHeaders();
 ```
-
 <a name="module_fs"></a>
 
 ## fs
-
 A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
 <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [fs](#module_fs)
-  - [.BOX](#module_fs.BOX)
-  - [.WEB](#module_fs.WEB)
-  - [.readFileSync(scope, filePath, [options])](#module_fs.readFileSync) ⇒ <code>string</code> \| <code>Buffer</code>
-  - [.readJSONSync(scope, filePath, [options])](#module_fs.readJSONSync) ⇒ <code>object</code>
-  - [.writeFileSync(scope, filePath, data, [options])](#module_fs.writeFileSync) ⇒ <code>void</code>
-  - [.appendFileSync(scope, filePath, data, [options])](#module_fs.appendFileSync) ⇒ <code>void</code>
-  - [.writeJSONSync(scope, filePath, data, [options])](#module_fs.writeJSONSync) ⇒ <code>void</code>
-  - [.existsSync(scope, filePath)](#module_fs.existsSync) ⇒ <code>boolean</code>
-  - [.deleteFileSync(scope, filePath)](#module_fs.deleteFileSync) ⇒ <code>void</code>
-  - [.moveFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFileSync) ⇒ <code>string</code>
-  - [.copyFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFileSync) ⇒ <code>void</code>
-  - [.mkdirSync(scope, dirPath)](#module_fs.mkdirSync) ⇒ <code>void</code>
-  - [.rmdirSync(scope, dirPath, [options])](#module_fs.rmdirSync) ⇒ <code>void</code>
-  - [.moveDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDirSync) ⇒ <code>string</code>
-  - [.copyDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDirSync) ⇒ <code>void</code>
-  - [.readFile(scope, filePath, [options])](#module_fs.readFile) ⇒ <code>Promise.&lt;(string\|Buffer)&gt;</code>
-  - [.writeFile(scope, filePath, data, [options])](#module_fs.writeFile) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.appendFile(scope, filePath, data, [options])](#module_fs.appendFile) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.exists(scope, filePath)](#module_fs.exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
-  - [.deleteFile(scope, filePath)](#module_fs.deleteFile) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.moveFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFile) ⇒ <code>Promise.&lt;string&gt;</code>
-  - [.copyFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFile) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.mkdir(scope, dirPath)](#module_fs.mkdir) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.rmdir(scope, dirPath, [options])](#module_fs.rmdir) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.moveDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDir) ⇒ <code>Promise.&lt;string&gt;</code>
-  - [.copyDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDir) ⇒ <code>Promise.&lt;void&gt;</code>
+
+* [fs](#module_fs)
+    * [.BOX](#module_fs.BOX)
+    * [.WEB](#module_fs.WEB)
+    * [.readFileSync(scope, filePath, [options])](#module_fs.readFileSync) ⇒ <code>string</code> \| <code>Buffer</code>
+    * [.readJSONSync(scope, filePath, [options])](#module_fs.readJSONSync) ⇒ <code>object</code>
+    * [.writeFileSync(scope, filePath, data, [options])](#module_fs.writeFileSync) ⇒ <code>void</code>
+    * [.appendFileSync(scope, filePath, data, [options])](#module_fs.appendFileSync) ⇒ <code>void</code>
+    * [.writeJSONSync(scope, filePath, data, [options])](#module_fs.writeJSONSync) ⇒ <code>void</code>
+    * [.existsSync(scope, filePath)](#module_fs.existsSync) ⇒ <code>boolean</code>
+    * [.deleteFileSync(scope, filePath)](#module_fs.deleteFileSync) ⇒ <code>void</code>
+    * [.moveFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFileSync) ⇒ <code>string</code>
+    * [.copyFileSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFileSync) ⇒ <code>void</code>
+    * [.mkdirSync(scope, dirPath)](#module_fs.mkdirSync) ⇒ <code>void</code>
+    * [.rmdirSync(scope, dirPath, [options])](#module_fs.rmdirSync) ⇒ <code>void</code>
+    * [.moveDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDirSync) ⇒ <code>string</code>
+    * [.copyDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDirSync) ⇒ <code>void</code>
+    * [.readFile(scope, filePath, [options])](#module_fs.readFile) ⇒ <code>Promise.&lt;(string\|Buffer)&gt;</code>
+    * [.writeFile(scope, filePath, data, [options])](#module_fs.writeFile) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.appendFile(scope, filePath, data, [options])](#module_fs.appendFile) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.exists(scope, filePath)](#module_fs.exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    * [.deleteFile(scope, filePath)](#module_fs.deleteFile) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.moveFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveFile) ⇒ <code>Promise.&lt;string&gt;</code>
+    * [.copyFile(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyFile) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.mkdir(scope, dirPath)](#module_fs.mkdir) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.rmdir(scope, dirPath, [options])](#module_fs.rmdir) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.moveDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDir) ⇒ <code>Promise.&lt;string&gt;</code>
+    * [.copyDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDir) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_fs.BOX"></a>
 
 ### fs.BOX
-
 Constant for the BOX scope.
 This constant can be used to specify the BOX scope when working with file system operations.
 It represents the application box directory, typically used for sandboxed data and server scripts that should not be accessible from the web.
@@ -5424,7 +5360,6 @@ It represents the application box directory, typically used for sandboxed data a
 <a name="module_fs.WEB"></a>
 
 ### fs.WEB
-
 Constant for the WEB scope.
 This constant can be used to specify the WEB scope when working with file system operations.
 It represents the web directory, typically used for web assets.
@@ -5433,7 +5368,6 @@ It represents the web directory, typically used for web assets.
 <a name="module_fs.readFileSync"></a>
 
 ### fs.readFileSync(scope, filePath, [options]) ⇒ <code>string</code> \| <code>Buffer</code>
-
 Synchronously reads the entire contents of a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5442,23 +5376,21 @@ Synchronously reads the entire contents of a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-const content = fs.readFileSync(fs.BOX, "data/myfile.txt", "utf8");
+const content = fs.readFileSync(fs.BOX, 'data/myfile.txt', 'utf8');
 console.log(content); // Outputs the content of myfile.txt
 ```
-
 <a name="module_fs.readJSONSync"></a>
 
 ### fs.readJSONSync(scope, filePath, [options]) ⇒ <code>object</code>
-
 Synchronously reads a JSON file and parses it.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5467,23 +5399,21 @@ Synchronously reads a JSON file and parses it.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope or it is not valid JSON.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-const data = fs.readJSONSync(fs.BOX, "data/myfile.json");
+const data = fs.readJSONSync(fs.BOX, 'data/myfile.json');
 console.log(data); // Outputs the parsed JSON object
 ```
-
 <a name="module_fs.writeFileSync"></a>
 
 ### fs.writeFileSync(scope, filePath, data, [options]) ⇒ <code>void</code>
-
 Synchronously writes data to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5491,23 +5421,21 @@ Synchronously writes data to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| data      | <code>string</code> \| <code>Buffer</code> | The data to write to the file.                         |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| data | <code>string</code> \| <code>Buffer</code> | The data to write to the file. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-fs.writeFileSync(fs.BOX, "data/myfile.txt", "Hello, World!", "utf8");
+fs.writeFileSync(fs.BOX, 'data/myfile.txt', 'Hello, World!', 'utf8');
 ```
-
 <a name="module_fs.appendFileSync"></a>
 
 ### fs.appendFileSync(scope, filePath, data, [options]) ⇒ <code>void</code>
-
 Synchronously appends data to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5515,23 +5443,21 @@ Synchronously appends data to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| data      | <code>string</code> \| <code>Buffer</code> | The data to append to the file.                        |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| data | <code>string</code> \| <code>Buffer</code> | The data to append to the file. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-fs.appendFileSync(fs.BOX, "data/myfile.txt", "Hello, World!", "utf8");
+fs.appendFileSync(fs.BOX, 'data/myfile.txt', 'Hello, World!', 'utf8');
 ```
-
 <a name="module_fs.writeJSONSync"></a>
 
 ### fs.writeJSONSync(scope, filePath, data, [options]) ⇒ <code>void</code>
-
 Synchronously writes a JSON object to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5539,44 +5465,39 @@ Synchronously writes a JSON object to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| data      | <code>object</code>                        | The JSON object to write to the file.                  |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| data | <code>object</code> | The JSON object to write to the file. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-fs.writeJSONSync(fs.BOX, "data/myfile.json", { key: "value" });
+fs.writeJSONSync(fs.BOX, 'data/myfile.json', { key: 'value' });
 ```
-
 <a name="module_fs.existsSync"></a>
 
 ### fs.existsSync(scope, filePath) ⇒ <code>boolean</code>
-
 Synchronously checks if a file exists.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
-**Returns**: <code>boolean</code> - True if the file exists, false otherwise.
+**Returns**: <code>boolean</code> - True if the file exists, false otherwise.  
 
-| Param    | Type                | Description                                            |
-| -------- | ------------------- | ------------------------------------------------------ |
-| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**
-
+**Example**  
 ```js
-const exists = fs.existsSync(fs.BOX, "data/myfile.txt");
+const exists = fs.existsSync(fs.BOX, 'data/myfile.txt');
 console.log(exists); // Outputs true if myfile.txt exists, false otherwise
 ```
-
 <a name="module_fs.deleteFileSync"></a>
 
 ### fs.deleteFileSync(scope, filePath) ⇒ <code>void</code>
-
 Synchronously deletes a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5584,21 +5505,19 @@ Synchronously deletes a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
-| Param    | Type                | Description                                            |
-| -------- | ------------------- | ------------------------------------------------------ |
-| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**
-
+**Example**  
 ```js
-fs.deleteFileSync(fs.BOX, "data/myfile.txt");
+fs.deleteFileSync(fs.BOX, 'data/myfile.txt');
 ```
-
 <a name="module_fs.moveFileSync"></a>
 
 ### fs.moveFileSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>string</code>
-
 Synchronously moves a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5607,28 +5526,21 @@ Synchronously moves a file from one location to another within the same scope.
 
 - <code>Error</code> if the source file does not exist.
 
-| Param       | Type                | Description                                                          |
-| ----------- | ------------------- | -------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
+**Example**  
 ```js
-const newPath = fs.moveFileSync(
-  fs.BOX,
-  "data/myfile.txt",
-  fs.BOX,
-  "data/archived/myfile.txt",
-);
+const newPath = fs.moveFileSync(fs.BOX, 'data/myfile.txt', fs.BOX, 'data/archived/myfile.txt');
 ```
-
 <a name="module_fs.copyFileSync"></a>
 
 ### fs.copyFileSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>void</code>
-
 Synchronously copies a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5636,23 +5548,21 @@ Synchronously copies a file from one location to another within the same scope.
 
 - <code>Error</code> if the source file does not exist.
 
-| Param       | Type                | Description                                                          |
-| ----------- | ------------------- | -------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
+**Example**  
 ```js
-fs.copyFileSync(fs.BOX, "data/myfile.txt", fs.BOX, "data/backup/myfile.txt");
+fs.copyFileSync(fs.BOX, 'data/myfile.txt', fs.BOX, 'data/backup/myfile.txt');
 ```
-
 <a name="module_fs.mkdirSync"></a>
 
 ### fs.mkdirSync(scope, dirPath) ⇒ <code>void</code>
-
 Synchronously creates a directory and its parent directories if they do not exist.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5660,21 +5570,19 @@ Synchronously creates a directory and its parent directories if they do not exis
 
 - <code>Error</code> If the directory path is outside the secure scope or if the directory cannot be created.
 
-| Param   | Type                | Description                                                 |
-| ------- | ------------------- | ----------------------------------------------------------- |
-| scope   | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                 |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
 | dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
 
-**Example**
-
+**Example**  
 ```js
-fs.mkdirSync(fs.BOX, "data/newdir");
+fs.mkdirSync(fs.BOX, 'data/newdir');
 ```
-
 <a name="module_fs.rmdirSync"></a>
 
 ### fs.rmdirSync(scope, dirPath, [options]) ⇒ <code>void</code>
-
 Synchronously removes a directory.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5682,22 +5590,20 @@ Synchronously removes a directory.
 
 - <code>Error</code> If the directory is not empty and `recursive` is false.
 
-| Param     | Type                | Description                                                                                          |
-| --------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
-| scope     | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                                                          |
-| dirPath   | <code>string</code> | The path to the directory, relative to the scope or script.                                          |
-| [options] | <code>object</code> | Options for the removal. - `recursive`: If true, removes the directory and its contents recursively. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
+| [options] | <code>object</code> | Options for the removal.  - `recursive`: If true, removes the directory and its contents recursively. |
 
+**Example**  
 ```js
-fs.rmdirSync(fs.BOX, "data/oldDir", { recursive: true });
+fs.rmdirSync(fs.BOX, 'data/oldDir', { recursive: true });
 ```
-
 <a name="module_fs.moveDirSync"></a>
 
 ### fs.moveDirSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>string</code>
-
 Synchronously moves a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5706,23 +5612,21 @@ Synchronously moves a directory from one location to another within the same sco
 
 - <code>Error</code> if the source directory does not exist.
 
-| Param       | Type                | Description                                                               |
-| ----------- | ------------------- | ------------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
+**Example**  
 ```js
-fs.moveDirSync(fs.BOX, "data/oldDir", fs.BOX, "data/newDir");
+fs.moveDirSync(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir');
 ```
-
 <a name="module_fs.copyDirSync"></a>
 
 ### fs.copyDirSync(sourceScope, sourcePath, destScope, destPath) ⇒ <code>void</code>
-
 Synchronously copies a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5730,23 +5634,21 @@ Synchronously copies a directory from one location to another within the same sc
 
 - <code>Error</code> if the source directory does not exist.
 
-| Param       | Type                | Description                                                               |
-| ----------- | ------------------- | ------------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
+**Example**  
 ```js
-fs.copyDirSync(fs.BOX, "data/oldDir", fs.BOX, "data/newDir");
+fs.copyDirSync(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir');
 ```
-
 <a name="module_fs.readFile"></a>
 
 ### fs.readFile(scope, filePath, [options]) ⇒ <code>Promise.&lt;(string\|Buffer)&gt;</code>
-
 Asynchronously reads the entire contents of a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5755,24 +5657,22 @@ Asynchronously reads the entire contents of a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-fs.readFile(fs.BOX, "data/file.txt", "utf8").then((contents) => {
+fs.readFile(fs.BOX, 'data/file.txt', 'utf8').then(contents => {
   console.log(contents);
 });
 ```
-
 <a name="module_fs.writeFile"></a>
 
 ### fs.writeFile(scope, filePath, data, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Asynchronously writes data to a file, replacing the file if it already exists.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5781,25 +5681,23 @@ Asynchronously writes data to a file, replacing the file if it already exists.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| data      | <code>string</code> \| <code>Buffer</code> | The data to write.                                     |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| data | <code>string</code> \| <code>Buffer</code> | The data to write. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-fs.writeFile(fs.BOX, "data/file.txt", "Hello, world!", "utf8").then(() => {
-  console.log("File written successfully");
+fs.writeFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {
+  console.log('File written successfully');
 });
 ```
-
 <a name="module_fs.appendFile"></a>
 
 ### fs.appendFile(scope, filePath, data, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Asynchronously appends data to a file, creating directories as needed.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5808,25 +5706,23 @@ Asynchronously appends data to a file, creating directories as needed.
 
 - <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
 
-| Param     | Type                                       | Description                                            |
-| --------- | ------------------------------------------ | ------------------------------------------------------ |
-| scope     | <code>string</code>                        | The scope to operate in (fs.BOX or fs.WEB).            |
-| filePath  | <code>string</code>                        | The path to the file, relative to the scope or script. |
-| data      | <code>string</code> \| <code>Buffer</code> | The data to append.                                    |
-| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object.                     |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| data | <code>string</code> \| <code>Buffer</code> | The data to append. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
 
+**Example**  
 ```js
-fs.appendFile(fs.BOX, "data/file.txt", "Hello, world!", "utf8").then(() => {
-  console.log("File appended successfully");
+fs.appendFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {
+  console.log('File appended successfully');
 });
 ```
-
 <a name="module_fs.exists"></a>
 
 ### fs.exists(scope, filePath) ⇒ <code>Promise.&lt;boolean&gt;</code>
-
 Asynchronously checks if a file exists.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5835,23 +5731,21 @@ Asynchronously checks if a file exists.
 
 - <code>Error</code> If the file path is outside the secure scope.
 
-| Param    | Type                | Description                                            |
-| -------- | ------------------- | ------------------------------------------------------ |
-| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**
-
+**Example**  
 ```js
-fs.exists(fs.BOX, "data/file.txt").then((exists) => {
+fs.exists(fs.BOX, 'data/file.txt').then(exists => {
   console.log(exists);
 });
 ```
-
 <a name="module_fs.deleteFile"></a>
 
 ### fs.deleteFile(scope, filePath) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Asynchronously deletes a file.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5860,23 +5754,21 @@ Asynchronously deletes a file.
 
 - <code>Error</code> If the file does not exist or is outside the secure scope.
 
-| Param    | Type                | Description                                            |
-| -------- | ------------------- | ------------------------------------------------------ |
-| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).            |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
 | filePath | <code>string</code> | The path to the file, relative to the scope or script. |
 
-**Example**
-
+**Example**  
 ```js
-fs.deleteFile(fs.BOX, "data/file.txt").then(() => {
-  console.log("File deleted successfully");
+fs.deleteFile(fs.BOX, 'data/file.txt').then(() => {
+  console.log('File deleted successfully');
 });
 ```
-
 <a name="module_fs.moveFile"></a>
 
 ### fs.moveFile(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;string&gt;</code>
-
 Asynchronously moves a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5886,27 +5778,23 @@ Asynchronously moves a file from one location to another within the same scope.
 - <code>Error</code> If the source and destination scopes are different.
 - <code>Error</code> If the source file does not exist.
 
-| Param       | Type                | Description                                                          |
-| ----------- | ------------------- | -------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
+**Example**  
 ```js
-fs.moveFile(fs.BOX, "data/file.txt", fs.BOX, "data/newfile.txt").then(
-  (newPath) => {
-    console.log("File moved to:", newPath);
-  },
-);
+fs.moveFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/newfile.txt').then(newPath => {
+  console.log('File moved to:', newPath);
+});
 ```
-
 <a name="module_fs.copyFile"></a>
 
 ### fs.copyFile(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Asynchronously copies a file from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5915,25 +5803,23 @@ Asynchronously copies a file from one location to another within the same scope.
 
 - <code>Error</code> if the source file does not exist.
 
-| Param       | Type                | Description                                                          |
-| ----------- | ------------------- | -------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source file, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source file (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source file, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination file (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination file, relative to the destination scope. |
 
+**Example**  
 ```js
-fs.copyFile(fs.BOX, "data/file.txt", fs.BOX, "data/copy.txt").then(() => {
-  console.log("File copied successfully");
+fs.copyFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/copy.txt').then(() => {
+  console.log('File copied successfully');
 });
 ```
-
 <a name="module_fs.mkdir"></a>
 
 ### fs.mkdir(scope, dirPath) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Asynchronously creates a directory and its parent directories if they do not exist.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5942,23 +5828,21 @@ Asynchronously creates a directory and its parent directories if they do not exi
 
 - <code>Error</code> If the directory path is outside the secure scope or if the directory cannot be created.
 
-| Param   | Type                | Description                                                 |
-| ------- | ------------------- | ----------------------------------------------------------- |
-| scope   | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                 |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
 | dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
 
-**Example**
-
+**Example**  
 ```js
-fs.mkdir(fs.BOX, "data/newdir").then(() => {
-  console.log("Directory created successfully");
+fs.mkdir(fs.BOX, 'data/newdir').then(() => {
+  console.log('Directory created successfully');
 });
 ```
-
 <a name="module_fs.rmdir"></a>
 
 ### fs.rmdir(scope, dirPath, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Asynchronously removes a directory.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5967,24 +5851,22 @@ Asynchronously removes a directory.
 
 - <code>Error</code> If the directory does not exist or is outside the secure scope.
 
-| Param     | Type                | Description                                                                                          |
-| --------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
-| scope     | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB).                                                          |
-| dirPath   | <code>string</code> | The path to the directory, relative to the scope or script.                                          |
-| [options] | <code>object</code> | Options for the removal. - `recursive`: If true, removes the directory and its contents recursively. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| dirPath | <code>string</code> | The path to the directory, relative to the scope or script. |
+| [options] | <code>object</code> | Options for the removal.  - `recursive`: If true, removes the directory and its contents recursively. |
 
+**Example**  
 ```js
-fs.rmdir(fs.BOX, "data/oldDir", { recursive: true }).then(() => {
-  console.log("Directory removed successfully");
+fs.rmdir(fs.BOX, 'data/oldDir', { recursive: true }).then(() => {
+  console.log('Directory removed successfully');
 });
 ```
-
 <a name="module_fs.moveDir"></a>
 
 ### fs.moveDir(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;string&gt;</code>
-
 Asynchronously moves a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -5993,25 +5875,23 @@ Asynchronously moves a directory from one location to another within the same sc
 
 - <code>Error</code> if the source directory does not exist.
 
-| Param       | Type                | Description                                                               |
-| ----------- | ------------------- | ------------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
+**Example**  
 ```js
-fs.moveDir(fs.BOX, "data/oldDir", fs.BOX, "data/newDir").then((newPath) => {
-  console.log("Directory moved to:", newPath);
+fs.moveDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(newPath => {
+  console.log('Directory moved to:', newPath);
 });
 ```
-
 <a name="module_fs.copyDir"></a>
 
 ### fs.copyDir(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Asynchronously copies a directory from one location to another within the same scope.
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
@@ -6020,25 +5900,23 @@ Asynchronously copies a directory from one location to another within the same s
 
 - <code>Error</code> if the source directory does not exist.
 
-| Param       | Type                | Description                                                               |
-| ----------- | ------------------- | ------------------------------------------------------------------------- |
-| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB).                     |
-| sourcePath  | <code>string</code> | The path to the source directory, relative to the source scope.           |
-| destScope   | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB).                |
-| destPath    | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source directory (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source directory, relative to the source scope. |
+| destScope | <code>string</code> | The scope of the destination directory (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination directory, relative to the destination scope. |
 
+**Example**  
 ```js
-fs.copyDir(fs.BOX, "data/oldDir", fs.BOX, "data/newDir").then(() => {
-  console.log("Directory copied successfully");
+fs.copyDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(() => {
+  console.log('Directory copied successfully');
 });
 ```
-
 <a name="module_html"></a>
 
 ## html
-
 A module for parsing and manipulating HTML using [Cheerio](https://cheerio.js.org/).
 It provides functions to load HTML from strings, files, and URLs, allowing for easy querying and manipulation of HTML documents.
 This module is particularly useful for web scraping, data extraction, and HTML manipulation tasks in Gingee applications.
@@ -6046,16 +5924,16 @@ It abstracts the complexities of working with raw HTML, providing a simple and c
 It leverages the Cheerio library to provide a jQuery-like syntax for traversing and manipulating the HTML structure.
 It supports both synchronous and asynchronous operations, making it flexible for various use cases.
 
-- [html](#module_html)
-  - [.fromString(htmlString)](#module_html.fromString) ⇒ <code>cheerio.CheerioAPI</code>
-  - [.fromFile(scope, filePath)](#module_html.fromFile) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
-  - [.fromFileSync(scope, filePath)](#module_html.fromFileSync) ⇒ <code>cheerio.CheerioAPI</code>
-  - [.fromUrl(url, [options])](#module_html.fromUrl) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
+
+* [html](#module_html)
+    * [.fromString(htmlString)](#module_html.fromString) ⇒ <code>cheerio.CheerioAPI</code>
+    * [.fromFile(scope, filePath)](#module_html.fromFile) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
+    * [.fromFileSync(scope, filePath)](#module_html.fromFileSync) ⇒ <code>cheerio.CheerioAPI</code>
+    * [.fromUrl(url, [options])](#module_html.fromUrl) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
 
 <a name="module_html.fromString"></a>
 
 ### html.fromString(htmlString) ⇒ <code>cheerio.CheerioAPI</code>
-
 Parses an HTML document from a string.
 This function takes a raw HTML string and returns a Cheerio instance for querying and manipulating the HTML content.
 It is useful for scenarios where HTML content is dynamically generated or fetched from an external source.
@@ -6066,21 +5944,19 @@ It is useful for scenarios where HTML content is dynamically generated or fetche
 
 - <code>Error</code> If the input is not a string.
 
-| Param      | Type                | Description                    |
-| ---------- | ------------------- | ------------------------------ |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | htmlString | <code>string</code> | The raw HTML content to parse. |
 
-**Example**
-
+**Example**  
 ```js
 const $ = html.fromString('<div class="test">Hello, World!</div>');
-console.log($(".test").text()); // Outputs: Hello, World!
+console.log($('.test').text()); // Outputs: Hello, World!
 ```
-
 <a name="module_html.fromFile"></a>
 
 ### html.fromFile(scope, filePath) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
-
 Reads and parses an HTML file from the secure filesystem.
 This function allows you to load HTML content from a file, ensuring that the file is read securely within the Gingee environment.
 It uses the secure file system module to read the file content and then parses it into a Cheerio instance.
@@ -6093,22 +5969,20 @@ It abstracts the file reading process, providing a simple interface to work with
 
 - <code>Error</code> If the file cannot be read or parsed.
 
-| Param    | Type                | Description                                 |
-| -------- | ------------------- | ------------------------------------------- |
-| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the HTML file.                  |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the HTML file. |
 
+**Example**  
 ```js
-const $ = await html.fromFile(fs.BOX, "data/myfile.html");
-console.log($(".test").text()); // Outputs the text content of the .test element
+const $ = await html.fromFile(fs.BOX, 'data/myfile.html');
+console.log($('.test').text()); // Outputs the text content of the .test element
 ```
-
 <a name="module_html.fromFileSync"></a>
 
 ### html.fromFileSync(scope, filePath) ⇒ <code>cheerio.CheerioAPI</code>
-
 Synchronously reads and parses an HTML file from the secure filesystem.
 This function allows you to load HTML content from a file in a synchronous manner, ensuring that the file is read securely within the Gingee environment.
 It uses the secure file system module to read the file content and then parses it into a Cheerio instance.
@@ -6121,22 +5995,20 @@ It abstracts the file reading process, providing a simple interface to work with
 
 - <code>Error</code> If the file cannot be read or parsed.
 
-| Param    | Type                | Description                                 |
-| -------- | ------------------- | ------------------------------------------- |
-| scope    | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The path to the HTML file.                  |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the HTML file. |
 
+**Example**  
 ```js
-const $ = html.fromFileSync(fs.BOX, "data/myfile.html");
-console.log($(".test").text()); // Outputs the text content of the .test element
+const $ = html.fromFileSync(fs.BOX, 'data/myfile.html');
+console.log($('.test').text()); // Outputs the text content of the .test element
 ```
-
 <a name="module_html.fromUrl"></a>
 
 ### html.fromUrl(url, [options]) ⇒ <code>Promise.&lt;cheerio.CheerioAPI&gt;</code>
-
 Asynchronously fetches and parses an HTML document from a URL.
 This function retrieves HTML content from a specified URL and returns a Cheerio instance for querying and manipulating the HTML.
 It is useful for web scraping, data extraction, and any scenario where you need to work with HTML content from the web.
@@ -6149,22 +6021,20 @@ It ensures that the response is of the correct content type (text/html) before p
 
 - <code>Error</code> If the response is not of type 'text/html' or if the HTML cannot be parsed.
 
-| Param     | Type                | Description                                                    |
-| --------- | ------------------- | -------------------------------------------------------------- |
-| url       | <code>string</code> | The URL of the webpage to scrape.                              |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| url | <code>string</code> | The URL of the webpage to scrape. |
 | [options] | <code>object</code> | Options to be passed for the http call (like request headers). |
 
-**Example**
-
+**Example**  
 ```js
-const $ = await html.fromUrl("https://example.com");
-console.log($(".test").text()); // Outputs the text content of the .test element
+const $ = await html.fromUrl('https://example.com');
+console.log($('.test').text()); // Outputs the text content of the .test element
 ```
-
 <a name="module_httpclient"></a>
 
 ## httpclient
-
 A module for making HTTP requests in Gingee applications.
 This module provides functions to perform GET and POST requests, supporting various content types.
 It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
@@ -6184,19 +6054,19 @@ connect uses a pinned <code>lookup</code> so resolution cannot rebind between ch
 
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [httpclient](#module_httpclient)
-  - [.JSON](#module_httpclient.JSON)
-  - [.FORM](#module_httpclient.FORM)
-  - [.TEXT](#module_httpclient.TEXT)
-  - [.XML](#module_httpclient.XML)
-  - [.MULTIPART](#module_httpclient.MULTIPART)
-  - [.get(url, [options])](#module_httpclient.get) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-  - [.post(url, body, [options])](#module_httpclient.post) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+
+* [httpclient](#module_httpclient)
+    * [.JSON](#module_httpclient.JSON)
+    * [.FORM](#module_httpclient.FORM)
+    * [.TEXT](#module_httpclient.TEXT)
+    * [.XML](#module_httpclient.XML)
+    * [.MULTIPART](#module_httpclient.MULTIPART)
+    * [.get(url, [options])](#module_httpclient.get) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+    * [.post(url, body, [options])](#module_httpclient.post) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
 
 <a name="module_httpclient.JSON"></a>
 
 ### httpclient.JSON
-
 Constant for JSON content type in POST requests.
 This constant can be used to specify that the POST request body is in JSON format.
 
@@ -6204,7 +6074,6 @@ This constant can be used to specify that the POST request body is in JSON forma
 <a name="module_httpclient.FORM"></a>
 
 ### httpclient.FORM
-
 Constant for form-urlencoded content type in POST requests.
 This constant can be used to specify that the POST request body is in form-urlencoded format.
 
@@ -6212,7 +6081,6 @@ This constant can be used to specify that the POST request body is in form-urlen
 <a name="module_httpclient.TEXT"></a>
 
 ### httpclient.TEXT
-
 Constant for plain text content type in POST requests.
 This constant can be used to specify that the POST request body is in plain text format.
 
@@ -6220,7 +6088,6 @@ This constant can be used to specify that the POST request body is in plain text
 <a name="module_httpclient.XML"></a>
 
 ### httpclient.XML
-
 Constant for XML content type in POST requests.
 This constant can be used to specify that the POST request body is in XML format.
 
@@ -6228,7 +6095,6 @@ This constant can be used to specify that the POST request body is in XML format
 <a name="module_httpclient.MULTIPART"></a>
 
 ### httpclient.MULTIPART
-
 Constant for multipart/form-data content type in POST requests.
 This constant can be used to specify that the POST request body is in multipart/form-data format.
 
@@ -6236,7 +6102,6 @@ This constant can be used to specify that the POST request body is in multipart/
 <a name="module_httpclient.get"></a>
 
 ### httpclient.get(url, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-
 Performs an HTTP GET request.
 This function retrieves data from a specified URL and returns the response status, headers, and body.
 It supports both text and binary responses, automatically determining the response type based on the content-type header.
@@ -6249,22 +6114,20 @@ It is particularly useful for applications that need to fetch resources from ext
 
 - <code>Error</code> If the request fails or if the response body cannot be processed.
 
-| Param     | Type                | Description                                                           |
-| --------- | ------------------- | --------------------------------------------------------------------- |
-| url       | <code>string</code> | The URL to request.                                                   |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| url | <code>string</code> | The URL to request. |
 | [options] | <code>object</code> | Axios request configuration options (e.g., headers, timeout, signal). |
 
-**Example**
-
+**Example**  
 ```js
-const response = await httpclient.get("https://api.example.com/data");
+const response = await httpclient.get('https://api.example.com/data');
 console.log(response.body);
 ```
-
 <a name="module_httpclient.post"></a>
 
 ### httpclient.post(url, body, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
-
 Performs an HTTP POST request.
 This function sends data to a specified URL and returns the response status, headers, and body.
 It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.
@@ -6276,26 +6139,22 @@ It allows for flexible data submission, making it suitable for APIs that require
 
 - <code>Error</code> If the request fails or if the body cannot be processed.
 
-| Param              | Type                | Default                                  | Description                           |
-| ------------------ | ------------------- | ---------------------------------------- | ------------------------------------- |
-| url                | <code>string</code> |                                          | The URL to post to.                   |
-| body               | <code>any</code>    |                                          | The data to send in the request body. |
-| [options]          | <code>object</code> |                                          | Axios request configuration options.  |
-| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | The type of data being posted.        |
 
-**Example**
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| url | <code>string</code> |  | The URL to post to. |
+| body | <code>any</code> |  | The data to send in the request body. |
+| [options] | <code>object</code> |  | Axios request configuration options. |
+| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | The type of data being posted. |
 
+**Example**  
 ```js
-const response = await httpclient.post("https://api.example.com/data", {
-  key: "value",
-});
+const response = await httpclient.post('https://api.example.com/data', { key: 'value' });
 console.log(response.body);
 ```
-
 <a name="module_image"></a>
 
 ## image
-
 A module for image processing using the [Sharp](https://sharp.pixelplumbing.com/) library.
 It provides a simple and secure way to manipulate images, including resizing, rotating, flipping, and more.
 <b>Optional dependency:</b> requires <code>sharp</code> (package.json optionalDependencies).
@@ -6303,29 +6162,29 @@ Install without <code>--omit=optional</code>, or <code>npm install sharp</code>.
 <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [image](#module_image)
-  - _static_
-    - [.loadFromFile(filePath)](#module_image.loadFromFile) ⇒ <code>ImageProcessor</code>
-    - [.loadFromBuffer(buffer)](#module_image.loadFromBuffer) ⇒ <code>ImageProcessor</code>
-  - _inner_
-    - [~ImageProcessor](#module_image..ImageProcessor)
-      - [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
-      - [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
-      - [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
-      - [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
-      - [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
-      - [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
-      - [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
-      - [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
-      - [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
-      - [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
-      - [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-      - [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
+
+* [image](#module_image)
+    * _static_
+        * [.loadFromFile(filePath)](#module_image.loadFromFile) ⇒ <code>ImageProcessor</code>
+        * [.loadFromBuffer(buffer)](#module_image.loadFromBuffer) ⇒ <code>ImageProcessor</code>
+    * _inner_
+        * [~ImageProcessor](#module_image..ImageProcessor)
+            * [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
+            * [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
+            * [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
+            * [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
+            * [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
+            * [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
+            * [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
+            * [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
+            * [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
+            * [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
+            * [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+            * [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_image.loadFromFile"></a>
 
 ### image.loadFromFile(filePath) ⇒ <code>ImageProcessor</code>
-
 Loads an image from a Buffer or a file path.
 This function initializes an ImageProcessor instance with the provided image data.
 It supports both Buffer inputs (for in-memory images) and file paths (for images stored on disk).
@@ -6338,25 +6197,20 @@ It allows for flexible image processing workflows, enabling developers to chain 
 
 - <code>Error</code> If the input is not a Buffer or a valid file path.
 
-| Param    | Type                | Description                   |
-| -------- | ------------------- | ----------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | filePath | <code>string</code> | a file path to an image file. |
 
-**Example**
-
+**Example**  
 ```js
-const image = require("image");
-const processor = image.load(fs.BOX, "./images/gingee.png");
-processor
-  .resize({ width: 200, height: 200 })
-  .greyscale()
-  .toFile(fs.WEB, "output/processed_image.webp");
+const image = require('image');
+const processor = image.load(fs.BOX, './images/gingee.png');
+processor.resize({ width: 200, height: 200 }).greyscale().toFile(fs.WEB, 'output/processed_image.webp');
 ```
-
 <a name="module_image.loadFromBuffer"></a>
 
 ### image.loadFromBuffer(buffer) ⇒ <code>ImageProcessor</code>
-
 Loads an image from a Buffer.
 This function initializes an ImageProcessor instance with the provided image data.
 
@@ -6366,274 +6220,230 @@ This function initializes an ImageProcessor instance with the provided image dat
 
 - <code>Error</code> If the input is not a Buffer.
 
-| Param  | Type                | Description                     |
-| ------ | ------------------- | ------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | buffer | <code>Buffer</code> | A Buffer containing image data. |
 
-**Example**
-
+**Example**  
 ```js
-const image = require("image");
+const image = require('image');
 const processor = image.loadFromBuffer(buffer);
-processor
-  .resize({ width: 200, height: 200 })
-  .greyscale()
-  .toFile(fs.WEB, "output/processed_image.webp");
+processor.resize({ width: 200, height: 200 }).greyscale().toFile(fs.WEB, 'output/processed_image.webp');
 ```
-
 <a name="module_image..ImageProcessor"></a>
 
 ### image~ImageProcessor
-
-A secure wrapper class for the [Sharp](https://sharp.pixelplumbing.com/) image processing library.
+A secure wrapper class for the  [Sharp](https://sharp.pixelplumbing.com/) image processing library.
 Each method returns 'this' to allow for a fluent, chainable API. This class cannot be directly instantiated.
 Instead, use the `load` function of the Image module to create an instance with an image loaded from a Buffer or a file path.
 This class abstracts the complexities of image processing, providing a simple interface for developers to work with images.
 It allows for flexible image manipulation workflows, enabling developers to chain multiple operations on the image.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-**Kind**: inner class of [<code>image</code>](#module_image)
+**Kind**: inner class of [<code>image</code>](#module_image)  
 
-- [~ImageProcessor](#module_image..ImageProcessor)
-  - [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
-  - [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
-  - [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
-  - [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
-  - [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
-  - [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
-  - [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
-  - [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
-  - [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
-  - [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
-  - [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-  - [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
+* [~ImageProcessor](#module_image..ImageProcessor)
+    * [new ImageProcessor(sharpInstance)](#new_module_image..ImageProcessor_new)
+    * [.resize(options)](#module_image..ImageProcessor+resize) ⇒ <code>ImageProcessor</code>
+    * [.rotate(angle)](#module_image..ImageProcessor+rotate) ⇒ <code>ImageProcessor</code>
+    * [.flip()](#module_image..ImageProcessor+flip) ⇒ <code>ImageProcessor</code>
+    * [.flop()](#module_image..ImageProcessor+flop) ⇒ <code>ImageProcessor</code>
+    * [.greyscale()](#module_image..ImageProcessor+greyscale) ⇒ <code>ImageProcessor</code>
+    * [.blur(sigma)](#module_image..ImageProcessor+blur) ⇒ <code>ImageProcessor</code>
+    * [.sharpen()](#module_image..ImageProcessor+sharpen) ⇒ <code>ImageProcessor</code>
+    * [.composite(watermarkBuffer, options)](#module_image..ImageProcessor+composite) ⇒ <code>ImageProcessor</code>
+    * [.format(format, [options])](#module_image..ImageProcessor+format) ⇒ <code>ImageProcessor</code>
+    * [.toBuffer()](#module_image..ImageProcessor+toBuffer) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+    * [.toFile(scope, filePath)](#module_image..ImageProcessor+toFile) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="new_module_image..ImageProcessor_new"></a>
 
 #### new ImageProcessor(sharpInstance)
-
 Creates a new ImageProcessor instance.
 
-| Param         | Description                                        |
-| ------------- | -------------------------------------------------- |
+
+| Param | Description |
+| --- | --- |
 | sharpInstance | An instance of the sharp image processing library. |
 
 <a name="module_image..ImageProcessor+resize"></a>
 
 #### imageProcessor.resize(options) ⇒ <code>ImageProcessor</code>
-
 Resizes the image to the specified dimensions.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 
-| Param          | Type                | Description                  |
-| -------------- | ------------------- | ---------------------------- |
-| options        | <code>object</code> | The resize options.          |
-| options.width  | <code>number</code> | The new width of the image.  |
+| Param | Type | Description |
+| --- | --- | --- |
+| options | <code>object</code> | The resize options. |
+| options.width | <code>number</code> | The new width of the image. |
 | options.height | <code>number</code> | The new height of the image. |
 
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
-processor.resize({
-  width: 200,
-  height: 200,
-  fit: "contain",
-  background: "#FFFFFF",
-});
+const processor = image.load(fs.BOX, '/images/gingee.png');
+processor.resize({ width: 200, height: 200, fit: 'contain', background: '#FFFFFF' });
 ```
-
 <a name="module_image..ImageProcessor+rotate"></a>
 
 #### imageProcessor.rotate(angle) ⇒ <code>ImageProcessor</code>
-
 Rotates the image by the specified angle.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 
-| Param | Type                | Default        | Description                                 |
-| ----- | ------------------- | -------------- | ------------------------------------------- |
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
 | angle | <code>number</code> | <code>0</code> | The angle to rotate the image (in degrees). |
 
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.rotate(90);
 ```
-
 <a name="module_image..ImageProcessor+flip"></a>
 
 #### imageProcessor.flip() ⇒ <code>ImageProcessor</code>
-
 Flips the image horizontally.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.flip();
 ```
-
 <a name="module_image..ImageProcessor+flop"></a>
 
 #### imageProcessor.flop() ⇒ <code>ImageProcessor</code>
-
 Flips the image vertically.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.flop();
 ```
-
 <a name="module_image..ImageProcessor+greyscale"></a>
 
 #### imageProcessor.greyscale() ⇒ <code>ImageProcessor</code>
-
 Converts the image to greyscale.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.greyscale();
 ```
-
 <a name="module_image..ImageProcessor+blur"></a>
 
 #### imageProcessor.blur(sigma) ⇒ <code>ImageProcessor</code>
-
 Applies a blur effect to the image.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 
-| Param | Type                | Description                                  |
-| ----- | ------------------- | -------------------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | sigma | <code>number</code> | The blur amount (higher values = more blur). |
 
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.blur(5);
 ```
-
 <a name="module_image..ImageProcessor+sharpen"></a>
 
 #### imageProcessor.sharpen() ⇒ <code>ImageProcessor</code>
-
 Sharpens the image.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 **Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.sharpen();
 ```
-
 <a name="module_image..ImageProcessor+composite"></a>
 
 #### imageProcessor.composite(watermarkBuffer, options) ⇒ <code>ImageProcessor</code>
-
 Composites another image onto this one.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 
-| Param             | Type                | Default        | Description                              |
-| ----------------- | ------------------- | -------------- | ---------------------------------------- |
-| watermarkBuffer   | <code>Buffer</code> |                | The image buffer to composite.           |
-| options           | <code>object</code> |                | The options for compositing.             |
-| [options.left]    | <code>number</code> | <code>0</code> | The x-coordinate to place the watermark. |
-| [options.top]     | <code>number</code> | <code>0</code> | The y-coordinate to place the watermark. |
-| [options.opacity] | <code>number</code> | <code>1</code> | The opacity of the watermark             |
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| watermarkBuffer | <code>Buffer</code> |  | The image buffer to composite. |
+| options | <code>object</code> |  | The options for compositing. |
+| [options.left] | <code>number</code> | <code>0</code> | The x-coordinate to place the watermark. |
+| [options.top] | <code>number</code> | <code>0</code> | The y-coordinate to place the watermark. |
+| [options.opacity] | <code>number</code> | <code>1</code> | The opacity of the watermark |
 
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.composite(watermarkBuffer, { left: 10, top: 10, opacity: 0.5 });
 ```
-
 <a name="module_image..ImageProcessor+format"></a>
 
 #### imageProcessor.format(format, [options]) ⇒ <code>ImageProcessor</code>
-
 Converts the image to a specific format.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.
+**Returns**: <code>ImageProcessor</code> - The ImageProcessor instance for chaining.  
 
-| Param     | Type                | Description                                                  |
-| --------- | ------------------- | ------------------------------------------------------------ |
-| format    | <code>string</code> | The format to convert to (e.g., 'jpeg', 'png', 'webp').      |
+| Param | Type | Description |
+| --- | --- | --- |
+| format | <code>string</code> | The format to convert to (e.g., 'jpeg', 'png', 'webp'). |
 | [options] | <code>object</code> | Options for the format conversion (see sharp documentation). |
 
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
-processor.format("jpeg", { quality: 80 });
+const processor = image.load(fs.BOX, '/images/gingee.png');
+processor.format('jpeg', { quality: 80 });
 ```
-
 <a name="module_image..ImageProcessor+toBuffer"></a>
 
 #### imageProcessor.toBuffer() ⇒ <code>Promise.&lt;Buffer&gt;</code>
-
 Processes the image and returns the final data as a Buffer.
 
 **Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
-**Example**
-
+**Example**  
 ```js
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.resize({ width: 200, height: 200 });
 const buffer = await processor.toBuffer();
 ```
-
 <a name="module_image..ImageProcessor+toFile"></a>
 
 #### imageProcessor.toFile(scope, filePath) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Processes the image and saves it to a file using our secure fs module.
 
-**Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)
+**Kind**: instance method of [<code>ImageProcessor</code>](#module_image..ImageProcessor)  
 
-| Param    | Type                | Description                              |
-| -------- | ------------------- | ---------------------------------------- |
-| scope    | <code>string</code> | The scope to save to (fs.BOX or fs.WEB). |
-| filePath | <code>string</code> | The destination file path.               |
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to save to (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The destination file path. |
 
-**Example**
-
+**Example**  
 ```js
 // path with leading slash indicates path from scope root,
 // path without leading slash indicates path relative to the executing script
 // here image is loaded from <project>/<app_name>/<box>/images/gingee.png
 // image is and saved to <project>/<app_name>/output/processed_image.webp
-const processor = image.load(fs.BOX, "/images/gingee.png");
+const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.resize({ width: 200, height: 200 });
-await processor.toFile(fs.WEB, "/output/processed_image.webp");
+await processor.toFile(fs.WEB, '/output/processed_image.webp');
 ```
-
 <a name="module_pdf"></a>
 
 ## pdf
-
 This module provides functionality to create PDF documents using pdfmake.
 It includes a default font configuration with Roboto and a function to create PDFs from document definitions.
 It is designed to be used in a secure environment, ensuring that only allowed fonts are registered.
@@ -6642,7 +6452,6 @@ It is designed to be used in a secure environment, ensuring that only allowed fo
 <a name="module_pdf.create"></a>
 
 ### pdf.create(documentDefinition) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-
 Creates a PDF document from a document definition object.
 
 **Kind**: static method of [<code>pdf</code>](#module_pdf)  
@@ -6651,98 +6460,90 @@ Creates a PDF document from a document definition object.
 
 - <code>Error</code> If there is an issue creating the PDF document.
 
-| Param              | Type                | Description                                    |
-| ------------------ | ------------------- | ---------------------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | documentDefinition | <code>object</code> | A standard pdfmake document definition object. |
 
-**Example**
-
+**Example**  
 ```js
-const pdf = require("pdf");
+const pdf = require('pdf');
 const docDefinition = {
-  pageSize: "LETTER",
-  pageMargins: [40, 60, 40, 60],
-  header: {
-    text: "Gingee Weekly Report",
-    alignment: "center",
-    margin: [0, 20, 0, 0],
-  },
-  content: [{ text: "Hello, World!", fontSize: 15 }],
+    pageSize: 'LETTER',
+    pageMargins: [40, 60, 40, 60],
+    header: { text: 'Gingee Weekly Report', alignment: 'center', margin: [0, 20, 0, 0] },
+    content: [
+        { text: 'Hello, World!', fontSize: 15 }
+    ]
 };
 const pdfBuffer = await pdf.create(docDefinition);
 const fileName = `report-${Date.now()}.pdf`;
-$g.response.headers["Content-Disposition"] =
-  `attachment; filename="${fileName}"`;
-$g.response.send(pdfBuffer, 200, "application/pdf");
+$g.response.headers['Content-Disposition'] = `attachment; filename="${fileName}"`;
+$g.response.send(pdfBuffer, 200, 'application/pdf');
 ```
-
 <a name="module_platform"></a>
 
 ## platform
-
 A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps.
 To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.
 <b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [platform](#module_platform)
-  - _static_
-    - [.listApps()](#module_platform.listApps) ⇒ <code>Array.&lt;string&gt;</code>
-    - [.createAppDirectory(appName)](#module_platform.createAppDirectory) ⇒ <code>object</code>
-    - [.writeFile(appName, relativePath, content)](#module_platform.writeFile) ⇒ <code>boolean</code>
-    - [.readFile(appName, relativePath, [encoding])](#module_platform.readFile) ⇒ <code>string</code> \| <code>Buffer</code>
-    - [.registerNewApp(appName)](#module_platform.registerNewApp) ⇒ <code>object</code>
-    - [.reloadApp(appName)](#module_platform.reloadApp) ⇒ <code>boolean</code>
-    - [.deleteApp(appName)](#module_platform.deleteApp) ⇒ <code>boolean</code>
-    - [.unzipToApp(appName, relativePath, zipBuffer)](#module_platform.unzipToApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    - [.zipApp(appName)](#module_platform.zipApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-    - [.packageApp(appName)](#module_platform.packageApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-    - [.mockUpgrade(appName, packageBuffer)](#module_platform.mockUpgrade) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [.listBackups(appName)](#module_platform.listBackups) ⇒ <code>Array.&lt;string&gt;</code>
-    - [.mockRollback(appName)](#module_platform.mockRollback) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [.installApp(appName, packageBuffer, permissions)](#module_platform.installApp) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [.upgradeApp(appName, packageBuffer, permissions, [options])](#module_platform.upgradeApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    - [.rollbackApp(appName, grantedPermissions)](#module_platform.rollbackApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    - [.installFromBackup(appName, [backupVersion])](#module_platform.installFromBackup) ⇒ <code>Promise.&lt;object&gt;</code>
-  - _inner_
-    - [~assertSafeAppName(appName)](#module_platform..assertSafeAppName) ⇒ <code>string</code>
-    - [~isReservedForDelete(appName)](#module_platform..isReservedForDelete) ⇒ <code>boolean</code>
-    - [~assertAppDeletable(appName)](#module_platform..assertAppDeletable) ⇒ <code>string</code>
-    - [~deleteApp(appName, [options])](#module_platform..deleteApp)
-    - [~getAppPermissions(appName)](#module_platform..getAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [~setAppPermissions(appName, permissionsArray, [reload])](#module_platform..setAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [~removeAppPermissions(appName)](#module_platform..removeAppPermissions) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    - [~analyzeAppBackup(appName)](#module_platform..analyzeAppBackup) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [~getQueueStats()](#module_platform..getQueueStats) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [~listQueueLiveJobs([opts])](#module_platform..listQueueLiveJobs) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
-    - [~listQueueDlq([opts])](#module_platform..listQueueDlq) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
-    - [~retryQueueDlqJob(jobId)](#module_platform..retryQueueDlqJob) ⇒ <code>Promise.&lt;object&gt;</code>
-    - [~discardQueueDlqJob(jobId)](#module_platform..discardQueueDlqJob) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    - [~listLogFiles([opts])](#module_platform..listLogFiles) ⇒ <code>object</code>
-    - [~readLogFile([opts])](#module_platform..readLogFile) ⇒ <code>object</code>
-    - [~getSchedulerStatus()](#module_platform..getSchedulerStatus) ⇒ <code>object</code>
-    - [~listSchedulerJobs([opts])](#module_platform..listSchedulerJobs) ⇒ <code>Array.&lt;object&gt;</code>
-    - [~runSchedulerJob(appName, jobName)](#module_platform..runSchedulerJob) ⇒ <code>Promise.&lt;object&gt;</code>
+
+* [platform](#module_platform)
+    * _static_
+        * [.listApps()](#module_platform.listApps) ⇒ <code>Array.&lt;string&gt;</code>
+        * [.createAppDirectory(appName)](#module_platform.createAppDirectory) ⇒ <code>object</code>
+        * [.writeFile(appName, relativePath, content)](#module_platform.writeFile) ⇒ <code>boolean</code>
+        * [.readFile(appName, relativePath, [encoding])](#module_platform.readFile) ⇒ <code>string</code> \| <code>Buffer</code>
+        * [.registerNewApp(appName)](#module_platform.registerNewApp) ⇒ <code>object</code>
+        * [.reloadApp(appName)](#module_platform.reloadApp) ⇒ <code>boolean</code>
+        * [.deleteApp(appName)](#module_platform.deleteApp) ⇒ <code>boolean</code>
+        * [.unzipToApp(appName, relativePath, zipBuffer)](#module_platform.unzipToApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
+        * [.zipApp(appName)](#module_platform.zipApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+        * [.packageApp(appName)](#module_platform.packageApp) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+        * [.mockUpgrade(appName, packageBuffer)](#module_platform.mockUpgrade) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.listBackups(appName)](#module_platform.listBackups) ⇒ <code>Array.&lt;string&gt;</code>
+        * [.mockRollback(appName)](#module_platform.mockRollback) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.installApp(appName, packageBuffer, permissions)](#module_platform.installApp) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.upgradeApp(appName, packageBuffer, permissions, [options])](#module_platform.upgradeApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
+        * [.rollbackApp(appName, grantedPermissions)](#module_platform.rollbackApp) ⇒ <code>Promise.&lt;boolean&gt;</code>
+        * [.installFromBackup(appName, [backupVersion])](#module_platform.installFromBackup) ⇒ <code>Promise.&lt;object&gt;</code>
+    * _inner_
+        * [~assertSafeAppName(appName)](#module_platform..assertSafeAppName) ⇒ <code>string</code>
+        * [~isReservedForDelete(appName)](#module_platform..isReservedForDelete) ⇒ <code>boolean</code>
+        * [~assertAppDeletable(appName)](#module_platform..assertAppDeletable) ⇒ <code>string</code>
+        * [~deleteApp(appName, [options])](#module_platform..deleteApp)
+        * [~getAppPermissions(appName)](#module_platform..getAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [~setAppPermissions(appName, permissionsArray, [reload])](#module_platform..setAppPermissions) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [~removeAppPermissions(appName)](#module_platform..removeAppPermissions) ⇒ <code>Promise.&lt;boolean&gt;</code>
+        * [~analyzeAppBackup(appName)](#module_platform..analyzeAppBackup) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [~getQueueStats()](#module_platform..getQueueStats) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [~listQueueLiveJobs([opts])](#module_platform..listQueueLiveJobs) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
+        * [~listQueueDlq([opts])](#module_platform..listQueueDlq) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
+        * [~retryQueueDlqJob(jobId)](#module_platform..retryQueueDlqJob) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [~discardQueueDlqJob(jobId)](#module_platform..discardQueueDlqJob) ⇒ <code>Promise.&lt;boolean&gt;</code>
+        * [~listLogFiles([opts])](#module_platform..listLogFiles) ⇒ <code>object</code>
+        * [~readLogFile([opts])](#module_platform..readLogFile) ⇒ <code>object</code>
+        * [~getSchedulerStatus()](#module_platform..getSchedulerStatus) ⇒ <code>object</code>
+        * [~listSchedulerJobs([opts])](#module_platform..listSchedulerJobs) ⇒ <code>Array.&lt;object&gt;</code>
+        * [~runSchedulerJob(appName, jobName)](#module_platform..runSchedulerJob) ⇒ <code>Promise.&lt;object&gt;</code>
 
 <a name="module_platform.listApps"></a>
 
 ### platform.listApps() ⇒ <code>Array.&lt;string&gt;</code>
-
 Lists the names of all detected applications.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Array.&lt;string&gt;</code> - An array of app names.  
-**Example**
-
+**Example**  
 ```js
-const platform = require("platform");
+const platform = require('platform');
 const apps = platform.listApps();
 console.log(apps); // ['app1', 'app2', ...]
 ```
-
 <a name="module_platform.createAppDirectory"></a>
 
 ### platform.createAppDirectory(appName) ⇒ <code>object</code>
-
 Creates a new application directory structure.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6751,21 +6552,19 @@ Creates a new application directory structure.
 
 - <code>Error</code> If the app name is invalid or if the app already exists.
 
-| Param   | Type                | Description                        |
-| ------- | ------------------- | ---------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the new app to create. |
 
-**Example**
-
+**Example**  
 ```js
-const result = platform.createAppDirectory("newApp");
+const result = platform.createAppDirectory('newApp');
 console.log(result); // { message: 'App "newApp" created successfully.', appPath: '/path/to/newApp', boxPath: '/path/to/newApp/box' }
 ```
-
 <a name="module_platform.writeFile"></a>
 
 ### platform.writeFile(appName, relativePath, content) ⇒ <code>boolean</code>
-
 Writes content to a file within a specified app's directory.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6774,27 +6573,21 @@ Writes content to a file within a specified app's directory.
 
 - <code>Error</code> If the app does not exist or if the path is invalid.
 
-| Param        | Type                                       | Description                                        |
-| ------------ | ------------------------------------------ | -------------------------------------------------- |
-| appName      | <code>string</code>                        | The target application.                            |
-| relativePath | <code>string</code>                        | The path within the app (e.g., 'box/api/test.js'). |
-| content      | <code>string</code> \| <code>Buffer</code> | The content to write.                              |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| appName | <code>string</code> | The target application. |
+| relativePath | <code>string</code> | The path within the app (e.g., 'box/api/test.js'). |
+| content | <code>string</code> \| <code>Buffer</code> | The content to write. |
 
+**Example**  
 ```js
-const result = platform.writeFile(
-  "myApp",
-  "box/api/test.js",
-  'console.log("Hello World");',
-);
+const result = platform.writeFile('myApp', 'box/api/test.js', 'console.log("Hello World");');
 console.log(result); // true
 ```
-
 <a name="module_platform.readFile"></a>
 
 ### platform.readFile(appName, relativePath, [encoding]) ⇒ <code>string</code> \| <code>Buffer</code>
-
 Reads the content of a file from a specified app's directory.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6803,23 +6596,21 @@ Reads the content of a file from a specified app's directory.
 
 - <code>Error</code> If the app does not exist or if the file does not exist.
 
-| Param        | Type                                     | Default                                   | Description                                      |
-| ------------ | ---------------------------------------- | ----------------------------------------- | ------------------------------------------------ |
-| appName      | <code>string</code>                      |                                           | The target application.                          |
-| relativePath | <code>string</code>                      |                                           | The path of the file to read.                    |
-| [encoding]   | <code>string</code> \| <code>null</code> | <code>&quot;&#x27;utf8&#x27;&quot;</code> | The encoding to use. Pass null for a raw Buffer. |
 
-**Example**
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| appName | <code>string</code> |  | The target application. |
+| relativePath | <code>string</code> |  | The path of the file to read. |
+| [encoding] | <code>string</code> \| <code>null</code> | <code>&quot;&#x27;utf8&#x27;&quot;</code> | The encoding to use. Pass null for a raw Buffer. |
 
+**Example**  
 ```js
-const content = platform.readFile("myApp", "box/api/test.js");
+const content = platform.readFile('myApp', 'box/api/test.js');
 console.log(content); // 'console.log("Hello World");'
 ```
-
 <a name="module_platform.registerNewApp"></a>
 
 ### platform.registerNewApp(appName) ⇒ <code>object</code>
-
 Registers a new application in the server's context.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6828,21 +6619,19 @@ Registers a new application in the server's context.
 
 - <code>Error</code> If the app already exists or if the name is invalid.
 
-| Param   | Type                | Description                      |
-| ------- | ------------------- | -------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the app to register. |
 
-**Example**
-
+**Example**  
 ```js
-const result = platform.registerNewApp("myApp");
+const result = platform.registerNewApp('myApp');
 console.log(result); // true if registered successfully
 ```
-
 <a name="module_platform.reloadApp"></a>
 
 ### platform.reloadApp(appName) ⇒ <code>boolean</code>
-
 Reloads an application's configuration and clears its caches.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6851,21 +6640,19 @@ Reloads an application's configuration and clears its caches.
 
 - <code>Error</code> If the app does not exist.
 
-| Param   | Type                | Description        |
-| ------- | ------------------- | ------------------ |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The app to reload. |
 
-**Example**
-
+**Example**  
 ```js
-const result = platform.reloadApp("myApp");
+const result = platform.reloadApp('myApp');
 console.log(result); // true if reloaded successfully
 ```
-
 <a name="module_platform.deleteApp"></a>
 
 ### platform.deleteApp(appName) ⇒ <code>boolean</code>
-
 Recursively deletes an entire application directory. This is a destructive action.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6873,23 +6660,21 @@ Recursively deletes an entire application directory. This is a destructive actio
 **Throws**:
 
 - <code>Error</code> If the app does not exist or if the deletion is outside the
-  web root.
+web root.
 
-| Param   | Type                | Description                    |
-| ------- | ------------------- | ------------------------------ |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the app to delete. |
 
-**Example**
-
+**Example**  
 ```js
-const result = platform.deleteApp("myApp");
+const result = platform.deleteApp('myApp');
 console.log(result); // true if deleted successfully
 ```
-
 <a name="module_platform.unzipToApp"></a>
 
 ### platform.unzipToApp(appName, relativePath, zipBuffer) ⇒ <code>Promise.&lt;boolean&gt;</code>
-
 Unzips a buffer into a target folder within an app, validating each entry for security.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6898,23 +6683,21 @@ Unzips a buffer into a target folder within an app, validating each entry for se
 
 - <code>Error</code> If the app does not exist or if the zip contains invalid paths.
 
-| Param        | Type                | Description                              |
-| ------------ | ------------------- | ---------------------------------------- |
-| appName      | <code>string</code> | The target application.                  |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| appName | <code>string</code> | The target application. |
 | relativePath | <code>string</code> | The folder within the app to extract to. |
-| zipBuffer    | <code>Buffer</code> | The zip data as a buffer.                |
+| zipBuffer | <code>Buffer</code> | The zip data as a buffer. |
 
-**Example**
-
+**Example**  
 ```js
-const result = await platform.unzipToApp("myApp", "uploads", zipBuffer);
+const result = await platform.unzipToApp('myApp', 'uploads', zipBuffer);
 console.log(result); // true if unzipped successfully
 ```
-
 <a name="module_platform.zipApp"></a>
 
 ### platform.zipApp(appName) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-
 Zips an entire application's directory and returns the data as a buffer.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -6923,21 +6706,19 @@ Zips an entire application's directory and returns the data as a buffer.
 
 - <code>Error</code> If the app does not exist or if the zipping fails.
 
-| Param   | Type                | Description                 |
-| ------- | ------------------- | --------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the app to zip. |
 
-**Example**
-
+**Example**  
 ```js
-const zipBuffer = await platform.zipApp("myApp");
+const zipBuffer = await platform.zipApp('myApp');
 console.log(zipBuffer); // The zipped app data
 ```
-
 <a name="module_platform.packageApp"></a>
 
 ### platform.packageApp(appName) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-
 Packages an entire application into a distributable .gin archive buffer.
 Obeys the rules in the app's .gpkg manifest file if it exists.
 
@@ -6947,21 +6728,19 @@ Obeys the rules in the app's .gpkg manifest file if it exists.
 
 - <code>Error</code> If the app does not exist or if the packaging fails.
 
-| Param   | Type                | Description                     |
-| ------- | ------------------- | ------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the app to package. |
 
-**Example**
-
+**Example**  
 ```js
-const packageBuffer = await platform.packageApp("myApp");
+const packageBuffer = await platform.packageApp('myApp');
 console.log(packageBuffer); // The packaged app data
 ```
-
 <a name="module_platform.mockUpgrade"></a>
 
 ### platform.mockUpgrade(appName, packageBuffer) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Mocks an upgrade plan for an app based on a package buffer.
 This is a utility function for verifying an app upgrade deployment before it happens.
 
@@ -6970,24 +6749,22 @@ This is a utility function for verifying an app upgrade deployment before it hap
 **Throws**:
 
 - <code>Error</code> If the app does not exist or if the package buffer is invalid
-  or contains security issues.
+or contains security issues.
 
-| Param         | Type                | Description                        |
-| ------------- | ------------------- | ---------------------------------- |
-| appName       | <code>string</code> | The name of the app to upgrade.    |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| appName | <code>string</code> | The name of the app to upgrade. |
 | packageBuffer | <code>Buffer</code> | The .gin file content as a buffer. |
 
-**Example**
-
+**Example**  
 ```js
-const upgradePlan = await platform.mockUpgrade("myApp", zipBuffer);
+const upgradePlan = await platform.mockUpgrade('myApp', zipBuffer);
 console.log(upgradePlan); // { action: 'Upgrade', fromVersion: '1.0.0', toVersion: '2.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
 ```
-
 <a name="module_platform.listBackups"></a>
 
 ### platform.listBackups(appName) ⇒ <code>Array.&lt;string&gt;</code>
-
 Lists all backups for a specific application.
 Backups are stored in the 'backups' directory under the project root.
 
@@ -6997,21 +6774,19 @@ Backups are stored in the 'backups' directory under the project root.
 
 - <code>Error</code> If the app does not exist or if the backups directory is inaccessible.
 
-| Param   | Type                | Description                                      |
-| ------- | ------------------- | ------------------------------------------------ |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the application to list backups for. |
 
-**Example**
-
+**Example**  
 ```js
-const backups = platform.listBackups("myApp");
+const backups = platform.listBackups('myApp');
 console.log(backups);
 ```
-
 <a name="module_platform.mockRollback"></a>
 
 ### platform.mockRollback(appName) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Mocks a rollback plan for an app based on the latest backup.
 This is a utility function for verifying an app rollback deployment before it happens.
 
@@ -7021,21 +6796,19 @@ This is a utility function for verifying an app rollback deployment before it ha
 
 - <code>Error</code> If the app does not exist or if there are no backups available.
 
-| Param   | Type                | Description                      |
-| ------- | ------------------- | -------------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the app to rollback. |
 
-**Example**
-
+**Example**  
 ```js
-const rollbackPlan = await platform.mockRollback("myApp");
+const rollbackPlan = await platform.mockRollback('myApp');
 console.log(rollbackPlan); // { action: 'Rollback', fromVersion: '2.0.0', toVersion: '1.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
 ```
-
 <a name="module_platform.installApp"></a>
 
 ### platform.installApp(appName, packageBuffer, permissions) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Installs a new application from a .gin package buffer into a new directory.
 Fails if an app with the same name already exists.
 
@@ -7045,28 +6818,22 @@ Fails if an app with the same name already exists.
 
 - <code>Error</code> If the app already exists or if the installation fails.
 
-| Param         | Type                | Description                            |
-| ------------- | ------------------- | -------------------------------------- |
-| appName       | <code>string</code> | The name of the app to create/install. |
-| packageBuffer | <code>Buffer</code> | The .gin file content as a buffer.     |
-| permissions   | <code>object</code> | Permissions to set for the new app.    |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| appName | <code>string</code> | The name of the app to create/install. |
+| packageBuffer | <code>Buffer</code> | The .gin file content as a buffer. |
+| permissions | <code>object</code> | Permissions to set for the new app. |
 
+**Example**  
 ```js
 const grantedPermissions = ["cache", "db", "fs"];
-const result = await platform.installApp(
-  "myApp",
-  packageBuffer,
-  grantedPermissions,
-);
+const result = await platform.installApp('myApp', packageBuffer, grantedPermissions);
 console.log(result); // true if installed successfully
 ```
-
 <a name="module_platform.upgradeApp"></a>
 
 ### platform.upgradeApp(appName, packageBuffer, permissions, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
-
 Upgrades an existing application to a new version using a .gin package buffer.
 Preserves files as specified in the app's .gup configuration.
 
@@ -7076,29 +6843,23 @@ Preserves files as specified in the app's .gup configuration.
 
 - <code>Error</code> If the app does not exist or if the upgrade fails.
 
-| Param         | Type                | Default                       | Description                              |
-| ------------- | ------------------- | ----------------------------- | ---------------------------------------- |
-| appName       | <code>string</code> |                               | The name of the app to upgrade.          |
-| packageBuffer | <code>Buffer</code> |                               | The .gin file content as a buffer.       |
-| permissions   | <code>object</code> |                               | Permissions to set for the upgraded app. |
-| [options]     | <code>object</code> | <code>{ backup: true }</code> | Options for the upgrade process.         |
 
-**Example**
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| appName | <code>string</code> |  | The name of the app to upgrade. |
+| packageBuffer | <code>Buffer</code> |  | The .gin file content as a buffer. |
+| permissions | <code>object</code> |  | Permissions to set for the upgraded app. |
+| [options] | <code>object</code> | <code>{ backup: true }</code> | Options for the upgrade process. |
 
+**Example**  
 ```js
 const grantedPermissions = ["cache", "db", "fs"];
-const result = await platform.upgradeApp(
-  "myApp",
-  packageBuffer,
-  grantedPermissions,
-);
+const result = await platform.upgradeApp('myApp', packageBuffer, grantedPermissions);
 console.log(result); // true if upgraded successfully
 ```
-
 <a name="module_platform.rollbackApp"></a>
 
 ### platform.rollbackApp(appName, grantedPermissions) ⇒ <code>Promise.&lt;boolean&gt;</code>
-
 Rolls back an application to its previous version using the latest backup.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -7107,22 +6868,20 @@ Rolls back an application to its previous version using the latest backup.
 
 - <code>Error</code> If the app does not exist or if the rollback fails.
 
-| Param              | Type                              | Description                         |
-| ------------------ | --------------------------------- | ----------------------------------- |
-| appName            | <code>string</code>               | The name of the app to rollback.    |
+
+| Param | Type | Description |
+| --- | --- | --- |
+| appName | <code>string</code> | The name of the app to rollback. |
 | grantedPermissions | <code>Array.&lt;string&gt;</code> | The permissions granted to the app. |
 
-**Example**
-
+**Example**  
 ```js
-const result = await platform.rollbackApp("myApp");
+const result = await platform.rollbackApp('myApp');
 console.log(result); // true if rolled back successfully
 ```
-
 <a name="module_platform.installFromBackup"></a>
 
 ### platform.installFromBackup(appName, [backupVersion]) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Installs an application from a previously created backup file.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
@@ -7131,22 +6890,20 @@ Installs an application from a previously created backup file.
 
 - <code>Error</code> If the app does not exist, if no backups are found, or if the backup file is missing.
 
-| Param           | Type                | Default                                     | Description                                                       |
-| --------------- | ------------------- | ------------------------------------------- | ----------------------------------------------------------------- |
-| appName         | <code>string</code> |                                             | The name of the application to install.                           |
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| appName | <code>string</code> |  | The name of the application to install. |
 | [backupVersion] | <code>string</code> | <code>&quot;&#x27;latest&#x27;&quot;</code> | The specific backup file to use, or 'latest' for the most recent. |
 
-**Example**
-
+**Example**  
 ```js
-const result = await platform.installFromBackup("myApp");
+const result = await platform.installFromBackup('myApp');
 console.log(result); // true if installed successfully
 ```
-
 <a name="module_platform..assertSafeAppName"></a>
 
 ### platform~assertSafeAppName(appName) ⇒ <code>string</code>
-
 Validate an application name used in filesystem paths and platform APIs.
 Rejects empty names, whitespace, path separators, `..`, and other unsafe forms.
 When ALS context has `webPath`, also verifies `webPath/appName` stays under web root.
@@ -7157,55 +6914,53 @@ When ALS context has `webPath`, also verifies `webPath/appName` stays under web 
 
 - <code>Error</code> if invalid
 
-| Param   | Type                |
-| ------- | ------------------- |
-| appName | <code>string</code> |
+
+| Param | Type |
+| --- | --- |
+| appName | <code>string</code> | 
 
 <a name="module_platform..isReservedForDelete"></a>
 
 ### platform~isReservedForDelete(appName) ⇒ <code>boolean</code>
-
 True if this app must not be deleted via the public delete API.
 Always includes `glade`; also includes names listed in gingee.json `privileged_apps`.
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param   | Type                | Description       |
-| ------- | ------------------- | ----------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | already safe name |
 
 <a name="module_platform..assertAppDeletable"></a>
 
 ### platform~assertAppDeletable(appName) ⇒ <code>string</code>
-
 Ensure app may be uninstalled (not glade / not privileged_apps).
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>string</code> - safe name  
 **Throws**:
 
-- <code>Error</code>
+- <code>Error</code> 
 
-| Param   | Type                |
-| ------- | ------------------- |
-| appName | <code>string</code> |
+
+| Param | Type |
+| --- | --- |
+| appName | <code>string</code> | 
 
 <a name="module_platform..deleteApp"></a>
 
 ### platform~deleteApp(appName, [options])
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
-
-| Param                   | Type                 | Default            | Description                                                                                                                                  |
-| ----------------------- | -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| appName                 | <code>string</code>  |                    |                                                                                                                                              |
-| [options]               | <code>object</code>  |                    |                                                                                                                                              |
-| [options.allowReserved] | <code>boolean</code> | <code>false</code> | when true, allow deleting glade/privileged apps (used only by upgrade/rollback internal flow). Public Glade uninstall must leave this false. |
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| appName | <code>string</code> |  |  |
+| [options] | <code>object</code> |  |  |
+| [options.allowReserved] | <code>boolean</code> | <code>false</code> | when true, allow deleting glade/privileged   apps (used only by upgrade/rollback internal flow). Public Glade uninstall must leave this false. |
 
 <a name="module_platform..getAppPermissions"></a>
 
 ### platform~getAppPermissions(appName) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Retrieves the permissions for a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
@@ -7214,14 +6969,14 @@ Retrieves the permissions for a specific application.
 
 - <code>Error</code> If the app is not found.
 
-| Param   | Type                | Description                  |
-| ------- | ------------------- | ---------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the application. |
 
 <a name="module_platform..setAppPermissions"></a>
 
 ### platform~setAppPermissions(appName, permissionsArray, [reload]) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Sets the permissions for a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
@@ -7230,29 +6985,28 @@ Sets the permissions for a specific application.
 
 - <code>Error</code> If the app is not found.
 
-| Param            | Type                              | Default           | Description                                          |
-| ---------------- | --------------------------------- | ----------------- | ---------------------------------------------------- |
-| appName          | <code>string</code>               |                   | The name of the application.                         |
-| permissionsArray | <code>Array.&lt;string&gt;</code> |                   | The permissions to set.                              |
-| [reload]         | <code>boolean</code>              | <code>true</code> | Whether to reload the app after setting permissions. |
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| appName | <code>string</code> |  | The name of the application. |
+| permissionsArray | <code>Array.&lt;string&gt;</code> |  | The permissions to set. |
+| [reload] | <code>boolean</code> | <code>true</code> | Whether to reload the app after setting permissions. |
 
 <a name="module_platform..removeAppPermissions"></a>
 
 ### platform~removeAppPermissions(appName) ⇒ <code>Promise.&lt;boolean&gt;</code>
-
 Removes all permissions for a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
-**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves with a success message.
+**Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves with a success message.  
 
-| Param   | Type                | Description                  |
-| ------- | ------------------- | ---------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the application. |
 
 <a name="module_platform..analyzeAppBackup"></a>
 
 ### platform~analyzeAppBackup(appName) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Analyzes the backup of a specific application.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
@@ -7261,145 +7015,135 @@ Analyzes the backup of a specific application.
 
 - <code>Error</code> If the app is not found or the backup is invalid.
 
-| Param   | Type                | Description                  |
-| ------- | ------------------- | ---------------------------- |
+
+| Param | Type | Description |
+| --- | --- | --- |
 | appName | <code>string</code> | The name of the application. |
 
 <a name="module_platform..getQueueStats"></a>
 
 ### platform~getQueueStats() ⇒ <code>Promise.&lt;object&gt;</code>
-
 Queue admin stats for Glade (privileged).
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 <a name="module_platform..listQueueLiveJobs"></a>
 
 ### platform~listQueueLiveJobs([opts]) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
-
 Live queue jobs (running/waiting on this node + pending/delayed in driver).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param          | Type                |
-| -------------- | ------------------- |
-| [opts]         | <code>object</code> |
-| [opts.appName] | <code>string</code> |
-| [opts.limit]   | <code>number</code> |
+| Param | Type |
+| --- | --- |
+| [opts] | <code>object</code> | 
+| [opts.appName] | <code>string</code> | 
+| [opts.limit] | <code>number</code> | 
 
 <a name="module_platform..listQueueDlq"></a>
 
 ### platform~listQueueDlq([opts]) ⇒ <code>Promise.&lt;Array.&lt;object&gt;&gt;</code>
-
 List dead-letter queue entries.
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param          | Type                |
-| -------------- | ------------------- |
-| [opts]         | <code>object</code> |
-| [opts.appName] | <code>string</code> |
-| [opts.limit]   | <code>number</code> |
+| Param | Type |
+| --- | --- |
+| [opts] | <code>object</code> | 
+| [opts.appName] | <code>string</code> | 
+| [opts.limit] | <code>number</code> | 
 
 <a name="module_platform..retryQueueDlqJob"></a>
 
 ### platform~retryQueueDlqJob(jobId) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Retry a DLQ job (re-enqueue attempt 1).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param | Type                |
-| ----- | ------------------- |
-| jobId | <code>string</code> |
+| Param | Type |
+| --- | --- |
+| jobId | <code>string</code> | 
 
 <a name="module_platform..discardQueueDlqJob"></a>
 
 ### platform~discardQueueDlqJob(jobId) ⇒ <code>Promise.&lt;boolean&gt;</code>
-
 Discard a DLQ job.
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param | Type                |
-| ----- | ------------------- |
-| jobId | <code>string</code> |
+| Param | Type |
+| --- | --- |
+| jobId | <code>string</code> | 
 
 <a name="module_platform..listLogFiles"></a>
 
 ### platform~listLogFiles([opts]) ⇒ <code>object</code>
-
 List server or app log files (privileged / Glade).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param          | Type                | Description |
-| -------------- | ------------------- | ----------- |
-| [opts]         | <code>object</code> |             |
-| [opts.scope]   | <code>string</code> | server      | app |
-| [opts.appName] | <code>string</code> |             |
+| Param | Type | Description |
+| --- | --- | --- |
+| [opts] | <code>object</code> |  |
+| [opts.scope] | <code>string</code> | server | app |
+| [opts.appName] | <code>string</code> |  |
 
 <a name="module_platform..readLogFile"></a>
 
 ### platform~readLogFile([opts]) ⇒ <code>object</code>
-
 Tail-read a log file (privileged / Glade).
 Does not write log line content into the audit trail (metadata only).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param  | Type                |
-| ------ | ------------------- |
-| [opts] | <code>object</code> |
+| Param | Type |
+| --- | --- |
+| [opts] | <code>object</code> | 
 
 <a name="module_platform..getSchedulerStatus"></a>
 
 ### platform~getSchedulerStatus() ⇒ <code>object</code>
-
 Scheduler admin status for Glade (privileged).
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 <a name="module_platform..listSchedulerJobs"></a>
 
 ### platform~listSchedulerJobs([opts]) ⇒ <code>Array.&lt;object&gt;</code>
-
 List registered CRON jobs on this node (privileged).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param          | Type                |
-| -------------- | ------------------- |
-| [opts]         | <code>object</code> |
-| [opts.appName] | <code>string</code> |
+| Param | Type |
+| --- | --- |
+| [opts] | <code>object</code> | 
+| [opts.appName] | <code>string</code> | 
 
 <a name="module_platform..runSchedulerJob"></a>
 
 ### platform~runSchedulerJob(appName, jobName) ⇒ <code>Promise.&lt;object&gt;</code>
-
 Force-run a registered schedule now (privileged; bypasses multi-node coordination).
 
-**Kind**: inner method of [<code>platform</code>](#module_platform)
+**Kind**: inner method of [<code>platform</code>](#module_platform)  
 
-| Param   | Type                |
-| ------- | ------------------- |
-| appName | <code>string</code> |
-| jobName | <code>string</code> |
+| Param | Type |
+| --- | --- |
+| appName | <code>string</code> | 
+| jobName | <code>string</code> | 
 
 <a name="module_qrcode"></a>
 
 ## qrcode
-
 Provides functions to generate QR codes and 1D barcodes.
 
-- [qrcode](#module_qrcode)
-  - [.BUFFER](#module_qrcode.BUFFER)
-  - [.DATA_URL](#module_qrcode.DATA_URL)
-  - [.qrcode(text, [options])](#module_qrcode.qrcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-  - [.barcode(format, text, [options])](#module_qrcode.barcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+
+* [qrcode](#module_qrcode)
+    * [.BUFFER](#module_qrcode.BUFFER)
+    * [.DATA_URL](#module_qrcode.DATA_URL)
+    * [.qrcode(text, [options])](#module_qrcode.qrcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
+    * [.barcode(format, text, [options])](#module_qrcode.barcode) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
 
 <a name="module_qrcode.BUFFER"></a>
 
 ### qrcode.BUFFER
-
 Constant for Buffer output type.
 This constant can be used to specify that the output should be a Buffer.
 
@@ -7407,7 +7151,6 @@ This constant can be used to specify that the output should be a Buffer.
 <a name="module_qrcode.DATA_URL"></a>
 
 ### qrcode.DATA\_URL
-
 Constant for Data URL output type.
 This constant can be used to specify that the output should be a Data URL.
 
@@ -7415,7 +7158,6 @@ This constant can be used to specify that the output should be a Data URL.
 <a name="module_qrcode.qrcode"></a>
 
 ### qrcode.qrcode(text, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-
 Generates a QR code from the provided text.
 This function uses the 'qrcode' library to create QR codes, allowing for various output formats.
 It supports both Buffer and Data URL outputs, making it flexible for different use cases.
@@ -7426,33 +7168,29 @@ It supports both Buffer and Data URL outputs, making it flexible for different u
 
 - <code>Error</code> If the input text is not a string or if the output type is invalid.
 
-| Param                          | Type                | Default                                     | Description                             |
-| ------------------------------ | ------------------- | ------------------------------------------- | --------------------------------------- |
-| text                           | <code>string</code> |                                             | The text or data to encode.             |
-| [options]                      | <code>object</code> |                                             | Optional settings.                      |
-| [options.output]               | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
-| [options.errorCorrectionLevel] | <code>string</code> | <code>&quot;&#x27;medium&#x27;&quot;</code> | 'low', 'medium', 'quartile', 'high'.    |
-| [options.margin]               | <code>number</code> | <code>4</code>                              | The width of the quiet zone border.     |
-| [options.width]                | <code>number</code> | <code>200</code>                            | The width of the image in pixels.       |
 
-**Example**
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| text | <code>string</code> |  | The text or data to encode. |
+| [options] | <code>object</code> |  | Optional settings. |
+| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
+| [options.errorCorrectionLevel] | <code>string</code> | <code>&quot;&#x27;medium&#x27;&quot;</code> | 'low', 'medium', 'quartile', 'high'. |
+| [options.margin] | <code>number</code> | <code>4</code> | The width of the quiet zone border. |
+| [options.width] | <code>number</code> | <code>200</code> | The width of the image in pixels. |
 
+**Example**  
 ```js
-const qrCode = await qrcode("Hello, world!", { output: qrcode.DATA_URL });
+const qrCode = await qrcode('Hello, world!', { output: qrcode.DATA_URL });
 console.log(qrCode); // Outputs a Data URL of the QR code image
 ```
-
-**Example**
-
+**Example**  
 ```js
-const qrCodeBuffer = await qrcode("Hello, world!", { output: qrcode.BUFFER });
+const qrCodeBuffer = await qrcode('Hello, world!', { output: qrcode.BUFFER });
 console.log(qrCodeBuffer); // Outputs a Buffer of the QR code image
 ```
-
 <a name="module_qrcode.barcode"></a>
 
 ### qrcode.barcode(format, text, [options]) ⇒ <code>Promise.&lt;(Buffer\|string)&gt;</code>
-
 Generates a 1D barcode from the provided text.
 This function uses the 'jsbarcode' library to create 1D barcodes.
 
@@ -7462,92 +7200,83 @@ This function uses the 'jsbarcode' library to create 1D barcodes.
 
 - <code>Error</code> If the input text is not a string or if the output type is invalid.
 
-| Param                  | Type                 | Default                                     | Description                                           |
-| ---------------------- | -------------------- | ------------------------------------------- | ----------------------------------------------------- |
-| format                 | <code>string</code>  |                                             | The barcode format (e.g., 'CODE128', 'EAN13', 'UPC'). |
-| text                   | <code>string</code>  |                                             | The text or data to encode.                           |
-| [options]              | <code>object</code>  |                                             | Optional settings.                                    |
-| [options.output]       | <code>string</code>  | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'.               |
-| [options.width]        | <code>number</code>  | <code>2</code>                              | The width of a single bar.                            |
-| [options.height]       | <code>number</code>  | <code>100</code>                            | The height of the bars.                               |
-| [options.displayValue] | <code>boolean</code> | <code>true</code>                           | Whether to display the text below the barcode.        |
 
-**Example**
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| format | <code>string</code> |  | The barcode format (e.g., 'CODE128', 'EAN13', 'UPC'). |
+| text | <code>string</code> |  | The text or data to encode. |
+| [options] | <code>object</code> |  | Optional settings. |
+| [options.output] | <code>string</code> | <code>&quot;&#x27;buffer&#x27;&quot;</code> | The output type: 'buffer' or 'dataurl'. |
+| [options.width] | <code>number</code> | <code>2</code> | The width of a single bar. |
+| [options.height] | <code>number</code> | <code>100</code> | The height of the bars. |
+| [options.displayValue] | <code>boolean</code> | <code>true</code> | Whether to display the text below the barcode. |
 
+**Example**  
 ```js
-const barcode = await barcode("CODE128", "123456789012", {
-  output: barcode.DATA_URL,
-});
+const barcode = await barcode('CODE128', '123456789012', { output: barcode.DATA_URL });
 console.log(barcode); // Outputs a Data URL of the barcode image
 ```
-
-**Example**
-
+**Example**  
 ```js
-const barcodeBuffer = await barcode("CODE128", "123456789012", {
-  output: barcode.BUFFER,
-});
+const barcodeBuffer = await barcode('CODE128', '123456789012', { output: barcode.BUFFER });
 console.log(barcodeBuffer); // Outputs a Buffer of the barcode image
 ```
-
 <a name="module_utils"></a>
 
 ## utils
-
 A collection of utility functions for various tasks.
 This module provides functions for generating random data, validating inputs, manipulating strings, and more.
 It abstracts common tasks into reusable functions, making it easier to write clean and maintainable code.
 It is particularly useful for tasks that require randomization, validation, or string manipulation.
 
-- [utils](#module_utils)
-  - _static_
-    - [.rnd](#module_utils.rnd) : <code>object</code>
-      - [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
-      - [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
-      - [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
-      - [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
-      - [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
-      - [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
-      - [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
-      - [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
-      - [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
-    - [.string](#module_utils.string) : <code>object</code>
-      - [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
-      - [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
-      - [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
-      - [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
-    - [.misc](#module_utils.misc) : <code>object</code>
-      - [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
-      - [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
-  - _inner_
-    - [~validate](#module_utils..validate)
+
+* [utils](#module_utils)
+    * _static_
+        * [.rnd](#module_utils.rnd) : <code>object</code>
+            * [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
+            * [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
+            * [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
+            * [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
+            * [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
+            * [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
+            * [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
+            * [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
+            * [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
+        * [.string](#module_utils.string) : <code>object</code>
+            * [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
+            * [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
+            * [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
+            * [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
+        * [.misc](#module_utils.misc) : <code>object</code>
+            * [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
+            * [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
+    * _inner_
+        * [~validate](#module_utils..validate)
 
 <a name="module_utils.rnd"></a>
 
 ### utils.rnd : <code>object</code>
-
 A util lib for generating various types of random data.
 It provides functions to generate random integers, floats, booleans, colors, and strings
 Uses Math.random(), so it is NOT cryptographically secure.
 For security-sensitive randomness, use the 'crypto' module.
 
-**Kind**: static namespace of [<code>utils</code>](#module_utils)
+**Kind**: static namespace of [<code>utils</code>](#module_utils)  
 
-- [.rnd](#module_utils.rnd) : <code>object</code>
-  - [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
-  - [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
-  - [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
-  - [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
-  - [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
-  - [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
-  - [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
-  - [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
-  - [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
+* [.rnd](#module_utils.rnd) : <code>object</code>
+    * [.int(max)](#module_utils.rnd.int) ⇒ <code>number</code>
+    * [.float(max)](#module_utils.rnd.float) ⇒ <code>number</code>
+    * [.intInRange(min, max)](#module_utils.rnd.intInRange) ⇒ <code>number</code>
+    * [.floatInRange(min, max)](#module_utils.rnd.floatInRange) ⇒ <code>number</code>
+    * [.bool()](#module_utils.rnd.bool) ⇒ <code>boolean</code>
+    * [.choice(array)](#module_utils.rnd.choice) ⇒ <code>any</code> \| <code>undefined</code>
+    * [.shuffle(array)](#module_utils.rnd.shuffle) ⇒ <code>Array.&lt;any&gt;</code>
+    * [.color()](#module_utils.rnd.color) ⇒ <code>string</code>
+    * [.string(length)](#module_utils.rnd.string) ⇒ <code>string</code>
 
 <a name="module_utils.rnd.int"></a>
 
 #### rnd.int(max) ⇒ <code>number</code>
-
 Generates a random integer from 0 up to (but not including) max.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -7556,21 +7285,19 @@ Generates a random integer from 0 up to (but not including) max.
 
 - <code>Error</code> If max is not a positive number.
 
-| Param | Type                | Description                  |
-| ----- | ------------------- | ---------------------------- |
-| max   | <code>number</code> | The upper bound (exclusive). |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| max | <code>number</code> | The upper bound (exclusive). |
 
+**Example**  
 ```js
 const randomInt = rnd.int(10); // Returns a random integer between 0 and 9
 console.log(randomInt); // Outputs a random integer
 ```
-
 <a name="module_utils.rnd.float"></a>
 
 #### rnd.float(max) ⇒ <code>number</code>
-
 Generates a random float from 0 up to (but not including) max.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -7579,21 +7306,19 @@ Generates a random float from 0 up to (but not including) max.
 
 - <code>Error</code> If max is not a positive number.
 
-| Param | Type                | Description                  |
-| ----- | ------------------- | ---------------------------- |
-| max   | <code>number</code> | The upper bound (exclusive). |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| max | <code>number</code> | The upper bound (exclusive). |
 
+**Example**  
 ```js
 const randomFloat = rnd.float(10); // Returns a random float between 0 and 10
 console.log(randomFloat); // Outputs a random float
 ```
-
 <a name="module_utils.rnd.intInRange"></a>
 
 #### rnd.intInRange(min, max) ⇒ <code>number</code>
-
 Generates a random integer within a given range (inclusive).
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -7602,22 +7327,20 @@ Generates a random integer within a given range (inclusive).
 
 - <code>Error</code> If min is greater than max.
 
-| Param | Type                | Description                     |
-| ----- | ------------------- | ------------------------------- |
-| min   | <code>number</code> | The minimum value of the range. |
-| max   | <code>number</code> | The maximum value of the range. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| min | <code>number</code> | The minimum value of the range. |
+| max | <code>number</code> | The maximum value of the range. |
 
+**Example**  
 ```js
 const randomInt = rnd.intInRange(1, 10); // Returns a random integer between 1 and 10
 console.log(randomInt); // Outputs a random integer
 ```
-
 <a name="module_utils.rnd.floatInRange"></a>
 
 #### rnd.floatInRange(min, max) ⇒ <code>number</code>
-
 Generates a random float within a given range.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
@@ -7626,307 +7349,245 @@ Generates a random float within a given range.
 
 - <code>Error</code> If min is greater than max.
 
-| Param | Type                | Description                     |
-| ----- | ------------------- | ------------------------------- |
-| min   | <code>number</code> | The minimum value of the range. |
-| max   | <code>number</code> | The maximum value of the range. |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| min | <code>number</code> | The minimum value of the range. |
+| max | <code>number</code> | The maximum value of the range. |
 
+**Example**  
 ```js
 const randomFloat = rnd.floatInRange(1.5, 5.5); // Returns a random float between 1.5 and 5.5
 console.log(randomFloat); // Outputs a random float
 ```
-
 <a name="module_utils.rnd.bool"></a>
 
 #### rnd.bool() ⇒ <code>boolean</code>
-
 Returns a random boolean (true or false).
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Example**
-
+**Example**  
 ```js
 const randomBool = rnd.bool(); // Returns either true or false
 console.log(randomBool); // Outputs a random boolean
 ```
-
 <a name="module_utils.rnd.choice"></a>
 
 #### rnd.choice(array) ⇒ <code>any</code> \| <code>undefined</code>
-
 Selects a random element from an array.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Returns**: <code>any</code> \| <code>undefined</code> - A random element from the array, or undefined if the array is empty.
+**Returns**: <code>any</code> \| <code>undefined</code> - A random element from the array, or undefined if the array is empty.  
 
-| Param | Type                           | Description               |
-| ----- | ------------------------------ | ------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | array | <code>Array.&lt;any&gt;</code> | The array to choose from. |
 
-**Example**
-
+**Example**  
 ```js
 const randomChoice = rnd.choice([1, 2, 3, 4, 5]); // Returns a random element from the array
 console.log(randomChoice); // Outputs a random element from the array
 ```
-
-**Example**
-
+**Example**  
 ```js
 const randomChoice = rnd.choice([]); // Returns undefined
 ```
-
 <a name="module_utils.rnd.shuffle"></a>
 
 #### rnd.shuffle(array) ⇒ <code>Array.&lt;any&gt;</code>
-
 Shuffles an array in place using the Fisher-Yates algorithm and returns it.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Returns**: <code>Array.&lt;any&gt;</code> - The shuffled array.
+**Returns**: <code>Array.&lt;any&gt;</code> - The shuffled array.  
 
-| Param | Type                           | Description           |
-| ----- | ------------------------------ | --------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | array | <code>Array.&lt;any&gt;</code> | The array to shuffle. |
 
-**Example**
-
+**Example**  
 ```js
 const shuffledArray = rnd.shuffle([1, 2, 3, 4, 5]); // Returns a shuffled version of the array
 console.log(shuffledArray); // Outputs the shuffled array
 ```
-
 <a name="module_utils.rnd.color"></a>
 
 #### rnd.color() ⇒ <code>string</code>
-
 Generates a random hex color code.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
 **Returns**: <code>string</code> - A random hex color string (e.g., '#a4c1e8').  
-**Example**
-
+**Example**  
 ```js
 const randomColor = rnd.color(); // Returns a random hex color code
 console.log(randomColor); // Outputs a random hex color code
 ```
-
 <a name="module_utils.rnd.string"></a>
 
 #### rnd.string(length) ⇒ <code>string</code>
-
 Generates a random string of a given length using only alphabetic characters.
 NOT cryptographically secure. For secure random strings, use the 'crypto' module.
 
 **Kind**: static method of [<code>rnd</code>](#module_utils.rnd)  
-**Returns**: <code>string</code> - A random string of letters.
+**Returns**: <code>string</code> - A random string of letters.  
 
-| Param  | Type                | Description                       |
-| ------ | ------------------- | --------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | length | <code>number</code> | The desired length of the string. |
 
-**Example**
-
+**Example**  
 ```js
 const randomString = rnd.string(10); // Returns a random string of 10 characters
 console.log(randomString); // Outputs a random string of letters
 ```
-
 <a name="module_utils.string"></a>
 
 ### utils.string : <code>object</code>
-
 A collection of string manipulation utilities.
 Provides functions for string formatting, slugification, truncation, and HTML stripping.
 These functions are useful for preparing strings for display, storage, or further processing.
 They help ensure strings are in a consistent format, making them easier to work with in applications
 
-**Kind**: static namespace of [<code>utils</code>](#module_utils)
+**Kind**: static namespace of [<code>utils</code>](#module_utils)  
 
-- [.string](#module_utils.string) : <code>object</code>
-  - [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
-  - [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
-  - [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
-  - [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
+* [.string](#module_utils.string) : <code>object</code>
+    * [.capitalize(str)](#module_utils.string.capitalize) ⇒ <code>string</code>
+    * [.slugify(str)](#module_utils.string.slugify) ⇒ <code>string</code>
+    * [.truncate(str, length, [suffix])](#module_utils.string.truncate) ⇒ <code>string</code>
+    * [.stripHtml(htmlString)](#module_utils.string.stripHtml) ⇒ <code>string</code>
 
 <a name="module_utils.string.capitalize"></a>
 
 #### string.capitalize(str) ⇒ <code>string</code>
-
 Converts the first character of a string to uppercase.
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.
+**Returns**: <code>string</code> - or empty string if input is not a string.  
 
-| Param | Type                | Description       |
-| ----- | ------------------- | ----------------- |
-| str   | <code>string</code> | The input string. |
+| Param | Type | Description |
+| --- | --- | --- |
+| str | <code>string</code> | The input string. |
 
-**Example**
-
+**Example**  
 ```js
-const capitalized = string.capitalize("hello world");
+const capitalized = string.capitalize('hello world');
 console.log(capitalized); // Outputs: Hello world
 ```
-
 <a name="module_utils.string.slugify"></a>
 
 #### string.slugify(str) ⇒ <code>string</code>
-
 Converts a string into a URL-friendly "slug".
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.
+**Returns**: <code>string</code> - or empty string if input is not a string.  
 
-| Param | Type                | Description       |
-| ----- | ------------------- | ----------------- |
-| str   | <code>string</code> | The input string. |
+| Param | Type | Description |
+| --- | --- | --- |
+| str | <code>string</code> | The input string. |
 
-**Example**
-
+**Example**  
 ```js
-const slug = string.slugify("Hello World! This is a test.");
+const slug = string.slugify('Hello World! This is a test.');
 console.log(slug); // Outputs: hello-world-this-is-a-test
 ```
-
 <a name="module_utils.string.truncate"></a>
 
 #### string.truncate(str, length, [suffix]) ⇒ <code>string</code>
-
 Truncates a string to a maximum length without cutting words in half.
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.
+**Returns**: <code>string</code> - or empty string if input is not a string.  
 
-| Param    | Type                | Default                                  | Description                        |
-| -------- | ------------------- | ---------------------------------------- | ---------------------------------- |
-| str      | <code>string</code> |                                          | The input string.                  |
-| length   | <code>number</code> |                                          | The maximum length.                |
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| str | <code>string</code> |  | The input string. |
+| length | <code>number</code> |  | The maximum length. |
 | [suffix] | <code>string</code> | <code>&quot;&#x27;...&#x27;&quot;</code> | The suffix to append if truncated. |
 
-**Example**
-
+**Example**  
 ```js
-const truncated = string.truncate(
-  "This is a long string that needs to be truncated.",
-  30,
-);
+const truncated = string.truncate('This is a long string that needs to be truncated.', 30);
 console.log(truncated); // Outputs: This is a long string that...
 ```
-
 <a name="module_utils.string.stripHtml"></a>
 
 #### string.stripHtml(htmlString) ⇒ <code>string</code>
-
 Removes all HTML tags from a string.
 
 **Kind**: static method of [<code>string</code>](#module_utils.string)  
-**Returns**: <code>string</code> - or empty string if input is not a string.
+**Returns**: <code>string</code> - or empty string if input is not a string.  
 
-| Param      | Type                | Description                       |
-| ---------- | ------------------- | --------------------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | htmlString | <code>string</code> | The input string containing HTML. |
 
-**Example**
-
+**Example**  
 ```js
-const cleanString = string.stripHtml(
-  "<p>This is <strong>bold</strong> text.</p>",
-);
+const cleanString = string.stripHtml('<p>This is <strong>bold</strong> text.</p>');
 console.log(cleanString); // Outputs: This is bold text.
 ```
-
 <a name="module_utils.misc"></a>
 
 ### utils.misc : <code>object</code>
-
 A collection of miscellaneous utility functions.
 Provides functions for clamping numbers, grouping arrays, and other common tasks.
 These functions help with data manipulation and organization, making it easier to work with collections of data.
 
-**Kind**: static namespace of [<code>utils</code>](#module_utils)
+**Kind**: static namespace of [<code>utils</code>](#module_utils)  
 
-- [.misc](#module_utils.misc) : <code>object</code>
-  - [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
-  - [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
+* [.misc](#module_utils.misc) : <code>object</code>
+    * [.clamp(number, min, max)](#module_utils.misc.clamp) ⇒ <code>number</code>
+    * [.groupBy(array, keyOrFn)](#module_utils.misc.groupBy) ⇒ <code>object</code>
 
 <a name="module_utils.misc.clamp"></a>
 
 #### misc.clamp(number, min, max) ⇒ <code>number</code>
-
 Restricts a number to be within a specific range.
 
-**Kind**: static method of [<code>misc</code>](#module_utils.misc)
+**Kind**: static method of [<code>misc</code>](#module_utils.misc)  
 
-| Param  | Type                | Description           |
-| ------ | ------------------- | --------------------- |
-| number | <code>number</code> | The number to clamp.  |
-| min    | <code>number</code> | The minimum boundary. |
-| max    | <code>number</code> | The maximum boundary. |
+| Param | Type | Description |
+| --- | --- | --- |
+| number | <code>number</code> | The number to clamp. |
+| min | <code>number</code> | The minimum boundary. |
+| max | <code>number</code> | The maximum boundary. |
 
-**Example**
-
+**Example**  
 ```js
 const clampedValue = misc.clamp(15, 10, 20);
 console.log(clampedValue); // Outputs: 15
 ```
-
-**Example**
-
+**Example**  
 ```js
 const clampedValue = misc.clamp(25, 10, 20);
 console.log(clampedValue); // Outputs: 20
 ```
-
 <a name="module_utils.misc.groupBy"></a>
 
 #### misc.groupBy(array, keyOrFn) ⇒ <code>object</code>
-
 Groups the elements of an array into an object based on a key or function.
 
-**Kind**: static method of [<code>misc</code>](#module_utils.misc)
+**Kind**: static method of [<code>misc</code>](#module_utils.misc)  
 
-| Param   | Type                                         | Description                                          |
-| ------- | -------------------------------------------- | ---------------------------------------------------- |
-| array   | <code>Array.&lt;object&gt;</code>            | The array to group.                                  |
+| Param | Type | Description |
+| --- | --- | --- |
+| array | <code>Array.&lt;object&gt;</code> | The array to group. |
 | keyOrFn | <code>string</code> \| <code>function</code> | The key string or a function to determine the group. |
 
-**Example**
-
+**Example**  
 ```js
-const grouped = misc.groupBy(
-  [
-    { id: 1, category: "A" },
-    { id: 2, category: "B" },
-    { id: 3, category: "A" },
-  ],
-  "category",
-);
+const grouped = misc.groupBy([{ id: 1, category: 'A' }, { id: 2, category: 'B' }, { id: 3, category: 'A' }], 'category');
 console.log(grouped);
 // Outputs: { A: [{ id: 1, category: 'A' }, { id: 3, category: 'A' }], B: [{ id: 2, category: 'B' }] }
 ```
-
-**Example**
-
+**Example**  
 ```js
-const grouped = misc.groupBy(
-  [
-    { id: 1, value: 10 },
-    { id: 2, value: 20 },
-    { id: 3, value: 10 },
-  ],
-  (item) => item.value,
-);
+const grouped = misc.groupBy([{ id: 1, value: 10 }, { id: 2, value: 20 }, { id: 3, value: 10 }], item => item.value);
 console.log(grouped);
 // Outputs: { 10: [{ id: 1, value: 10 }, { id: 3, value: 10 }], 20: [{ id: 2, value: 20 }] }
 ```
-
 <a name="module_utils..validate"></a>
 
 ### utils~validate
-
 A collection of validation utilities for common data types.
 Provides functions to check if a string is a valid email, URL, phone number, and more.
 These functions help ensure that data conforms to expected formats, making it easier to validate user input.
@@ -7935,72 +7596,65 @@ These functions help ensure that data conforms to expected formats, making it ea
 <a name="module_uuid"></a>
 
 ## uuid
-
 Provides functions to generate and validate UUIDs (Universally Unique Identifiers).
 
-- [uuid](#module_uuid)
-  - [.v4()](#module_uuid.v4) ⇒ <code>string</code>
-  - [.validate(uuidString)](#module_uuid.validate) ⇒ <code>boolean</code>
+
+* [uuid](#module_uuid)
+    * [.v4()](#module_uuid.v4) ⇒ <code>string</code>
+    * [.validate(uuidString)](#module_uuid.validate) ⇒ <code>boolean</code>
 
 <a name="module_uuid.v4"></a>
 
 ### uuid.v4() ⇒ <code>string</code>
-
 Generates a random RFC 4122 Version 4 UUID.
 Uses the built-in, cryptographically secure random UUID generator.
 
 **Kind**: static method of [<code>uuid</code>](#module_uuid)  
 **Returns**: <code>string</code> - A new UUID string (e.g., "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d").  
-**Example**
-
+**Example**  
 ```js
-const uuid = require("uuid");
+const uuid = require('uuid');
 const newUuid = uuid.v4();
 console.log(newUuid); // Outputs a random UUID
 ```
-
 <a name="module_uuid.validate"></a>
 
 ### uuid.validate(uuidString) ⇒ <code>boolean</code>
-
 Validates if a string is a correctly formatted UUID.
 This function checks if the string matches the standard UUID format (8-4-4-4-12 hex digits).
 It does not check if the UUID is actually in use or registered, only its format.
 
 **Kind**: static method of [<code>uuid</code>](#module_uuid)  
-**Returns**: <code>boolean</code> - True if the string is a valid UUID, false otherwise.
+**Returns**: <code>boolean</code> - True if the string is a valid UUID, false otherwise.  
 
-| Param      | Type                | Description             |
-| ---------- | ------------------- | ----------------------- |
+| Param | Type | Description |
+| --- | --- | --- |
 | uuidString | <code>string</code> | The string to validate. |
 
-**Example**
-
+**Example**  
 ```js
-const uuid = require("uuid");
-const isValid = uuid.validate("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d");
+const uuid = require('uuid');
+const isValid = uuid.validate('a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d');
 console.log(isValid); // Outputs true or false
 ```
-
 <a name="module_zip"></a>
 
 ## zip
-
 Provides functions to zip and unzip files and directories securely.
 This module allows you to create zip archives from files or directories, and extract zip files to specified locations.
 It ensures that all file operations are performed within the secure boundaries defined by the Gingee framework.
 <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
-- [zip](#module_zip)
-  - [.zip(scope, sourcePath, [options])](#module_zip.zip) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-  - [.zipToFile(sourceScope, sourcePath, destScope, destPath, [options])](#module_zip.zipToFile) ⇒ <code>Promise.&lt;void&gt;</code>
-  - [.unzip(sourceScope, sourcePath, destScope, destPath)](#module_zip.unzip) ⇒ <code>Promise.&lt;void&gt;</code>
+
+* [zip](#module_zip)
+    * [.zip(scope, sourcePath, [options])](#module_zip.zip) ⇒ <code>Promise.&lt;Buffer&gt;</code>
+    * [.zipToFile(sourceScope, sourcePath, destScope, destPath, [options])](#module_zip.zipToFile) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.unzip(sourceScope, sourcePath, destScope, destPath)](#module_zip.unzip) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="module_zip.zip"></a>
 
 ### zip.zip(scope, sourcePath, [options]) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-
 Zips a file or directory into an in-memory buffer.
 This function allows you to create a zip archive from a single file or an entire directory.
 
@@ -8010,25 +7664,23 @@ This function allows you to create a zip archive from a single file or an entire
 
 - <code>Error</code> If the source file or directory does not exist, or if the path traversal is detected.
 
-| Param                       | Type                 | Default            | Description                                                                                 |
-| --------------------------- | -------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
-| scope                       | <code>string</code>  |                    | The scope of the source (fs.BOX or fs.WEB).                                                 |
-| sourcePath                  | <code>string</code>  |                    | The path to the file or directory to zip.                                                   |
-| [options]                   | <code>object</code>  |                    | Optional settings.                                                                          |
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| scope | <code>string</code> |  | The scope of the source (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> |  | The path to the file or directory to zip. |
+| [options] | <code>object</code> |  | Optional settings. |
 | [options.includeRootFolder] | <code>boolean</code> | <code>false</code> | If true and source is a directory, the directory itself is included at the root of the zip. |
 
-**Example**
-
+**Example**  
 ```js
-const zip = require("zip");
-const zipBuffer = await zip.zip(fs.BOX, "/path/to/source");
+const zip = require('zip');
+const zipBuffer = await zip.zip(fs.BOX, '/path/to/source');
 console.log(zipBuffer); // Outputs a Buffer containing the zip file data
 ```
-
 <a name="module_zip.zipToFile"></a>
 
 ### zip.zipToFile(sourceScope, sourcePath, destScope, destPath, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Zips a file or directory to a destination zip file.
 
 **Kind**: static method of [<code>zip</code>](#module_zip)  
@@ -8037,35 +7689,28 @@ Zips a file or directory to a destination zip file.
 
 - <code>Error</code> If the source file or directory does not exist, or if the path traversal is detected, or if zipping between scopes is attempted without the allowCrossOrigin option.
 
-| Param                       | Type                 | Default            | Description                                                                                 |
-| --------------------------- | -------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
-| sourceScope                 | <code>string</code>  |                    | The scope of the source (fs.BOX or fs.WEB).                                                 |
-| sourcePath                  | <code>string</code>  |                    | The path to the file or directory to zip.                                                   |
-| destScope                   | <code>string</code>  |                    | The scope of the destination (fs.BOX or fs.WEB).                                            |
-| destPath                    | <code>string</code>  |                    | The path to the destination zip file.                                                       |
-| [options]                   | <code>object</code>  |                    | Optional settings.                                                                          |
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| sourceScope | <code>string</code> |  | The scope of the source (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> |  | The path to the file or directory to zip. |
+| destScope | <code>string</code> |  | The scope of the destination (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> |  | The path to the destination zip file. |
+| [options] | <code>object</code> |  | Optional settings. |
 | [options.includeRootFolder] | <code>boolean</code> | <code>false</code> | If true and source is a directory, the directory itself is included at the root of the zip. |
 
-**Example**
-
+**Example**  
 ```js
-const fs = require("fs"); // Gingee secure fs module
-const zip = require("zip");
-await zip.zipToFile(
-  fs.BOX,
-  "/path/to/source",
-  fs.BOX,
-  "/path/to/destination.zip",
-);
-if (fs.existsSync(fs.BOX, "/path/to/destination.zip")) {
-  console.log("Zip file created successfully.");
+const fs = require('fs'); // Gingee secure fs module
+const zip = require('zip');
+await zip.zipToFile(fs.BOX, '/path/to/source', fs.BOX, '/path/to/destination.zip');
+if(fs.existsSync(fs.BOX, '/path/to/destination.zip')) {
+    console.log("Zip file created successfully.");
 }
 ```
-
 <a name="module_zip.unzip"></a>
 
 ### zip.unzip(sourceScope, sourcePath, destScope, destPath) ⇒ <code>Promise.&lt;void&gt;</code>
-
 Unzips a source zip file to a destination folder.
 
 **Kind**: static method of [<code>zip</code>](#module_zip)  
@@ -8074,42 +7719,39 @@ Unzips a source zip file to a destination folder.
 
 - <code>Error</code> If the source zip file does not exist, or if the path traversal is detected, or if unzipping between scopes is attempted without the allowCrossOrigin option.
 
-| Param       | Type                | Description                                      |
-| ----------- | ------------------- | ------------------------------------------------ |
-| sourceScope | <code>string</code> | The scope of the source (fs.BOX or fs.WEB).      |
-| sourcePath  | <code>string</code> | The path to the source zip file.                 |
-| destScope   | <code>string</code> | The scope of the destination (fs.BOX or fs.WEB). |
-| destPath    | <code>string</code> | The path to the destination folder.              |
 
-**Example**
+| Param | Type | Description |
+| --- | --- | --- |
+| sourceScope | <code>string</code> | The scope of the source (fs.BOX or fs.WEB). |
+| sourcePath | <code>string</code> | The path to the source zip file. |
+| destScope | <code>string</code> | The scope of the destination (fs.BOX or fs.WEB). |
+| destPath | <code>string</code> | The path to the destination folder. |
 
+**Example**  
 ```js
-const fs = require("fs"); // Gingee secure fs module
-const zip = require("zip");
-await zip.unzip(fs.BOX, "/path/to/source.zip", fs.BOX, "/path/to/destination");
-if (fs.existsSync(fs.BOX, "/path/to/destination")) {
-  console.log("Unzip operation completed successfully.");
+const fs = require('fs'); // Gingee secure fs module
+const zip = require('zip');
+await zip.unzip(fs.BOX, '/path/to/source.zip', fs.BOX, '/path/to/destination');
+if(fs.existsSync(fs.BOX, '/path/to/destination')) {
+    console.log("Unzip operation completed successfully.");
 }
 ```
-
 <a name="SAFE_APP_NAME_RE"></a>
 
 ## SAFE\_APP\_NAME\_RE
-
 Safe app directory names only (no path separators, no `..`).
 
 **Kind**: global constant  
 <a name="RESERVED_DELETE_APP_NAMES"></a>
 
 ## RESERVED\_DELETE\_APP\_NAMES
-
 App names that must never be uninstalled via the public delete API.
 Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true }).
 
-**Kind**: global constant
+**Kind**: global constant  
+
 
 ## Important points to remember
-
 - Gingee is sandboxed and does not allow usage of any NodeJS builtin modules or other external libraries.
 - Some Gingee modules such as 'fs' sound similar to the NodeJS builtin modules but are not the same. Always refer the API reference to use these modules.
 - Always follow the security and permission guidelines outlined in the documentation.

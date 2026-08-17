@@ -46,6 +46,8 @@ const ALL_PERMISSIONS = {
     "Allows the app to accept WebSocket connections and use require('websockets') for rooms/broadcast.",
   queue:
     "Allows the app to enqueue background jobs via require('queue') and run box/jobs handlers.",
+  module_override:
+    "Allows the app to use $g.overrideModule() so require() of a granted protected module can resolve to an app box script for the rest of the request (advanced; app-defined policy).",
 };
 
 /** Safe app directory names only (no path separators, no `..`). */

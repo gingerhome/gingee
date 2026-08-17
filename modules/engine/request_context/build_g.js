@@ -33,6 +33,49 @@ function initializeGContext(store) {
   store.$g.response = null;
   store.$g.schedule = null;
 
+  // Box-relative path of the script being executed (main handler path is set on the ALS store
+  // before default_include + main script run). Used by app middleware for path-based policy.
+  if (store.scriptPath && store.app && store.app.appBoxPath) {
+    try {
+      const pathMod = require('path');
+      store.$g.boxRelativeScript = pathMod
+        .relative(store.app.appBoxPath, store.scriptPath)
+        .split(pathMod.sep)
+        .join('/');
+    } catch (_) {
+      store.$g.boxRelativeScript = null;
+    }
+  } else {
+    store.$g.boxRelativeScript = null;
+  }
+
+  /**
+   * Redirect a protected module name for the remainder of this request.
+   * Requires the **module_override** permission. App middleware may map e.g. 'fs'
+   * → any box-relative script path. The target module must still be permission-granted
+   * at require() time. Override loads use applyModuleOverrides: false (no recursion).
+   *
+   * @param {string} moduleName - e.g. 'fs'
+   * @param {string} boxRelativePath - path under the app box (app-defined layout)
+   */
+  store.$g.overrideModule = function overrideModule(moduleName, boxRelativePath) {
+    const granted =
+      (store.app && store.app.grantedPermissions) || [];
+    if (!granted.includes('module_override')) {
+      throw new Error(
+        "Security Error: The app has not been granted permission to use module overrides. " +
+          "Grant the 'module_override' permission in Glade or settings/permissions.json."
+      );
+    }
+    if (!moduleName || boxRelativePath == null || boxRelativePath === '') {
+      throw new Error('overrideModule(moduleName, boxRelativePath) requires both arguments');
+    }
+    if (!store.moduleOverrides) {
+      store.moduleOverrides = Object.create(null);
+    }
+    store.moduleOverrides[String(moduleName)] = String(boxRelativePath).replace(/\\/g, '/');
+  };
+
   // Platform limits (request budget / abort) when attached by the engine.
   if (store.limitsConfig || store.requestAbortSignal) {
     store.$g.limits = {

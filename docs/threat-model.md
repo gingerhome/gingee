@@ -101,7 +101,8 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 | **Permission consent**                   | `pmft.json` + Glade / CLI + `settings/permissions.json`                                                                         | Human factor; over-grant is common under time pressure                                                            |
 | **Request / outbound limits**            | `limits` (concurrency, timeouts)                                                                                                | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin                                         |
 | **Scheduler gate**                       | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
-| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`                                                                            | Once granted, full capability within that API                                                                     |
+| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`, **`module_override`**                                                     | Once granted, full capability within that API; `module_override` rebinds `require()` of granted modules per request |
+| **Module override (opt-in)**             | `$g.overrideModule` + gbox redirect; target stays in box; wrapper `require` uses real platform module                           | App-defined policy only; wrappers can still use **other** grants (e.g. exfil via `httpclient`). Not multi-tenant isolation. |
 
 ### 6.2 Soft sandbox reality (`gbox`)
 
@@ -113,6 +114,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 - **Path jails** use `realpath` of existing ancestors (`resolveRealPath` / `isPathInside`) so symlink escapes from a writable box are rejected.
 - **Egress DNS** is checked and **pinned at connect** (`lookup`) to reduce rebinding between policy DNS and TCP connect; redirects re-validate each hop.
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
+- **`module_override`** (if granted): request-scoped redirect of protected module names to an app box script; permission + box path + target-module grant still required. Does not special-case app folder names.
 
 **Still shared across all apps on the instance:**
 

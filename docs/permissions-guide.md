@@ -96,6 +96,52 @@ This is the definitive list of all permission keys available in Gingee.
 | **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended.          |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                                                                     | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
 | **fs**         | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`).                                                                                                                                                                                   | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
+| **module_override** | Allows `$g.overrideModule(name, boxRelativePath)` so that, for the rest of the request, `require(name)` of a **still-granted** protected module can load an app box script instead of the platform module. Typical use: middleware rebinds `fs` to an app wrapper. See **Module overrides** below. | **High.** Changes the meaning of platform `require()` for that request. Grant only to trusted apps with reviewed wrappers. Does not open host modules or skip the target module’s own permission. |
 | **pdf**        | Allows the app to generate and manipulate PDF documents.                                                                                                                                                                                                                                        | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
 | **zip**        | Allows the app to create and extract ZIP archives.                                                                                                                                                                                                                                              | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
 | **image**      | Allows the app to manipulate image files.                                                                                                                                                                                                                                                       | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
+
+## Module overrides (`module_override`)
+
+**Purpose:** Let a trusted app install **request-scoped** redirects of protected module names (for example so `require('fs')` loads an app box wrapper instead of the platform `fs` module). Scripts keep writing normal `require('fs')`; middleware decides the binding.
+
+### API
+
+Inside any `gingee(async ($g) => { … })` for an app that has **`module_override`**:
+
+```javascript
+// box-relative path to the wrapper script (layout is entirely app-defined)
+$g.overrideModule("fs", "library/fswrapper.js");
+```
+
+- **`$g.boxRelativeScript`** — path of the **main** request script relative to `box/` (e.g. `sandboxed/run.js`). Useful in `default_include` middleware to decide whether to install an override.
+- Overrides apply for the **rest of that HTTP request** (ALS store). They do not affect other apps or later requests.
+- Without **`module_override`**, `$g.overrideModule` throws; gbox ignores any override map entries.
+
+### Rules (platform)
+
+1. App must be granted **`module_override`**.
+2. The **target** module (e.g. `fs`) must still be granted; override does not replace that check.
+3. The wrapper path must resolve **inside the app box** (`isPathInside`).
+4. When the wrapper is loaded, its own `require` tree runs with **`applyModuleOverrides: false`**, so `require('fs')` inside the wrapper is the **real platform module** (no recursion). Gingee does **not** special-case any folder name (e.g. `library/`).
+
+### Typical pattern
+
+```text
+default_include middleware
+  → if $g.boxRelativeScript is under sandboxed/
+  → $g.overrideModule('fs', 'my/wrapper.js')
+main script
+  → require('fs')  →  app wrapper
+wrapper
+  → require('fs')  →  modules/fs.js (platform)
+  → extra app policy (e.g. only allow writes under a subfolder)
+```
+
+Sample: **`web/appsandboxtest/`** (permissions `fs` + `module_override`).
+
+### Security notes for operators
+
+- This is an **app policy** hook, not a stronger OS sandbox. Platform path jails still apply when wrappers compose on platform modules.
+- Grant **`module_override` only to packages you trust**. A wrapper can use **other** grants of the same app (e.g. `httpclient`, `email`, `db`) on every intercepted `require('fs')` call—folder rules do not cover those channels.
+- Prefer reviewed, minimal wrappers that only call platform APIs after checks; do not grant unused High permissions alongside `module_override`.

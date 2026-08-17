@@ -164,6 +164,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     ```json
     "default_include": ["auth_middleware.js"]
     ```
+    Advanced (permission **`module_override`**): middleware can rebind platform modules for the rest of the request via `$g.overrideModule('fs', 'lib/my_fs.js')` while handlers still call `require('fs')`. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample `web/appsandboxtest/`.
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript

@@ -261,6 +261,50 @@ function createGRequire(callingScriptPath, gBoxConfig) {
           `Security Error: The app '${gBoxConfig.app.name}' has not been granted permission to access the '${key}' module. Please grant permission in Glade or settings/permissions.json.`,
         );
       }
+
+      // Per-request module overrides ($g.overrideModule; requires module_override).
+      // Override target loads with applyModuleOverrides: false (real platform require).
+      if (gBoxConfig.applyModuleOverrides !== false) {
+        try {
+          const store = gingee.getContext();
+          const canOverride =
+            granted.includes('module_override') ||
+            (store.app &&
+              Array.isArray(store.app.grantedPermissions) &&
+              store.app.grantedPermissions.includes('module_override'));
+          const overrides = store && store.moduleOverrides;
+          const overrideRel =
+            canOverride &&
+            overrides &&
+            (overrides[key] || overrides[moduleName] || overrides[normalized]);
+          if (overrideRel) {
+            let targetPath = path.resolve(gBoxConfig.appBoxPath, overrideRel);
+            if (!path.extname(targetPath)) {
+              targetPath += '.js';
+            }
+            if (!isPathInside(targetPath, gBoxConfig.appBoxPath)) {
+              throw new Error(
+                `Security Error: module override '${overrideRel}' escapes the app box.`,
+              );
+            }
+            if (!nodeFs.existsSync(targetPath)) {
+              throw new Error(
+                `Security Error: module override target not found: ${overrideRel}`,
+              );
+            }
+            return runInGBox(targetPath, {
+              ...gBoxConfig,
+              applyModuleOverrides: false
+            });
+          }
+        } catch (e) {
+          if (e && e.message && /No context found/i.test(e.message)) {
+            /* non-request load */
+          } else {
+            throw e;
+          }
+        }
+      }
     }
 
     // Check if the module is a restricted module (engine control plane, etc.)

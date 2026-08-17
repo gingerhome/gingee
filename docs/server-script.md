@@ -69,6 +69,32 @@ module.exports = async function () {
 };
 ```
 
+#### Module overrides from middleware (optional, permission-gated)
+
+With the **`module_override`** permission, middleware may rebind a **granted** protected module for the rest of the request so later scripts still write `require('fs')` but load an app box wrapper:
+
+```javascript
+// box/middleware/fs_policy.js — listed in app.json default_include
+module.exports = async function () {
+  await gingee(async ($g) => {
+    // Path of the *main* script relative to box/ (set by the engine)
+    const rel = String($g.boxRelativeScript || "");
+    if (rel.startsWith("sandboxed/")) {
+      // Requires permission module_override; target module (fs) still needs grant
+      $g.overrideModule("fs", "library/fswrapper.js");
+    }
+  });
+};
+```
+
+| Piece | Role |
+| :--- | :--- |
+| `$g.boxRelativeScript` | Main handler path under `box/` (e.g. `sandboxed/run.js`) |
+| `$g.overrideModule(name, boxPath)` | Map protected name → box-relative script for this request |
+| Wrapper’s `require('fs')` | Real platform module (override target loads with overrides disabled) |
+
+See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and sample app **`web/appsandboxtest/`**.
+
 ### 3. Startup Scripts (Initialization)
 
 These scripts run **once** when your application is loaded by the server. They are not tied to any HTTP request.

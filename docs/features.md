@@ -75,6 +75,9 @@ These are the core architectural features that define the Gingee development exp
 * **Background job queue (`queue` module):**
   Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** **Queue / DLQ**: live jobs (running/waiting/pending/delayed, auto-refresh) and DLQ (retry/discard). CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
+* **Module override (permission `module_override`):**
+  Trusted apps may call `$g.overrideModule(name, boxRelativePath)` (often from `default_include` middleware) so that for the rest of the request `require(name)` of a still-granted protected module loads an app box wrapper instead of the platform module. Scripts keep writing `require('fs')`. Wrappers compose on platform modules (no recursion). Sample: **`web/appsandboxtest/`**. See [Permissions Guide](./permissions-guide.md) → Module overrides.
+
 - **Application Startup Hooks**
   Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
 
