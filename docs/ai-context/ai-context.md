@@ -98,9 +98,9 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 - **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
 - **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
 - **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
-- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations.
+- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
 - **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
-- **`httpclient`**: Provides functions to perform GET and POST requests, supporting various content types to simplify http calls
+- **`httpclient`**: Provides outbound HTTP helpers for `get`, `post`, `put`, `patch`, and `delete`, with content-type helpers for body-bearing methods.
 - **`image`**: Provides a simple and secure way to manipulate images, including resizing, rotating, format conversion etc.
 - **`pdf`**: Provides functionality to create PDF documents, and includes a custom font registry system.
 - **`qrcode`**: Provides functions to generate QR codes and 1D barcodes.
@@ -116,7 +116,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
-- **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
+- **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, optional **`jwt`** (`secret` / `iss` fallbacks for `auth.jwt`), **box** (`allowed_modules`, **`local_modules`**, `allow_dynamic_code`), **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
 - **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
 - **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`, `module_override`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 - **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
@@ -233,6 +233,8 @@ gingee-cli init my-awesome-project
 - `Install npm dependencies automatically?` If yes (default), runs `npm install --omit=optional` for a resilient core install, then `npm install <selected packages>` for any optionals you chose. If you decline, the CLI prints the exact commands to run later.
 
 SQLite, email `console`, and AI `mock` work without optionals. Image processing needs `sharp`. Using a feature without its package fails at runtime with `FEATURE_NOT_INSTALLED` (see Gingee server-config → Optional npm feature packages).
+
+**Project template `gingee.json`:** The scaffold under `gingee-cli/templates/project/gingee.json` is kept in sync when the **Gingee engine** is built (`npm run build` in the gingee repo → `build/package.js`). The build writes a **sanitized** copy of the engine’s `gingee.json` (canonical HTTP port `7070`, logging `error`, empty `box.local_modules`, scrubbed redis passwords / metrics tokens, empty isolation apps). That keeps new CLI projects aligned with current engine config shape without shipping local-dev secrets. See [Server Config](./server-config.md) for field reference.
 
 ---
 
@@ -632,7 +634,8 @@ Here is a comprehensive breakdown of all available properties.
     }
   },
   "box": {
-    "allowed_modules": []
+    "allowed_modules": [],
+    "local_modules": []
   },
   "privileged_apps": []
 }
@@ -866,7 +869,27 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 
 **Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
 
-**Examples of fields that commonly use refs:** `jwt_secret`, `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
+**Examples of fields that commonly use refs:** `jwt_secret` (app), `jwt.secret` (server), `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
+
+### jwt
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide** defaults for `require('auth').jwt` create/verify. Per-app `app.json` values override these. Useful as a shared fallback when an app omits `jwt_secret`. Prefer a dedicated secret per app in multi-app hosts.
+
+| Key      | Default | Meaning |
+| :------- | :------ | :------ |
+| `secret` | `null`  | HS256 signing secret. Supports `env:VAR` / `file:path` refs (resolved with the rest of `gingee.json`). |
+| `iss`    | `null`  | Optional issuer string. When set, `jwt.create` adds `iss` (unless the payload already has one) and `jwt.verify` requires a matching `iss`. When `null`/omitted, no issuer check. |
+
+**Resolution order for the signing secret:** `options.secret` (per call) → app `jwt_secret` or `jwt.secret` → server `jwt.secret`.  
+**Resolution order for issuer:** `options.iss` → app `jwt_iss` or `jwt.iss` → server `jwt.iss`.
+
+```json
+"jwt": {
+  "secret": "env:GINGEE_JWT_SECRET",
+  "iss": "gingee"
+}
+```
 
 ### metrics
 
@@ -1211,6 +1234,36 @@ An object that configures the server's logger.
 - **Type:** `object`
 - **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
 - **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
+- **`local_modules`** (array of strings, optional):
+  - **Default:** `[]` (empty — opt in when you need shared project libs).
+  - Ordered list of **project-relative** directories used as extra sandboxed `require` roots (server-wide, all apps).
+  - Resolved at config load against the project root (directory of `gingee.json` / `process.cwd()`). **Absolute paths are rejected in v1.** Roots must be **strict descendants** of the project root (not `.` / the project root itself).
+  - Lookup is **`.js` only** (no `index.js`): `require('tax')` → `{root}/tax.js`; `require('billing/invoice')` → `{root}/billing/invoice.js`. First configured root that contains the file wins.
+  - Load style: **`runInGBox`** (same sandbox as app box scripts), **not** host `require`. Engine `modules/` always wins over local roots for the same bare name (no shadowing of platform modules).
+  - Relative `require('./x')` from a file under a local root is jailed to **that root**; from an app box script it remains jailed to the app box.
+  - These are **host/project libraries**, not part of a distributable `.gin` app package. Document and deploy them with the project, not inside app boxes.
+  - New projects from **`gingee-cli init`** ship `local_modules: []` via the sanitized template synced on engine `npm run build`.
+  - Example when Gingee is installed via npm under `node_modules` and you share helpers across apps:
+
+```json
+"box": {
+  "allowed_modules": [],
+  "local_modules": ["./local_modules"],
+  "allow_dynamic_code": false
+}
+```
+
+```text
+my-project/
+  gingee.json
+  node_modules/gingee/     ← engine modules/
+  local_modules/
+    tax.js                 ← require('tax')
+    billing/
+      invoice.js           ← require('billing/invoice')
+  web/<app>/box/           ← app scripts
+```
+
 - **`allow_dynamic_code`** (boolean, optional):
   - **Default:** `true` (Instant Time to Joy — many UMD/minified libs such as Handlebars need `new Function` at load time).
   - When `true`, string `eval` / `Function` work **inside the app vm only**. Host **`process` remains unavailable**; apps cannot read `process.env`.
@@ -1222,6 +1275,7 @@ An object that configures the server's logger.
 ```json
 "box": {
   "allowed_modules": [],
+  "local_modules": [],
   "allow_dynamic_code": false
 }
 ```
@@ -1854,7 +1908,7 @@ Each entry:
 
 Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual `gingee(async ($g) => { … })` form. There is no HTTP connection: `$g.request.method` is `"SCHEDULE"`, `$g.schedule` holds `{ name, cron, timezone, runId, scheduledAt, … }`, and `$g.response.send(...)` records a result in logs (it does not open a network response). Streaming is not supported in schedule context.
 
-**`fs` paths in scheduled scripts:** Same rules as all Gingee scripts. A path **with a leading `/`** is relative to the scope root (`box/` or `web/`). A path **without** a leading slash is relative to the **executing script’s directory**. Example: from `box/jobs/cleanup.js`, `fs.writeFile(fs.BOX, 'data/out.json', …)` writes `box/jobs/data/out.json`, while `fs.writeFile(fs.BOX, '/data/out.json', …)` writes `box/data/out.json`. Prefer leading-`/` paths when another HTTP script (with a different working directory) must read the same file.
+**`fs` paths in scheduled scripts:** Same rules as all Gingee scripts. A path **with a leading `/`** is relative to the scope root (`box/` or `web/`). A path **without** a leading slash is relative to the **currently executing** gbox script’s directory (not `process.cwd()`, and not always the HTTP entry script if a nested box module calls `fs`). Example: from `box/jobs/cleanup.js`, `fs.writeFile(fs.BOX, 'data/out.json', …)` writes `box/jobs/data/out.json`, while `fs.writeFile(fs.BOX, '/data/out.json', …)` writes `box/data/out.json`. Prefer leading-`/` paths when another HTTP script (with a different working directory) must read the same file.
 
 **`target` for external URLs:**
 
@@ -1934,6 +1988,7 @@ Single outbound email configuration for the app (no named profiles). App config 
   - An array of strings specifying script paths relative to the `box` folder.
   - **Purpose:** These scripts are executed **once in sequential order** when the application is first loaded by the server (on startup, after an install, or after an upgrade/rollback).
   - **Use Cases:** Ideal for database schema creation/migration, seeding initial data, or warming up the application cache.
+  - **Failure:** If any listed script is missing or throws, that app is **not registered** (or reload fails). Other apps and the HTTP server continue. See [Server Scripts](./server-script.md) → Startup Scripts.
   - **Example:** `"startup_scripts": ["setup/01_schema.js", "setup/02_seed_data.js"]`
 
 - **`default_include`** (array, optional)
@@ -1949,7 +2004,11 @@ Single outbound email configuration for the app (no named profiles). App config 
   - A key-value store for non-sensitive environment variables, made available at `$g.app.env`.
 
 - **`jwt_secret`** (string, optional)
-  - A strong, unique secret key used by the `auth` module for creating and verifying JSON Web Tokens (JWTs).
+  - Signing secret for `auth.jwt` (HS256). Prefer a secret ref: `"env:GINGEE_MYAPP_JWT_SECRET"` or `"file:…"`. Falls back to server `gingee.json` → `jwt.secret` when omitted.
+- **`jwt_iss`** (string, optional)
+  - Optional JWT `iss` (issuer). When set, tokens are created with this issuer and verification requires a match. Falls back to server `jwt.iss`. Per-call override: `jwt.create(payload, '1h', { iss: '…' })` / `jwt.verify(token, { iss: '…' })`.
+- **`jwt`** (object, optional)
+  - Alternative nested form: `{ "secret": "env:…", "iss": "my-app" }` (same meaning as `jwt_secret` / `jwt_iss`).
 
 ### Cache
 
@@ -2145,8 +2204,10 @@ module.exports = async function () {
     if (rel.startsWith("sandboxed/")) {
       // Only module_override required to install; real fs still needs fs if the wrapper uses it
       $g.overrideModule("fs", "library/fswrapper.js");
-      // Optional: rebind a relative dependency (prefer box-relative map keys)
-      // $g.overrideModule("sandboxed/helper", "library/helper_wrap.js");
+      $g.overrideModule("crypto", "library/crypto_wrap.js");
+      // Prefer box-relative map keys for relative requires
+      $g.overrideModule("sandboxed/helper", "library/helper_wrap.js");
+      $g.overrideModule("shared/bare_util", "library/bare_util_wrap.js");
     }
   });
 };
@@ -2159,11 +2220,11 @@ See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and **
 These scripts run **once** when your application is loaded by the server. They are not tied to any HTTP request.
 
 - **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
-- **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
+- **Execution:** Configured in `app.json` via the `"startup_scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
 - **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
   - **Available:** `$g.log`, `$g.app`.
   - **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
-  - **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
+  - **Important:** If a startup script is missing or throws, initialization for **that app fails**: the app is **not registered** (boot skips it; install/register returns failure; reload is aborted). The Gingee **server keeps running** so other apps stay available. Fix the script and reload or restart.
 
 **Example (`box/setup/create_schema.js`):**
 
@@ -2351,7 +2412,7 @@ When a script is invoked by the **CRON scheduler** (see `app.json` → `schedule
 - **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
 - **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
 - **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
-- **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
+- **`fs` path resolution:** leading `/` = scope root (`box/`); no leading slash = directory of the **currently executing** gbox script (for a job, that is usually the scheduled script under `box/jobs/`). Prefer leading `/` when an HTTP endpoint under `box/` must read the same file.
 
 #### Streaming responses (SSE and chunked output)
 
@@ -2596,6 +2657,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     "default_include": ["auth_middleware.js"]
     ```
     Advanced (permission **`module_override`**): middleware can rebind platform modules for the rest of the request via `$g.overrideModule('fs', 'lib/my_fs.js')` while handlers still call `require('fs')`. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample `web/appsandboxtest/`.
+    **Shared project libraries:** declare `box.local_modules` in `gingee.json` (e.g. `["./local_modules"]`) so any app can `require('tax')` → `local_modules/tax.js` without copying helpers into each app box. These roots are project-level (not inside a `.gin` package). See [Server Config](./server-config.md) → **box.local_modules**.
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
@@ -2618,6 +2680,7 @@ Do not commit production API keys or DB passwords into `app.json` when you can a
 
 ```json
 "jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET",
+"jwt_iss": "my-app",
 "ai": { "type": "gemini", "api_key": "env:GINGEE_MYAPP_GEMINI_KEY" }
 ```
 
@@ -2814,7 +2877,37 @@ module.exports = async function () {
 };
 ```
 
-Without a leading `/`, `fs` paths are relative to the **script folder** (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`). Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`.
+Without a leading `/`, `fs` paths are relative to the **currently executing** gbox script directory (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`), matching `require('./…')`. Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`. Module-override wrappers that call platform `fs` keep the caller's base so relative paths still resolve as the entry script intended.
+
+**Listing and metadata** (permission **`fs`**):
+
+```javascript
+const names = await fs.readdir(fs.BOX, "/data"); // all entries
+const files = await fs.listFiles(fs.BOX, "/data"); // files only
+const dirs = await fs.listDirs(fs.BOX, "/data"); // directories only
+const tree = await fs.walk(fs.BOX, "/data", { includeDirs: true, maxDepth: 3 });
+const info = await fs.stat(fs.BOX, "/data/last-run.json"); // size, mtimeMs, isFile, …
+```
+
+Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`. See sample **`web/tests/`** (`fileio`, `folderio`, `fs-caller-relative`).
+
+### Outbound HTTP (`httpclient`)
+
+With permission **`httpclient`**:
+
+```javascript
+const httpclient = require("httpclient");
+
+await httpclient.get("https://api.example.com/items");
+await httpclient.post("https://api.example.com/items", { name: "x" }, {
+  postType: httpclient.JSON,
+});
+await httpclient.put("https://api.example.com/items/1", { name: "y" });
+await httpclient.patch("https://api.example.com/items/1", { name: "z" });
+await httpclient.delete("https://api.example.com/items/1");
+```
+
+`put` / `patch` use the same body / `postType` options as `post`. All calls follow server **egress** and **limits** (outbound timeout / concurrency). Live sample: **`web/tests/box/httpclient.js`**.
 
 External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`. URL targets (and all `httpclient` calls) are subject to server **egress** SSRF policy—public HTTPS APIs work by default; localhost/private/metadata are blocked unless the operator configures `allow_cidrs` / `allow_hosts` or `egress.mode: "off"` for local dev.
 
@@ -3111,8 +3204,8 @@ This is the definitive list of all permission keys available in Gingee.
 | **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. Multi-node room delivery needs operator `websockets.fanout.driver: "redis"`.                                                                                    | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. Grant only when needed.                          |
 | **queue**      | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`.                                                                                                                                                                                        | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. Operators manage live jobs + DLQ in Glade. |
 | **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended.          |
-| **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')`. Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                                                                     | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
-| **fs**         | Grants full read/write access to files and folders within the app's own secure directories (`box` and `web`).                                                                                                                                                                                   | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
+| **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')` (`get` / `post` / `put` / `patch` / `delete`). Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                         | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
+| **fs**         | Grants sandboxed read/write, directory, listing (`readdir` / `listFiles` / `listDirs` / `walk`), and `stat` access within the app's own directories (`box` and `web`).                                                                                                                          | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
 | **module_override** | Allows `$g.overrideModule(specifier, boxRelativePath)` so that, for the rest of the request, matching `require(specifier)` loads an app box script instead. Specifiers: protected bare names (`fs`, …), other bare names (`crypto`, `url`, …), relative (`./x`) or box-root paths. **Only this permission** is required to install/apply overrides. See **Module overrides** below. | **High.** Changes what `require()` means for that request. Restricted/forbidden names cannot be overridden. Wrappers still run under normal gbox jailing. Grant only to trusted apps. |
 | **pdf**        | Allows the app to generate and manipulate PDF documents.                                                                                                                                                                                                                                        | **Medium.** Potential CPU intensive operation that might slow down server performance.                                                                          |
 | **zip**        | Allows the app to create and extract ZIP archives.                                                                                                                                                                                                                                              | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
@@ -3166,7 +3259,7 @@ wrapper
   → extra app policy
 ```
 
-Sample: **`web/appsandboxtest/`** (`fs` + `module_override`; `fs` still needed for the real module inside the wrapper).
+Sample: **`web/appsandboxtest/`** — full matrix (protected bare `fs`, other bare `crypto`, relative `./helper`, box-root `shared/bare_util`, project `local_modules` / `sandbox_kit` direct + override, deny restricted/forbidden). Needs `fs` + `module_override` (`fs` for the real module inside the fs wrapper). Host must set `box.local_modules: ["./local_modules"]`.
 
 ### Security notes for operators
 
@@ -3283,8 +3376,8 @@ Gingee provides **cooperative multi-app isolation** on a **shared Node.js proces
 | **Permission consent**                   | `pmft.json` + Glade / CLI + `settings/permissions.json`                                                                         | Human factor; over-grant is common under time pressure                                                            |
 | **Request / outbound limits**            | `limits` (concurrency, timeouts)                                                                                                | Mitigates accidental DoS and hung I/O; does **not** stop hostile CPU spin                                         |
 | **Scheduler gate**                       | `scheduler.enabled` default off; optional `coordination.driver: "redis"` + sibling `scheduler.redis` for multi-node single-fire | Without Redis coordination, one-node ops model prevents double-fire; coordination is fail-closed if Redis is down |
-| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`, **`module_override`**                                                     | Once granted, full capability within that API; `module_override` rebinds `require()` of granted modules per request |
-| **Module override (opt-in)**             | `$g.overrideModule` + gbox redirect; target stays in box; wrapper `require` uses real platform module                           | App-defined policy only; wrappers can still use **other** grants (e.g. exfil via `httpclient`). Not multi-tenant isolation. |
+| **Explicit high-risk capabilities**      | `httpclient`, `email`, `ai`, `scheduler`, `platform`, **`module_override`**                                                     | Once granted, full capability within that API; `module_override` rebinds matching `require()` specifiers per request |
+| **Module override (opt-in)**             | `$g.overrideModule` + gbox redirect; target stays in box; wrapper `require` uses normal jailing (override map off)              | App-defined policy only; wrappers can still use **other** grants (e.g. exfil via `httpclient`). Not multi-tenant isolation. |
 
 ### 6.2 Soft sandbox reality (`gbox`)
 
@@ -3296,7 +3389,8 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 - **Path jails** use `realpath` of existing ancestors (`resolveRealPath` / `isPathInside`) so symlink escapes from a writable box are rejected.
 - **Egress DNS** is checked and **pinned at connect** (`lookup`) to reduce rebinding between policy DNS and TCP connect; redirects re-validate each hop.
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
-- **`module_override`** (if granted): request-scoped redirect of protected module names to an app box script; permission + box path + target-module grant still required. Does not special-case app folder names.
+- **`module_override`** (if granted): request-scoped redirect of require specifiers (protected/other bare names, relative or box-root paths) to an in-box script. **Only this permission** is required to install/apply redirects; restricted/forbidden/`engine/*` cannot be overridden. Target stays in-box; nested wrapper `require` uses normal jailing (override map not re-applied). Does not special-case app folder names.
+- **`box.local_modules`**: optional project-relative sandboxed require roots (default `[]`). Loaded with the same gbox jailing as app box scripts (not host `require`). Platform `modules/` wins over local roots for the same bare name. Not shipped inside `.gin` packages.
 
 **Still shared across all apps on the instance:**
 
@@ -3866,10 +3960,12 @@ These are the core architectural features that define the Gingee development exp
   Enqueue deferred work with `require('queue').add(name, payload)` (permission **`queue`**). Handlers under `box/jobs/{name}.js` receive `$g.queue` (`id`, `payload`, `attempt`). Drivers: **memory** (default, single-node) or **redis** (multi-node, durable). Retries with backoff; exhausted jobs go to a **dead-letter queue (DLQ)**. **Glade** **Queue / DLQ**: live jobs (running/waiting/pending/delayed, auto-refresh) and DLQ (retry/discard). CRON may use `target.type: "queue"`. See [Server Config](./server-config.md) → `queue`.
 
 * **Module override (permission `module_override`):**
-  Trusted apps may call `$g.overrideModule(name, boxRelativePath)` (often from `default_include` middleware) so that for the rest of the request `require(name)` of a still-granted protected module loads an app box wrapper instead of the platform module. Scripts keep writing `require('fs')`. Wrappers compose on platform modules (no recursion). Sample: **`web/appsandboxtest/`**. See [Permissions Guide](./permissions-guide.md) → Module overrides.
+  Trusted apps may call `$g.overrideModule(specifier, boxRelativePath)` so that for the rest of the request matching `require(...)` (protected/other bare names, relative or box-root paths) loads an in-box wrapper. Restricted/forbidden names cannot be overridden. Wrappers use normal jailing; override map is off for the wrapper tree (no recursion). Sample: **`web/appsandboxtest/`** (full matrix + deny cases). See [Permissions Guide](./permissions-guide.md) → Module overrides.
+* **Project local modules (`box.local_modules`):**
+  Server-wide sandboxed require roots for project-owned libraries when Gingee is installed under `node_modules`. **Default is `[]`** (opt-in). Configure e.g. `["./local_modules"]`; `.js` only; platform `modules/` always wins over local roots; not part of `.gin` app packages. Sample: **`web/appsandboxtest/`** (`sandbox_kit`). See [Server Config](./server-config.md) → **box.local_modules**.
 
 - **Application Startup Hooks**
-  Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
+  Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded. A failed startup script prevents **that app** from being registered (server and other apps continue).
 
 ## App Module Library
 
@@ -3891,9 +3987,9 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 - **`ai`**
   Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 - **`fs`**
-  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
+  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks. Includes read/write helpers plus directory listing (`readdir`, `listFiles`, `listDirs`), recursive `walk` (`includeDirs` / `maxDepth`), and `stat` (sync and async). Relative paths (no leading `/`) resolve to the executing gbox script directory; leading `/` is scope-root.
 - **`httpclient`**
-  A powerful wrapper for making external HTTP(S) requests. It handles redirects, HTTPS, and intelligently processes response bodies into strings or buffers.
+  A powerful wrapper for making external HTTP(S) requests: **`get`**, **`post`**, **`put`**, **`patch`**, and **`delete`**. Body-bearing methods share `postType` content types (JSON, form, text, XML, multipart). It handles redirects, HTTPS, egress/SSRF policy, outbound timeouts, and intelligently processes response bodies into strings or buffers.
 - **`formdata`**
   A simple factory module for creating `multipart/form-data` bodies for file uploads via the `httpclient`.
 - **`zip`**
@@ -3917,7 +4013,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 ### Security & Authentication
 
 - **`auth`**
-  An authentication module for managing user sessions. Its first implementation provides a complete, configurable toolkit for creating and verifying JSON Web Tokens (JWT).
+  JWT toolkit (`auth.jwt.create` / `verify`): HS256, `exp`/`iat`, optional **`iss`**, secret from app `jwt_secret` or server `gingee.json` → `jwt.secret` (supports `env:` / `file:` refs). Per-call `{ secret, iss }` overrides allowed.
 - **`crypto`**
   A comprehensive cryptographic library. Provides tools for hashing, HMAC, secure password management (`argon2`), symmetric encryption (`AES-2GCM`), and random string generation.
 - **`uuid`**
@@ -4014,7 +4110,10 @@ It abstracts the complexities of constructing multipart requests, making it easi
 </dd>
 <dt><a href="#module_fs">fs</a></dt>
 <dd><p>A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
-<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
+<b>NOTE:</b> A path with a leading <code>/</code> is relative to the scope root (<code>box/</code> or <code>web/</code>).
+A path without a leading slash is relative to the <b>currently executing</b> gbox script directory
+(aligned with <code>require('./…')</code>). Module-override fs wrappers keep the caller&#39;s base so
+transparent facades resolve paths as the request/entry script intended.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_html">html</a></dt>
@@ -4027,12 +4126,10 @@ It supports both synchronous and asynchronous operations, making it flexible for
 </dd>
 <dt><a href="#module_httpclient">httpclient</a></dt>
 <dd><p>A module for making HTTP requests in Gingee applications.
-This module provides functions to perform GET and POST requests, supporting various content types.
-It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
-It supports both text and binary responses, automatically determining the response type based on the content-type header.
-It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
-It allows for flexible data submission, making it suitable for APIs that require different content types.
-It provides constants for common POST data types, ensuring that the correct headers are set for the request.</p>
+Provides <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, and <code>delete</code>.
+Body-bearing methods (<code>post</code>/<code>put</code>/<code>patch</code>) support JSON, form-urlencoded,
+plain text, XML, and multipart via <code>options.postType</code>.
+Text and binary responses are handled from the content-type header.</p>
 <p><b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
 <code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
 remaining request budget when available). Concurrent outbound calls are also capped.</p>
@@ -4199,8 +4296,8 @@ Provides authentication-related functions, including JWT creation and verificati
 
 * [auth](#module_auth)
     * [.jwt](#module_auth.jwt) : <code>object</code>
-        * [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
-        * [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
+        * [.create(payload, [expiresIn], [options])](#module_auth.jwt.create) ⇒ <code>string</code>
+        * [.verify(token, [options])](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
 
 <a name="module_auth.jwt"></a>
 
@@ -4210,13 +4307,15 @@ Provides methods for creating and verifying JSON Web Tokens (JWTs).
 **Kind**: static namespace of [<code>auth</code>](#module_auth)  
 
 * [.jwt](#module_auth.jwt) : <code>object</code>
-    * [.create(payload, [expiresIn])](#module_auth.jwt.create) ⇒ <code>string</code>
-    * [.verify(token)](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
+    * [.create(payload, [expiresIn], [options])](#module_auth.jwt.create) ⇒ <code>string</code>
+    * [.verify(token, [options])](#module_auth.jwt.verify) ⇒ <code>object</code> \| <code>null</code>
 
 <a name="module_auth.jwt.create"></a>
 
-#### jwt.create(payload, [expiresIn]) ⇒ <code>string</code>
+#### jwt.create(payload, [expiresIn], [options]) ⇒ <code>string</code>
 Creates a JSON Web Token (JWT) with the given payload and expiration.
+Secret resolution: <code>options.secret</code> → <code>app.json</code> <code>jwt_secret</code> / <code>jwt.secret</code> →
+<code>gingee.json</code> <code>jwt.secret</code>. Optional <code>iss</code> from options / app / server is set when configured.
 
 **Kind**: static method of [<code>jwt</code>](#module_auth.jwt)  
 **Returns**: <code>string</code> - The JWT string.  
@@ -4225,6 +4324,7 @@ Creates a JSON Web Token (JWT) with the given payload and expiration.
 | --- | --- | --- | --- |
 | payload | <code>object</code> |  | The data to include in the token. |
 | [expiresIn] | <code>string</code> | <code>&quot;&#x27;1h&#x27;&quot;</code> | The token's lifespan. |
+| [options] | <code>object</code> |  | Optional <code>{ secret, iss, expiresIn }</code> (secret/iss may use <code>env:</code> / <code>file:</code> refs). |
 
 **Example**  
 ```js
@@ -4232,8 +4332,8 @@ const token = auth.jwt.create({ userId: 42, role: 'admin' }, '2h');
 ```
 <a name="module_auth.jwt.verify"></a>
 
-#### jwt.verify(token) ⇒ <code>object</code> \| <code>null</code>
-Verifies a JWT and returns its payload if valid.
+#### jwt.verify(token, [options]) ⇒ <code>object</code> \| <code>null</code>
+Verifies a JWT and returns its payload if valid (signature + exp; iss when configured).
 
 **Kind**: static method of [<code>jwt</code>](#module_auth.jwt)  
 **Returns**: <code>object</code> \| <code>null</code> - The token's payload if valid and not expired, otherwise null.  
@@ -4241,6 +4341,7 @@ Verifies a JWT and returns its payload if valid.
 | Param | Type | Description |
 | --- | --- | --- |
 | token | <code>string</code> | The JWT string to verify. |
+| [options] | <code>object</code> | Optional <code>{ secret, iss }</code> overrides (may use <code>env:</code> / <code>file:</code> refs). |
 
 **Example**  
 ```js
@@ -5323,7 +5424,10 @@ const headers = form.getHeaders();
 
 ## fs
 A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
-<b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
+<b>NOTE:</b> A path with a leading <code>/</code> is relative to the scope root (<code>box/</code> or <code>web/</code>).
+A path without a leading slash is relative to the <b>currently executing</b> gbox script directory
+(aligned with <code>require('./…')</code>). Module-override fs wrappers keep the caller's base so
+transparent facades resolve paths as the request/entry script intended.
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
@@ -5345,6 +5449,8 @@ A secure file system module for Gingee that provides secure sandboxed synchronou
     * [.copyDirSync(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDirSync) ⇒ <code>void</code>
     * [.readFile(scope, filePath, [options])](#module_fs.readFile) ⇒ <code>Promise.&lt;(string\|Buffer)&gt;</code>
     * [.writeFile(scope, filePath, data, [options])](#module_fs.writeFile) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.readJSON(scope, filePath, [options])](#module_fs.readJSON) ⇒ <code>Promise.&lt;object&gt;</code>
+    * [.writeJSON(scope, filePath, data, [options])](#module_fs.writeJSON) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.appendFile(scope, filePath, data, [options])](#module_fs.appendFile) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.exists(scope, filePath)](#module_fs.exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
     * [.deleteFile(scope, filePath)](#module_fs.deleteFile) ⇒ <code>Promise.&lt;void&gt;</code>
@@ -5354,6 +5460,16 @@ A secure file system module for Gingee that provides secure sandboxed synchronou
     * [.rmdir(scope, dirPath, [options])](#module_fs.rmdir) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.moveDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.moveDir) ⇒ <code>Promise.&lt;string&gt;</code>
     * [.copyDir(sourceScope, sourcePath, destScope, destPath)](#module_fs.copyDir) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.readdirSync(scope, dirPath)](#module_fs.readdirSync) ⇒ <code>Array.&lt;string&gt;</code>
+    * [.listFilesSync(scope, dirPath)](#module_fs.listFilesSync) ⇒ <code>Array.&lt;string&gt;</code>
+    * [.listDirsSync(scope, dirPath)](#module_fs.listDirsSync) ⇒ <code>Array.&lt;string&gt;</code>
+    * [.walkSync(scope, dirPath, [options])](#module_fs.walkSync) ⇒ <code>Array.&lt;string&gt;</code>
+    * [.statSync(scope, filePath)](#module_fs.statSync) ⇒ <code>Object</code>
+    * [.readdir(scope, dirPath)](#module_fs.readdir) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+    * [.listFiles(scope, dirPath)](#module_fs.listFiles) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+    * [.listDirs(scope, dirPath)](#module_fs.listDirs) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+    * [.walk(scope, dirPath, [options])](#module_fs.walk) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+    * [.stat(scope, filePath)](#module_fs.stat) ⇒ <code>Promise.&lt;{size: number, mtimeMs: number, ctimeMs: number, birthtimeMs: number, isFile: boolean, isDirectory: boolean, isSymbolicLink: boolean, mode: number}&gt;</code>
 
 <a name="module_fs.BOX"></a>
 
@@ -5701,6 +5817,52 @@ fs.writeFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {
   console.log('File written successfully');
 });
 ```
+<a name="module_fs.readJSON"></a>
+
+### fs.readJSON(scope, filePath, [options]) ⇒ <code>Promise.&lt;object&gt;</code>
+Asynchronously reads a JSON file and parses it.
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Returns**: <code>Promise.&lt;object&gt;</code> - A Promise that resolves with the parsed JSON object.  
+**Throws**:
+
+- <code>Error</code> If the file does not exist or is outside the secure scope or it is not valid JSON.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+
+**Example**  
+```js
+const data = await fs.readJSON(fs.BOX, 'data/myfile.json');
+console.log(data); // Outputs the parsed JSON object
+```
+<a name="module_fs.writeJSON"></a>
+
+### fs.writeJSON(scope, filePath, data, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
+Asynchronously writes a JSON object to a file, creating directories as needed.
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - A Promise that resolves when the write operation is complete.  
+**Throws**:
+
+- <code>Error</code> If the file path is outside the secure scope or if the directory cannot be created.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | The scope to operate in (fs.BOX or fs.WEB). |
+| filePath | <code>string</code> | The path to the file, relative to the scope or script. |
+| data | <code>object</code> | The JSON object to write to the file. |
+| [options] | <code>object</code> \| <code>string</code> | The encoding or an options object. |
+
+**Example**  
+```js
+await fs.writeJSON(fs.BOX, 'data/myfile.json', { key: 'value' });
+```
 <a name="module_fs.appendFile"></a>
 
 ### fs.appendFile(scope, filePath, data, [options]) ⇒ <code>Promise.&lt;void&gt;</code>
@@ -5920,6 +6082,186 @@ fs.copyDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(() => {
   console.log('Directory copied successfully');
 });
 ```
+<a name="module_fs.readdirSync"></a>
+
+### fs.readdirSync(scope, dirPath) ⇒ <code>Array.&lt;string&gt;</code>
+Synchronously lists all entry names in a directory (non-recursive).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Returns**: <code>Array.&lt;string&gt;</code> - Entry names (files and directories)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> | Directory path relative to scope or script |
+
+**Example**  
+```js
+const names = fs.readdirSync(fs.BOX, 'data');
+```
+<a name="module_fs.listFilesSync"></a>
+
+### fs.listFilesSync(scope, dirPath) ⇒ <code>Array.&lt;string&gt;</code>
+Synchronously lists file names only in a directory (non-recursive).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Returns**: <code>Array.&lt;string&gt;</code> - File names  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> | Directory path relative to scope or script |
+
+**Example**  
+```js
+const files = fs.listFilesSync(fs.BOX, 'data');
+```
+<a name="module_fs.listDirsSync"></a>
+
+### fs.listDirsSync(scope, dirPath) ⇒ <code>Array.&lt;string&gt;</code>
+Synchronously lists subdirectory names only (non-recursive).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Returns**: <code>Array.&lt;string&gt;</code> - Directory names  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> | Directory path relative to scope or script |
+
+**Example**  
+```js
+const dirs = fs.listDirsSync(fs.BOX, 'data');
+```
+<a name="module_fs.walkSync"></a>
+
+### fs.walkSync(scope, dirPath, [options]) ⇒ <code>Array.&lt;string&gt;</code>
+Synchronously walks a directory tree and returns relative paths (forward slashes).
+Symlink directories are not descended into (v1).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Returns**: <code>Array.&lt;string&gt;</code> - Relative paths from dirPath  
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| scope | <code>string</code> |  | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> |  | Root directory to walk |
+| [options] | <code>object</code> |  |  |
+| [options.includeDirs] | <code>boolean</code> | <code>false</code> | Include directory paths in the result |
+| [options.maxDepth] | <code>number</code> |  | Max directory depth (1 = immediate children only); omit for unlimited |
+
+**Example**  
+```js
+const paths = fs.walkSync(fs.BOX, 'data', { includeDirs: true, maxDepth: 2 });
+```
+<a name="module_fs.statSync"></a>
+
+### fs.statSync(scope, filePath) ⇒ <code>Object</code>
+Synchronously returns metadata for a file or directory.
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Throws**:
+
+- <code>Error</code> If the path does not exist or is outside the secure scope
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| filePath | <code>string</code> | Path relative to scope or script |
+
+**Example**  
+```js
+const info = fs.statSync(fs.BOX, 'data/file.txt');
+```
+<a name="module_fs.readdir"></a>
+
+### fs.readdir(scope, dirPath) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+Asynchronously lists all entry names in a directory (non-recursive).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> | Directory path relative to scope or script |
+
+**Example**  
+```js
+const names = await fs.readdir(fs.BOX, 'data');
+```
+<a name="module_fs.listFiles"></a>
+
+### fs.listFiles(scope, dirPath) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+Asynchronously lists file names only in a directory (non-recursive).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> | Directory path relative to scope or script |
+
+**Example**  
+```js
+const files = await fs.listFiles(fs.BOX, 'data');
+```
+<a name="module_fs.listDirs"></a>
+
+### fs.listDirs(scope, dirPath) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+Asynchronously lists subdirectory names only (non-recursive).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> | Directory path relative to scope or script |
+
+**Example**  
+```js
+const dirs = await fs.listDirs(fs.BOX, 'data');
+```
+<a name="module_fs.walk"></a>
+
+### fs.walk(scope, dirPath, [options]) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
+Asynchronously walks a directory tree and returns relative paths (forward slashes).
+Symlink directories are not descended into (v1).
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| scope | <code>string</code> |  | fs.BOX or fs.WEB |
+| dirPath | <code>string</code> |  | Root directory to walk |
+| [options] | <code>object</code> |  |  |
+| [options.includeDirs] | <code>boolean</code> | <code>false</code> | Include directory paths in the result |
+| [options.maxDepth] | <code>number</code> |  | Max directory depth (1 = immediate children only); omit for unlimited |
+
+**Example**  
+```js
+const paths = await fs.walk(fs.BOX, 'data', { includeDirs: true });
+```
+<a name="module_fs.stat"></a>
+
+### fs.stat(scope, filePath) ⇒ <code>Promise.&lt;{size: number, mtimeMs: number, ctimeMs: number, birthtimeMs: number, isFile: boolean, isDirectory: boolean, isSymbolicLink: boolean, mode: number}&gt;</code>
+Asynchronously returns metadata for a file or directory.
+
+**Kind**: static method of [<code>fs</code>](#module_fs)  
+**Throws**:
+
+- <code>Error</code> If the path does not exist or is outside the secure scope
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| scope | <code>string</code> | fs.BOX or fs.WEB |
+| filePath | <code>string</code> | Path relative to scope or script |
+
+**Example**  
+```js
+const info = await fs.stat(fs.BOX, 'data/file.txt');
+```
 <a name="module_html"></a>
 
 ## html
@@ -6042,12 +6384,10 @@ console.log($('.test').text()); // Outputs the text content of the .test element
 
 ## httpclient
 A module for making HTTP requests in Gingee applications.
-This module provides functions to perform GET and POST requests, supporting various content types.
-It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
-It supports both text and binary responses, automatically determining the response type based on the content-type header.
-It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
-It allows for flexible data submission, making it suitable for APIs that require different content types.
-It provides constants for common POST data types, ensuring that the correct headers are set for the request.
+Provides <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, and <code>delete</code>.
+Body-bearing methods (<code>post</code>/<code>put</code>/<code>patch</code>) support JSON, form-urlencoded,
+plain text, XML, and multipart via <code>options.postType</code>.
+Text and binary responses are handled from the content-type header.
 
 <b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
 <code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
@@ -6068,7 +6408,10 @@ connect uses a pinned <code>lookup</code> so resolution cannot rebind between ch
     * [.XML](#module_httpclient.XML)
     * [.MULTIPART](#module_httpclient.MULTIPART)
     * [.get(url, [options])](#module_httpclient.get) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+    * [.delete(url, [options])](#module_httpclient.delete) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
     * [.post(url, body, [options])](#module_httpclient.post) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+    * [.put(url, body, [options])](#module_httpclient.put) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+    * [.patch(url, body, [options])](#module_httpclient.patch) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
 
 <a name="module_httpclient.JSON"></a>
 
@@ -6109,17 +6452,8 @@ This constant can be used to specify that the POST request body is in multipart/
 
 ### httpclient.get(url, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
 Performs an HTTP GET request.
-This function retrieves data from a specified URL and returns the response status, headers, and body.
-It supports both text and binary responses, automatically determining the response type based on the content-type header.
-It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.
-It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.
-It is particularly useful for applications that need to fetch resources from external APIs or web services.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
-**Throws**:
-
-- <code>Error</code> If the request fails or if the response body cannot be processed.
-
 
 | Param | Type | Description |
 | --- | --- | --- |
@@ -6129,34 +6463,76 @@ It is particularly useful for applications that need to fetch resources from ext
 **Example**  
 ```js
 const response = await httpclient.get('https://api.example.com/data');
-console.log(response.body);
+```
+<a name="module_httpclient.delete"></a>
+
+### httpclient.delete(url, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+Performs an HTTP DELETE request (no body).
+
+**Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| url | <code>string</code> | The URL to request. |
+| [options] | <code>object</code> | Axios request configuration options (e.g., headers, timeout, signal). |
+
+**Example**  
+```js
+const response = await httpclient.delete('https://api.example.com/items/1');
 ```
 <a name="module_httpclient.post"></a>
 
 ### httpclient.post(url, body, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
 Performs an HTTP POST request.
-This function sends data to a specified URL and returns the response status, headers, and body.
-It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.
-It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.
-It allows for flexible data submission, making it suitable for APIs that require different content types.
 
 **Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
-**Throws**:
-
-- <code>Error</code> If the request fails or if the body cannot be processed.
-
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
 | url | <code>string</code> |  | The URL to post to. |
 | body | <code>any</code> |  | The data to send in the request body. |
 | [options] | <code>object</code> |  | Axios request configuration options. |
-| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | The type of data being posted. |
+| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | Body content type. |
 
 **Example**  
 ```js
 const response = await httpclient.post('https://api.example.com/data', { key: 'value' });
-console.log(response.body);
+```
+<a name="module_httpclient.put"></a>
+
+### httpclient.put(url, body, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+Performs an HTTP PUT request (same body / postType options as post).
+
+**Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| url | <code>string</code> |  | The URL to put to. |
+| body | <code>any</code> |  | The data to send in the request body. |
+| [options] | <code>object</code> |  | Axios request configuration options. |
+| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | Body content type. |
+
+**Example**  
+```js
+const response = await httpclient.put('https://api.example.com/items/1', { name: 'x' });
+```
+<a name="module_httpclient.patch"></a>
+
+### httpclient.patch(url, body, [options]) ⇒ <code>Promise.&lt;{status: number, headers: object, body: (string\|Buffer)}&gt;</code>
+Performs an HTTP PATCH request (same body / postType options as post).
+
+**Kind**: static method of [<code>httpclient</code>](#module_httpclient)  
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| url | <code>string</code> |  | The URL to patch. |
+| body | <code>any</code> |  | The data to send in the request body. |
+| [options] | <code>object</code> |  | Axios request configuration options. |
+| [options.postType] | <code>string</code> | <code>&quot;httpclient.JSON&quot;</code> | Body content type. |
+
+**Example**  
+```js
+const response = await httpclient.patch('https://api.example.com/items/1', { name: 'y' });
 ```
 <a name="module_image"></a>
 

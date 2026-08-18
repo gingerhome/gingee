@@ -5,7 +5,7 @@ const { SCOPES, resolveSecurePath, isPathInside } = require("./internal_utils.js
 
 /**
  * Plain JSON-friendly metadata from a Node Stats object.
- * @param {import('fs').Stats} st
+ * @param {object} st - A Node.js fs.Stats-like object.
  * @returns {{ size: number, mtimeMs: number, ctimeMs: number, birthtimeMs: number, isFile: boolean, isDirectory: boolean, isSymbolicLink: boolean, mode: number }}
  * @private
  */
@@ -356,6 +356,49 @@ async function writeFile(scope, filePath, data, options) {
   const dir = path.dirname(absolutePath);
   await nodeFsPromises.mkdir(dir, { recursive: true });
   return nodeFsPromises.writeFile(absolutePath, data, options);
+}
+
+/**
+ * @function readJSON
+ * @memberof module:fs
+ * @description Asynchronously reads a JSON file and parses it.
+ * @param {string} scope - The scope to operate in (fs.BOX or fs.WEB).
+ * @param {string} filePath - The path to the file, relative to the scope or script.
+ * @param {object | string} [options] - The encoding or an options object.
+ * @returns {Promise<object>} A Promise that resolves with the parsed JSON object.
+ * @throws {Error} If the file does not exist or is outside the secure scope or it is not valid JSON.
+ * @example
+ * const data = await fs.readJSON(fs.BOX, 'data/myfile.json');
+ * console.log(data); // Outputs the parsed JSON object
+ */
+async function readJSON(scope, filePath, options) {
+  const absolutePath = resolveSecurePath(scope, filePath);
+  const data = await nodeFsPromises.readFile(absolutePath, options);
+  return JSON.parse(data);
+}
+
+/**
+ * @function writeJSON
+ * @memberof module:fs
+ * @description Asynchronously writes a JSON object to a file, creating directories as needed.
+ * @param {string} scope - The scope to operate in (fs.BOX or fs.WEB).
+ * @param {string} filePath - The path to the file, relative to the scope or script.
+ * @param {object} data - The JSON object to write to the file.
+ * @param {object | string} [options] - The encoding or an options object.
+ * @returns {Promise<void>} A Promise that resolves when the write operation is complete.
+ * @throws {Error} If the file path is outside the secure scope or if the directory cannot be created.
+ * @example
+ * await fs.writeJSON(fs.BOX, 'data/myfile.json', { key: 'value' });
+ */
+async function writeJSON(scope, filePath, data, options) {
+  const absolutePath = resolveSecurePath(scope, filePath);
+  const dir = path.dirname(absolutePath);
+  await nodeFsPromises.mkdir(dir, { recursive: true });
+  return nodeFsPromises.writeFile(
+    absolutePath,
+    JSON.stringify(data, null, 2),
+    options,
+  );
 }
 
 /**
@@ -820,7 +863,9 @@ module.exports = {
 
   // Synchronous versions
   readFileSync,
+  readJSONSync,
   writeFileSync,
+  writeJSONSync,
   appendFileSync,
   existsSync,
   deleteFileSync,
@@ -838,7 +883,9 @@ module.exports = {
 
   // Asynchronous versions
   readFile,
+  readJSON,
   writeFile,
+  writeJSON,
   appendFile,
   exists,
   deleteFile,

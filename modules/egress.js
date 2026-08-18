@@ -357,7 +357,7 @@ function ipFamily(ip) {
  * Normalize DNS / pin address records to `{ address, family }[]`.
  * @private
  * @param {Array|object|string} records
- * @returns {{ address: string, family: number }[]}
+ * @returns {Array.<{address: string, family: number}>}
  */
 function normalizeAddressList(records) {
   if (!records) return [];
@@ -381,7 +381,7 @@ function normalizeAddressList(records) {
  * Create a Node-style `lookup` that only returns pre-validated addresses.
  * Prevents DNS rebinding between policy check and TCP connect (H13).
  *
- * @param {{ address: string, family: number }[]} addresses
+ * @param {Array.<{address: string, family: number}>} addresses
  * @returns {function}
  */
 function createPinnedLookup(addresses) {
@@ -434,7 +434,7 @@ function createPinnedLookup(addresses) {
  * `assertUrlAllowed` returned validated addresses.
  *
  * @param {object} axiosConfig
- * @param {{ ok?: boolean, addresses?: Array }|null} allowedResult
+ * @param {{ok: boolean, addresses: Array}|null} allowedResult
  * @returns {object} same config (mutated)
  */
 function applyConnectPin(axiosConfig, allowedResult) {
@@ -501,7 +501,7 @@ async function assertUrlAllowed(urlString, options = {}) {
     return deny("BLOCKED_METADATA", `Metadata host blocked: ${host}`);
   }
 
-  /** @type {{ address: string, family: number }[]|null} */
+  /** @type {Array.<{address: string, family: number}>|null} */
   let addresses = null;
 
   // Literal IP hostname
