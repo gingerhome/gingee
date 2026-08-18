@@ -120,4 +120,72 @@ describe("httpclient.js - HTTP Client", () => {
       }),
     );
   });
+
+  test("put should stringify JSON and call axios.put", async () => {
+    const body = { name: "updated" };
+    axios.put.mockResolvedValue({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      data: Buffer.from(JSON.stringify({ ok: true })),
+    });
+
+    const result = await httpclient.put("http://example.com/api/items/1", body, {
+      postType: httpclient.JSON,
+    });
+
+    expect(axios.put).toHaveBeenCalledWith(
+      "http://example.com/api/items/1",
+      JSON.stringify(body),
+      expect.objectContaining({
+        headers: { "Content-Type": "application/json" },
+        responseType: "arraybuffer",
+      }),
+    );
+    expect(result.status).toBe(200);
+  });
+
+  test("patch should stringify JSON and call axios.patch", async () => {
+    const body = { name: "patched" };
+    axios.patch.mockResolvedValue({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      data: Buffer.from(JSON.stringify({ ok: true })),
+    });
+
+    await httpclient.patch("http://example.com/api/items/1", body);
+
+    expect(axios.patch).toHaveBeenCalledWith(
+      "http://example.com/api/items/1",
+      JSON.stringify(body),
+      expect.objectContaining({
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  });
+
+  test("delete should call axios.delete like get", async () => {
+    axios.delete.mockResolvedValue({
+      status: 204,
+      headers: {},
+      data: Buffer.from(""),
+    });
+
+    const result = await httpclient.delete("http://example.com/api/items/1");
+
+    expect(axios.delete).toHaveBeenCalledWith(
+      "http://example.com/api/items/1",
+      expect.objectContaining({
+        responseType: "arraybuffer",
+        timeout: expect.any(Number),
+      }),
+    );
+    expect(result.status).toBe(204);
+  });
+
+  test("put denies private IP with EGRESS_DENIED", async () => {
+    const result = await httpclient.put("http://127.0.0.1:9/", { a: 1 });
+    expect(result.status).toBe(403);
+    expect(result.code).toBe("EGRESS_DENIED");
+    expect(axios.put).not.toHaveBeenCalled();
+  });
 });

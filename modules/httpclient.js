@@ -8,12 +8,10 @@ const egress = require("./egress.js");
 /**
  * @module httpclient
  * @description A module for making HTTP requests in Gingee applications.
- * This module provides functions to perform GET and POST requests, supporting various content types.
- * It abstracts the complexities of making HTTP requests, providing a simple interface for developers to interact with web services.
- * It supports both text and binary responses, automatically determining the response type based on the content-type header.
- * It is particularly useful for applications that need to fetch resources from external APIs or web services, and for sending data to web services in different formats.
- * It allows for flexible data submission, making it suitable for APIs that require different content types.
- * It provides constants for common POST data types, ensuring that the correct headers are set for the request.
+ * Provides <code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, and <code>delete</code>.
+ * Body-bearing methods (<code>post</code>/<code>put</code>/<code>patch</code>) support JSON, form-urlencoded,
+ * plain text, XML, and multipart via <code>options.postType</code>.
+ * Text and binary responses are handled from the content-type header.
  *
  * <b>Timeouts:</b> If <code>options.timeout</code> is omitted, the platform default from
  * <code>gingee.json</code> → <code>limits.outbound_timeout_ms</code> is applied (clamped to the
@@ -27,7 +25,7 @@ const egress = require("./egress.js");
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
 
-// --- Constants for POST data types ---
+// --- Constants for body content types (post / put / patch) ---
 const POST_TYPES = {
   JSON: "application/json",
   FORM: "application/x-www-form-urlencoded",
@@ -191,23 +189,13 @@ function mapAxiosError(axiosErr) {
 }
 
 /**
- * @function get
- * @memberof module:httpclient
- * @description Performs an HTTP GET request.
- * This function retrieves data from a specified URL and returns the response status, headers, and body.
- * It supports both text and binary responses, automatically determining the response type based on the content-type header.
- * It abstracts the complexities of making HTTP requests, providing a simple interface for developers to fetch data from the web.
- * It can handle various content types, including JSON, text, and binary data, making it versatile for different use cases.
- * It is particularly useful for applications that need to fetch resources from external APIs or web services.
- * @param {string} url The URL to request.
- * @param {object} [options] Axios request configuration options (e.g., headers, timeout, signal).
- * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
- * @throws {Error} If the request fails or if the response body cannot be processed.
- * @example
- * const response = await httpclient.get('https://api.example.com/data');
- * console.log(response.body);
+ * HTTP request without a body (GET / DELETE).
+ * @private
+ * @param {'get'|'delete'} method
+ * @param {string} url
+ * @param {object} [options]
  */
-async function get(url, options = {}) {
+async function requestNoBody(method, url, options = {}) {
   let releaseOutbound = null;
   try {
     const allowed = await egress.assertUrlAllowed(url);
@@ -223,9 +211,8 @@ async function get(url, options = {}) {
 
     const prepared = applyPlatformLimits(options);
     releaseOutbound = prepared.releaseOutbound;
-    // Pin connect to policy-validated addresses (DNS rebinding / H13).
     egress.applyConnectPin(prepared.axiosConfig, allowed);
-    const response = await axios.get(url, prepared.axiosConfig);
+    const response = await axios[method](url, prepared.axiosConfig);
     const body = processBody(response.data, response.headers);
     return {
       status: response.status,
@@ -240,25 +227,36 @@ async function get(url, options = {}) {
 }
 
 /**
- * @function post
- * @memberof module:httpclient
- * @description Performs an HTTP POST request.
- * This function sends data to a specified URL and returns the response status, headers, and body.
- * It supports various content types, including JSON, form-urlencoded, plain text, XML, and multipart/form-data.
- * It abstracts the complexities of making HTTP POST requests, providing a simple interface for developers to send data to web services.
- * It allows for flexible data submission, making it suitable for APIs that require different content types.
- * @param {string} url The URL to post to.
- * @param {any} body The data to send in the request body.
- * @param {object} [options] Axios request configuration options.
- * @param {string} [options.postType=httpclient.JSON] The type of data being posted.
- * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
- * @throws {Error} If the request fails or if the body cannot be processed.
- * @example
- * const response = await httpclient.post('https://api.example.com/data', { key: 'value' });
- * console.log(response.body);
+ * Encode body for post/put/patch and apply Content-Type.
+ * @private
  */
-async function post(url, body, options = {}) {
+function prepareOutboundBody(body, options, config) {
   const postType = options.postType || POST_TYPES.JSON;
+  config.headers = { "Content-Type": postType, ...(options.headers || {}) };
+
+  let data = body;
+  if (postType === POST_TYPES.JSON) data = JSON.stringify(body);
+  if (postType === POST_TYPES.FORM) data = querystring.stringify(body);
+  if (postType === POST_TYPES.MULTIPART) {
+    if (!(body instanceof FormData)) {
+      throw new Error(
+        "For MULTIPART, body must use object created with formdata module.",
+      );
+    }
+    delete config.headers["Content-Type"];
+  }
+  return data;
+}
+
+/**
+ * HTTP request with a body (POST / PUT / PATCH).
+ * @private
+ * @param {'post'|'put'|'patch'} method
+ * @param {string} url
+ * @param {any} body
+ * @param {object} [options]
+ */
+async function requestWithBody(method, url, body, options = {}) {
   let releaseOutbound = null;
 
   try {
@@ -276,25 +274,11 @@ async function post(url, body, options = {}) {
     const prepared = applyPlatformLimits(options);
     releaseOutbound = prepared.releaseOutbound;
 
-    const config = {
-      ...prepared.axiosConfig,
-      headers: { "Content-Type": postType, ...(options.headers || {}) },
-    };
-    // Pin connect to policy-validated addresses (DNS rebinding / H13).
+    const config = { ...prepared.axiosConfig };
     egress.applyConnectPin(config, allowed);
+    const data = prepareOutboundBody(body, options, config);
 
-    let data = body;
-    if (postType === POST_TYPES.JSON) data = JSON.stringify(body);
-    if (postType === POST_TYPES.FORM) data = querystring.stringify(body);
-    if (postType === POST_TYPES.MULTIPART) {
-      if (!(body instanceof FormData))
-        throw new Error(
-          "For MULTIPART, body must use object created with formdata module.",
-        );
-      delete config.headers["Content-Type"];
-    }
-
-    const response = await axios.post(url, data, config);
+    const response = await axios[method](url, data, config);
     const responseBody = processBody(response.data, response.headers);
     return {
       status: response.status,
@@ -311,9 +295,88 @@ async function post(url, body, options = {}) {
   }
 }
 
+/**
+ * @function get
+ * @memberof module:httpclient
+ * @description Performs an HTTP GET request.
+ * @param {string} url The URL to request.
+ * @param {object} [options] Axios request configuration options (e.g., headers, timeout, signal).
+ * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
+ * @example
+ * const response = await httpclient.get('https://api.example.com/data');
+ */
+async function get(url, options = {}) {
+  return requestNoBody("get", url, options);
+}
+
+/**
+ * @function delete
+ * @memberof module:httpclient
+ * @description Performs an HTTP DELETE request (no body).
+ * @param {string} url The URL to request.
+ * @param {object} [options] Axios request configuration options (e.g., headers, timeout, signal).
+ * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
+ * @example
+ * const response = await httpclient.delete('https://api.example.com/items/1');
+ */
+async function del(url, options = {}) {
+  return requestNoBody("delete", url, options);
+}
+
+/**
+ * @function post
+ * @memberof module:httpclient
+ * @description Performs an HTTP POST request.
+ * @param {string} url The URL to post to.
+ * @param {any} body The data to send in the request body.
+ * @param {object} [options] Axios request configuration options.
+ * @param {string} [options.postType=httpclient.JSON] Body content type.
+ * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
+ * @example
+ * const response = await httpclient.post('https://api.example.com/data', { key: 'value' });
+ */
+async function post(url, body, options = {}) {
+  return requestWithBody("post", url, body, options);
+}
+
+/**
+ * @function put
+ * @memberof module:httpclient
+ * @description Performs an HTTP PUT request (same body / postType options as post).
+ * @param {string} url The URL to put to.
+ * @param {any} body The data to send in the request body.
+ * @param {object} [options] Axios request configuration options.
+ * @param {string} [options.postType=httpclient.JSON] Body content type.
+ * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
+ * @example
+ * const response = await httpclient.put('https://api.example.com/items/1', { name: 'x' });
+ */
+async function put(url, body, options = {}) {
+  return requestWithBody("put", url, body, options);
+}
+
+/**
+ * @function patch
+ * @memberof module:httpclient
+ * @description Performs an HTTP PATCH request (same body / postType options as post).
+ * @param {string} url The URL to patch.
+ * @param {any} body The data to send in the request body.
+ * @param {object} [options] Axios request configuration options.
+ * @param {string} [options.postType=httpclient.JSON] Body content type.
+ * @returns {Promise<{status: number, headers: object, body: string|Buffer}>}
+ * @example
+ * const response = await httpclient.patch('https://api.example.com/items/1', { name: 'y' });
+ */
+async function patch(url, body, options = {}) {
+  return requestWithBody("patch", url, body, options);
+}
+
 module.exports = {
   get,
   post,
+  put,
+  patch,
+  delete: del,
   /**
    * @constant JSON
    * @memberof module:httpclient

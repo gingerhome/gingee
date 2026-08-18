@@ -105,7 +105,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 - **`fs`**
   A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
 - **`httpclient`**
-  A powerful wrapper for making external HTTP(S) requests. It handles redirects, HTTPS, and intelligently processes response bodies into strings or buffers.
+  A powerful wrapper for making external HTTP(S) requests (`get`, `post`, `put`, `patch`, `delete`). It handles redirects, HTTPS, body content types for write methods, and intelligently processes response bodies into strings or buffers.
 - **`formdata`**
   A simple factory module for creating `multipart/form-data` bodies for file uploads via the `httpclient`.
 - **`zip`**
