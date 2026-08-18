@@ -1,7 +1,44 @@
 const nodeFs = require("fs");
 const nodeFsPromises = require("fs/promises");
 const path = require("path");
-const { SCOPES, resolveSecurePath } = require("./internal_utils.js");
+const { SCOPES, resolveSecurePath, isPathInside } = require("./internal_utils.js");
+
+/**
+ * Plain JSON-friendly metadata from a Node Stats object.
+ * @param {import('fs').Stats} st
+ * @returns {{ size: number, mtimeMs: number, ctimeMs: number, birthtimeMs: number, isFile: boolean, isDirectory: boolean, isSymbolicLink: boolean, mode: number }}
+ * @private
+ */
+function _plainStat(st) {
+  return {
+    size: st.size,
+    mtimeMs: st.mtimeMs,
+    ctimeMs: st.ctimeMs,
+    birthtimeMs: st.birthtimeMs,
+    isFile: st.isFile(),
+    isDirectory: st.isDirectory(),
+    isSymbolicLink: st.isSymbolicLink(),
+    mode: st.mode,
+  };
+}
+
+/**
+ * Normalize walk options.
+ * @param {object} [options]
+ * @returns {{ includeDirs: boolean, maxDepth: number }}
+ * @private
+ */
+function _walkOptions(options) {
+  const opts = options && typeof options === "object" ? options : {};
+  const maxDepth =
+    opts.maxDepth == null || opts.maxDepth === undefined
+      ? Infinity
+      : Number(opts.maxDepth);
+  return {
+    includeDirs: opts.includeDirs === true,
+    maxDepth: Number.isFinite(maxDepth) && maxDepth >= 0 ? maxDepth : Infinity,
+  };
+}
 
 /**
  * @module fs
@@ -529,6 +566,237 @@ async function copyDir(sourceScope, sourcePath, destScope, destPath) {
   });
 }
 
+// --- Listing / metadata ---
+
+/**
+ * @function readdirSync
+ * @memberof module:fs
+ * @description Synchronously lists all entry names in a directory (non-recursive).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Directory path relative to scope or script
+ * @returns {string[]} Entry names (files and directories)
+ * @example
+ * const names = fs.readdirSync(fs.BOX, 'data');
+ */
+function readdirSync(scope, dirPath) {
+  const absolutePath = resolveSecurePath(scope, dirPath);
+  return nodeFs.readdirSync(absolutePath);
+}
+
+/**
+ * @function listFilesSync
+ * @memberof module:fs
+ * @description Synchronously lists file names only in a directory (non-recursive).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Directory path relative to scope or script
+ * @returns {string[]} File names
+ * @example
+ * const files = fs.listFilesSync(fs.BOX, 'data');
+ */
+function listFilesSync(scope, dirPath) {
+  const absolutePath = resolveSecurePath(scope, dirPath);
+  return nodeFs
+    .readdirSync(absolutePath, { withFileTypes: true })
+    .filter((d) => d.isFile())
+    .map((d) => d.name);
+}
+
+/**
+ * @function listDirsSync
+ * @memberof module:fs
+ * @description Synchronously lists subdirectory names only (non-recursive).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Directory path relative to scope or script
+ * @returns {string[]} Directory names
+ * @example
+ * const dirs = fs.listDirsSync(fs.BOX, 'data');
+ */
+function listDirsSync(scope, dirPath) {
+  const absolutePath = resolveSecurePath(scope, dirPath);
+  return nodeFs
+    .readdirSync(absolutePath, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+}
+
+/**
+ * @function walkSync
+ * @memberof module:fs
+ * @description Synchronously walks a directory tree and returns relative paths (forward slashes).
+ * Symlink directories are not descended into (v1).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Root directory to walk
+ * @param {object} [options]
+ * @param {boolean} [options.includeDirs=false] - Include directory paths in the result
+ * @param {number} [options.maxDepth] - Max directory depth (1 = immediate children only); omit for unlimited
+ * @returns {string[]} Relative paths from dirPath
+ * @example
+ * const paths = fs.walkSync(fs.BOX, 'data', { includeDirs: true, maxDepth: 2 });
+ */
+function walkSync(scope, dirPath, options) {
+  const { includeDirs, maxDepth } = _walkOptions(options);
+  const absoluteRoot = resolveSecurePath(scope, dirPath);
+  const out = [];
+
+  function visit(absDir, relPrefix, depth) {
+    if (depth > maxDepth) return;
+    let entries;
+    try {
+      entries = nodeFs.readdirSync(absDir, { withFileTypes: true });
+    } catch (e) {
+      throw e;
+    }
+    for (const ent of entries) {
+      const rel = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
+      const absChild = path.join(absDir, ent.name);
+      if (!isPathInside(absChild, absoluteRoot) && absChild !== absoluteRoot) {
+        continue;
+      }
+      if (ent.isSymbolicLink()) {
+        continue;
+      }
+      if (ent.isDirectory()) {
+        if (includeDirs) out.push(rel);
+        visit(absChild, rel, depth + 1);
+      } else if (ent.isFile()) {
+        out.push(rel);
+      }
+    }
+  }
+
+  visit(absoluteRoot, "", 1);
+  return out;
+}
+
+/**
+ * @function statSync
+ * @memberof module:fs
+ * @description Synchronously returns metadata for a file or directory.
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} filePath - Path relative to scope or script
+ * @returns {{ size: number, mtimeMs: number, ctimeMs: number, birthtimeMs: number, isFile: boolean, isDirectory: boolean, isSymbolicLink: boolean, mode: number }}
+ * @throws {Error} If the path does not exist or is outside the secure scope
+ * @example
+ * const info = fs.statSync(fs.BOX, 'data/file.txt');
+ */
+function statSync(scope, filePath) {
+  const absolutePath = resolveSecurePath(scope, filePath);
+  return _plainStat(nodeFs.statSync(absolutePath));
+}
+
+/**
+ * @function readdir
+ * @memberof module:fs
+ * @description Asynchronously lists all entry names in a directory (non-recursive).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Directory path relative to scope or script
+ * @returns {Promise<string[]>}
+ * @example
+ * const names = await fs.readdir(fs.BOX, 'data');
+ */
+async function readdir(scope, dirPath) {
+  const absolutePath = resolveSecurePath(scope, dirPath);
+  return nodeFsPromises.readdir(absolutePath);
+}
+
+/**
+ * @function listFiles
+ * @memberof module:fs
+ * @description Asynchronously lists file names only in a directory (non-recursive).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Directory path relative to scope or script
+ * @returns {Promise<string[]>}
+ * @example
+ * const files = await fs.listFiles(fs.BOX, 'data');
+ */
+async function listFiles(scope, dirPath) {
+  const absolutePath = resolveSecurePath(scope, dirPath);
+  const entries = await nodeFsPromises.readdir(absolutePath, {
+    withFileTypes: true,
+  });
+  return entries.filter((d) => d.isFile()).map((d) => d.name);
+}
+
+/**
+ * @function listDirs
+ * @memberof module:fs
+ * @description Asynchronously lists subdirectory names only (non-recursive).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Directory path relative to scope or script
+ * @returns {Promise<string[]>}
+ * @example
+ * const dirs = await fs.listDirs(fs.BOX, 'data');
+ */
+async function listDirs(scope, dirPath) {
+  const absolutePath = resolveSecurePath(scope, dirPath);
+  const entries = await nodeFsPromises.readdir(absolutePath, {
+    withFileTypes: true,
+  });
+  return entries.filter((d) => d.isDirectory()).map((d) => d.name);
+}
+
+/**
+ * @function walk
+ * @memberof module:fs
+ * @description Asynchronously walks a directory tree and returns relative paths (forward slashes).
+ * Symlink directories are not descended into (v1).
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} dirPath - Root directory to walk
+ * @param {object} [options]
+ * @param {boolean} [options.includeDirs=false] - Include directory paths in the result
+ * @param {number} [options.maxDepth] - Max directory depth (1 = immediate children only); omit for unlimited
+ * @returns {Promise<string[]>}
+ * @example
+ * const paths = await fs.walk(fs.BOX, 'data', { includeDirs: true });
+ */
+async function walk(scope, dirPath, options) {
+  const { includeDirs, maxDepth } = _walkOptions(options);
+  const absoluteRoot = resolveSecurePath(scope, dirPath);
+  const out = [];
+
+  async function visit(absDir, relPrefix, depth) {
+    if (depth > maxDepth) return;
+    const entries = await nodeFsPromises.readdir(absDir, {
+      withFileTypes: true,
+    });
+    for (const ent of entries) {
+      const rel = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
+      const absChild = path.join(absDir, ent.name);
+      if (!isPathInside(absChild, absoluteRoot) && absChild !== absoluteRoot) {
+        continue;
+      }
+      if (ent.isSymbolicLink()) {
+        continue;
+      }
+      if (ent.isDirectory()) {
+        if (includeDirs) out.push(rel);
+        await visit(absChild, rel, depth + 1);
+      } else if (ent.isFile()) {
+        out.push(rel);
+      }
+    }
+  }
+
+  await visit(absoluteRoot, "", 1);
+  return out;
+}
+
+/**
+ * @function stat
+ * @memberof module:fs
+ * @description Asynchronously returns metadata for a file or directory.
+ * @param {string} scope - fs.BOX or fs.WEB
+ * @param {string} filePath - Path relative to scope or script
+ * @returns {Promise<{ size: number, mtimeMs: number, ctimeMs: number, birthtimeMs: number, isFile: boolean, isDirectory: boolean, isSymbolicLink: boolean, mode: number }>}
+ * @throws {Error} If the path does not exist or is outside the secure scope
+ * @example
+ * const info = await fs.stat(fs.BOX, 'data/file.txt');
+ */
+async function stat(scope, filePath) {
+  const absolutePath = resolveSecurePath(scope, filePath);
+  return _plainStat(await nodeFsPromises.stat(absolutePath));
+}
+
 module.exports = {
   /**
    * @constant BOX
@@ -559,6 +827,11 @@ module.exports = {
   rmdirSync,
   moveDirSync,
   copyDirSync,
+  readdirSync,
+  listFilesSync,
+  listDirsSync,
+  walkSync,
+  statSync,
 
   // Asynchronous versions
   readFile,
@@ -572,4 +845,9 @@ module.exports = {
   rmdir,
   moveDir,
   copyDir,
+  readdir,
+  listFiles,
+  listDirs,
+  walk,
+  stat,
 };
