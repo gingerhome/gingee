@@ -16,6 +16,7 @@
   },
   "box": {
     "allowed_modules": [],
+    "local_modules": [],
     "allow_dynamic_code": false
   },
   "web_root": "./web",
