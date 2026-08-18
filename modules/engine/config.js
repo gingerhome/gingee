@@ -13,7 +13,11 @@ const audit = require("../audit.js");
 const { ISOLATION_DEFAULTS } = require("./isolation/policy.js");
 const { DEFAULTS: WEBSOCKET_DEFAULTS } = require("./websocket_hub.js");
 const { DEFAULTS: QUEUE_DEFAULTS } = require("./queue_service.js");
-const { projectRoot, resolveWebPath } = require("./paths.js");
+const {
+  projectRoot,
+  resolveWebPath,
+  resolveLocalModulesPaths,
+} = require("./paths.js");
 
 /**
  * Default gingee.json shape (before user merge).
@@ -48,6 +52,9 @@ function buildDefaultConfig() {
     },
     box: {
       allowed_modules: [],
+      // Project-owned library roots (relative to project root). Resolved at load to
+      // box.localModulesPaths (absolute). See docs/server-config.md.
+      local_modules: [],
       // true (default): allow eval/new Function inside the vm sandbox so common UMD libs
       // (e.g. Handlebars) load. Host process is still blocked. Set false for stricter lockdown.
       // Legacy alias: allow_code_generation (still honored if allow_dynamic_code is unset).
@@ -267,6 +274,13 @@ function loadConfig(options = {}) {
   secrets.initServer(rawMergedConfig.secrets, root, console);
   const config = secrets.resolveDeep(rawMergedConfig);
   applyHttpPortEnvOverride(config);
+
+  // Resolve box.local_modules → absolute roots under project (fail closed on bad entries).
+  config.box = config.box || {};
+  config.box.localModulesPaths = resolveLocalModulesPaths(
+    config.box.local_modules,
+    root,
+  );
 
   const webPath = resolveWebPath(config.web_root || "./web", root);
 

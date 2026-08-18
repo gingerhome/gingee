@@ -120,7 +120,8 @@ Here is a comprehensive breakdown of all available properties.
     }
   },
   "box": {
-    "allowed_modules": []
+    "allowed_modules": [],
+    "local_modules": []
   },
   "privileged_apps": []
 }
@@ -699,6 +700,35 @@ An object that configures the server's logger.
 - **Type:** `object`
 - **Description:** Configures the security settings for the `gbox` sandbox environment. App scripts run in a **Node `vm` context** without host `process` / real `global` access (see [Threat Model](./threat-model.md)).
 - **`allowed_modules`** (array of strings): A whitelist of Node.js built-in modules that sandboxed scripts are allowed to `require()`. Dangerous modules (`child_process`, `vm`, host `node:fs`, etc.) are **always forbidden**. Prefer leaving this empty. Safe defaults already include `url`, `querystring`, and `mime-types`.
+- **`local_modules`** (array of strings, optional):
+  - **Default:** `[]`
+  - Ordered list of **project-relative** directories used as extra sandboxed `require` roots (server-wide, all apps).
+  - Resolved at config load against the project root (directory of `gingee.json` / `process.cwd()`). **Absolute paths are rejected in v1.** Roots must be **strict descendants** of the project root (not `.` / the project root itself).
+  - Lookup is **`.js` only** (no `index.js`): `require('tax')` → `{root}/tax.js`; `require('billing/invoice')` → `{root}/billing/invoice.js`. First configured root that contains the file wins.
+  - Load style: **`runInGBox`** (same sandbox as app box scripts), **not** host `require`. Engine `modules/` always wins over local roots for the same bare name (no shadowing of platform modules).
+  - Relative `require('./x')` from a file under a local root is jailed to **that root**; from an app box script it remains jailed to the app box.
+  - These are **host/project libraries**, not part of a distributable `.gin` app package. Document and deploy them with the project, not inside app boxes.
+  - Example when Gingee is installed via npm under `node_modules` and you share helpers across apps:
+
+```json
+"box": {
+  "allowed_modules": [],
+  "local_modules": ["./local_modules"],
+  "allow_dynamic_code": false
+}
+```
+
+```text
+my-project/
+  gingee.json
+  node_modules/gingee/     ← engine modules/
+  local_modules/
+    tax.js                 ← require('tax')
+    billing/
+      invoice.js           ← require('billing/invoice')
+  web/<app>/box/           ← app scripts
+```
+
 - **`allow_dynamic_code`** (boolean, optional):
   - **Default:** `true` (Instant Time to Joy — many UMD/minified libs such as Handlebars need `new Function` at load time).
   - When `true`, string `eval` / `Function` work **inside the app vm only**. Host **`process` remains unavailable**; apps cannot read `process.env`.
@@ -710,6 +740,7 @@ An object that configures the server's logger.
 ```json
 "box": {
   "allowed_modules": [],
+  "local_modules": [],
   "allow_dynamic_code": false
 }
 ```

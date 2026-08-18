@@ -21,6 +21,7 @@ describe("engine/config", () => {
     expect(d.scheduler.redis.key_prefix).toBe("gingee:scheduler:");
     expect(d.metrics.allow_from).toEqual(expect.arrayContaining(["127.0.0.1"]));
     expect(d.privileged_apps).toContain("glade");
+    expect(d.box.local_modules).toEqual([]);
   });
 
   test("mergeUserConfig deep-merges websockets.fanout and websockets.redis", () => {

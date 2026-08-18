@@ -77,6 +77,8 @@ These are the core architectural features that define the Gingee development exp
 
 * **Module override (permission `module_override`):**
   Trusted apps may call `$g.overrideModule(specifier, boxRelativePath)` so that for the rest of the request matching `require(...)` (protected/other bare names, relative or box-root paths) loads an in-box wrapper. Restricted/forbidden names cannot be overridden. Wrappers use normal jailing; override map is off for the wrapper tree (no recursion). Sample: **`web/appsandboxtest/`** (full matrix + deny cases). See [Permissions Guide](./permissions-guide.md) → Module overrides.
+* **Project local modules (`box.local_modules`):**
+  Server-wide sandboxed require roots for project-owned libraries (e.g. `./local_modules`) when Gingee is installed under `node_modules`. `.js` only; platform `modules/` always wins over local roots; not part of `.gin` app packages. See [Server Config](./server-config.md) → **box.local_modules**.
 
 - **Application Startup Hooks**
   Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.

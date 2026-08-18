@@ -148,7 +148,18 @@ function buildInitPayload(workerKey, cfg, appNames) {
     // Pass module defaults so the worker can re-init ai/email adapters
     // (process-local maps are empty in the child after fork).
     globalConfig: {
-      box: cfg.box ? { ...cfg.box } : {},
+      box: cfg.box
+        ? {
+            ...cfg.box,
+            // Absolute roots for gbox require (must survive structured clone to worker)
+            localModulesPaths: Array.isArray(cfg.box.localModulesPaths)
+              ? [...cfg.box.localModulesPaths]
+              : [],
+            local_modules: Array.isArray(cfg.box.local_modules)
+              ? [...cfg.box.local_modules]
+              : cfg.box.local_modules,
+          }
+        : {},
       privileged_apps: cfg.privileged_apps || [],
       max_body_size: cfg.max_body_size,
       isolation: cfg.isolation,

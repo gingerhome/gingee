@@ -148,4 +148,4 @@ web/*
 !web/glade
 !web/glade/**
 web/glade/box/logs
-
+local_modules/*

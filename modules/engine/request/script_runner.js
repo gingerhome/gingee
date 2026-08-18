@@ -115,12 +115,15 @@ async function runServerScript(opts) {
     const allowedBuiltinModules =
       (config.box && config.box.allowed_modules) || [];
     const privilegedApps = config.privileged_apps || [];
+    const localModulesPaths =
+      (config.box && config.box.localModulesPaths) || [];
 
     const gBoxConfig = {
       appName,
       app,
       appBoxPath,
       globalModulesPath,
+      localModulesPaths,
       allowedBuiltinModules,
       privilegedApps,
       useCache,

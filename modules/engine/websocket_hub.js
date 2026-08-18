@@ -288,6 +288,7 @@ async function registerApp(app, globalConfig) {
     app,
     appBoxPath: app.appBoxPath,
     globalModulesPath: path.join(engineRoot, "modules"),
+    localModulesPaths: (cfg.box && cfg.box.localModulesPaths) || [],
     allowedBuiltinModules: (cfg.box && cfg.box.allowed_modules) || [],
     privilegedApps: cfg.privileged_apps || [],
     useCache: true,

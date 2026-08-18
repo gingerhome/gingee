@@ -90,6 +90,8 @@ async function runStartupScripts(app) {
             app: app,
             appBoxPath: app.appBoxPath,
             globalModulesPath: path.join(engineRoot, "modules"),
+            localModulesPaths:
+              (globalConfig.box && globalConfig.box.localModulesPaths) || [],
             allowedBuiltinModules:
               (globalConfig.box && globalConfig.box.allowed_modules) || [],
             privilegedApps: globalConfig.privileged_apps || [],

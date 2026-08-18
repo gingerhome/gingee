@@ -185,6 +185,11 @@ async function runHttpScript(msg) {
     app,
     appBoxPath,
     globalModulesPath: path.join(engineRoot, "modules"),
+    localModulesPaths:
+      (globalConfig &&
+        globalConfig.box &&
+        globalConfig.box.localModulesPaths) ||
+      [],
     allowedBuiltinModules: allowedBuiltinModules || [],
     privilegedApps: privilegedApps || [],
     useCache: msg.useCache !== false,

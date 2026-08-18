@@ -466,7 +466,8 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       // Fall through to global modules/ load below (or continue resolution).
     }
 
-    // --- RULE 2: Module with relative path check ---
+    // --- Relative path: ./ or ../ ---
+    // Caller under a local_modules root → jail to that root; else jail to app box.
     if (moduleName.startsWith("./") || moduleName.startsWith("../")) {
       const scriptDir = path.dirname(callingScriptPath);
       let targetPath = path.resolve(scriptDir, moduleName);
@@ -476,11 +477,12 @@ function createGRequire(callingScriptPath, gBoxConfig) {
         targetPath += ".js";
       }
 
-      // --- SECURITY CHECK ---
-      // Ensure the resolved path is still inside the app's secure 'box' folder.
-      // Use isPathInside (not String.startsWith) to reject sibling prefix escapes
-      // e.g. box path ".../app1/box" must not allow ".../app10/box/...".
-      if (!isPathInside(targetPath, gBoxConfig.appBoxPath)) {
+      const localRoot = findLocalModulesRootContaining(
+        callingScriptPath,
+        gBoxConfig.localModulesPaths,
+      );
+      const jailRoot = localRoot || gBoxConfig.appBoxPath;
+      if (!isPathInside(targetPath, jailRoot)) {
         throw new Error(
           `Path traversal detected. Access to '${moduleName}' is forbidden.`,
         );
@@ -492,11 +494,11 @@ function createGRequire(callingScriptPath, gBoxConfig) {
         );
       }
 
-      // Recursively run the new script in the same sandboxed configuration.
       return runInGBox(targetPath, gBoxConfig);
     }
 
-    // --- RULE 2: Global `modules` Folder Check (Gingee modules, e.g. modules/fs.js) ---
+    // --- Platform global modules/ (engine modules, e.g. modules/fs.js) ---
+    // Always wins over box.local_modules for the same bare name (no shadowing).
     const globalModulePath = path.join(
       gBoxConfig.globalModulesPath,
       moduleName + ".js",
@@ -512,6 +514,16 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       }
     }
 
+    // --- Project local_modules (gingee.json → box.local_modules) ---
+    // Sandboxed runInGBox; .js only (no index.js); first configured root wins.
+    const localHit = resolveFromLocalModules(
+      moduleName,
+      gBoxConfig.localModulesPaths,
+    );
+    if (localHit) {
+      return runInGBox(localHit, gBoxConfig);
+    }
+
     // Never open dangerous host built-ins (even if listed in allowed_modules).
     if (
       FORBIDDEN_BUILTINS.has(rawName) ||
@@ -523,7 +535,7 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       );
     }
 
-    // --- RULE 3: Globally Allowed and Built-in Module Check ---
+    // --- Globally allowed builtins / allowed_modules ---
     const appAllowedBuiltins = gBoxConfig.allowedBuiltinModules || [];
     if (
       globallyAllowedModules.includes(moduleName) ||
@@ -534,10 +546,7 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       return require(moduleName);
     }
 
-    // --- RULE 4: NEW - App-Box-Relative Path Check (for default_includes) ---
-    // This rule catches paths like 'utils/formatters.js' which don't start with './'
-    // but are not global modules. We treat them as relative to the app's box root.
-    // Also accept extensionless keys (e.g. shared/bare_util → shared/bare_util.js).
+    // --- App box-root path (default_include style, e.g. shared/bare_util) ---
     let appBoxRelativePath = path.resolve(gBoxConfig.appBoxPath, moduleName);
     if (
       !nodeFs.existsSync(appBoxRelativePath) &&
@@ -547,7 +556,6 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       appBoxRelativePath = appBoxRelativePath + ".js";
     }
     if (nodeFs.existsSync(appBoxRelativePath)) {
-      // We still must verify it's inside the boundary (reject path traversal / prefix tricks).
       if (!isPathInside(appBoxRelativePath, gBoxConfig.appBoxPath)) {
         throw new Error(
           `Path traversal detected. Access to '${moduleName}' is forbidden.`,
@@ -556,11 +564,75 @@ function createGRequire(callingScriptPath, gBoxConfig) {
       return runInGBox(appBoxRelativePath, gBoxConfig);
     }
 
-    // --- RULE 5: Deny ---
     throw new Error(
       `Module '${moduleName}' is not allowed or could not be found.`,
     );
   };
+}
+
+/**
+ * Which configured local_modules root contains this absolute path (if any).
+ * @private
+ * @param {string} absPath
+ * @param {string[]|undefined} localModulesPaths
+ * @returns {string|null}
+ */
+function findLocalModulesRootContaining(absPath, localModulesPaths) {
+  if (!absPath || !Array.isArray(localModulesPaths) || !localModulesPaths.length) {
+    return null;
+  }
+  const resolved = path.resolve(absPath);
+  for (const root of localModulesPaths) {
+    if (!root) continue;
+    const r = path.resolve(root);
+    if (resolved === r || isPathInside(resolved, r)) {
+      return r;
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolve a bare or box-style specifier under box.local_modules roots (.js only).
+ * @private
+ * @param {string} moduleName
+ * @param {string[]|undefined} localModulesPaths
+ * @returns {string|null} absolute path to .js file
+ */
+function resolveFromLocalModules(moduleName, localModulesPaths) {
+  if (!moduleName || !Array.isArray(localModulesPaths) || !localModulesPaths.length) {
+    return null;
+  }
+  // Reject absolute / URI-like / empty segments that could confuse join
+  if (
+    path.isAbsolute(moduleName) ||
+    moduleName.includes("\0") ||
+    moduleName.startsWith("node:")
+  ) {
+    return null;
+  }
+  const rel = String(moduleName).replace(/\\/g, "/");
+  if (rel.startsWith("/") || rel.includes("://")) {
+    return null;
+  }
+
+  for (const root of localModulesPaths) {
+    if (!root) continue;
+    let candidate = path.resolve(root, rel);
+    if (!path.extname(candidate)) {
+      candidate += ".js";
+    } else if (!candidate.endsWith(".js")) {
+      // Only .js entry files in v1
+      continue;
+    }
+    if (!isPathInside(candidate, root)) {
+      continue;
+    }
+    if (nodeFs.existsSync(candidate) && nodeFs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 // The list of allowed modules is now passed in here.

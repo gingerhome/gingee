@@ -149,7 +149,7 @@ wrapper
   → extra app policy
 ```
 
-Sample: **`web/appsandboxtest/`** — full matrix (protected bare `fs`, other bare `crypto`, relative `./helper`, box-root `shared/bare_util`, deny restricted/forbidden). Needs `fs` + `module_override` (`fs` for the real module inside the fs wrapper).
+Sample: **`web/appsandboxtest/`** — full matrix (protected bare `fs`, other bare `crypto`, relative `./helper`, box-root `shared/bare_util`, project `local_modules` / `sandbox_kit` direct + override, deny restricted/forbidden). Needs `fs` + `module_override` (`fs` for the real module inside the fs wrapper). Host must set `box.local_modules: ["./local_modules"]`.
 
 ### Security notes for operators
 

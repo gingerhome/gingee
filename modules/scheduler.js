@@ -284,6 +284,11 @@ async function executeScriptJob(app, job, runMeta) {
     app,
     appBoxPath: app.appBoxPath,
     globalModulesPath: path.join(engineRoot, "modules"),
+    localModulesPaths:
+      (globalConfigRef &&
+        globalConfigRef.box &&
+        globalConfigRef.box.localModulesPaths) ||
+      [],
     allowedBuiltinModules:
       (globalConfigRef &&
         globalConfigRef.box &&
