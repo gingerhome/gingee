@@ -505,12 +505,26 @@ function createGRequire(callingScriptPath, gBoxConfig) {
     );
     if (nodeFs.existsSync(globalModulePath)) {
       // Permission already checked for PROTECTED_MODULES above when applicable.
-      return require(globalModulePath);
+      const mod = require(globalModulePath);
+      if (moduleName === "fs" || normalized === "fs") {
+        return bindFsExports(
+          mod,
+          resolveFsBindDir(callingScriptPath, gBoxConfig),
+        );
+      }
+      return mod;
     }
     if (normalized !== moduleName) {
       const alt = path.join(gBoxConfig.globalModulesPath, normalized + ".js");
       if (nodeFs.existsSync(alt)) {
-        return require(alt);
+        const mod = require(alt);
+        if (normalized === "fs") {
+          return bindFsExports(
+            mod,
+            resolveFsBindDir(callingScriptPath, gBoxConfig),
+          );
+        }
+        return mod;
       }
     }
 
@@ -593,6 +607,71 @@ function findLocalModulesRootContaining(absPath, localModulesPaths) {
 }
 
 /**
+ * Bind platform fs exports so each call resolves relative paths against scriptDir.
+ * Needed because helpers often call fs after their module has finished loading;
+ * runInGBox only sets fsScriptFolder during evaluation of the module body.
+ * @private
+ */
+function bindFsExports(fsExports, scriptDir) {
+  const out = {
+    BOX: fsExports.BOX,
+    WEB: fsExports.WEB,
+  };
+  for (const key of Object.keys(fsExports)) {
+    if (key === "BOX" || key === "WEB") continue;
+    const val = fsExports[key];
+    if (typeof val !== "function") {
+      out[key] = val;
+      continue;
+    }
+    out[key] = function boundFsMethod(...args) {
+      let store = null;
+      let prev;
+      try {
+        store = gingee.getContext();
+        prev = store.fsScriptFolder;
+        store.fsScriptFolder = scriptDir;
+      } catch (_) {
+        store = null;
+      }
+      try {
+        const ret = val.apply(fsExports, args);
+        if (ret && typeof ret.then === "function") {
+          return Promise.resolve(ret).finally(() => {
+            if (store) store.fsScriptFolder = prev;
+          });
+        }
+        if (store) store.fsScriptFolder = prev;
+        return ret;
+      } catch (e) {
+        if (store) store.fsScriptFolder = prev;
+        throw e;
+      }
+    };
+  }
+  return out;
+}
+
+/**
+ * Directory used for relative fs paths when a script require('fs').
+ * Override wrappers inherit the caller's fsScriptFolder / request scriptFolder.
+ * @private
+ */
+function resolveFsBindDir(callingScriptPath, gBoxConfig) {
+  if (gBoxConfig.applyModuleOverrides === false) {
+    try {
+      const store = gingee.getContext();
+      if (store && (store.fsScriptFolder || store.scriptFolder)) {
+        return store.fsScriptFolder || store.scriptFolder;
+      }
+    } catch (_) {
+      /* fall through */
+    }
+  }
+  return path.dirname(callingScriptPath);
+}
+
+/**
  * Resolve a bare or box-style specifier under box.local_modules roots (.js only).
  * @private
  * @param {string} moduleName
@@ -637,101 +716,123 @@ function resolveFromLocalModules(moduleName, localModulesPaths) {
 
 // The list of allowed modules is now passed in here.
 function runInGBox(scriptPath, gBoxConfig) {
-  let scriptCode;
-
-  if (gBoxConfig.useCache && transpileCache.has(scriptPath)) {
-    scriptCode = transpileCache.get(scriptPath);
-    gBoxConfig.logger.info(
-      `[CACHE HIT] for script: ${path.basename(scriptPath)}`,
-    );
-  } else {
-    transpileCache.delete(scriptPath); // Clear cache entry if it exists
-    const originalCode = nodeFs.readFileSync(scriptPath, "utf8");
-
-    // --- THIS IS THE NEW ESM "SNIFF TEST" ---
-    // This regex looks for 'import' or 'export' at the beginning of a line (or the file)
-    // or after a semicolon, which is a good indicator of a top-level statement.
-    const isEsModule = /^(import|export)\s|;s*(import|export)\s/.test(
-      originalCode,
-    );
-
-    if (isEsModule) {
-      // If it's likely an ESM file, transpile it.
-      gBoxConfig.logger.info(
-        `ESM detected, transpiling: ${path.basename(scriptPath)}`,
-      );
-      const transformed = sucrase.transform(originalCode, {
-        transforms: ["imports", "jsx", "typescript"],
-      });
-      scriptCode = transformed.code;
-    } else {
-      // Otherwise, assume it's CommonJS and use the code as-is.
-      scriptCode = originalCode;
-    }
-
-    if (gBoxConfig.useCache) {
-      // Store the final code (whether transformed or not) in the cache.
-      transpileCache.set(scriptPath, scriptCode);
-      gBoxConfig.logger.info(
-        `[CACHE SET] for script: ${path.basename(scriptPath)}`,
-      );
-    }
+  // Caller-relative fs: set ALS fsScriptFolder to this script's directory while it runs.
+  // Override wrapper trees (applyModuleOverrides: false) inherit the caller's base so
+  // transparent fs facades keep resolving paths as the request/entry script intended.
+  let alsStore = null;
+  let prevFsScriptFolder;
+  const updateFsBase = gBoxConfig.applyModuleOverrides !== false;
+  try {
+    alsStore = gingee.getContext();
+  } catch (_) {
+    alsStore = null;
   }
-
-  const gbox = {
-    module: { exports: {} },
-    gingee: gingee.gingee,
-    console: gBoxConfig.console || console,
-    // Pass the list down to create the safe require function.
-    require: createGRequire(scriptPath, gBoxConfig),
-  };
-
-  // Keep exports in sync if the script only assigns module.exports
-  gbox.module.exports = gbox.module.exports;
-  const sandboxContext = createSandboxContext(gbox, gBoxConfig, scriptPath);
-
-  // Ensure context sees the same module object (createContext copies properties by value
-  // for the initial object — module is a reference type so mutations to .exports stick).
-  // Re-assign in case createContext cloned poorly on some Node versions:
-  sandboxContext.module = gbox.module;
-  sandboxContext.exports = gbox.module.exports;
-  sandboxContext.require = gbox.require;
-  sandboxContext.gingee = gbox.gingee;
-  sandboxContext.console = gbox.console;
-
-  // CommonJS-style wrapper so top-level return is invalid and scope is contained.
-  const wrapped =
-    `(function (module, exports, require, gingee, console) {\n` +
-    `${scriptCode}\n` +
-    `})(module, exports, require, gingee, console);`;
+  if (alsStore && updateFsBase) {
+    prevFsScriptFolder = alsStore.fsScriptFolder;
+    alsStore.fsScriptFolder = path.dirname(scriptPath);
+  }
 
   try {
-    vm.runInContext(wrapped, sandboxContext, {
-      filename: scriptPath,
-      displayErrors: true,
-    });
-  } catch (err) {
-    // Normalize codegen blocks into a clear security message
-    if (
-      err &&
-      err.code === "ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG" // unlikely
-    ) {
+    let scriptCode;
+
+    if (gBoxConfig.useCache && transpileCache.has(scriptPath)) {
+      scriptCode = transpileCache.get(scriptPath);
+      gBoxConfig.logger.info(
+        `[CACHE HIT] for script: ${path.basename(scriptPath)}`,
+      );
+    } else {
+      transpileCache.delete(scriptPath); // Clear cache entry if it exists
+      const originalCode = nodeFs.readFileSync(scriptPath, "utf8");
+
+      // --- THIS IS THE NEW ESM "SNIFF TEST" ---
+      // This regex looks for 'import' or 'export' at the beginning of a line (or the file)
+      // or after a semicolon, which is a good indicator of a top-level statement.
+      const isEsModule = /^(import|export)\s|;s*(import|export)\s/.test(
+        originalCode,
+      );
+
+      if (isEsModule) {
+        // If it's likely an ESM file, transpile it.
+        gBoxConfig.logger.info(
+          `ESM detected, transpiling: ${path.basename(scriptPath)}`,
+        );
+        const transformed = sucrase.transform(originalCode, {
+          transforms: ["imports", "jsx", "typescript"],
+        });
+        scriptCode = transformed.code;
+      } else {
+        // Otherwise, assume it's CommonJS and use the code as-is.
+        scriptCode = originalCode;
+      }
+
+      if (gBoxConfig.useCache) {
+        // Store the final code (whether transformed or not) in the cache.
+        transpileCache.set(scriptPath, scriptCode);
+        gBoxConfig.logger.info(
+          `[CACHE SET] for script: ${path.basename(scriptPath)}`,
+        );
+      }
+    }
+
+    const gbox = {
+      module: { exports: {} },
+      gingee: gingee.gingee,
+      console: gBoxConfig.console || console,
+      // Pass the list down to create the safe require function.
+      require: createGRequire(scriptPath, gBoxConfig),
+    };
+
+    // Keep exports in sync if the script only assigns module.exports
+    gbox.module.exports = gbox.module.exports;
+    const sandboxContext = createSandboxContext(gbox, gBoxConfig, scriptPath);
+
+    // Ensure context sees the same module object (createContext copies properties by value
+    // for the initial object — module is a reference type so mutations to .exports stick).
+    // Re-assign in case createContext cloned poorly on some Node versions:
+    sandboxContext.module = gbox.module;
+    sandboxContext.exports = gbox.module.exports;
+    sandboxContext.require = gbox.require;
+    sandboxContext.gingee = gbox.gingee;
+    sandboxContext.console = gbox.console;
+
+    // CommonJS-style wrapper so top-level return is invalid and scope is contained.
+    const wrapped =
+      `(function (module, exports, require, gingee, console) {\n` +
+      `${scriptCode}\n` +
+      `})(module, exports, require, gingee, console);`;
+
+    try {
+      vm.runInContext(wrapped, sandboxContext, {
+        filename: scriptPath,
+        displayErrors: true,
+      });
+    } catch (err) {
+      // Normalize codegen blocks into a clear security message
+      if (
+        err &&
+        err.code === "ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG" // unlikely
+      ) {
+        throw err;
+      }
+      if (
+        err &&
+        (err.message || "").includes("Code generation from strings disallowed")
+      ) {
+        throw new Error(
+          `Security Error: eval/Function dynamic code generation is disabled in Gingee app scripts` +
+            ` (script: ${path.basename(scriptPath)}). ` +
+            `If a trusted vendored library requires it, set box.allow_dynamic_code=true in gingee.json (server-wide).`,
+        );
+      }
       throw err;
     }
-    if (
-      err &&
-      (err.message || "").includes("Code generation from strings disallowed")
-    ) {
-      throw new Error(
-        `Security Error: eval/Function dynamic code generation is disabled in Gingee app scripts` +
-          ` (script: ${path.basename(scriptPath)}). ` +
-          `If a trusted vendored library requires it, set box.allow_dynamic_code=true in gingee.json (server-wide).`,
-      );
-    }
-    throw err;
-  }
 
-  return gbox.module.exports;
+    return gbox.module.exports;
+  } finally {
+    if (alsStore && updateFsBase) {
+      alsStore.fsScriptFolder = prevFsScriptFolder;
+    }
+  }
 }
 
 module.exports = {

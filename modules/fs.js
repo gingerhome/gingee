@@ -43,7 +43,10 @@ function _walkOptions(options) {
 /**
  * @module fs
  * @description A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
- * <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
+ * <b>NOTE:</b> A path with a leading <code>/</code> is relative to the scope root (<code>box/</code> or <code>web/</code>).
+ * A path without a leading slash is relative to the <b>currently executing</b> gbox script directory
+ * (aligned with <code>require('./…')</code>). Module-override fs wrappers keep the caller's base so
+ * transparent facades resolve paths as the request/entry script intended.
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
 

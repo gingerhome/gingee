@@ -289,7 +289,7 @@ When a script is invoked by the **CRON scheduler** (see `app.json` → `schedule
 - **`$g.schedule`:** `{ name, cron, timezone, runId, scheduledAt, attempt, targetType, path }`
 - **`$g.response.send(...)`:** records a result for logs (does not write to a client socket)
 - **Streaming:** `startStream` / `writeSSE` / `endStream` are not supported in schedule context
-- **`fs` path resolution:** same as always — leading `/` = scope root (`box/`); no leading slash = directory of the **scheduled script** (important when the job lives under `box/jobs/` but an HTTP endpoint under `box/` must read the same file)
+- **`fs` path resolution:** leading `/` = scope root (`box/`); no leading slash = directory of the **currently executing** gbox script (for a job, that is usually the scheduled script under `box/jobs/`). Prefer leading `/` when an HTTP endpoint under `box/` must read the same file.
 
 #### Streaming responses (SSE and chunked output)
 

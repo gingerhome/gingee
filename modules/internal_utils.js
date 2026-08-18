@@ -170,7 +170,10 @@ function resolveSecurePath(scope, userPath) {
     basePath = scope === SCOPES.BOX ? appBoxPath : appWebPath;
     finalUserPath = finalUserPath.substring(1);
   } else {
-    basePath = ctx.scriptFolder;
+    // No leading "/": relative to the currently executing gbox script folder
+    // (store.fsScriptFolder), falling back to the request/job scriptFolder.
+    // Module-override wrapper trees keep the caller's fsScriptFolder (see gbox runInGBox).
+    basePath = ctx.fsScriptFolder || ctx.scriptFolder;
     if (scope === SCOPES.WEB) {
       basePath = basePath.replace(appBoxPath, appWebPath);
     }

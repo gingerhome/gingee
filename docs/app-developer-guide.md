@@ -384,7 +384,7 @@ module.exports = async function () {
 };
 ```
 
-Without a leading `/`, `fs` paths are relative to the **script folder** (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`). Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`.
+Without a leading `/`, `fs` paths are relative to the **currently executing** gbox script directory (e.g. `data/x.json` from `jobs/cleanup.js` → `box/jobs/data/x.json`), matching `require('./…')`. Use a leading `/` when an HTTP script under `box/` must read the same file as a job under `box/jobs/`. Module-override wrappers that call platform `fs` keep the caller's base so relative paths still resolve as the entry script intended.
 
 External webhooks use `"target": { "type": "url", "url": "https://…", "method": "POST", … }`. URL targets (and all `httpclient` calls) are subject to server **egress** SSRF policy—public HTTPS APIs work by default; localhost/private/metadata are blocked unless the operator configures `allow_cidrs` / `allow_hosts` or `egress.mode: "off"` for local dev.
 

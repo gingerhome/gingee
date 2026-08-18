@@ -287,7 +287,7 @@ Each entry:
 
 Scheduled scripts run in the same sandbox as HTTP/startup scripts. Use the usual `gingee(async ($g) => { … })` form. There is no HTTP connection: `$g.request.method` is `"SCHEDULE"`, `$g.schedule` holds `{ name, cron, timezone, runId, scheduledAt, … }`, and `$g.response.send(...)` records a result in logs (it does not open a network response). Streaming is not supported in schedule context.
 
-**`fs` paths in scheduled scripts:** Same rules as all Gingee scripts. A path **with a leading `/`** is relative to the scope root (`box/` or `web/`). A path **without** a leading slash is relative to the **executing script’s directory**. Example: from `box/jobs/cleanup.js`, `fs.writeFile(fs.BOX, 'data/out.json', …)` writes `box/jobs/data/out.json`, while `fs.writeFile(fs.BOX, '/data/out.json', …)` writes `box/data/out.json`. Prefer leading-`/` paths when another HTTP script (with a different working directory) must read the same file.
+**`fs` paths in scheduled scripts:** Same rules as all Gingee scripts. A path **with a leading `/`** is relative to the scope root (`box/` or `web/`). A path **without** a leading slash is relative to the **currently executing** gbox script’s directory (not `process.cwd()`, and not always the HTTP entry script if a nested box module calls `fs`). Example: from `box/jobs/cleanup.js`, `fs.writeFile(fs.BOX, 'data/out.json', …)` writes `box/jobs/data/out.json`, while `fs.writeFile(fs.BOX, '/data/out.json', …)` writes `box/data/out.json`. Prefer leading-`/` paths when another HTTP script (with a different working directory) must read the same file.
 
 **`target` for external URLs:**
 
