@@ -367,6 +367,7 @@ Single outbound email configuration for the app (no named profiles). App config 
   - An array of strings specifying script paths relative to the `box` folder.
   - **Purpose:** These scripts are executed **once in sequential order** when the application is first loaded by the server (on startup, after an install, or after an upgrade/rollback).
   - **Use Cases:** Ideal for database schema creation/migration, seeding initial data, or warming up the application cache.
+  - **Failure:** If any listed script is missing or throws, that app is **not registered** (or reload fails). Other apps and the HTTP server continue. See [Server Scripts](./server-script.md) → Startup Scripts.
   - **Example:** `"startup_scripts": ["setup/01_schema.js", "setup/02_seed_data.js"]`
 
 - **`default_include`** (array, optional)

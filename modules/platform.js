@@ -657,9 +657,16 @@ async function registerNewApp(appName, permissionsArray) {
     await email.reinitApp(appName, app, logger);
     await ai.reinitApp(appName, app, logger);
 
-    await als.run({ app, logger, globalConfig }, async () => {
-      await runStartupScripts(app);
-    });
+    const startupOk = await als.run({ app, logger, globalConfig }, async () =>
+      runStartupScripts(app),
+    );
+    if (startupOk === false) {
+      delete allApps[appName];
+      logger.error(
+        `App '${appName}' was not registered: startup scripts failed.`,
+      );
+      return false;
+    }
 
     await scheduler.reinitApp(appName, app);
 
@@ -671,6 +678,7 @@ async function registerNewApp(appName, permissionsArray) {
       );
     }
   } catch (error) {
+    delete allApps[appName];
     logger.error(`Error initializing app '${appName}': ${error.message}`);
     return false;
   }
@@ -756,10 +764,15 @@ async function reloadApp(appName) {
     await email.reinitApp(appName, app, logger);
     await ai.reinitApp(appName, app, logger);
 
-    // Run startup scripts for this app
-    await als.run({ app, logger, globalConfig }, async () => {
-      await runStartupScripts(app);
-    });
+    // Run startup scripts for this app — failure aborts the reload
+    const startupOk = await als.run({ app, logger, globalConfig }, async () =>
+      runStartupScripts(app),
+    );
+    if (startupOk === false) {
+      throw new Error(
+        `Startup scripts failed for app '${appName}'. Reload aborted.`,
+      );
+    }
 
     // Re-register CRON schedules for this app (if server scheduler is enabled)
     await scheduler.reinitApp(appName, app);

@@ -179,9 +179,23 @@ async function initializeOneApp(appName, webPath, config, logger) {
   });
 
   if (appConfig.startup_scripts) {
-    await als.run({ app, logger, globalConfig: config }, async () => {
-      await runStartupScripts(app);
-    });
+    const startupOk = await als.run(
+      { app, logger, globalConfig: config },
+      async () => runStartupScripts(app),
+    );
+    if (startupOk === false) {
+      logger.error(
+        `Skipping app '${appName}': startup scripts failed. Fix the scripts and reload.`,
+      );
+      if (appConfig.type === "SPA" && isDevelopment) {
+        try {
+          gdev.stopDevServer(app);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      return null;
+    }
   }
 
   try {

@@ -81,7 +81,7 @@ These are the core architectural features that define the Gingee development exp
   Server-wide sandboxed require roots for project-owned libraries when Gingee is installed under `node_modules`. **Default is `[]`** (opt-in). Configure e.g. `["./local_modules"]`; `.js` only; platform `modules/` always wins over local roots; not part of `.gin` app packages. Sample: **`web/appsandboxtest/`** (`sandbox_kit`). See [Server Config](./server-config.md) → **box.local_modules**.
 
 - **Application Startup Hooks**
-  Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
+  Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded. A failed startup script prevents **that app** from being registered (server and other apps continue).
 
 ## App Module Library
 

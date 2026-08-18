@@ -49,12 +49,15 @@ function loadPermissionsForApp(app) {
  * @param {object} app - The application object from the main `apps` registry.
  * @private
  */
+/**
+ * @returns {Promise<boolean>} true on success (including no scripts); false if a script is missing or throws
+ */
 async function runStartupScripts(app) {
   const { logger, globalConfig } = getContext();
 
   const scripts = app.config["startup_scripts"];
   if (!scripts || !Array.isArray(scripts) || scripts.length === 0) {
-    return; // No startup scripts to run for this app.
+    return true; // Nothing to run — treat as success
   }
 
   logger.info(
@@ -65,7 +68,7 @@ async function runStartupScripts(app) {
     const fullScriptPath = path.join(app.appBoxPath, scriptPath);
     if (!fs.existsSync(fullScriptPath)) {
       logger.error(
-        `FATAL: Startup script not found: ${scriptPath} for app '${app.name}'. App will not start.`,
+        `FATAL: Startup script not found: ${scriptPath} for app '${app.name}'. App will not be registered.`,
       );
       return false;
     }
@@ -116,12 +119,13 @@ async function runStartupScripts(app) {
       );
     } catch (e) {
       logger.error(
-        `FATAL: Error executing startup script '${scriptPath}' for app '${app.name}'. App will not start.`,
+        `FATAL: Error executing startup script '${scriptPath}' for app '${app.name}'. App will not be registered.`,
       );
       logger.error(e.stack);
       return false;
     }
   }
+  return true;
 }
 
 module.exports = { loadPermissionsForApp, runStartupScripts };

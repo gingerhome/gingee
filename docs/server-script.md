@@ -97,11 +97,11 @@ See [Permissions Guide](./permissions-guide.md) → **Module overrides**, and **
 These scripts run **once** when your application is loaded by the server. They are not tied to any HTTP request.
 
 - **Purpose:** To perform one-time setup and initialization tasks for your application. Common uses include creating database tables if they don't exist, seeding the database with default data, or warming up a cache.
-- **Execution:** Configured in `app.json` via the `"startup-scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
+- **Execution:** Configured in `app.json` via the `"startup_scripts"` array. They run in the order they are listed when the Gingee server starts, when an app is newly installed, or after an app is upgraded or rolled back.
 - **`$g` Context:** Receives a **specialized, non-HTTP** version of the `$g` object.
   - **Available:** `$g.log`, `$g.app`.
   - **NOT Available:** `$g.request` and `$g.response` are `null`, as there is no incoming request or outgoing response.
-  - **Important:** If a startup script throws an error, it is considered a fatal initialization failure, and the entire Gingee server will shut down to prevent it from running in an unstable state.
+  - **Important:** If a startup script is missing or throws, initialization for **that app fails**: the app is **not registered** (boot skips it; install/register returns failure; reload is aborted). The Gingee **server keeps running** so other apps stay available. Fix the script and reload or restart.
 
 **Example (`box/setup/create_schema.js`):**
 
