@@ -115,6 +115,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 - **Egress DNS** is checked and **pinned at connect** (`lookup`) to reduce rebinding between policy DNS and TCP connect; redirects re-validate each hop.
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
 - **`module_override`** (if granted): request-scoped redirect of require specifiers (protected/other bare names, relative or box-root paths) to an in-box script. **Only this permission** is required to install/apply redirects; restricted/forbidden/`engine/*` cannot be overridden. Target stays in-box; nested wrapper `require` uses normal jailing (override map not re-applied). Does not special-case app folder names.
+- **`box.local_modules`**: optional project-relative sandboxed require roots (default `[]`). Loaded with the same gbox jailing as app box scripts (not host `require`). Platform `modules/` wins over local roots for the same bare name. Not shipped inside `.gin` packages.
 
 **Still shared across all apps on the instance:**
 

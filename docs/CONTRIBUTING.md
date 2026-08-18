@@ -76,4 +76,16 @@ Here's the workflow for submitting a code contribution:
     npm start
     ```
 
+### Building the distributable engine package
+
+```bash
+npm run build
+```
+
+This runs `build/package.js`, which:
+
+- Produces `build/dist/gingee/` (engine npm package contents).
+- Rebuilds `glade.gin` into both the dist package and sibling **`../gingee-cli/templates/glade.gin`** (when that repo is checked out next to gingee).
+- Writes a **sanitized** `gingee.json` into **`../gingee-cli/templates/project/gingee.json`** so `gingee-cli init` scaffolds match current engine defaults (ports, `box.local_modules: []`, scrubbed credentials). If `gingee-cli` is not present beside this repo, that sync step is skipped with a warning.
+
 Thank you again for your interest in making Gingee better. We look forward to your contributions

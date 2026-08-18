@@ -89,9 +89,9 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 - **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
 - **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
 - **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
-- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations.
+- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
 - **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
-- **`httpclient`**: Provides functions to perform GET and POST requests, supporting various content types to simplify http calls
+- **`httpclient`**: Provides outbound HTTP helpers for `get`, `post`, `put`, `patch`, and `delete`, with content-type helpers for body-bearing methods.
 - **`image`**: Provides a simple and secure way to manipulate images, including resizing, rotating, format conversion etc.
 - **`pdf`**: Provides functionality to create PDF documents, and includes a custom font registry system.
 - **`qrcode`**: Provides functions to generate QR codes and 1D barcodes.
@@ -107,7 +107,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
-- **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
+- **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, **box** (`allowed_modules`, **`local_modules`**, `allow_dynamic_code`), **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
 - **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
 - **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`, `module_override`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 - **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.

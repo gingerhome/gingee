@@ -78,7 +78,7 @@ These are the core architectural features that define the Gingee development exp
 * **Module override (permission `module_override`):**
   Trusted apps may call `$g.overrideModule(specifier, boxRelativePath)` so that for the rest of the request matching `require(...)` (protected/other bare names, relative or box-root paths) loads an in-box wrapper. Restricted/forbidden names cannot be overridden. Wrappers use normal jailing; override map is off for the wrapper tree (no recursion). Sample: **`web/appsandboxtest/`** (full matrix + deny cases). See [Permissions Guide](./permissions-guide.md) → Module overrides.
 * **Project local modules (`box.local_modules`):**
-  Server-wide sandboxed require roots for project-owned libraries (e.g. `./local_modules`) when Gingee is installed under `node_modules`. `.js` only; platform `modules/` always wins over local roots; not part of `.gin` app packages. See [Server Config](./server-config.md) → **box.local_modules**.
+  Server-wide sandboxed require roots for project-owned libraries when Gingee is installed under `node_modules`. **Default is `[]`** (opt-in). Configure e.g. `["./local_modules"]`; `.js` only; platform `modules/` always wins over local roots; not part of `.gin` app packages. Sample: **`web/appsandboxtest/`** (`sandbox_kit`). See [Server Config](./server-config.md) → **box.local_modules**.
 
 - **Application Startup Hooks**
   Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded.
@@ -103,9 +103,9 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 - **`ai`**
   Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 - **`fs`**
-  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks.
+  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks. Includes read/write helpers plus directory listing (`readdir`, `listFiles`, `listDirs`), recursive `walk` (`includeDirs` / `maxDepth`), and `stat` (sync and async). Relative paths (no leading `/`) resolve to the executing gbox script directory; leading `/` is scope-root.
 - **`httpclient`**
-  A powerful wrapper for making external HTTP(S) requests (`get`, `post`, `put`, `patch`, `delete`). It handles redirects, HTTPS, body content types for write methods, and intelligently processes response bodies into strings or buffers.
+  A powerful wrapper for making external HTTP(S) requests: **`get`**, **`post`**, **`put`**, **`patch`**, and **`delete`**. Body-bearing methods share `postType` content types (JSON, form, text, XML, multipart). It handles redirects, HTTPS, egress/SSRF policy, outbound timeouts, and intelligently processes response bodies into strings or buffers.
 - **`formdata`**
   A simple factory module for creating `multipart/form-data` bodies for file uploads via the `httpclient`.
 - **`zip`**
