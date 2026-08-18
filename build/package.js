@@ -67,6 +67,14 @@ function sanitizeGingeeJsonForCliTemplate(sourceConfig) {
     out.metrics.bearer_token = null;
   }
 
+  // JWT: keep optional iss; never ship a real signing secret in the CLI template
+  if (out.jwt && typeof out.jwt === "object") {
+    out.jwt = {
+      ...out.jwt,
+      secret: null,
+    };
+  }
+
   // Secrets: keep relative roots; allow common /run/secrets; drop other absolutes
   if (out.secrets && typeof out.secrets === "object") {
     out.secrets.load_dotenv = false;

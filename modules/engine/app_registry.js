@@ -74,6 +74,7 @@ async function initializeOneApp(appName, webPath, config, logger) {
     default_include: [],
     env: {},
     jwt_secret: null,
+    jwt_iss: null,
     cache: {
       client: { enabled: false, no_cache_regex: [] },
       server: { enabled: false, no_cache_regex: [] },

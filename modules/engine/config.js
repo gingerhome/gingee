@@ -60,6 +60,12 @@ function buildDefaultConfig() {
       // Legacy alias: allow_code_generation (still honored if allow_dynamic_code is unset).
       allow_dynamic_code: true,
     },
+    // Optional server-wide JWT defaults (auth.jwt). App jwt_secret / jwt.iss override these.
+    // secret may use env:VAR / file:path (resolved with the rest of gingee.json).
+    jwt: {
+      secret: null,
+      iss: null,
+    },
     // Scheduler is off by default. Multi-node: coordination.driver "redis" + sibling redis (like queue).
     scheduler: {
       enabled: false,
@@ -136,6 +142,7 @@ function mergeUserConfig(defaultConfig, userConfig) {
       },
     },
     box: { ...defaultConfig.box, ...uc.box },
+    jwt: { ...(defaultConfig.jwt || {}), ...(uc.jwt || {}) },
     scheduler: {
       ...defaultConfig.scheduler,
       ...(uc.scheduler || {}),

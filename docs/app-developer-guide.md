@@ -188,6 +188,7 @@ Do not commit production API keys or DB passwords into `app.json` when you can a
 
 ```json
 "jwt_secret": "env:GINGEE_MYAPP_JWT_SECRET",
+"jwt_iss": "my-app",
 "ai": { "type": "gemini", "api_key": "env:GINGEE_MYAPP_GEMINI_KEY" }
 ```
 

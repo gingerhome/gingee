@@ -383,7 +383,11 @@ Single outbound email configuration for the app (no named profiles). App config 
   - A key-value store for non-sensitive environment variables, made available at `$g.app.env`.
 
 - **`jwt_secret`** (string, optional)
-  - A strong, unique secret key used by the `auth` module for creating and verifying JSON Web Tokens (JWTs).
+  - Signing secret for `auth.jwt` (HS256). Prefer a secret ref: `"env:GINGEE_MYAPP_JWT_SECRET"` or `"file:…"`. Falls back to server `gingee.json` → `jwt.secret` when omitted.
+- **`jwt_iss`** (string, optional)
+  - Optional JWT `iss` (issuer). When set, tokens are created with this issuer and verification requires a match. Falls back to server `jwt.iss`. Per-call override: `jwt.create(payload, '1h', { iss: '…' })` / `jwt.verify(token, { iss: '…' })`.
+- **`jwt`** (object, optional)
+  - Alternative nested form: `{ "secret": "env:…", "iss": "my-app" }` (same meaning as `jwt_secret` / `jwt_iss`).
 
 ### Cache
 

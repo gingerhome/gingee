@@ -129,7 +129,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 ### Security & Authentication
 
 - **`auth`**
-  An authentication module for managing user sessions. Its first implementation provides a complete, configurable toolkit for creating and verifying JSON Web Tokens (JWT).
+  JWT toolkit (`auth.jwt.create` / `verify`): HS256, `exp`/`iat`, optional **`iss`**, secret from app `jwt_secret` or server `gingee.json` → `jwt.secret` (supports `env:` / `file:` refs). Per-call `{ secret, iss }` overrides allowed.
 - **`crypto`**
   A comprehensive cryptographic library. Provides tools for hashing, HMAC, secure password management (`argon2`), symmetric encryption (`AES-2GCM`), and random string generation.
 - **`uuid`**

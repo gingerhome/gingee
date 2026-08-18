@@ -16,14 +16,13 @@ describe("auth.js - JWT Functionality", () => {
     jest.clearAllMocks();
     mockAlsStore = {
       app: { config: { jwt_secret: mockSecret } },
-      logger: { error: jest.fn() }, // For verifyToken error logging
+      globalConfig: { jwt: { secret: null, iss: null } },
+      logger: { error: jest.fn() },
     };
   });
 
   test("createToken should generate a 3-part JWT string", () => {
-    // Mock the dependencies to return predictable values
     encode.base64.encodeUrl.mockImplementation((input) => {
-      // Check the type of the input and convert to string if needed.
       const str = Buffer.isBuffer(input) ? input.toString() : String(input);
       return `encoded_${str.substring(0, 10)}`;
     });
@@ -45,13 +44,9 @@ describe("auth.js - JWT Functionality", () => {
     encode.base64.decodeUrl.mockImplementation(realEncode.base64.decodeUrl);
 
     als.run(mockAlsStore, () => {
-      // 1. Create a real token using the function we want to test.
       const token = auth.jwt.create(mockPayload, "1h");
-
-      // 2. Verify that same token.
       const verifiedPayload = auth.jwt.verify(token);
 
-      // 3. Assertions
       expect(verifiedPayload).not.toBeNull();
       expect(verifiedPayload.userId).toBe(mockPayload.userId);
       expect(verifiedPayload.role).toBe(mockPayload.role);
@@ -62,7 +57,6 @@ describe("auth.js - JWT Functionality", () => {
   test("verifyToken should return null for an expired token", () => {
     jest.useFakeTimers().setSystemTime(new Date("2023-01-01T12:00:00Z"));
 
-    // We also need the real implementations here to create a valid token
     const realCrypto = jest.requireActual("../../modules/crypto");
     const realEncode = jest.requireActual("../../modules/encode");
     crypto.hmacSha256Encrypt.mockImplementation(realCrypto.hmacSha256Encrypt);
@@ -73,7 +67,6 @@ describe("auth.js - JWT Functionality", () => {
       expiredToken = auth.jwt.create(mockPayload, "1h");
     });
 
-    // Advance time by 2 hours
     jest.advanceTimersByTime(2 * 60 * 60 * 1000);
 
     als.run(mockAlsStore, () => {
@@ -82,5 +75,67 @@ describe("auth.js - JWT Functionality", () => {
     });
 
     jest.useRealTimers();
+  });
+
+  test("falls back to server jwt.secret when app has none", () => {
+    const realCrypto = jest.requireActual("../../modules/crypto");
+    const realEncode = jest.requireActual("../../modules/encode");
+    crypto.hmacSha256Encrypt.mockImplementation(realCrypto.hmacSha256Encrypt);
+    encode.base64.encodeUrl.mockImplementation(realEncode.base64.encodeUrl);
+    encode.base64.decodeUrl.mockImplementation(realEncode.base64.decodeUrl);
+
+    const store = {
+      app: { config: { jwt_secret: null } },
+      globalConfig: { jwt: { secret: "server-secret", iss: null } },
+      logger: { error: jest.fn() },
+    };
+
+    als.run(store, () => {
+      const token = auth.jwt.create({ a: 1 }, "1h");
+      const payload = auth.jwt.verify(token);
+      expect(payload).not.toBeNull();
+      expect(payload.a).toBe(1);
+    });
+  });
+
+  test("sets and verifies iss when configured", () => {
+    const realCrypto = jest.requireActual("../../modules/crypto");
+    const realEncode = jest.requireActual("../../modules/encode");
+    crypto.hmacSha256Encrypt.mockImplementation(realCrypto.hmacSha256Encrypt);
+    encode.base64.encodeUrl.mockImplementation(realEncode.base64.encodeUrl);
+    encode.base64.decodeUrl.mockImplementation(realEncode.base64.decodeUrl);
+
+    mockAlsStore.app.config.jwt_iss = "tests-app";
+
+    als.run(mockAlsStore, () => {
+      const token = auth.jwt.create(mockPayload, "1h");
+      const payload = auth.jwt.verify(token);
+      expect(payload).not.toBeNull();
+      expect(payload.iss).toBe("tests-app");
+    });
+
+    als.run(mockAlsStore, () => {
+      const token = auth.jwt.create(mockPayload, "1h", { iss: "other" });
+      expect(auth.jwt.verify(token)).toBeNull(); // expected iss still tests-app
+      expect(auth.jwt.verify(token, { iss: "other" })).not.toBeNull();
+    });
+  });
+
+  test("options.secret overrides app secret", () => {
+    const realCrypto = jest.requireActual("../../modules/crypto");
+    const realEncode = jest.requireActual("../../modules/encode");
+    crypto.hmacSha256Encrypt.mockImplementation(realCrypto.hmacSha256Encrypt);
+    encode.base64.encodeUrl.mockImplementation(realEncode.base64.encodeUrl);
+    encode.base64.decodeUrl.mockImplementation(realEncode.base64.decodeUrl);
+
+    als.run(mockAlsStore, () => {
+      const token = auth.jwt.create(mockPayload, "1h", {
+        secret: "override-secret",
+      });
+      expect(auth.jwt.verify(token)).toBeNull();
+      expect(
+        auth.jwt.verify(token, { secret: "override-secret" }),
+      ).not.toBeNull();
+    });
   });
 });

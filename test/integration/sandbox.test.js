@@ -82,7 +82,8 @@ describe("gbox.js - Sandbox Security (Integration Tests)", () => {
 
         runInGBox(scriptPath, mockGBoxConfig);
       }).toThrow(
-        "has not been granted permission to access the 'platform' module",
+        // platform is restricted (privileged-only), not a normal granted permission
+        "does not have permission to access the 'platform' module",
       );
     });
   });

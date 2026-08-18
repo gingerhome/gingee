@@ -355,7 +355,27 @@ Denied `httpclient` calls return **403** with `code: "EGRESS_DENIED"`. Scheduler
 
 **Literal values still work** (dev): `"jwt_secret": "dev-only-secret"`.
 
-**Examples of fields that commonly use refs:** `jwt_secret`, `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
+**Examples of fields that commonly use refs:** `jwt_secret` (app), `jwt.secret` (server), `db[].password`, `email.api_key`, `ai.api_key`, `cache.redis.password`.
+
+### jwt
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide** defaults for `require('auth').jwt` create/verify. Per-app `app.json` values override these. Useful as a shared fallback when an app omits `jwt_secret`. Prefer a dedicated secret per app in multi-app hosts.
+
+| Key      | Default | Meaning |
+| :------- | :------ | :------ |
+| `secret` | `null`  | HS256 signing secret. Supports `env:VAR` / `file:path` refs (resolved with the rest of `gingee.json`). |
+| `iss`    | `null`  | Optional issuer string. When set, `jwt.create` adds `iss` (unless the payload already has one) and `jwt.verify` requires a matching `iss`. When `null`/omitted, no issuer check. |
+
+**Resolution order for the signing secret:** `options.secret` (per call) → app `jwt_secret` or `jwt.secret` → server `jwt.secret`.  
+**Resolution order for issuer:** `options.iss` → app `jwt_iss` or `jwt.iss` → server `jwt.iss`.
+
+```json
+"jwt": {
+  "secret": "env:GINGEE_JWT_SECRET",
+  "iss": "gingee"
+}
+```
 
 ### metrics
 
