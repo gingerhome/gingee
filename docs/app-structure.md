@@ -394,7 +394,7 @@ Single outbound email configuration for the app (no named profiles). App config 
 - **`cache`** (object, optional)
   - Defines the caching **strategy** for this specific application.
   - **`cache.client`**: Controls browser caching (`Cache-Control` header).
-  - **`cache.server`**: Controls server-side caching of static files and transpiled scripts in Memory or Redis.
+  - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`) or disable server cache for paths that must pick up file edits immediately. After changing cached box libraries, call `reloadApp` (or restart). Box libraries must not capture `$g` / request state at **module load** time—read request context inside exported functions (`await gingee(async ($g) => …)`), same as before.
 
 ---
 

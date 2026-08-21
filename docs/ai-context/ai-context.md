@@ -65,6 +65,7 @@ For building RESTful APIs with clean, dynamic URLs, you can activate a more powe
 - **Isolation:** The sandbox prevents a script from accessing the server's global scope, filesystem, or sensitive process variables.
 - **Controlled Environment:** Instead of having dangerous access, your script is given a single, secure global object (`$g`) to interact with the world.
 - **ESM Support:** The sandbox automatically transpiles modern ES Module syntax (`import`/`from`) on the fly, so you can write modern JavaScript without any build steps.
+- **Server script cache:** With `cache.server.enabled`, transpiled source and sandboxed `module.exports` are reused in-process across requests (per app). Request context (`$g`) stays per-request; do not capture it at module top-level.
 
 ## 4. The `gingee()` Middleware & the `$g` Global
 
@@ -2015,7 +2016,7 @@ Single outbound email configuration for the app (no named profiles). App config 
 - **`cache`** (object, optional)
   - Defines the caching **strategy** for this specific application.
   - **`cache.client`**: Controls browser caching (`Cache-Control` header).
-  - **`cache.server`**: Controls server-side caching of static files and transpiled scripts in Memory or Redis.
+  - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`) or disable server cache for paths that must pick up file edits immediately. After changing cached box libraries, call `reloadApp` (or restart). Box libraries must not capture `$g` / request state at **module load** time—read request context inside exported functions (`await gingee(async ($g) => …)`), same as before.
 
 ---
 
@@ -3891,7 +3892,7 @@ Gingee is a comprehensive application server designed to accelerate development 
 These are the core architectural features that define the Gingee development experience.
 
 - **Secure Sandbox Execution**
-  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
+  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app.
 
 - **Whitelist-Based Permissions System**
   A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).

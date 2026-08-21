@@ -56,6 +56,7 @@ For building RESTful APIs with clean, dynamic URLs, you can activate a more powe
 - **Isolation:** The sandbox prevents a script from accessing the server's global scope, filesystem, or sensitive process variables.
 - **Controlled Environment:** Instead of having dangerous access, your script is given a single, secure global object (`$g`) to interact with the world.
 - **ESM Support:** The sandbox automatically transpiles modern ES Module syntax (`import`/`from`) on the fly, so you can write modern JavaScript without any build steps.
+- **Server script cache:** With `cache.server.enabled`, transpiled source and sandboxed `module.exports` are reused in-process across requests (per app). Request context (`$g`) stays per-request; do not capture it at module top-level.
 
 ## 4. The `gingee()` Middleware & the `$g` Global
 

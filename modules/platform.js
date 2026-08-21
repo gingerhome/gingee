@@ -24,6 +24,7 @@ const { match } = require("path-to-regexp");
 const { loadPermissionsForApp, runStartupScripts } = require("./gapp_start.js");
 const gdev = require("./gdev.js");
 const { isPathInside, loadJsonFile } = require("./internal_utils.js");
+const { clearInstanceCache } = require("./gbox.js");
 
 const ALL_PERMISSIONS = {
   cache:
@@ -747,6 +748,9 @@ async function reloadApp(appName) {
         transpileCache.delete(key);
       }
     }
+    // Drop sandboxed module instances for this app (includes shared local_modules
+    // keyed by appName — must not reuse closed-over require/permissions after reload).
+    clearInstanceCache(appName);
 
     // clear static file cache associated with this app
     const staticCachePrefix = `static:${app.appWebPath}`;
@@ -914,6 +918,7 @@ async function deleteApp(appName, options = {}) {
         transpileCache.delete(key);
       }
     }
+    clearInstanceCache(appName);
 
     // 2. Clear static file cache for all files within the app's web folder.
     await staticFileCache.clear(`static:${app.appWebPath}`);

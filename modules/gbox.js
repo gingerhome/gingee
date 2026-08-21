@@ -74,6 +74,46 @@ const gingee = require("./gingee.js");
 const transpileCache = new Map();
 
 /**
+ * Sandboxed module instance cache (Node require.cache semantics inside gbox).
+ * Keyed by appName + absolute script path so shared local_modules paths do not
+ * leak exports / closed-over require across apps.
+ * @type {Map<string, { exports: * }>}
+ */
+const instanceCache = new Map();
+
+/**
+ * Build instance-cache key for an app + script path.
+ * @private
+ * @param {string} appName
+ * @param {string} scriptPath
+ * @returns {string}
+ */
+function instanceCacheKey(appName, scriptPath) {
+  return `${appName || ""}\0${path.resolve(scriptPath)}`;
+}
+
+/**
+ * Drop cached sandboxed module instances.
+ * When appName is omitted, clears the entire instance cache.
+ * When provided, clears only keys for that app (prefix match).
+ *
+ * @param {string} [appName]
+ * @returns {void}
+ */
+function clearInstanceCache(appName) {
+  if (appName == null || appName === "") {
+    instanceCache.clear();
+    return;
+  }
+  const prefix = `${appName}\0`;
+  for (const key of instanceCache.keys()) {
+    if (key.startsWith(prefix)) {
+      instanceCache.delete(key);
+    }
+  }
+}
+
+/**
  * Security Error helper for blocked host globals.
  * @private
  */
@@ -722,6 +762,9 @@ function runInGBox(scriptPath, gBoxConfig) {
   let alsStore = null;
   let prevFsScriptFolder;
   const updateFsBase = gBoxConfig.applyModuleOverrides !== false;
+  const absScriptPath = path.resolve(scriptPath);
+  const cacheKey = instanceCacheKey(gBoxConfig.appName, absScriptPath);
+
   try {
     alsStore = gingee.getContext();
   } catch (_) {
@@ -729,20 +772,34 @@ function runInGBox(scriptPath, gBoxConfig) {
   }
   if (alsStore && updateFsBase) {
     prevFsScriptFolder = alsStore.fsScriptFolder;
-    alsStore.fsScriptFolder = path.dirname(scriptPath);
+    alsStore.fsScriptFolder = path.dirname(absScriptPath);
   }
 
   try {
+    // Honor useCache / no_cache_regex: never serve or keep a stale instance when off.
+    if (!gBoxConfig.useCache) {
+      instanceCache.delete(cacheKey);
+    } else if (instanceCache.has(cacheKey)) {
+      // Reuse module.exports only — do not reuse vm context or request ALS/$g.
+      return instanceCache.get(cacheKey).exports;
+    }
+
     let scriptCode;
 
-    if (gBoxConfig.useCache && transpileCache.has(scriptPath)) {
-      scriptCode = transpileCache.get(scriptPath);
-      gBoxConfig.logger.info(
-        `[CACHE HIT] for script: ${path.basename(scriptPath)}`,
-      );
+    if (gBoxConfig.useCache && transpileCache.has(absScriptPath)) {
+      scriptCode = transpileCache.get(absScriptPath);
+      if (typeof gBoxConfig.logger.debug === "function") {
+        gBoxConfig.logger.debug(
+          `[CACHE HIT] transpile for script: ${path.basename(absScriptPath)}`,
+        );
+      }
     } else {
-      transpileCache.delete(scriptPath); // Clear cache entry if it exists
-      const originalCode = nodeFs.readFileSync(scriptPath, "utf8");
+      transpileCache.delete(absScriptPath); // Clear cache entry if it exists
+      // Also try legacy key if callers passed a non-resolved path historically
+      if (scriptPath !== absScriptPath) {
+        transpileCache.delete(scriptPath);
+      }
+      const originalCode = nodeFs.readFileSync(absScriptPath, "utf8");
 
       // --- THIS IS THE NEW ESM "SNIFF TEST" ---
       // This regex looks for 'import' or 'export' at the beginning of a line (or the file)
@@ -753,9 +810,11 @@ function runInGBox(scriptPath, gBoxConfig) {
 
       if (isEsModule) {
         // If it's likely an ESM file, transpile it.
-        gBoxConfig.logger.info(
-          `ESM detected, transpiling: ${path.basename(scriptPath)}`,
-        );
+        if (typeof gBoxConfig.logger.debug === "function") {
+          gBoxConfig.logger.debug(
+            `ESM detected, transpiling: ${path.basename(absScriptPath)}`,
+          );
+        }
         const transformed = sucrase.transform(originalCode, {
           transforms: ["imports", "jsx", "typescript"],
         });
@@ -767,10 +826,12 @@ function runInGBox(scriptPath, gBoxConfig) {
 
       if (gBoxConfig.useCache) {
         // Store the final code (whether transformed or not) in the cache.
-        transpileCache.set(scriptPath, scriptCode);
-        gBoxConfig.logger.info(
-          `[CACHE SET] for script: ${path.basename(scriptPath)}`,
-        );
+        transpileCache.set(absScriptPath, scriptCode);
+        if (typeof gBoxConfig.logger.debug === "function") {
+          gBoxConfig.logger.debug(
+            `[CACHE SET] transpile for script: ${path.basename(absScriptPath)}`,
+          );
+        }
       }
     }
 
@@ -779,12 +840,12 @@ function runInGBox(scriptPath, gBoxConfig) {
       gingee: gingee.gingee,
       console: gBoxConfig.console || console,
       // Pass the list down to create the safe require function.
-      require: createGRequire(scriptPath, gBoxConfig),
+      require: createGRequire(absScriptPath, gBoxConfig),
     };
 
     // Keep exports in sync if the script only assigns module.exports
     gbox.module.exports = gbox.module.exports;
-    const sandboxContext = createSandboxContext(gbox, gBoxConfig, scriptPath);
+    const sandboxContext = createSandboxContext(gbox, gBoxConfig, absScriptPath);
 
     // Ensure context sees the same module object (createContext copies properties by value
     // for the initial object — module is a reference type so mutations to .exports stick).
@@ -801,12 +862,22 @@ function runInGBox(scriptPath, gBoxConfig) {
       `${scriptCode}\n` +
       `})(module, exports, require, gingee, console);`;
 
+    // Circular requires: publish the module object before execution (Node-like).
+    // Final exports are written again after success (handlers often replace module.exports).
+    if (gBoxConfig.useCache) {
+      instanceCache.set(cacheKey, { exports: gbox.module.exports });
+    }
+
     try {
       vm.runInContext(wrapped, sandboxContext, {
-        filename: scriptPath,
+        filename: absScriptPath,
         displayErrors: true,
       });
     } catch (err) {
+      // Do not leave a poisoned instance or transpile entry after a failed load —
+      // next attempt must re-read disk (hot-edit / fix-and-retry).
+      instanceCache.delete(cacheKey);
+      transpileCache.delete(absScriptPath);
       // Normalize codegen blocks into a clear security message
       if (
         err &&
@@ -820,11 +891,15 @@ function runInGBox(scriptPath, gBoxConfig) {
       ) {
         throw new Error(
           `Security Error: eval/Function dynamic code generation is disabled in Gingee app scripts` +
-            ` (script: ${path.basename(scriptPath)}). ` +
+            ` (script: ${path.basename(absScriptPath)}). ` +
             `If a trusted vendored library requires it, set box.allow_dynamic_code=true in gingee.json (server-wide).`,
         );
       }
       throw err;
+    }
+
+    if (gBoxConfig.useCache) {
+      instanceCache.set(cacheKey, { exports: gbox.module.exports });
     }
 
     return gbox.module.exports;
@@ -837,6 +912,8 @@ function runInGBox(scriptPath, gBoxConfig) {
 
 module.exports = {
   transpileCache,
+  instanceCache,
+  clearInstanceCache,
   createGRequire,
   runInGBox,
   FORBIDDEN_BUILTINS,
