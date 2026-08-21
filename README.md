@@ -44,7 +44,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
 
 - **Instant Time to Joy**
   - **All-in-One CLI:** A single command (`gingee-cli init`) scaffolds a complete, runnable project with a built-in admin panel.
-  - **Simplified API:** All request/response logic is handled through a single, powerful context object (`$g`) provided by the `gingee()` middleware.
+  - **Simplified API:** All request/response logic goes through `$g` from `gingee()`. Entry scripts keep `await gingee(async ($g) => …)`; required box modules can use bare request-local `$g` without threading it through every `require`.
   - **Flexible Routing:** Use zero-configuration file-based routing for rapid development, or create a `routes.json` for powerful, dynamic RESTful APIs.
   - **Modern JavaScript:** Use modern ESM syntax (`import`/`from`) directly in your server scripts with zero build steps or configuration.
 

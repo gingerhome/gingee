@@ -124,6 +124,99 @@ function blockedHostAccess(name) {
 }
 
 /**
+ * Current request's `$g` from ALS, or throw.
+ * @private
+ * @returns {object}
+ */
+function resolveCurrentG() {
+  const store = gingee.als.getStore();
+  if (!store) {
+    throw new Error(
+      `$g is only available during a request's asynchronous execution context (inside gingee(...)).`,
+    );
+  }
+  if (!store.$g) {
+    throw new Error(
+      `$g is not initialized yet. Use $g inside gingee(async ($g) => { ... }) or code it calls — not at module top level.`,
+    );
+  }
+  return store.$g;
+}
+
+/**
+ * Live Proxy for bare `$g` / `globalThis.$g` in the sandbox.
+ * Always forwards to the current ALS request context (safe with instance cache
+ * even if a module does `const local_$g = $g`). Nested snapshots like
+ * `const res = $g.response` are still per-request objects — do not stash those.
+ * @private
+ * @returns {object}
+ */
+function createLiveGProxy() {
+  return new Proxy(Object.create(null), {
+    get(_target, prop) {
+      if (prop === Symbol.toStringTag) {
+        return "GingeeRequestContext";
+      }
+      const g = resolveCurrentG();
+      const value = Reflect.get(g, prop, g);
+      if (typeof value === "function") {
+        return value.bind(g);
+      }
+      return value;
+    },
+    set() {
+      throw new Error(
+        `Security Error: '$g' is read-only in Gingee app scripts.`,
+      );
+    },
+    has(_target, prop) {
+      return Reflect.has(resolveCurrentG(), prop);
+    },
+    ownKeys() {
+      return Reflect.ownKeys(resolveCurrentG());
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      const desc = Reflect.getOwnPropertyDescriptor(resolveCurrentG(), prop);
+      if (!desc) return undefined;
+      return { ...desc, configurable: true };
+    },
+    defineProperty() {
+      throw new Error(
+        `Security Error: '$g' is read-only in Gingee app scripts.`,
+      );
+    },
+    deleteProperty() {
+      throw new Error(
+        `Security Error: '$g' is read-only in Gingee app scripts.`,
+      );
+    },
+  });
+}
+
+/**
+ * Bind a live `$g` getter (→ shared Proxy) onto a sandbox / vm context object.
+ * @private
+ * @param {object} target
+ * @param {object} liveG
+ */
+function bindLiveG(target, liveG) {
+  Object.defineProperty(target, "$g", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      // Eager ALS check when reading globalThis.$g
+      resolveCurrentG();
+      return liveG;
+    },
+    set() {
+      throw new Error(
+        `Security Error: '$g' is read-only in Gingee app scripts.`,
+      );
+    },
+  });
+}
+
+/**
  * Specifiers that must never be redirected via module_override.
  * @private
  */
@@ -392,6 +485,11 @@ function createSandboxContext(gbox, gBoxConfig, scriptPath) {
   sandbox.global = sandbox;
   sandbox.globalThis = sandbox;
 
+  // Request-local bare `$g` (ALS-backed live Proxy). Same object as globalThis.$g.
+  // Compatible with `gingee(async ($g) => …)` — that parameter is still the real store.$g.
+  const liveG = createLiveGProxy();
+  bindLiveG(sandbox, liveG);
+
   // Explicit denials with clear errors (also blocks accidental free-var use).
   for (const name of ["process", "GLOBAL", "root"]) {
     Object.defineProperty(sandbox, name, {
@@ -418,7 +516,17 @@ function createSandboxContext(gbox, gBoxConfig, scriptPath) {
     };
   }
 
-  return vm.createContext(sandbox, contextOptions);
+  const ctx = vm.createContext(sandbox, contextOptions);
+  // Re-bind after createContext (mirrors module/require reassignment in runInGBox).
+  bindLiveG(ctx, liveG);
+  // Passed into the CJS wrapper as `$g` (vm IIFE free-var lookup is unreliable).
+  Object.defineProperty(ctx, "__gingeeLiveG", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: liveG,
+  });
+  return ctx;
 }
 
 // The list of safe modules is now a parameter.
@@ -857,10 +965,11 @@ function runInGBox(scriptPath, gBoxConfig) {
     sandboxContext.console = gbox.console;
 
     // CommonJS-style wrapper so top-level return is invalid and scope is contained.
+    // `$g` is the live Proxy (ALS-backed); prefer this over free-var global lookup in vm.
     const wrapped =
-      `(function (module, exports, require, gingee, console) {\n` +
+      `(function (module, exports, require, gingee, console, $g) {\n` +
       `${scriptCode}\n` +
-      `})(module, exports, require, gingee, console);`;
+      `})(module, exports, require, gingee, console, __gingeeLiveG);`;
 
     // Circular requires: publish the module object before execution (Node-like).
     // Final exports are written again after success (handlers often replace module.exports).

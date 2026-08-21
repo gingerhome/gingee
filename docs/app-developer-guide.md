@@ -42,17 +42,26 @@ module.exports = async function () {
 ```
 
 - **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
-- **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
-- **`$g`**: The single, powerful "global" object passed to your handler. It's your secure gateway to everything you need.
+- **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it. Keep the `async ($g) => …` parameter for compatibility.
+- **`$g`**: The request context object. It is passed into your `gingee` handler **and** is available as bare `$g` / `globalThis.$g` inside that handler (and in `require`d box modules it calls). The bare binding is **live and request-local** (ALS-backed Proxy)—safe under module instance cache if you write `const local_$g = $g`. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` on module scope.
 
-Let's modify the script to take a query parameter:
+Let's modify the script to take a query parameter, and call a helper that uses bare `$g`:
 
 ```javascript
-// in web/first-app/box/hello.js
-await gingee(async ($g) => {
-  const name = $g.request.query.name || "World";
-  $g.response.send({ message: `Hello, ${name}!` });
-});
+// web/first-app/box/hello.js
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const greeter = require("./lib/greeter.js");
+    greeter.sendHello($g.request.query.name || "World");
+  });
+};
+
+// web/first-app/box/lib/greeter.js
+module.exports = {
+  sendHello(name) {
+    $g.response.send({ message: `Hello, ${name}!` });
+  },
+};
 ```
 
 Now, navigate to `/first-app/hello?name=Gingee` and you'll see the personalized response. All query parameters are automatically parsed for you in `$g.request.query`.
@@ -166,7 +175,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     ```
     Advanced (permission **`module_override`**): middleware can rebind platform modules for the rest of the request via `$g.overrideModule('fs', 'lib/my_fs.js')` while handlers still call `require('fs')`. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample `web/appsandboxtest/`.
     **Shared project libraries:** declare `box.local_modules` in `gingee.json` (e.g. `["./local_modules"]`) so any app can `require('tax')` → `local_modules/tax.js` without copying helpers into each app box. These roots are project-level (not inside a `.gin` package). See [Server Config](./server-config.md) → **box.local_modules**.
-    **Server script cache:** With `app.json` → `cache.server.enabled: true`, Gingee reuses sandboxed **module instances** (box scripts and `local_modules`) across requests—Node `require.cache` semantics inside gbox—while still **calling** the exported handler every request. Use `no_cache_regex` (matched on `req.url`) or disable server cache for live-edit paths; call `reloadApp` after changing cached libraries. Do not capture `$g` at module top-level. Sample: **`web/perftest/`** (`test/e2e/perftest.e2e.test.js`).
+    **Server script cache:** With `app.json` → `cache.server.enabled: true`, Gingee reuses sandboxed **module instances** (box scripts and `local_modules`) across requests—Node `require.cache` semantics inside gbox—while still **calling** the exported handler every request. Use `no_cache_regex` (matched on `req.url`; patterns are precompiled and refreshed on `reloadApp`) or disable server cache for live-edit paths; call `reloadApp` after changing cached libraries. Prefer bare `$g` at use time inside `gingee(...)`; do not use `$g` at module top-level or stash `$g.response` across requests. Sample: **`web/perftest/`** (`test/e2e/perftest.e2e.test.js`).
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript

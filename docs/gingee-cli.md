@@ -80,7 +80,7 @@ gingee-cli init my-awesome-project
 
 SQLite, email `console`, and AI `mock` work without optionals. Image processing needs `sharp`. Using a feature without its package fails at runtime with `FEATURE_NOT_INSTALLED` (see Gingee server-config → Optional npm feature packages).
 
-**Project template `gingee.json`:** The scaffold under `gingee-cli/templates/project/gingee.json` is kept in sync when the **Gingee engine** is built (`npm run build` in the gingee repo → `build/package.js`). The build writes a **sanitized** copy of the engine’s `gingee.json` (canonical HTTP port `7070`, logging `error`, empty `box.local_modules`, scrubbed redis passwords / metrics tokens, empty isolation apps). That keeps new CLI projects aligned with current engine config shape without shipping local-dev secrets. See [Server Config](./server-config.md) for field reference.
+**Project template `gingee.json`:** The scaffold under `gingee-cli/templates/project/gingee.json` is kept in sync when the **Gingee engine** is built (`npm run build` in the gingee repo → `build/package.js`). The build writes a **sanitized** copy of the engine’s `gingee.json` (canonical HTTP port `7070`, logging `error`, empty `box.local_modules`, `content_encoding.size_threshold` default `1024`, scrubbed redis passwords / metrics tokens, empty isolation apps). That keeps new CLI projects aligned with current engine config shape without shipping local-dev secrets. See [Server Config](./server-config.md) for field reference.
 
 ---
 

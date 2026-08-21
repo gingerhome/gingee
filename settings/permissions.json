@@ -20,5 +20,8 @@
       "scheduler",
       "queue"
     ]
+  },
+  "perftest": {
+    "granted": []
   }
 }

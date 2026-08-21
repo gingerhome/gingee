@@ -46,11 +46,34 @@ function sanitizeGingeeJsonForCliTemplate(sourceConfig) {
   out.box.allowed_modules = Array.isArray(out.box.allowed_modules)
     ? out.box.allowed_modules
     : [];
+  // New CLI projects opt in to local_modules (do not copy engine-dev roots).
   out.box.local_modules = [];
   if (typeof out.box.allow_dynamic_code !== "boolean") {
     out.box.allow_dynamic_code = false;
   }
   delete out.box.localModulesPaths;
+
+  // content_encoding: keep enabled flag; canonicalize size_threshold (script gzip gate).
+  // Default 1024; drop legacy min_bytes after migrating if size_threshold unset.
+  out.content_encoding =
+    out.content_encoding && typeof out.content_encoding === "object"
+      ? { ...out.content_encoding }
+      : { enabled: true };
+  if (typeof out.content_encoding.enabled !== "boolean") {
+    out.content_encoding.enabled = true;
+  }
+  let sizeThreshold = out.content_encoding.size_threshold;
+  if (
+    (sizeThreshold == null || sizeThreshold === "") &&
+    out.content_encoding.min_bytes != null &&
+    out.content_encoding.min_bytes !== ""
+  ) {
+    sizeThreshold = out.content_encoding.min_bytes;
+  }
+  delete out.content_encoding.min_bytes;
+  const n = Number(sizeThreshold);
+  out.content_encoding.size_threshold =
+    Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1024;
 
   // Scrub credentials / tokens from shared redis-style blocks
   const scrubRedis = (block) => {

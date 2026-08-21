@@ -1,9 +1,30 @@
 /**
  * HTTP correctness + relative burst latency for web/perftest instance cache.
  * Does not gate on absolute ms (machine-dependent); compares cache vs no_cache_regex.
+ *
+ * Requires gingee.json → box.local_modules to include "./local_modules" (mylib/store).
  */
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const { startServer, stopServer, BASE_URL } = require('./test_server.helper');
+
+function assertPerfTestHostConfig() {
+  const cfgPath = path.resolve(__dirname, '..', '..', 'gingee.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  const roots = (cfg.box && cfg.box.local_modules) || [];
+  const ok = Array.isArray(roots) && roots.some((r) => String(r).replace(/\\/g, '/') === './local_modules');
+  if (!ok) {
+    throw new Error(
+      `perftest e2e requires gingee.json box.local_modules to include "./local_modules" ` +
+        `(got ${JSON.stringify(roots)}).`,
+    );
+  }
+  const storeJs = path.resolve(__dirname, '..', '..', 'local_modules', 'mylib', 'store.js');
+  if (!fs.existsSync(storeJs)) {
+    throw new Error(`Missing ${storeJs} — perftest fixture incomplete.`);
+  }
+}
 
 const AGENT = new http.Agent({ keepAlive: true, maxSockets: 16 });
 
@@ -88,13 +109,23 @@ async function burst(urlPath, concurrency) {
 
 describe('perftest instance cache (e2e)', () => {
   beforeAll(async () => {
+    assertPerfTestHostConfig();
     await startServer();
-    // Fail fast if perftest is missing (stale server without the fixture).
-    const probe = await timedGet('/perftest/echo');
+    // Fail fast if perftest is missing (stale server without local_modules).
+    let probe;
+    try {
+      probe = await timedGet('/perftest/echo');
+    } catch (e) {
+      throw new Error(
+        `perftest probe failed at ${BASE_URL}/perftest/echo: ${e.message}. ` +
+          `Ensure web/perftest exists and the server loaded box.local_modules: ["./local_modules"] ` +
+          `(restart if a stale Gingee was already listening).`,
+      );
+    }
     if (probe.status !== 200 || !probe.body || !probe.body.ok) {
       throw new Error(
         `perftest app not available at ${BASE_URL}/perftest/echo (status=${probe.status}). ` +
-          `Restart Gingee after adding web/perftest and box.local_modules.`,
+          `Restart Gingee after enabling box.local_modules.`,
       );
     }
   }, 60000);
