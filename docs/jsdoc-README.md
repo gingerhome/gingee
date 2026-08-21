@@ -42,6 +42,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
 
 - **Secure by Default**
   - **Whitelist Permissions System:** Applications have no access to the filesystem, database, network, email, generative AI, or CRON scheduler by default. Administrators grant explicit permissions for a "secure by default" posture. See the [Threat Model](./threat-model.md) (cooperative multi-app vs hostile multi-tenant).
+  - **Sandboxed script cache:** When an app enables `cache.server`, Gingee reuses transpiled source and sandboxed `module.exports` in-process (per app). Handlers are still invoked every request; `no_cache_regex` / `reloadApp` cover live-edit workflows.
   - **Sandboxed Execution:** Every server script runs in a `gbox` **vm** sandbox: restricted `require`, path jails, no host `process` (cooperative isolation on a shared process—not a hard multi-tenant VM boundary). String `eval`/`Function` allowed by default for common UMD libs; optional lockdown via `box.allow_dynamic_code: false`.
 
 - **Instant Time to Joy**

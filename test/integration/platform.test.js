@@ -3,7 +3,11 @@ const path = require("path");
 const { als } = require("../../modules/gingee");
 const platform = require("../../modules/platform");
 const appLogger = require("../../modules/logger");
-const { transpileCache } = require("../../modules/gbox");
+const {
+  transpileCache,
+  instanceCache,
+  clearInstanceCache,
+} = require("../../modules/gbox");
 const { loadPermissionsForApp } = require("../../modules/gapp_start");
 
 // Mock the dependencies of the platform module
@@ -85,6 +89,7 @@ describe("platform.js - App Lifecycle Integration", () => {
     // Clean up the workspace
     fs.removeSync(testWorkspace);
     transpileCache.clear();
+    clearInstanceCache();
   });
 
   test("should create, register, reload, and delete an app correctly", async () => {
@@ -112,6 +117,13 @@ describe("platform.js - App Lifecycle Integration", () => {
         expect.any(Object),
       );
 
+      // Seed sandboxed instance cache entries for this app (and a decoy for another).
+      const seededKey = `${appName}\0${path.join(appBoxPath, "handler.js")}`;
+      const otherKey = `other_app\0${path.join(appBoxPath, "handler.js")}`;
+      instanceCache.set(seededKey, { exports: { stale: true } });
+      instanceCache.set(otherKey, { exports: { keep: true } });
+      transpileCache.set(path.join(appBoxPath, "handler.js"), "/* stale */");
+
       // 3. Reload
       // Modify the app.json on disk to simulate a change
       fs.writeJsonSync(appConfigPath, { name: appName, version: "2.0.0" });
@@ -123,6 +135,13 @@ describe("platform.js - App Lifecycle Integration", () => {
       expect(mockAlsStore.allApps[appName].config.version).toBe("2.0.0");
       // Verify DB re-init was called again on reload
       expect(db.reinitApp).toHaveBeenCalledTimes(2); //as we have reset modules earlier
+
+      // reloadApp must drop this app's sandboxed instances (not other apps')
+      expect(instanceCache.has(seededKey)).toBe(false);
+      expect(instanceCache.has(otherKey)).toBe(true);
+      expect(transpileCache.has(path.join(appBoxPath, "handler.js"))).toBe(
+        false,
+      );
 
       // 4. Delete
       await platform.deleteApp(appName);

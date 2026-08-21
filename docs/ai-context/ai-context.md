@@ -65,6 +65,7 @@ For building RESTful APIs with clean, dynamic URLs, you can activate a more powe
 - **Isolation:** The sandbox prevents a script from accessing the server's global scope, filesystem, or sensitive process variables.
 - **Controlled Environment:** Instead of having dangerous access, your script is given a single, secure global object (`$g`) to interact with the world.
 - **ESM Support:** The sandbox automatically transpiles modern ES Module syntax (`import`/`from`) on the fly, so you can write modern JavaScript without any build steps.
+- **Server script cache:** With `cache.server.enabled`, transpiled source and sandboxed `module.exports` are reused in-process across requests (per app + absolute path). The HTTP handler export is still invoked every request. Request context (`$g`) stays per-request; do not capture it at module top-level. Disable cache or use `no_cache_regex` for live-edit URLs; `reloadApp` clears that app’s instances. See **`web/perftest/`**.
 
 ## 4. The `gingee()` Middleware & the `$g` Global
 
@@ -98,7 +99,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 - **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
 - **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
 - **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
-- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
+- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, `readJSON` / `writeJSON`, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
 - **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
 - **`httpclient`**: Provides outbound HTTP helpers for `get`, `post`, `put`, `patch`, and `delete`, with content-type helpers for body-bearing methods.
 - **`image`**: Provides a simple and secure way to manipulate images, including resizing, rotating, format conversion etc.
@@ -667,7 +668,9 @@ An object that configures the HTTP and HTTPS servers.
 ### cache
 
 - **Type:** `object`
-- **Description:** Configures the server-wide, centralized caching provider. This cache is used for internal server tasks (like static file caching). Once configured, the same cache is also made available to applications via the `cache` module to cache app data.
+- **Description:** Configures the server-wide, centralized caching provider. This cache is used for internal server tasks (like **static file** caching when an app enables `app.json` → `cache.server`). Once configured, the same provider is also available to applications via the `cache` module for app data.
+
+  **Not the same as script instance cache:** box script **transpile + sandboxed `module.exports` reuse** is an **in-process** `gbox` Map controlled by each app’s `cache.server.enabled` / `no_cache_regex` (see [App Structure](./app-structure.md) → Cache). It does **not** store script instances in Redis.
 
 - **`cache.provider`** (string):
 
@@ -1242,6 +1245,8 @@ An object that configures the server's logger.
   - Load style: **`runInGBox`** (same sandbox as app box scripts), **not** host `require`. Engine `modules/` always wins over local roots for the same bare name (no shadowing of platform modules).
   - Relative `require('./x')` from a file under a local root is jailed to **that root**; from an app box script it remains jailed to the app box.
   - These are **host/project libraries**, not part of a distributable `.gin` app package. Document and deploy them with the project, not inside app boxes.
+  - With **`cache.server.enabled`**, local_modules files are included in the per-app **sandboxed instance cache** (same as box scripts). Instances are keyed by **app name + absolute path** so two apps never share mutable exports for the same file. `reloadApp` clears that app’s instances.
+  - Samples in this repo: **`web/appsandboxtest/`** (`sandbox_kit`), **`web/perftest/`** (`mylib/store` — instance-cache fixture).
   - New projects from **`gingee-cli init`** ship `local_modules: []` via the sanitized template synced on engine `npm run build`.
   - Example when Gingee is installed via npm under `node_modules` and you share helpers across apps:
 
@@ -1698,11 +1703,14 @@ Here is a comprehensive breakdown of all available properties.
     },
     "server": {
       "enabled": true,
-      "no_cache_regex": ["/api/dynamic-script.js"]
+      "no_cache_regex": ["/api/dynamic-script.js", "\\/nocache\\/"]
     }
   }
 }
 ```
+
+`cache.server.no_cache_regex` is tested against **`req.url`**. Matching requests reload box / `local_modules` scripts from disk every time (no instance reuse). See sample **`web/perftest/`** (`/perftest/echo` vs `/perftest/nocache/echo`).
+
 
 ### Core Metadata
 
@@ -2015,7 +2023,7 @@ Single outbound email configuration for the app (no named profiles). App config 
 - **`cache`** (object, optional)
   - Defines the caching **strategy** for this specific application.
   - **`cache.client`**: Controls browser caching (`Cache-Control` header).
-  - **`cache.server`**: Controls server-side caching of static files and transpiled scripts in Memory or Redis.
+  - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`) or disable server cache for paths that must pick up file edits immediately. After changing cached box libraries, call `reloadApp` (or restart). Box libraries must not capture `$g` / request state at **module load** time—read request context inside exported functions (`await gingee(async ($g) => …)`), same as before.
 
 ---
 
@@ -2658,6 +2666,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     ```
     Advanced (permission **`module_override`**): middleware can rebind platform modules for the rest of the request via `$g.overrideModule('fs', 'lib/my_fs.js')` while handlers still call `require('fs')`. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample `web/appsandboxtest/`.
     **Shared project libraries:** declare `box.local_modules` in `gingee.json` (e.g. `["./local_modules"]`) so any app can `require('tax')` → `local_modules/tax.js` without copying helpers into each app box. These roots are project-level (not inside a `.gin` package). See [Server Config](./server-config.md) → **box.local_modules**.
+    **Server script cache:** With `app.json` → `cache.server.enabled: true`, Gingee reuses sandboxed **module instances** (box scripts and `local_modules`) across requests—Node `require.cache` semantics inside gbox—while still **calling** the exported handler every request. Use `no_cache_regex` (matched on `req.url`) or disable server cache for live-edit paths; call `reloadApp` after changing cached libraries. Do not capture `$g` at module top-level. Sample: **`web/perftest/`** (`test/e2e/perftest.e2e.test.js`).
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
@@ -2889,7 +2898,9 @@ const tree = await fs.walk(fs.BOX, "/data", { includeDirs: true, maxDepth: 3 });
 const info = await fs.stat(fs.BOX, "/data/last-run.json"); // size, mtimeMs, isFile, …
 ```
 
-Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`. See sample **`web/tests/`** (`fileio`, `folderio`, `fs-caller-relative`).
+Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`.
+
+**JSON helpers:** `readJSON` / `writeJSON` and `readJSONSync` / `writeJSONSync` (pretty-print with 2-space indent). See sample **`web/tests/`** (`fileio`, `folderio`, `fs-caller-relative`).
 
 ### Outbound HTTP (`httpclient`)
 
@@ -3261,6 +3272,8 @@ wrapper
 
 Sample: **`web/appsandboxtest/`** — full matrix (protected bare `fs`, other bare `crypto`, relative `./helper`, box-root `shared/bare_util`, project `local_modules` / `sandbox_kit` direct + override, deny restricted/forbidden). Needs `fs` + `module_override` (`fs` for the real module inside the fs wrapper). Host must set `box.local_modules: ["./local_modules"]`.
 
+Instance-cache fixture (no special grants): **`web/perftest/`** — exercises `cache.server` sandboxed module reuse vs `no_cache_regex` (`test/e2e/perftest.e2e.test.js`).
+
 ### Security notes for operators
 
 - App policy hook, not an OS sandbox. Target must stay in-box; nested `require` uses regular jailing.
@@ -3390,7 +3403,8 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 - **Egress DNS** is checked and **pinned at connect** (`lookup`) to reduce rebinding between policy DNS and TCP connect; redirects re-validate each hop.
 - Dangerous Node built-ins (`child_process`, `vm`, `node:fs`, …) cannot be opened via `allowed_modules`
 - **`module_override`** (if granted): request-scoped redirect of require specifiers (protected/other bare names, relative or box-root paths) to an in-box script. **Only this permission** is required to install/apply redirects; restricted/forbidden/`engine/*` cannot be overridden. Target stays in-box; nested wrapper `require` uses normal jailing (override map not re-applied). Does not special-case app folder names.
-- **`box.local_modules`**: optional project-relative sandboxed require roots (default `[]`). Loaded with the same gbox jailing as app box scripts (not host `require`). Platform `modules/` wins over local roots for the same bare name. Not shipped inside `.gin` packages.
+- **`box.local_modules`**: optional project-relative sandboxed require roots (default `[]`). Loaded with the same gbox jailing as app box scripts (not host `require`). Platform `modules/` wins over local roots for the same bare name. Not shipped inside `.gin` packages. When `cache.server` is enabled, instances are cached **per app** (shared file paths must not leak mutable exports across apps).
+- **`cache.server` script instances**: in-process reuse of sandboxed `module.exports` only—not a shared Redis script cache, and not reuse of request/`$g` context. Invalidated on `reloadApp` / process restart / `no_cache_regex`.
 
 **Still shared across all apps on the instance:**
 
@@ -3891,7 +3905,7 @@ Gingee is a comprehensive application server designed to accelerate development 
 These are the core architectural features that define the Gingee development experience.
 
 - **Secure Sandbox Execution**
-  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code.
+  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app.
 
 - **Whitelist-Based Permissions System**
   A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).
@@ -3962,7 +3976,7 @@ These are the core architectural features that define the Gingee development exp
 * **Module override (permission `module_override`):**
   Trusted apps may call `$g.overrideModule(specifier, boxRelativePath)` so that for the rest of the request matching `require(...)` (protected/other bare names, relative or box-root paths) loads an in-box wrapper. Restricted/forbidden names cannot be overridden. Wrappers use normal jailing; override map is off for the wrapper tree (no recursion). Sample: **`web/appsandboxtest/`** (full matrix + deny cases). See [Permissions Guide](./permissions-guide.md) → Module overrides.
 * **Project local modules (`box.local_modules`):**
-  Server-wide sandboxed require roots for project-owned libraries when Gingee is installed under `node_modules`. **Default is `[]`** (opt-in). Configure e.g. `["./local_modules"]`; `.js` only; platform `modules/` always wins over local roots; not part of `.gin` app packages. Sample: **`web/appsandboxtest/`** (`sandbox_kit`). See [Server Config](./server-config.md) → **box.local_modules**.
+  Server-wide sandboxed require roots for project-owned libraries when Gingee is installed under `node_modules`. **Default is `[]`** (opt-in). Configure e.g. `["./local_modules"]`; `.js` only; platform `modules/` always wins over local roots; not part of `.gin` app packages. Included in the per-app sandboxed **instance cache** when `cache.server` is on. Samples: **`web/appsandboxtest/`** (`sandbox_kit`), **`web/perftest/`** (`mylib/store`). See [Server Config](./server-config.md) → **box.local_modules**.
 
 - **Application Startup Hooks**
   Apps can define `startup_scripts` in their `app.json` to run one-time initialization logic, such as database schema migrations or cache warming, when the server starts or after an app is installed/upgraded. A failed startup script prevents **that app** from being registered (server and other apps continue).
@@ -3987,7 +4001,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 - **`ai`**
   Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 - **`fs`**
-  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks. Includes read/write helpers plus directory listing (`readdir`, `listFiles`, `listDirs`), recursive `walk` (`includeDirs` / `maxDepth`), and `stat` (sync and async). Relative paths (no leading `/`) resolve to the executing gbox script directory; leading `/` is scope-root.
+  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks. Includes read/write helpers, **`readJSON` / `writeJSON`** (sync and async), directory listing (`readdir`, `listFiles`, `listDirs`), recursive `walk` (`includeDirs` / `maxDepth`), and `stat`. Relative paths (no leading `/`) resolve to the executing gbox script directory; leading `/` is scope-root.
 - **`httpclient`**
   A powerful wrapper for making external HTTP(S) requests: **`get`**, **`post`**, **`put`**, **`patch`**, and **`delete`**. Body-bearing methods share `postType` content types (JSON, form, text, XML, multipart). It handles redirects, HTTPS, egress/SSRF policy, outbound timeouts, and intelligently processes response bodies into strings or buffers.
 - **`formdata`**

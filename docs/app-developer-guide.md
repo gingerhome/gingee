@@ -166,6 +166,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     ```
     Advanced (permission **`module_override`**): middleware can rebind platform modules for the rest of the request via `$g.overrideModule('fs', 'lib/my_fs.js')` while handlers still call `require('fs')`. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample `web/appsandboxtest/`.
     **Shared project libraries:** declare `box.local_modules` in `gingee.json` (e.g. `["./local_modules"]`) so any app can `require('tax')` → `local_modules/tax.js` without copying helpers into each app box. These roots are project-level (not inside a `.gin` package). See [Server Config](./server-config.md) → **box.local_modules**.
+    **Server script cache:** With `app.json` → `cache.server.enabled: true`, Gingee reuses sandboxed **module instances** (box scripts and `local_modules`) across requests—Node `require.cache` semantics inside gbox—while still **calling** the exported handler every request. Use `no_cache_regex` (matched on `req.url`) or disable server cache for live-edit paths; call `reloadApp` after changing cached libraries. Do not capture `$g` at module top-level. Sample: **`web/perftest/`** (`test/e2e/perftest.e2e.test.js`).
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
@@ -397,7 +398,9 @@ const tree = await fs.walk(fs.BOX, "/data", { includeDirs: true, maxDepth: 3 });
 const info = await fs.stat(fs.BOX, "/data/last-run.json"); // size, mtimeMs, isFile, …
 ```
 
-Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`. See sample **`web/tests/`** (`fileio`, `folderio`, `fs-caller-relative`).
+Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`.
+
+**JSON helpers:** `readJSON` / `writeJSON` and `readJSONSync` / `writeJSONSync` (pretty-print with 2-space indent). See sample **`web/tests/`** (`fileio`, `folderio`, `fs-caller-relative`).
 
 ### Outbound HTTP (`httpclient`)
 
