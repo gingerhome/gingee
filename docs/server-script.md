@@ -19,6 +19,17 @@ module.exports = async function () {
 
 This unified structure ensures that every piece of executable code runs within the same secure, sandboxed environment and receives a properly configured context object (`$g`).
 
+**Required modules and bare `$g`:** Keep `await gingee(async ($g) => { ... })` on entry scripts. Inside that handler, `require`d box helpers may use bare `$g` (live, request-local — ALS-backed Proxy) without passing `$g` as an argument. Prefer reading `$g` at use time; `const local_$g = $g` is OK for the root binding, but do not stash `$g.response` / `$g.request` on module scope, and do not touch `$g` at module top level.
+
+```javascript
+// box/lib/greeter.js
+module.exports = {
+  sendHello() {
+    $g.response.send({ message: "Hello, World!", app: $g.app.name });
+  },
+};
+```
+
 ## Types of Scripts in Gingee
 
 While the structure is the same, the purpose of a script and the context it runs in can differ. There are four types of scripts you can create, plus **WebSocket handlers** (different entry signature) and **queue job handlers** (same `gingee()` pattern, `$g.queue` context).

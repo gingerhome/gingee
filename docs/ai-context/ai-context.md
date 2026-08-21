@@ -82,6 +82,8 @@ module.exports = async function () {
 
 The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`). For progressive output (for example AI token streaming), `$g.response` also supports `startStream`, `write` / `writeSSE`, and `endStream` — see the [Server Script Guide](./server-script.md).
 
+**Bare `$g` in required modules:** Inside `gingee(...)`, box scripts may use bare `$g` (and `globalThis.$g`) without passing it through `require`d helpers. It is a **live, request-local** binding (ALS-backed Proxy)—safe under module instance cache even if you write `const local_$g = $g`. Still use `await gingee(async ($g) => { ... })` on entry scripts for compatibility. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` across requests.
+
 ## 5. Security model (short)
 
 Gingee is designed for **cooperative multi-app** hosting: several applications on one server, separated by a whitelist permission system, BOX/WEB path jails, a **vm sandbox without host `process`**, and admin consent at install time. All apps still share **one Node.js process** (memory and event loop). That is appropriate for first-party or reviewed apps—not for untrusted multi-tenant code on the same instance. Full detail: **[Threat Model](./threat-model.md)**.
@@ -117,7 +119,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 
 Configuration in Gingee is declarative and split across several manifest files, each with a clear purpose. This separation keeps server-level concerns apart from application-specific ones.
 
-- **`gingee.json`:** The master file for the entire server instance. Ports, cache (memory/redis), logging, email/ai defaults, optional **`jwt`** (`secret` / `iss` fallbacks for `auth.jwt`), **box** (`allowed_modules`, **`local_modules`**, `allow_dynamic_code`), **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
+- **`gingee.json`:** The master file for the entire server instance. Ports, **`content_encoding`** (`enabled`, **`size_threshold`** for script gzip), cache (memory/redis), logging, email/ai defaults, optional **`jwt`** (`secret` / `iss` fallbacks for `auth.jwt`), **box** (`allowed_modules`, **`local_modules`**, `allow_dynamic_code`), **scheduler** (`enabled`, optional Redis **coordination** + sibling `redis`), **limits** / **egress** / **secrets**, **metrics** / **audit**, opt-in **isolation**, **websockets** (limits + optional Redis **fanout** + sibling `redis`), and **queue** (memory/redis + DLQ). Redis connection blocks under cache/queue/scheduler/websockets share the same field set (`url` or host/port/…).
 - **`app.json`:** The manifest for a single application, located in its `box` folder. It defines the app's name, database connections, optional `email` / `ai` config, optional `schedules` (CRON jobs), optional `"isolation": "process"`, optional `websockets` handler, optional `queue.jobs` map, startup scripts, and middleware.
 - **`pmft.json`:** The security manifest for a distributable application. Here, a developer declares the permissions (e.g., `db`, `fs`, `email`, `ai`, `scheduler`, `websockets`, `queue`, `module_override`) the app requires to function. The CLI reads this file to get consent from an administrator during installation.
 - **`routes.json`:** An optional manifest for enabling advanced, dynamic URL routing for an application, perfect for building clean RESTful APIs.
@@ -235,7 +237,7 @@ gingee-cli init my-awesome-project
 
 SQLite, email `console`, and AI `mock` work without optionals. Image processing needs `sharp`. Using a feature without its package fails at runtime with `FEATURE_NOT_INSTALLED` (see Gingee server-config → Optional npm feature packages).
 
-**Project template `gingee.json`:** The scaffold under `gingee-cli/templates/project/gingee.json` is kept in sync when the **Gingee engine** is built (`npm run build` in the gingee repo → `build/package.js`). The build writes a **sanitized** copy of the engine’s `gingee.json` (canonical HTTP port `7070`, logging `error`, empty `box.local_modules`, scrubbed redis passwords / metrics tokens, empty isolation apps). That keeps new CLI projects aligned with current engine config shape without shipping local-dev secrets. See [Server Config](./server-config.md) for field reference.
+**Project template `gingee.json`:** The scaffold under `gingee-cli/templates/project/gingee.json` is kept in sync when the **Gingee engine** is built (`npm run build` in the gingee repo → `build/package.js`). The build writes a **sanitized** copy of the engine’s `gingee.json` (canonical HTTP port `7070`, logging `error`, empty `box.local_modules`, `content_encoding.size_threshold` default `1024`, scrubbed redis passwords / metrics tokens, empty isolation apps). That keeps new CLI projects aligned with current engine config shape without shipping local-dev secrets. See [Server Config](./server-config.md) for field reference.
 
 ---
 
@@ -626,7 +628,7 @@ Here is a comprehensive breakdown of all available properties.
     }
   },
   "max_body_size": "10mb",
-  "content_encoding": { "enabled": true },
+  "content_encoding": { "enabled": true, "size_threshold": 1024 },
   "logging": {
     "level": "info",
     "rotation": {
@@ -1212,9 +1214,13 @@ Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the 
 
 - **Type:** `object`
 - **Description:** Configures Gzip compression for responses.
-- **`enabled`** (boolean): If `true`, and the client sends `Accept-Encoding: gzip`, Gingee compresses:
-  - **Static files** (HTML/CSS/JS/…): on cache miss, body is gzipped once and stored alongside the raw bytes in the server static cache (`gzipContent`); cache hits reuse the pre-gzipped buffer (no re-compress). Entries are cleared on `reloadApp`. URLs matching `cache.server.no_cache_regex` skip the static cache (still may gzip on the fly for that response).
-  - **Server script** `$g.response.send(...)`: JSON/text/Buffer bodies are gzipped when the compressed size is smaller (`Vary: Accept-Encoding`). Streaming/`writeSSE` paths are unchanged.
+- **`enabled`** (boolean): If `true`, and the client sends `Accept-Encoding: gzip`, Gingee compresses applicable responses (see below).
+- **`size_threshold`** (number, optional):
+  - **Default:** `1024` (1 KiB).
+  - Minimum **raw** body size in bytes before **server script** `$g.response.send(...)` will gzip. Below this size the body is sent uncompressed (no compress attempt — avoids per-request gzip CPU on tiny JSON). Set to `0` to gzip all script sends when the client accepts gzip.
+- Behavior when enabled:
+  - **Static files** (HTML/CSS/JS/…): on cache miss, body is gzipped once and stored alongside the raw bytes in the server static cache (`gzipContent`); cache hits reuse the pre-gzipped buffer (no re-compress). Entries are cleared on `reloadApp`. URLs matching `cache.server.no_cache_regex` skip the static cache (still may gzip on the fly for that response). `size_threshold` does **not** apply to static.
+  - **Server script** `$g.response.send(...)`: JSON/text/Buffer bodies ≥ `size_threshold` are gzipped (`Vary: Accept-Encoding`). Streaming/`writeSSE` paths are unchanged.
 
 ### logging
 
@@ -2025,7 +2031,7 @@ Single outbound email configuration for the app (no named profiles). App config 
 - **`cache`** (object, optional)
   - Defines the caching **strategy** for this specific application.
   - **`cache.client`**: Controls browser caching (`Cache-Control` header).
-  - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider, including a **pre-gzipped** copy when `content_encoding` is on) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`; patterns are **precompiled** at app load and refreshed on `reloadApp`) or disable server cache for paths that must pick up file edits immediately. `reloadApp` also clears that app’s static cache (including pre-gzip entries) and instance cache. Box libraries must not capture `$g` / request state at **module load** time—read request context inside exported functions (`await gingee(async ($g) => …)`), same as before.
+  - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider, including a **pre-gzipped** copy when `content_encoding` is on) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`; patterns are **precompiled** at app load and refreshed on `reloadApp`) or disable server cache for paths that must pick up file edits immediately. `reloadApp` also clears that app’s static cache (including pre-gzip entries) and instance cache. Prefer bare `$g` at use time inside `gingee(...)` (live request-local Proxy); do not use `$g` at module top level or stash `$g.response` across requests.
 
 ---
 
@@ -2151,6 +2157,17 @@ module.exports = async function () {
 ```
 
 This unified structure ensures that every piece of executable code runs within the same secure, sandboxed environment and receives a properly configured context object (`$g`).
+
+**Required modules and bare `$g`:** Keep `await gingee(async ($g) => { ... })` on entry scripts. Inside that handler, `require`d box helpers may use bare `$g` (live, request-local — ALS-backed Proxy) without passing `$g` as an argument. Prefer reading `$g` at use time; `const local_$g = $g` is OK for the root binding, but do not stash `$g.response` / `$g.request` on module scope, and do not touch `$g` at module top level.
+
+```javascript
+// box/lib/greeter.js
+module.exports = {
+  sendHello() {
+    $g.response.send({ message: "Hello, World!", app: $g.app.name });
+  },
+};
+```
 
 ## Types of Scripts in Gingee
 
@@ -2544,17 +2561,26 @@ module.exports = async function () {
 ```
 
 - **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
-- **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it.
-- **`$g`**: The single, powerful "global" object passed to your handler. It's your secure gateway to everything you need.
+- **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it. Keep the `async ($g) => …` parameter for compatibility.
+- **`$g`**: The request context object. It is passed into your `gingee` handler **and** is available as bare `$g` / `globalThis.$g` inside that handler (and in `require`d box modules it calls). The bare binding is **live and request-local** (ALS-backed Proxy)—safe under module instance cache if you write `const local_$g = $g`. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` on module scope.
 
-Let's modify the script to take a query parameter:
+Let's modify the script to take a query parameter, and call a helper that uses bare `$g`:
 
 ```javascript
-// in web/first-app/box/hello.js
-await gingee(async ($g) => {
-  const name = $g.request.query.name || "World";
-  $g.response.send({ message: `Hello, ${name}!` });
-});
+// web/first-app/box/hello.js
+module.exports = async function () {
+  await gingee(async ($g) => {
+    const greeter = require("./lib/greeter.js");
+    greeter.sendHello($g.request.query.name || "World");
+  });
+};
+
+// web/first-app/box/lib/greeter.js
+module.exports = {
+  sendHello(name) {
+    $g.response.send({ message: `Hello, ${name}!` });
+  },
+};
 ```
 
 Now, navigate to `/first-app/hello?name=Gingee` and you'll see the personalized response. All query parameters are automatically parsed for you in `$g.request.query`.
@@ -2668,7 +2694,7 @@ Let's secure our `POST /posts` endpoint and validate its input.
     ```
     Advanced (permission **`module_override`**): middleware can rebind platform modules for the rest of the request via `$g.overrideModule('fs', 'lib/my_fs.js')` while handlers still call `require('fs')`. See [Permissions Guide](./permissions-guide.md) → Module overrides and sample `web/appsandboxtest/`.
     **Shared project libraries:** declare `box.local_modules` in `gingee.json` (e.g. `["./local_modules"]`) so any app can `require('tax')` → `local_modules/tax.js` without copying helpers into each app box. These roots are project-level (not inside a `.gin` package). See [Server Config](./server-config.md) → **box.local_modules**.
-    **Server script cache:** With `app.json` → `cache.server.enabled: true`, Gingee reuses sandboxed **module instances** (box scripts and `local_modules`) across requests—Node `require.cache` semantics inside gbox—while still **calling** the exported handler every request. Use `no_cache_regex` (matched on `req.url`) or disable server cache for live-edit paths; call `reloadApp` after changing cached libraries. Do not capture `$g` at module top-level. Sample: **`web/perftest/`** (`test/e2e/perftest.e2e.test.js`).
+    **Server script cache:** With `app.json` → `cache.server.enabled: true`, Gingee reuses sandboxed **module instances** (box scripts and `local_modules`) across requests—Node `require.cache` semantics inside gbox—while still **calling** the exported handler every request. Use `no_cache_regex` (matched on `req.url`; patterns are precompiled and refreshed on `reloadApp`) or disable server cache for live-edit paths; call `reloadApp` after changing cached libraries. Prefer bare `$g` at use time inside `gingee(...)`; do not use `$g` at module top-level or stash `$g.response` across requests. Sample: **`web/perftest/`** (`test/e2e/perftest.e2e.test.js`).
 3.  **Validate Input:** In your `create.js` script, use the `utils` module.
     **`web/my-blog/box/api/posts/create.js`**
     ```javascript
@@ -3274,7 +3300,7 @@ wrapper
 
 Sample: **`web/appsandboxtest/`** — full matrix (protected bare `fs`, other bare `crypto`, relative `./helper`, box-root `shared/bare_util`, project `local_modules` / `sandbox_kit` direct + override, deny restricted/forbidden). Needs `fs` + `module_override` (`fs` for the real module inside the fs wrapper). Host must set `box.local_modules: ["./local_modules"]`.
 
-Instance-cache fixture (no special grants): **`web/perftest/`** — exercises `cache.server` sandboxed module reuse vs `no_cache_regex` (`test/e2e/perftest.e2e.test.js`).
+Instance-cache fixture (no special grants): **`web/perftest/`** — exercises `cache.server` sandboxed module reuse vs `no_cache_regex` (`test/e2e/perftest.e2e.test.js`). Host must set `box.local_modules: ["./local_modules"]`.
 
 ### Security notes for operators
 
@@ -3907,7 +3933,9 @@ Gingee is a comprehensive application server designed to accelerate development 
 These are the core architectural features that define the Gingee development experience.
 
 - **Secure Sandbox Execution**
-  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app.
+  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app. Bare `$g` in box code is request-local (ALS); keep `gingee(async ($g) => …)` on entries.
+- **Response compression**
+  With `gingee.json` → `content_encoding.enabled`, static files may be served from a **pre-gzipped** server-cache entry, and `$g.response.send` gzip when the raw body is at least `content_encoding.size_threshold` bytes (default **1024**) and the client sends `Accept-Encoding: gzip`.
 
 - **Whitelist-Based Permissions System**
   A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).
@@ -3990,7 +4018,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 ### Core & System
 
 - **`gingee`**
-  The core middleware and context provider. It provides the `$g` global object (`$g.request`, `$g.response`, etc.) to all server scripts and handles automatic request body parsing.
+  The core middleware and context provider. Entry scripts use `await gingee(async ($g) => { … })`. Inside that handler, bare `$g` / `globalThis.$g` is also available to `require`d box modules (live, request-local Proxy). Handles automatic request body parsing.
 - **`cache`**
   A secure, multi-tenant facade module for application data caching. It provides a simple API (`get`, `set`, `del`, `clear`) and automatically namespaces all keys to ensure data isolation between apps.
 

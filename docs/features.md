@@ -7,7 +7,9 @@ Gingee is a comprehensive application server designed to accelerate development 
 These are the core architectural features that define the Gingee development experience.
 
 - **Secure Sandbox Execution**
-  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app.
+  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app. Bare `$g` in box code is request-local (ALS); keep `gingee(async ($g) => …)` on entries.
+- **Response compression**
+  With `gingee.json` → `content_encoding.enabled`, static files may be served from a **pre-gzipped** server-cache entry, and `$g.response.send` gzip when the raw body is at least `content_encoding.size_threshold` bytes (default **1024**) and the client sends `Accept-Encoding: gzip`.
 
 - **Whitelist-Based Permissions System**
   A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).
@@ -90,7 +92,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 ### Core & System
 
 - **`gingee`**
-  The core middleware and context provider. It provides the `$g` global object (`$g.request`, `$g.response`, etc.) to all server scripts and handles automatic request body parsing.
+  The core middleware and context provider. Entry scripts use `await gingee(async ($g) => { … })`. Inside that handler, bare `$g` / `globalThis.$g` is also available to `require`d box modules (live, request-local Proxy). Handles automatic request body parsing.
 - **`cache`**
   A secure, multi-tenant facade module for application data caching. It provides a simple API (`get`, `set`, `del`, `clear`) and automatically namespaces all keys to ensure data isolation between apps.
 

@@ -151,7 +151,7 @@ wrapper
 
 Sample: **`web/appsandboxtest/`** — full matrix (protected bare `fs`, other bare `crypto`, relative `./helper`, box-root `shared/bare_util`, project `local_modules` / `sandbox_kit` direct + override, deny restricted/forbidden). Needs `fs` + `module_override` (`fs` for the real module inside the fs wrapper). Host must set `box.local_modules: ["./local_modules"]`.
 
-Instance-cache fixture (no special grants): **`web/perftest/`** — exercises `cache.server` sandboxed module reuse vs `no_cache_regex` (`test/e2e/perftest.e2e.test.js`).
+Instance-cache fixture (no special grants): **`web/perftest/`** — exercises `cache.server` sandboxed module reuse vs `no_cache_regex` (`test/e2e/perftest.e2e.test.js`). Host must set `box.local_modules: ["./local_modules"]`.
 
 ### Security notes for operators
 
