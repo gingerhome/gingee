@@ -12,7 +12,8 @@
     }
   },
   "content_encoding": {
-    "enabled": true
+    "enabled": true,
+    "size_threshold": 1024
   },
   "box": {
     "allowed_modules": [],

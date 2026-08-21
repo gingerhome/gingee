@@ -208,6 +208,14 @@ async function runHttpScript(msg) {
     allApps[n] = e.app;
   }
 
+  const acceptEncoding =
+    (req && req.headers && req.headers["accept-encoding"]) || "";
+  const canCompress =
+    !!(globalConfig &&
+      globalConfig.content_encoding &&
+      globalConfig.content_encoding.enabled) &&
+    String(acceptEncoding).includes("gzip");
+
   const store = {
     globalConfig,
     req,
@@ -226,6 +234,7 @@ async function runHttpScript(msg) {
     staticFileCache: null,
     transpileCache: null,
     maxBodySize: msg.maxBodySize || "25mb",
+    canCompress,
     // Cooperative cancel for httpclient / long work (M4)
     requestAbortController: abortController,
     requestAbortSignal: abortController.signal,

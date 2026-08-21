@@ -23,9 +23,11 @@ function applyDefaultAppRoute(req, apps, config, logger) {
     const defaultApp = config.default_app;
     if (defaultApp && apps[defaultApp]) {
       req.url = `/${defaultApp}/${queryString}`;
-      logger.info(
-        `Routing root request to default app '${defaultApp}'. New URL: ${req.url}`,
-      );
+      if (typeof logger.debug === "function") {
+        logger.debug(
+          `Routing root request to default app '${defaultApp}'. New URL: ${req.url}`,
+        );
+      }
     }
   }
 
@@ -63,9 +65,11 @@ function resolveApp(req, apps, config, logger) {
       if (contextualApp && contextualApp.config.type === "SPA") {
         app = contextualApp;
         appName = contextualAppName;
-        logger.info(
-          `[SPA Context] Inferred app '${appName}' from Referer header for request: ${req.url}`,
-        );
+        if (typeof logger.debug === "function") {
+          logger.debug(
+            `[SPA Context] Inferred app '${appName}' from Referer header for request: ${req.url}`,
+          );
+        }
       }
     } catch (e) {
       logger.warn(`Could not parse Referer header: ${req.headers.referer}`);
@@ -92,7 +96,10 @@ function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
         if (matchResult) {
           // Prefer pre-resolved absolute path from app_registry when present
           const confined =
-            route.scriptPath || confineScriptPath(app.appBoxPath, route.script);
+            route.scriptPath ||
+            confineScriptPath(app.appBoxPath, route.script, {
+              rootReal: app.appBoxPathReal,
+            });
           if (confined) {
             targetScriptPath = confined;
             routeParams = matchResult.params;
@@ -110,7 +117,7 @@ function resolveScriptTarget(req, app, appName, urlWithoutQuery, urlParts) {
     const potentialScriptPath = confineScriptPath(
       app.appBoxPath,
       urlParts.slice(1),
-      { appendJs: true },
+      { appendJs: true, rootReal: app.appBoxPathReal },
     );
     if (potentialScriptPath && fs.existsSync(potentialScriptPath)) {
       targetScriptPath = potentialScriptPath;

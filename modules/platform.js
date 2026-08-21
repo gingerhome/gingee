@@ -25,6 +25,9 @@ const { loadPermissionsForApp, runStartupScripts } = require("./gapp_start.js");
 const gdev = require("./gdev.js");
 const { isPathInside, loadJsonFile } = require("./internal_utils.js");
 const { clearInstanceCache } = require("./gbox.js");
+const {
+  attachCompiledCacheRegex,
+} = require("./engine/request/cache_config.js");
 
 const ALL_PERMISSIONS = {
   cache:
@@ -643,6 +646,7 @@ async function registerNewApp(appName, permissionsArray) {
     logger: dedicatedLogger,
     in_maintenance: false,
   };
+  attachCompiledCacheRegex(app);
 
   allApps[appName] = app;
 
@@ -737,6 +741,8 @@ async function reloadApp(appName) {
       app.appBoxPath,
       app.config.logging,
     );
+    // Refresh compiled no_cache_regex (and nested cache defaults) after app.json reload.
+    attachCompiledCacheRegex(app);
 
     // Load permissions for the app
     loadPermissionsForApp(app);
@@ -752,7 +758,7 @@ async function reloadApp(appName) {
     // keyed by appName — must not reuse closed-over require/permissions after reload).
     clearInstanceCache(appName);
 
-    // clear static file cache associated with this app
+    // clear static file cache associated with this app (drops pre-gzip entries too)
     const staticCachePrefix = `static:${app.appWebPath}`;
     await staticFileCache.clear(staticCachePrefix);
 

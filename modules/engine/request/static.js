@@ -1,13 +1,35 @@
 /**
  * @module engine/request/static
- * @description Serve static files with optional cache + gzip.
- * Engine-internal.
+ * @description Serve static files with optional cache + pre-gzip.
+ * Engine-internal. Server cache entries store raw + gzip (base64 for cache_service JSON).
+ * Pre-gzip entries are dropped on app reload via staticFileCache.clear(`static:${appWebPath}`).
+ * no_cache_regex (precompiled on the app) skips cache read/write; response may still gzip on the fly.
  */
 
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 const mimeTypes = require("mime-types");
+const {
+  matchesNoCache,
+  resolveCompiledCacheRegex,
+} = require("./cache_config.js");
+
+/**
+ * @param {Buffer} data
+ * @returns {Promise<Buffer|null>}
+ */
+function gzipBuffer(data) {
+  return new Promise((resolve) => {
+    zlib.gzip(data, (err, compressed) => {
+      if (err || !compressed) {
+        resolve(null);
+      } else {
+        resolve(compressed);
+      }
+    });
+  });
+}
 
 /**
  * @param {object} opts
@@ -23,6 +45,7 @@ async function serveStaticFile(opts) {
     canCompress,
     logger,
     headers,
+    app,
   } = opts;
 
   if (!path.extname(filePath)) {
@@ -30,60 +53,88 @@ async function serveStaticFile(opts) {
   }
 
   const serverCacheConfig = cacheConfig.server;
-  let useCache = serverCacheConfig.enabled;
+  let useCache = !!(serverCacheConfig && serverCacheConfig.enabled);
   const cacheKey = `static:${filePath}`;
+  const compiled = resolveCompiledCacheRegex(app, cacheConfig);
 
   let cacheEntry;
   if (useCache) {
-    const isNoCachePath = serverCacheConfig.no_cache_regex.some((r) =>
-      new RegExp(r).test(req.url),
-    );
-    if (isNoCachePath) {
+    if (matchesNoCache(compiled.serverNoCache, req.url)) {
       useCache = false;
-      logger.info(`No-cache rule matched for path: ${req.url}`);
+      if (typeof logger.debug === "function") {
+        logger.debug(`No-cache rule matched for path: ${req.url}`);
+      }
     } else {
       cacheEntry = await cache.get(cacheKey);
     }
   }
 
-  if (useCache && cacheEntry) {
+  const applyClientCacheControl = (hdrs) => {
+    if (
+      cacheConfig.client &&
+      cacheConfig.client.enabled &&
+      !matchesNoCache(compiled.clientNoCache, req.url)
+    ) {
+      hdrs["Cache-Control"] = "public, max-age=31536000";
+    } else {
+      hdrs["Cache-Control"] = "no-store";
+    }
+  };
+
+  /**
+   * @param {Buffer} raw
+   * @param {Buffer|null|undefined} gzipped
+   * @param {object} outHeaders
+   */
+  const sendBody = (raw, gzipped, outHeaders) => {
+    if (canCompress) {
+      const usePre = gzipped && Buffer.isBuffer(gzipped) ? gzipped : null;
+      if (usePre) {
+        outHeaders["Content-Encoding"] = "gzip";
+        outHeaders["Vary"] = "Accept-Encoding";
+        res.writeHead(200, outHeaders);
+        res.end(usePre);
+        return Promise.resolve();
+      }
+      return gzipBuffer(raw).then((compressed) => {
+        if (compressed && compressed.length < raw.length) {
+          outHeaders["Content-Encoding"] = "gzip";
+          outHeaders["Vary"] = "Accept-Encoding";
+          res.writeHead(200, outHeaders);
+          res.end(compressed);
+        } else {
+          res.writeHead(200, outHeaders);
+          res.end(raw);
+        }
+      });
+    }
+    res.writeHead(200, outHeaders);
+    res.end(raw);
+    return Promise.resolve();
+  };
+
+  if (useCache && cacheEntry && cacheEntry.content) {
     headers["Content-Type"] =
       cacheEntry.contentType ||
       mimeTypes.contentType(path.extname(filePath)) ||
       "application/octet-stream";
-    logger.info(`[CACHE HIT] Serving static file: ${filePath}`);
-
-    if (
-      cacheConfig.client.enabled &&
-      !cacheConfig.client.no_cache_regex.some((r) =>
-        new RegExp(r).test(req.url),
-      )
-    ) {
-      headers["Cache-Control"] = "public, max-age=31536000";
+    if (typeof logger.debug === "function") {
+      logger.debug(`[CACHE HIT] Serving static file: ${filePath}`);
     }
+    applyClientCacheControl(headers);
 
     const content = Buffer.from(cacheEntry.content, "base64");
-    if (canCompress) {
-      zlib.gzip(content, (err, compressedData) => {
-        if (err) {
-          res.writeHead(200, headers);
-          res.end(content);
-        } else {
-          headers["Content-Encoding"] = "gzip";
-          res.writeHead(200, headers);
-          res.end(compressedData);
-        }
-      });
-    } else {
-      res.writeHead(200, headers);
-      res.end(content);
+    let gzipped = null;
+    if (cacheEntry.gzipContent) {
+      gzipped = Buffer.from(cacheEntry.gzipContent, "base64");
     }
+    await sendBody(content, gzipped, headers);
     return true;
   }
 
   // Static file from disk
   return new Promise((resolve) => {
-    fs.readFile(filePath, (err, data) => {
+    fs.readFile(filePath, async (err, data) => {
       if (err) {
         res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("FILE_NOT_FOUND");
@@ -94,40 +145,34 @@ async function serveStaticFile(opts) {
       const contentType =
         mimeTypes.contentType(ext) || "application/octet-stream";
       const outHeaders = { "Content-Type": contentType };
+      applyClientCacheControl(outHeaders);
+
+      const gzipped = await gzipBuffer(data);
 
       if (useCache) {
-        cache.set(cacheKey, { contentType, content: data.toString("base64") });
-        logger.info(`[CACHE SET] Caching static file: ${filePath}`);
-      }
-
-      if (
-        cacheConfig.client.enabled &&
-        !cacheConfig.client.no_cache_regex.some((r) =>
-          new RegExp(r).test(req.url),
-        )
-      ) {
-        outHeaders["Cache-Control"] = "public, max-age=31536000";
-      } else {
-        outHeaders["Cache-Control"] = "no-store";
-      }
-
-      if (canCompress) {
-        zlib.gzip(data, (err2, compressedData) => {
-          if (err2) {
-            res.writeHead(200, outHeaders);
-            res.end(data);
-          } else {
-            outHeaders["Content-Encoding"] = "gzip";
-            res.writeHead(200, outHeaders);
-            res.end(compressedData);
+        const entry = {
+          contentType,
+          content: data.toString("base64"),
+        };
+        if (gzipped) {
+          entry.gzipContent = gzipped.toString("base64");
+        }
+        try {
+          await cache.set(cacheKey, entry);
+          if (typeof logger.debug === "function") {
+            logger.debug(`[CACHE SET] Caching static file: ${filePath}`);
           }
-          resolve(true);
-        });
-      } else {
-        res.writeHead(200, outHeaders);
-        res.end(data);
-        resolve(true);
+        } catch (e) {
+          if (typeof logger.warn === "function") {
+            logger.warn(
+              `Failed to cache static file ${filePath}: ${e.message}`,
+            );
+          }
+        }
       }
+
+      await sendBody(data, gzipped, outHeaders);
+      resolve(true);
     });
   });
 }

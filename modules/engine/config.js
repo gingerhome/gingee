@@ -41,6 +41,8 @@ function buildDefaultConfig() {
     web_root: "./web",
     content_encoding: {
       enabled: true,
+      /** Min raw body size (bytes) before `$g.response.send` will gzip. Default 1KiB. */
+      size_threshold: 1024,
     },
     max_body_size: "25mb",
     logging: {

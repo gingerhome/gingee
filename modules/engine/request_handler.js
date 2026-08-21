@@ -43,7 +43,10 @@ function createRequestHandler(deps) {
   async function requestHandler(req, res, apps, config, logger) {
     const requestStartedAt = Date.now();
     try {
-      if (metrics.tryHandleRequest(req, res, metricsScrapeHooks(apps))) {
+      // Lazy hooks: only build scrape gauges (incl. scheduler.listJobs) on /metrics hits.
+      if (
+        metrics.tryHandleRequest(req, res, () => metricsScrapeHooks(apps))
+      ) {
         return;
       }
 
@@ -72,6 +75,11 @@ function createRequestHandler(deps) {
 
       // Await ALS so async errors surface to this try/catch (M3) instead of
       // becoming unhandled rejections after requestHandler has returned.
+      const acceptEncodingEarly = req.headers["accept-encoding"] || "";
+      const canCompressEarly =
+        !!(config.content_encoding && config.content_encoding.enabled) &&
+        acceptEncodingEarly.includes("gzip");
+
       await als.run(
         {
           globalConfig: config,
@@ -91,6 +99,7 @@ function createRequestHandler(deps) {
           staticFileCache: cache,
           transpileCache,
           maxBodySize: config.max_body_size,
+          canCompress: canCompressEarly,
         },
         async () => {
           // Early string check (fast path); resolved-path checks below are authoritative.
@@ -100,24 +109,30 @@ function createRequestHandler(deps) {
             return;
           }
 
-          const acceptEncoding = req.headers["accept-encoding"] || "";
-          const canCompress =
-            config.content_encoding.enabled && acceptEncoding.includes("gzip");
+          const canCompress = canCompressEarly;
+          const webReal = app.appWebPathReal;
+          const boxReal = app.appBoxPathReal;
+          const webJail = webReal ? { boundaryReal: webReal } : undefined;
+          const boxJail = boxReal ? { boundaryReal: boxReal } : undefined;
 
           // Static / directory paths are confined to this app's WEB root only.
           // Reject `..` and any resolve that leaves appWebPath (C1 path traversal).
-          let filePath = resolveConfinedPath(app.appWebPath, urlParts.slice(1));
+          let filePath = resolveConfinedPath(app.appWebPath, urlParts.slice(1), {
+            rootReal: webReal,
+          });
           if (!filePath) {
             res.writeHead(403, { "Content-Type": "text/plain" });
             res.end("ACCESS_DENIED");
             return;
           }
-          // Never serve files under box/ as static content
-          if (isInsideAppBox(filePath, app.appBoxPath)) {
+          // Never serve files under box/ as static content (box ⊂ web).
+          if (isInsideAppBox(filePath, app.appBoxPath, boxJail)) {
             res.writeHead(403, { "Content-Type": "text/plain" });
             res.end("ACCESS_DENIED");
             return;
           }
+          // filePath from resolveConfinedPath is trusted inside web until SPA replaces it.
+          let webPathTrusted = true;
 
           const defaultCacheConfig = {
             client: { enabled: false, no_cache_regex: [] },
@@ -141,25 +156,31 @@ function createRequestHandler(deps) {
             });
             if (spaResult.handled) return;
             if (spaResult.filePath) {
-              // Double-check SPA asset confinement
+              // SPA may point at a different asset — full jail check required.
               if (
-                !isInsideAppWeb(spaResult.filePath, app.appWebPath) ||
-                isInsideAppBox(spaResult.filePath, app.appBoxPath)
+                !isInsideAppWeb(spaResult.filePath, app.appWebPath, webJail) ||
+                isInsideAppBox(spaResult.filePath, app.appBoxPath, boxJail)
               ) {
                 res.writeHead(403, { "Content-Type": "text/plain" });
                 res.end("ACCESS_DENIED");
                 return;
               }
               filePath = spaResult.filePath;
+              webPathTrusted = true;
             }
           }
 
           if (!targetScriptPath && path.extname(filePath)) {
-            // Final static gate (SPA may have replaced filePath)
+            // Already web-confined + not box (or re-validated after SPA).
             if (
-              !isInsideAppWeb(filePath, app.appWebPath) ||
-              isInsideAppBox(filePath, app.appBoxPath)
+              !webPathTrusted &&
+              !isInsideAppWeb(filePath, app.appWebPath, webJail)
             ) {
+              res.writeHead(403, { "Content-Type": "text/plain" });
+              res.end("ACCESS_DENIED");
+              return;
+            }
+            if (isInsideAppBox(filePath, app.appBoxPath, boxJail)) {
               res.writeHead(403, { "Content-Type": "text/plain" });
               res.end("ACCESS_DENIED");
               return;
@@ -174,14 +195,15 @@ function createRequestHandler(deps) {
               canCompress,
               logger,
               headers,
+              app,
             });
             return;
           }
 
-          // Script path already confined in resolveScriptTarget; re-check before execute
+          // Script path already confined in resolveScriptTarget; cheap re-check with cached boundary.
           if (
             targetScriptPath &&
-            !isInsideAppBox(targetScriptPath, app.appBoxPath)
+            !isInsideAppBox(targetScriptPath, app.appBoxPath, boxJail)
           ) {
             res.writeHead(403, { "Content-Type": "text/plain" });
             res.end("ACCESS_DENIED");
@@ -206,8 +228,9 @@ function createRequestHandler(deps) {
           // Directory listing / index only for confined web paths
           if (
             !filePath ||
-            !isInsideAppWeb(filePath, app.appWebPath) ||
-            isInsideAppBox(filePath, app.appBoxPath)
+            (!webPathTrusted &&
+              !isInsideAppWeb(filePath, app.appWebPath, webJail)) ||
+            isInsideAppBox(filePath, app.appBoxPath, boxJail)
           ) {
             res.writeHead(403, { "Content-Type": "text/plain" });
             res.end("ACCESS_DENIED");

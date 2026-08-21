@@ -69,11 +69,19 @@ function relativeToSegments(relativePath) {
  *
  * @param {string} root - confinement root (app web or box path)
  * @param {string|string[]|null|undefined} relativeOrSegments - relative path or URL segments
+ * @param {object} [options]
+ * @param {string} [options.rootReal] - Precomputed realpath of root (app.appWebPathReal / appBoxPathReal)
  * @returns {string|null}
  */
-function resolveConfinedPath(root, relativeOrSegments) {
+function resolveConfinedPath(root, relativeOrSegments, options) {
   if (root == null || root === "") return null;
   const rootAbs = path.resolve(String(root));
+  const rootReal =
+    options &&
+    typeof options.rootReal === "string" &&
+    options.rootReal.length > 0
+      ? options.rootReal
+      : resolveRealPath(rootAbs);
 
   let segments;
   if (relativeOrSegments == null) {
@@ -89,10 +97,11 @@ function resolveConfinedPath(root, relativeOrSegments) {
     if (segments == null) return null;
   }
 
+  // Join under lexical rootAbs, then jail against rootReal (symlink-safe).
   const candidate =
     segments.length === 0 ? rootAbs : path.resolve(rootAbs, ...segments);
 
-  if (!isPathInside(candidate, rootAbs)) {
+  if (!isPathInside(candidate, rootAbs, { boundaryReal: rootReal })) {
     return null;
   }
   // Return realpath-expanded path so static/script open matches the jail check (H12).
@@ -109,9 +118,11 @@ function resolveConfinedPath(root, relativeOrSegments) {
  */
 function confineScriptPath(appBoxPath, relativeScript, opts = {}) {
   const appendJs = opts.appendJs === true;
+  const rootReal = opts.rootReal;
+  const confineOpts = rootReal ? { rootReal } : undefined;
   if (appendJs) {
     // Join segments first without .js, then append — so confinement applies to the dir+name
-    const base = resolveConfinedPath(appBoxPath, relativeScript);
+    const base = resolveConfinedPath(appBoxPath, relativeScript, confineOpts);
     if (!base) return null;
     // If base is the box root alone and segments were empty, appending .js is wrong
     if (
@@ -122,32 +133,42 @@ function confineScriptPath(appBoxPath, relativeScript, opts = {}) {
       return null;
     }
     const withJs = base.endsWith(".js") ? base : `${base}.js`;
-    if (!isPathInside(withJs, path.resolve(appBoxPath))) return null;
+    if (
+      !isPathInside(withJs, path.resolve(appBoxPath), {
+        boundaryReal: rootReal,
+      })
+    ) {
+      return null;
+    }
     return resolveRealPath(withJs);
   }
-  return resolveConfinedPath(appBoxPath, relativeScript);
+  return resolveConfinedPath(appBoxPath, relativeScript, confineOpts);
 }
 
 /**
  * True if candidate is inside the app box (must not be served as static WEB).
  * @param {string} candidatePath
  * @param {string} appBoxPath
+ * @param {object} [options]
+ * @param {string} [options.boundaryReal] - app.appBoxPathReal
  * @returns {boolean}
  */
-function isInsideAppBox(candidatePath, appBoxPath) {
+function isInsideAppBox(candidatePath, appBoxPath, options) {
   if (!candidatePath || !appBoxPath) return false;
-  return isPathInside(candidatePath, appBoxPath);
+  return isPathInside(candidatePath, appBoxPath, options);
 }
 
 /**
  * True if candidate is confined to app web root.
  * @param {string} candidatePath
  * @param {string} appWebPath
+ * @param {object} [options]
+ * @param {string} [options.boundaryReal] - app.appWebPathReal
  * @returns {boolean}
  */
-function isInsideAppWeb(candidatePath, appWebPath) {
+function isInsideAppWeb(candidatePath, appWebPath, options) {
   if (!candidatePath || !appWebPath) return false;
-  return isPathInside(candidatePath, appWebPath);
+  return isPathInside(candidatePath, appWebPath, options);
 }
 
 module.exports = {

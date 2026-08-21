@@ -352,7 +352,8 @@ function renderPrometheus(hooks) {
  * Handle HTTP metrics scrape. Returns true if request was handled.
  * @param {object} req - Node HTTP request
  * @param {object} res - Node HTTP response
- * @param {object} [hooks]
+ * @param {object|function} [hooks] - scrape hooks object, or a thunk `() => hooks`
+ *   evaluated only after path + auth match (avoids listJobs/getStats on every request).
  * @returns {boolean}
  */
 function tryHandleRequest(req, res, hooks) {
@@ -366,7 +367,8 @@ function tryHandleRequest(req, res, hooks) {
     return true;
   }
 
-  const body = renderPrometheus(hooks);
+  const resolvedHooks = typeof hooks === "function" ? hooks() : hooks;
+  const body = renderPrometheus(resolvedHooks);
   res.writeHead(200, {
     "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
     "Cache-Control": "no-cache",

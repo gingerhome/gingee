@@ -102,6 +102,10 @@ async function initializeOneApp(appName, webPath, config, logger) {
     appBoxPath,
     logger: dedicatedLogger,
   };
+  const {
+    attachCompiledCacheRegex,
+  } = require("./request/cache_config.js");
+  attachCompiledCacheRegex(app);
 
   const routesPath = path.join(appBoxPath, "routes.json");
   if (fs.existsSync(routesPath)) {

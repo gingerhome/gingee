@@ -111,7 +111,7 @@ Here is a comprehensive breakdown of all available properties.
     }
   },
   "max_body_size": "10mb",
-  "content_encoding": { "enabled": true },
+  "content_encoding": { "enabled": true, "size_threshold": 1024 },
   "logging": {
     "level": "info",
     "rotation": {
@@ -697,7 +697,13 @@ Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the 
 
 - **Type:** `object`
 - **Description:** Configures Gzip compression for responses.
-- **`enabled`** (boolean): If `true`, Gingee will compress applicable responses (like HTML, CSS, JS, and JSON) if the client's browser indicates support for it via the `Accept-Encoding` header. This significantly reduces bandwidth usage.
+- **`enabled`** (boolean): If `true`, and the client sends `Accept-Encoding: gzip`, Gingee compresses applicable responses (see below).
+- **`size_threshold`** (number, optional):
+  - **Default:** `1024` (1 KiB).
+  - Minimum **raw** body size in bytes before **server script** `$g.response.send(...)` will gzip. Below this size the body is sent uncompressed (no compress attempt — avoids per-request gzip CPU on tiny JSON). Set to `0` to gzip all script sends when the client accepts gzip.
+- Behavior when enabled:
+  - **Static files** (HTML/CSS/JS/…): on cache miss, body is gzipped once and stored alongside the raw bytes in the server static cache (`gzipContent`); cache hits reuse the pre-gzipped buffer (no re-compress). Entries are cleared on `reloadApp`. URLs matching `cache.server.no_cache_regex` skip the static cache (still may gzip on the fly for that response). `size_threshold` does **not** apply to static.
+  - **Server script** `$g.response.send(...)`: JSON/text/Buffer bodies ≥ `size_threshold` are gzipped (`Vary: Accept-Encoding`). Streaming/`writeSSE` paths are unchanged.
 
 ### logging
 

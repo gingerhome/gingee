@@ -10,6 +10,10 @@ const limits = require("../../limits.js");
 const metrics = require("../../metrics.js");
 const { resolveAllowDynamicCodeForApp } = require("../../gbox.js");
 const { executeScript } = require("./execute_script.js");
+const {
+  matchesNoCache,
+  resolveCompiledCacheRegex,
+} = require("./cache_config.js");
 
 /**
  * Run a box server script for this request (or 404 if missing).
@@ -36,7 +40,9 @@ async function runServerScript(opts) {
     return false; // caller handles directory / 404
   }
 
-  logger.info(`Executing script: ${scriptPath}`);
+  if (typeof logger.debug === "function") {
+    logger.debug(`Executing script: ${scriptPath}`);
+  }
 
   const acquire = limits.tryAcquireRequest(appName, app);
   if (!acquire.ok) {
@@ -95,19 +101,21 @@ async function runServerScript(opts) {
   try {
     const serverCacheConfig = cacheConfig.server;
     let useCache = serverCacheConfig.enabled;
+    const compiled = resolveCompiledCacheRegex(app, cacheConfig);
 
-    if (useCache) {
-      const isNoCachePath = serverCacheConfig.no_cache_regex.some((r) =>
-        new RegExp(r).test(req.url),
-      );
-      if (isNoCachePath) {
-        useCache = false;
-      }
+    if (useCache && matchesNoCache(compiled.serverNoCache, req.url)) {
+      useCache = false;
     }
 
     if (!useCache) {
-      delete require.cache[require.resolve(scriptPath)];
-      logger.info(`Reloading script (cache disabled): ${scriptPath}`);
+      try {
+        delete require.cache[require.resolve(scriptPath)];
+      } catch (_) {
+        /* gbox entry — resolve may fail; ignore */
+      }
+      if (typeof logger.debug === "function") {
+        logger.debug(`Reloading script (cache disabled): ${scriptPath}`);
+      }
     }
 
     const appBoxPath = path.join(webPath, appName, "box");

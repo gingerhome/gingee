@@ -7,8 +7,41 @@
  */
 
 const path = require("path");
+const zlib = require("zlib");
 const { URL } = require("url");
 const limits = require("../../limits.js");
+
+/** Default raw body size threshold (bytes) for script-response gzip. */
+const DEFAULT_GZIP_SIZE_THRESHOLD = 1024;
+
+/**
+ * Resolve content_encoding.size_threshold (script `$g.response.send` gzip gate).
+ * @param {object|null|undefined} globalConfig
+ * @returns {number}
+ * @private
+ */
+function resolveGzipSizeThreshold(globalConfig) {
+  const ce =
+    globalConfig && globalConfig.content_encoding
+      ? globalConfig.content_encoding
+      : null;
+  if (!ce || typeof ce !== "object") {
+    return DEFAULT_GZIP_SIZE_THRESHOLD;
+  }
+  // Prefer size_threshold; accept legacy min_bytes if present.
+  const raw =
+    ce.size_threshold != null && ce.size_threshold !== ""
+      ? ce.size_threshold
+      : ce.min_bytes;
+  if (raw == null || raw === "") {
+    return DEFAULT_GZIP_SIZE_THRESHOLD;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    return DEFAULT_GZIP_SIZE_THRESHOLD;
+  }
+  return Math.floor(n);
+}
 
 /**
  * Populate store.$g with log, app, limits, and either schedule or HTTP request/response.
@@ -198,9 +231,11 @@ function attachScheduleContext(store) {
         status: status || 200,
         contentType: contentType || null,
       };
-      store.logger.info(
-        `Schedule job response recorded by: ${store.$g.completedBy}`,
-      );
+      if (typeof store.logger.debug === "function") {
+        store.logger.debug(
+          `Schedule job response recorded by: ${store.$g.completedBy}`,
+        );
+      }
     },
   };
 }
@@ -260,9 +295,11 @@ function attachQueueContext(store) {
         status: status || 200,
         contentType: contentType || null,
       };
-      store.logger.info(
-        `Queue job response recorded by: ${store.$g.completedBy}`,
-      );
+      if (typeof store.logger.debug === "function") {
+        store.logger.debug(
+          `Queue job response recorded by: ${store.$g.completedBy}`,
+        );
+      }
     },
   };
 }
@@ -419,7 +456,9 @@ function attachHttpContext(store) {
           store.$g.isCompleted = true;
           store.$g.isStreaming = false;
           limits.clearRequestTimers(store);
-          store.logger.info(`Stream ended by: ${store.$g.completedBy}`);
+          if (typeof store.logger.debug === "function") {
+            store.logger.debug(`Stream ended by: ${store.$g.completedBy}`);
+          }
           resInner.end();
         },
 
@@ -439,7 +478,9 @@ function attachHttpContext(store) {
           store.$g.isCompleted = true;
           store.$g.completedBy = path.basename(store.scriptPath);
           limits.clearRequestTimers(store);
-          store.logger.info(`Response sent by: ${store.$g.completedBy}`);
+          if (typeof store.logger.debug === "function") {
+            store.logger.debug(`Response sent by: ${store.$g.completedBy}`);
+          }
 
           resInner.statusCode = status || response.status || 200;
 
@@ -462,15 +503,51 @@ function attachHttpContext(store) {
             resInner.setHeader("Content-Type", contentType);
           }
 
-          if (data) {
-            if (Buffer.isBuffer(data)) {
-              resInner.setHeader("Content-Length", data.length);
-            } else if (typeof data === "object") {
-              data = JSON.stringify(data);
-              resInner.setHeader("Content-Type", "application/json");
+          let payload = data;
+          if (payload != null) {
+            if (Buffer.isBuffer(payload)) {
+              // already binary
+            } else if (typeof payload === "object") {
+              payload = Buffer.from(JSON.stringify(payload), "utf8");
+              if (!contentType) {
+                resInner.setHeader("Content-Type", "application/json");
+              }
+            } else if (typeof payload === "string") {
+              payload = Buffer.from(payload, "utf8");
+            } else {
+              payload = Buffer.from(String(payload), "utf8");
             }
           }
-          resInner.end(data);
+
+          // Gzip script responses when enabled + client accepts gzip + body ≥ size_threshold.
+          // Threshold avoids compressing (and CPU) on every tiny JSON response.
+          const gzipSizeThreshold = resolveGzipSizeThreshold(store.globalConfig);
+          if (
+            payload &&
+            payload.length >= gzipSizeThreshold &&
+            store.canCompress &&
+            !resInner.getHeader("Content-Encoding")
+          ) {
+            try {
+              const compressed = zlib.gzipSync(payload);
+              resInner.setHeader("Content-Encoding", "gzip");
+              resInner.setHeader("Vary", "Accept-Encoding");
+              resInner.setHeader("Content-Length", compressed.length);
+              resInner.end(compressed);
+              return;
+            } catch (e) {
+              store.logger.warn(
+                `response.send gzip failed; sending uncompressed: ${e.message}`,
+              );
+            }
+          }
+
+          if (payload && Buffer.isBuffer(payload)) {
+            resInner.setHeader("Content-Length", payload.length);
+            resInner.end(payload);
+          } else {
+            resInner.end(payload);
+          }
         },
       };
     },

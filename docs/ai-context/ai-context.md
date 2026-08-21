@@ -1212,7 +1212,9 @@ Using a feature without its package throws **`FEATURE_NOT_INSTALLED`** with the 
 
 - **Type:** `object`
 - **Description:** Configures Gzip compression for responses.
-- **`enabled`** (boolean): If `true`, Gingee will compress applicable responses (like HTML, CSS, JS, and JSON) if the client's browser indicates support for it via the `Accept-Encoding` header. This significantly reduces bandwidth usage.
+- **`enabled`** (boolean): If `true`, and the client sends `Accept-Encoding: gzip`, Gingee compresses:
+  - **Static files** (HTML/CSS/JS/…): on cache miss, body is gzipped once and stored alongside the raw bytes in the server static cache (`gzipContent`); cache hits reuse the pre-gzipped buffer (no re-compress). Entries are cleared on `reloadApp`. URLs matching `cache.server.no_cache_regex` skip the static cache (still may gzip on the fly for that response).
+  - **Server script** `$g.response.send(...)`: JSON/text/Buffer bodies are gzipped when the compressed size is smaller (`Vary: Accept-Encoding`). Streaming/`writeSSE` paths are unchanged.
 
 ### logging
 
@@ -2023,7 +2025,7 @@ Single outbound email configuration for the app (no named profiles). App config 
 - **`cache`** (object, optional)
   - Defines the caching **strategy** for this specific application.
   - **`cache.client`**: Controls browser caching (`Cache-Control` header).
-  - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`) or disable server cache for paths that must pick up file edits immediately. After changing cached box libraries, call `reloadApp` (or restart). Box libraries must not capture `$g` / request state at **module load** time—read request context inside exported functions (`await gingee(async ($g) => …)`), same as before.
+  - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider, including a **pre-gzipped** copy when `content_encoding` is on) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`; patterns are **precompiled** at app load and refreshed on `reloadApp`) or disable server cache for paths that must pick up file edits immediately. `reloadApp` also clears that app’s static cache (including pre-gzip entries) and instance cache. Box libraries must not capture `$g` / request state at **module load** time—read request context inside exported functions (`await gingee(async ($g) => …)`), same as before.
 
 ---
 
@@ -6880,9 +6882,7 @@ $g.response.send(pdfBuffer, 200, 'application/pdf');
 <a name="module_platform"></a>
 
 ## platform
-A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps.
-To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.
-<b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
+A module for Gingee platform-specific utilities and functions. Ideally used by only platform-level apps.To use this module the app needs to be declared in the `privilegedApps` list in the gingee.json server config.<b>IMPORTANT:</b> Requires privileged app config and explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [platform](#module_platform)
@@ -6933,9 +6933,7 @@ Lists the names of all detected applications.
 **Returns**: <code>Array.&lt;string&gt;</code> - An array of app names.  
 **Example**  
 ```js
-const platform = require('platform');
-const apps = platform.listApps();
-console.log(apps); // ['app1', 'app2', ...]
+const platform = require('platform');const apps = platform.listApps();console.log(apps); // ['app1', 'app2', ...]
 ```
 <a name="module_platform.createAppDirectory"></a>
 
@@ -6955,8 +6953,7 @@ Creates a new application directory structure.
 
 **Example**  
 ```js
-const result = platform.createAppDirectory('newApp');
-console.log(result); // { message: 'App "newApp" created successfully.', appPath: '/path/to/newApp', boxPath: '/path/to/newApp/box' }
+const result = platform.createAppDirectory('newApp');console.log(result); // { message: 'App "newApp" created successfully.', appPath: '/path/to/newApp', boxPath: '/path/to/newApp/box' }
 ```
 <a name="module_platform.writeFile"></a>
 
@@ -6978,8 +6975,7 @@ Writes content to a file within a specified app's directory.
 
 **Example**  
 ```js
-const result = platform.writeFile('myApp', 'box/api/test.js', 'console.log("Hello World");');
-console.log(result); // true
+const result = platform.writeFile('myApp', 'box/api/test.js', 'console.log("Hello World");');console.log(result); // true
 ```
 <a name="module_platform.readFile"></a>
 
@@ -7001,8 +6997,7 @@ Reads the content of a file from a specified app's directory.
 
 **Example**  
 ```js
-const content = platform.readFile('myApp', 'box/api/test.js');
-console.log(content); // 'console.log("Hello World");'
+const content = platform.readFile('myApp', 'box/api/test.js');console.log(content); // 'console.log("Hello World");'
 ```
 <a name="module_platform.registerNewApp"></a>
 
@@ -7022,8 +7017,7 @@ Registers a new application in the server's context.
 
 **Example**  
 ```js
-const result = platform.registerNewApp('myApp');
-console.log(result); // true if registered successfully
+const result = platform.registerNewApp('myApp');console.log(result); // true if registered successfully
 ```
 <a name="module_platform.reloadApp"></a>
 
@@ -7043,8 +7037,7 @@ Reloads an application's configuration and clears its caches.
 
 **Example**  
 ```js
-const result = platform.reloadApp('myApp');
-console.log(result); // true if reloaded successfully
+const result = platform.reloadApp('myApp');console.log(result); // true if reloaded successfully
 ```
 <a name="module_platform.deleteApp"></a>
 
@@ -7055,8 +7048,7 @@ Recursively deletes an entire application directory. This is a destructive actio
 **Returns**: <code>boolean</code> - True if the app was deleted successfully.  
 **Throws**:
 
-- <code>Error</code> If the app does not exist or if the deletion is outside the
-web root.
+- <code>Error</code> If the app does not exist or if the deletion is outside theweb root.
 
 
 | Param | Type | Description |
@@ -7065,8 +7057,7 @@ web root.
 
 **Example**  
 ```js
-const result = platform.deleteApp('myApp');
-console.log(result); // true if deleted successfully
+const result = platform.deleteApp('myApp');console.log(result); // true if deleted successfully
 ```
 <a name="module_platform.unzipToApp"></a>
 
@@ -7088,8 +7079,7 @@ Unzips a buffer into a target folder within an app, validating each entry for se
 
 **Example**  
 ```js
-const result = await platform.unzipToApp('myApp', 'uploads', zipBuffer);
-console.log(result); // true if unzipped successfully
+const result = await platform.unzipToApp('myApp', 'uploads', zipBuffer);console.log(result); // true if unzipped successfully
 ```
 <a name="module_platform.zipApp"></a>
 
@@ -7109,14 +7099,12 @@ Zips an entire application's directory and returns the data as a buffer.
 
 **Example**  
 ```js
-const zipBuffer = await platform.zipApp('myApp');
-console.log(zipBuffer); // The zipped app data
+const zipBuffer = await platform.zipApp('myApp');console.log(zipBuffer); // The zipped app data
 ```
 <a name="module_platform.packageApp"></a>
 
 ### platform.packageApp(appName) ⇒ <code>Promise.&lt;Buffer&gt;</code>
-Packages an entire application into a distributable .gin archive buffer.
-Obeys the rules in the app's .gpkg manifest file if it exists.
+Packages an entire application into a distributable .gin archive buffer.Obeys the rules in the app's .gpkg manifest file if it exists.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;Buffer&gt;</code> - A promise that resolves with the .gin file data.  
@@ -7131,21 +7119,18 @@ Obeys the rules in the app's .gpkg manifest file if it exists.
 
 **Example**  
 ```js
-const packageBuffer = await platform.packageApp('myApp');
-console.log(packageBuffer); // The packaged app data
+const packageBuffer = await platform.packageApp('myApp');console.log(packageBuffer); // The packaged app data
 ```
 <a name="module_platform.mockUpgrade"></a>
 
 ### platform.mockUpgrade(appName, packageBuffer) ⇒ <code>Promise.&lt;object&gt;</code>
-Mocks an upgrade plan for an app based on a package buffer.
-This is a utility function for verifying an app upgrade deployment before it happens.
+Mocks an upgrade plan for an app based on a package buffer.This is a utility function for verifying an app upgrade deployment before it happens.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;object&gt;</code> - A promise that resolves with the upgrade plan.  
 **Throws**:
 
-- <code>Error</code> If the app does not exist or if the package buffer is invalid
-or contains security issues.
+- <code>Error</code> If the app does not exist or if the package buffer is invalidor contains security issues.
 
 
 | Param | Type | Description |
@@ -7155,14 +7140,12 @@ or contains security issues.
 
 **Example**  
 ```js
-const upgradePlan = await platform.mockUpgrade('myApp', zipBuffer);
-console.log(upgradePlan); // { action: 'Upgrade', fromVersion: '1.0.0', toVersion: '2.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
+const upgradePlan = await platform.mockUpgrade('myApp', zipBuffer);console.log(upgradePlan); // { action: 'Upgrade', fromVersion: '1.0.0', toVersion: '2.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
 ```
 <a name="module_platform.listBackups"></a>
 
 ### platform.listBackups(appName) ⇒ <code>Array.&lt;string&gt;</code>
-Lists all backups for a specific application.
-Backups are stored in the 'backups' directory under the project root.
+Lists all backups for a specific application.Backups are stored in the 'backups' directory under the project root.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Array.&lt;string&gt;</code> - An array of backup file names sorted by date (newest first).  
@@ -7177,14 +7160,12 @@ Backups are stored in the 'backups' directory under the project root.
 
 **Example**  
 ```js
-const backups = platform.listBackups('myApp');
-console.log(backups);
+const backups = platform.listBackups('myApp');console.log(backups);
 ```
 <a name="module_platform.mockRollback"></a>
 
 ### platform.mockRollback(appName) ⇒ <code>Promise.&lt;object&gt;</code>
-Mocks a rollback plan for an app based on the latest backup.
-This is a utility function for verifying an app rollback deployment before it happens.
+Mocks a rollback plan for an app based on the latest backup.This is a utility function for verifying an app rollback deployment before it happens.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;object&gt;</code> - A promise that resolves with the rollback plan.  
@@ -7199,14 +7180,12 @@ This is a utility function for verifying an app rollback deployment before it ha
 
 **Example**  
 ```js
-const rollbackPlan = await platform.mockRollback('myApp');
-console.log(rollbackPlan); // { action: 'Rollback', fromVersion: '2.0.0', toVersion: '1.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
+const rollbackPlan = await platform.mockRollback('myApp');console.log(rollbackPlan); // { action: 'Rollback', fromVersion: '2.0.0', toVersion: '1.0.0', files: { preserved: [], added: [], overwritten: [], deleted: [] } }
 ```
 <a name="module_platform.installApp"></a>
 
 ### platform.installApp(appName, packageBuffer, permissions) ⇒ <code>Promise.&lt;object&gt;</code>
-Installs a new application from a .gin package buffer into a new directory.
-Fails if an app with the same name already exists.
+Installs a new application from a .gin package buffer into a new directory.Fails if an app with the same name already exists.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;object&gt;</code> - A promise that resolves with a success message.  
@@ -7223,15 +7202,12 @@ Fails if an app with the same name already exists.
 
 **Example**  
 ```js
-const grantedPermissions = ["cache", "db", "fs"];
-const result = await platform.installApp('myApp', packageBuffer, grantedPermissions);
-console.log(result); // true if installed successfully
+const grantedPermissions = ["cache", "db", "fs"];const result = await platform.installApp('myApp', packageBuffer, grantedPermissions);console.log(result); // true if installed successfully
 ```
 <a name="module_platform.upgradeApp"></a>
 
 ### platform.upgradeApp(appName, packageBuffer, permissions, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
-Upgrades an existing application to a new version using a .gin package buffer.
-Preserves files as specified in the app's .gup configuration.
+Upgrades an existing application to a new version using a .gin package buffer.Preserves files as specified in the app's .gup configuration.
 
 **Kind**: static method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>Promise.&lt;boolean&gt;</code> - A promise that resolves to true if the upgrade was successful.  
@@ -7249,9 +7225,7 @@ Preserves files as specified in the app's .gup configuration.
 
 **Example**  
 ```js
-const grantedPermissions = ["cache", "db", "fs"];
-const result = await platform.upgradeApp('myApp', packageBuffer, grantedPermissions);
-console.log(result); // true if upgraded successfully
+const grantedPermissions = ["cache", "db", "fs"];const result = await platform.upgradeApp('myApp', packageBuffer, grantedPermissions);console.log(result); // true if upgraded successfully
 ```
 <a name="module_platform.rollbackApp"></a>
 
@@ -7272,8 +7246,7 @@ Rolls back an application to its previous version using the latest backup.
 
 **Example**  
 ```js
-const result = await platform.rollbackApp('myApp');
-console.log(result); // true if rolled back successfully
+const result = await platform.rollbackApp('myApp');console.log(result); // true if rolled back successfully
 ```
 <a name="module_platform.installFromBackup"></a>
 
@@ -7294,15 +7267,12 @@ Installs an application from a previously created backup file.
 
 **Example**  
 ```js
-const result = await platform.installFromBackup('myApp');
-console.log(result); // true if installed successfully
+const result = await platform.installFromBackup('myApp');console.log(result); // true if installed successfully
 ```
 <a name="module_platform..assertSafeAppName"></a>
 
 ### platform~assertSafeAppName(appName) ⇒ <code>string</code>
-Validate an application name used in filesystem paths and platform APIs.
-Rejects empty names, whitespace, path separators, `..`, and other unsafe forms.
-When ALS context has `webPath`, also verifies `webPath/appName` stays under web root.
+Validate an application name used in filesystem paths and platform APIs.Rejects empty names, whitespace, path separators, `..`, and other unsafe forms.When ALS context has `webPath`, also verifies `webPath/appName` stays under web root.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 **Returns**: <code>string</code> - trimmed validated name (same as input after trim check — no silent trim)  
@@ -7318,8 +7288,7 @@ When ALS context has `webPath`, also verifies `webPath/appName` stays under web 
 <a name="module_platform..isReservedForDelete"></a>
 
 ### platform~isReservedForDelete(appName) ⇒ <code>boolean</code>
-True if this app must not be deleted via the public delete API.
-Always includes `glade`; also includes names listed in gingee.json `privileged_apps`.
+True if this app must not be deleted via the public delete API.Always includes `glade`; also includes names listed in gingee.json `privileged_apps`.
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 
@@ -7486,8 +7455,7 @@ List server or app log files (privileged / Glade).
 <a name="module_platform..readLogFile"></a>
 
 ### platform~readLogFile([opts]) ⇒ <code>object</code>
-Tail-read a log file (privileged / Glade).
-Does not write log line content into the audit trail (metadata only).
+Tail-read a log file (privileged / Glade).Does not write log line content into the audit trail (metadata only).
 
 **Kind**: inner method of [<code>platform</code>](#module_platform)  
 
@@ -8141,8 +8109,7 @@ Safe app directory names only (no path separators, no `..`).
 <a name="RESERVED_DELETE_APP_NAMES"></a>
 
 ## RESERVED\_DELETE\_APP\_NAMES
-App names that must never be uninstalled via the public delete API.
-Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true }).
+App names that must never be uninstalled via the public delete API.Upgrade/rollback may still replace them via deleteApp(..., { allowReserved: true }).
 
 **Kind**: global constant  
 

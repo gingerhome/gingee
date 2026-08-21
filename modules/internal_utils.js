@@ -125,9 +125,12 @@ function _isPathInsideLexical(candidatePath, boundaryPath) {
  *
  * @param {string} candidatePath - Absolute or relative path to test.
  * @param {string} boundaryPath - Absolute or relative confinement root.
+ * @param {object} [options]
+ * @param {string} [options.boundaryReal] - Precomputed {@link resolveRealPath} of the
+ *   boundary (e.g. `app.appWebPathReal`). Candidate is still realpath-expanded.
  * @returns {boolean}
  */
-function isPathInside(candidatePath, boundaryPath) {
+function isPathInside(candidatePath, boundaryPath, options) {
   if (typeof candidatePath !== "string" || typeof boundaryPath !== "string") {
     return false;
   }
@@ -136,7 +139,12 @@ function isPathInside(candidatePath, boundaryPath) {
   }
 
   const candidate = resolveRealPath(candidatePath);
-  const boundary = resolveRealPath(boundaryPath);
+  const boundary =
+    options &&
+    typeof options.boundaryReal === "string" &&
+    options.boundaryReal.length > 0
+      ? options.boundaryReal
+      : resolveRealPath(boundaryPath);
   return _isPathInsideLexical(candidate, boundary);
 }
 
