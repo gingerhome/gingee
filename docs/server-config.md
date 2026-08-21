@@ -153,7 +153,9 @@ An object that configures the HTTP and HTTPS servers.
 ### cache
 
 - **Type:** `object`
-- **Description:** Configures the server-wide, centralized caching provider. This cache is used for internal server tasks (like static file caching). Once configured, the same cache is also made available to applications via the `cache` module to cache app data.
+- **Description:** Configures the server-wide, centralized caching provider. This cache is used for internal server tasks (like **static file** caching when an app enables `app.json` → `cache.server`). Once configured, the same provider is also available to applications via the `cache` module for app data.
+
+  **Not the same as script instance cache:** box script **transpile + sandboxed `module.exports` reuse** is an **in-process** `gbox` Map controlled by each app’s `cache.server.enabled` / `no_cache_regex` (see [App Structure](./app-structure.md) → Cache). It does **not** store script instances in Redis.
 
 - **`cache.provider`** (string):
 
@@ -728,6 +730,8 @@ An object that configures the server's logger.
   - Load style: **`runInGBox`** (same sandbox as app box scripts), **not** host `require`. Engine `modules/` always wins over local roots for the same bare name (no shadowing of platform modules).
   - Relative `require('./x')` from a file under a local root is jailed to **that root**; from an app box script it remains jailed to the app box.
   - These are **host/project libraries**, not part of a distributable `.gin` app package. Document and deploy them with the project, not inside app boxes.
+  - With **`cache.server.enabled`**, local_modules files are included in the per-app **sandboxed instance cache** (same as box scripts). Instances are keyed by **app name + absolute path** so two apps never share mutable exports for the same file. `reloadApp` clears that app’s instances.
+  - Samples in this repo: **`web/appsandboxtest/`** (`sandbox_kit`), **`web/perftest/`** (`mylib/store` — instance-cache fixture).
   - New projects from **`gingee-cli init`** ship `local_modules: []` via the sanitized template synced on engine `npm run build`.
   - Example when Gingee is installed via npm under `node_modules` and you share helpers across apps:
 

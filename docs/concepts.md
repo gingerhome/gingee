@@ -56,7 +56,7 @@ For building RESTful APIs with clean, dynamic URLs, you can activate a more powe
 - **Isolation:** The sandbox prevents a script from accessing the server's global scope, filesystem, or sensitive process variables.
 - **Controlled Environment:** Instead of having dangerous access, your script is given a single, secure global object (`$g`) to interact with the world.
 - **ESM Support:** The sandbox automatically transpiles modern ES Module syntax (`import`/`from`) on the fly, so you can write modern JavaScript without any build steps.
-- **Server script cache:** With `cache.server.enabled`, transpiled source and sandboxed `module.exports` are reused in-process across requests (per app). Request context (`$g`) stays per-request; do not capture it at module top-level.
+- **Server script cache:** With `cache.server.enabled`, transpiled source and sandboxed `module.exports` are reused in-process across requests (per app + absolute path). The HTTP handler export is still invoked every request. Request context (`$g`) stays per-request; do not capture it at module top-level. Disable cache or use `no_cache_regex` for live-edit URLs; `reloadApp` clears that app’s instances. See **`web/perftest/`**.
 
 ## 4. The `gingee()` Middleware & the `$g` Global
 
@@ -90,7 +90,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 - **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
 - **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
 - **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
-- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
+- **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, `readJSON` / `writeJSON`, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
 - **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
 - **`httpclient`**: Provides outbound HTTP helpers for `get`, `post`, `put`, `patch`, and `delete`, with content-type helpers for body-bearing methods.
 - **`image`**: Provides a simple and secure way to manipulate images, including resizing, rotating, format conversion etc.

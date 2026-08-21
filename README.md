@@ -40,7 +40,7 @@ Gingee is a comprehensive platform designed to provide a secure, efficient, and 
 
 - **Secure by Default**
   - **Whitelist Permissions System:** Applications have no access to the filesystem, database, network, email, generative AI, or CRON scheduler by default. Administrators grant explicit permissions for a "secure by default" posture. See the [Threat Model](./docs/threat-model.md) (cooperative multi-app vs hostile multi-tenant).
-  - **Sandboxed Execution:** Server scripts run in a `gbox` **vm** context: custom `require`, path jails, no host `process` (cooperative multi-app isolation—not a multi-tenant VM). UMD libs that need `Function` work by default; set `box.allow_dynamic_code: false` for stricter lockdown.
+  - **Sandboxed Execution:** Server scripts run in a `gbox` **vm** context: custom `require`, path jails, no host `process` (cooperative multi-app isolation—not a multi-tenant VM). UMD libs that need `Function` work by default; set `box.allow_dynamic_code: false` for stricter lockdown. With `cache.server.enabled`, sandboxed **module instances** are reused across requests (handler still runs every time); use `no_cache_regex` or `reloadApp` for live edits.
 
 - **Instant Time to Joy**
   - **All-in-One CLI:** A single command (`gingee-cli init`) scaffolds a complete, runnable project with a built-in admin panel.

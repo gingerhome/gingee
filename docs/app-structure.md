@@ -77,11 +77,14 @@ Here is a comprehensive breakdown of all available properties.
     },
     "server": {
       "enabled": true,
-      "no_cache_regex": ["/api/dynamic-script.js"]
+      "no_cache_regex": ["/api/dynamic-script.js", "\\/nocache\\/"]
     }
   }
 }
 ```
+
+`cache.server.no_cache_regex` is tested against **`req.url`**. Matching requests reload box / `local_modules` scripts from disk every time (no instance reuse). See sample **`web/perftest/`** (`/perftest/echo` vs `/perftest/nocache/echo`).
+
 
 ### Core Metadata
 
