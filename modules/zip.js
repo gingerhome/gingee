@@ -1,9 +1,9 @@
 const nodeFs = require("fs");
 const path = require("path");
 const archiver = require("archiver");
-const extract = require("extract-zip");
+const yauzl = require("yauzl");
 const fs = require("./fs.js"); // Our secure fs module
-const { resolveSecurePath } = require("./internal_utils.js");
+const { resolveSecurePath, isPathInside } = require("./internal_utils.js");
 
 /**
  * @module zip
@@ -148,7 +148,59 @@ async function unzip(sourceScope, sourcePath, destScope, destPath) {
 
   nodeFs.mkdirSync(destAbsolutePath, { recursive: true });
 
-  await extract(sourceAbsolutePath, { dir: destAbsolutePath });
+  const zipfile = await new Promise((resolve, reject) => {
+    yauzl.open(sourceAbsolutePath, { lazyEntries: true }, (err, zf) => {
+      if (err) return reject(err);
+      resolve(zf);
+    });
+  });
+
+  await new Promise((resolve, reject) => {
+    zipfile.on("error", reject);
+    zipfile.on("end", resolve);
+    zipfile.on("entry", (entry) => {
+      const finalDestPath = path.join(destAbsolutePath, entry.fileName);
+      const resolvedPath = path.resolve(finalDestPath);
+
+      if (!isPathInside(resolvedPath, destAbsolutePath)) {
+        zipfile.close();
+        return reject(
+          new Error(
+            `Security Error: Zip file contains path traversal ('${entry.fileName}').`,
+          ),
+        );
+      }
+
+      if (/[/\\]$/.test(entry.fileName)) {
+        // Directory entry
+        nodeFs.mkdirSync(resolvedPath, { recursive: true });
+        zipfile.readEntry();
+      } else {
+        // File entry
+        zipfile.openReadStream(entry, (err, readStream) => {
+          if (err) {
+            zipfile.close();
+            return reject(err);
+          }
+          nodeFs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+          const writeStream = nodeFs.createWriteStream(resolvedPath);
+          readStream.on("error", (streamErr) => {
+            zipfile.close();
+            reject(streamErr);
+          });
+          writeStream.on("error", (streamErr) => {
+            zipfile.close();
+            reject(streamErr);
+          });
+          writeStream.on("finish", () => {
+            zipfile.readEntry();
+          });
+          readStream.pipe(writeStream);
+        });
+      }
+    });
+    zipfile.readEntry();
+  });
 }
 
 module.exports = {

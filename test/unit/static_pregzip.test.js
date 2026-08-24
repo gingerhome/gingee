@@ -1,23 +1,25 @@
 /**
  * Static server cache stores pre-gzipped payloads; no_cache_regex skips cache.
  */
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
-const zlib = require('zlib');
-const { serveStaticFile } = require('../../modules/engine/request/static');
-const { attachCompiledCacheRegex } = require('../../modules/engine/request/cache_config');
+const path = require("path");
+const os = require("os");
+const fs = require("fs");
+const zlib = require("zlib");
+const { serveStaticFile } = require("../../modules/engine/request/static");
+const {
+  attachCompiledCacheRegex,
+} = require("../../modules/engine/request/cache_config");
 
-describe('static pre-gzip cache', () => {
+describe("static pre-gzip cache", () => {
   let tmpDir;
   let filePath;
   let mem;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gingee-static-'));
-    filePath = path.join(tmpDir, 'big.js');
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gingee-static-"));
+    filePath = path.join(tmpDir, "big.js");
     // Compressible payload
-    fs.writeFileSync(filePath, `${'console.log(1);\n'.repeat(200)}`);
+    fs.writeFileSync(filePath, `${"console.log(1);\n".repeat(200)}`);
     mem = new Map();
   });
 
@@ -52,7 +54,7 @@ describe('static pre-gzip cache', () => {
     return out;
   }
 
-  test('cache set stores content + gzipContent; hit serves pre-gzip without re-encoding work', async () => {
+  test("cache set stores content + gzipContent; hit serves pre-gzip without re-encoding work", async () => {
     const app = {
       config: {
         cache: {
@@ -67,7 +69,7 @@ describe('static pre-gzip cache', () => {
 
     const res1 = mockRes();
     await serveStaticFile({
-      req: { url: '/demo/big.js', headers: { 'accept-encoding': 'gzip' } },
+      req: { url: "/demo/big.js", headers: { "accept-encoding": "gzip" } },
       res: res1,
       filePath,
       cacheConfig: app.config.cache,
@@ -79,22 +81,22 @@ describe('static pre-gzip cache', () => {
     });
 
     expect(res1.statusCode).toBe(200);
-    expect(res1.headers['Content-Encoding']).toBe('gzip');
+    expect(res1.headers["Content-Encoding"]).toBe("gzip");
     const key = `static:${filePath}`;
     expect(mem.has(key)).toBe(true);
     const entry = mem.get(key);
     expect(entry.content).toBeTruthy();
     expect(entry.gzipContent).toBeTruthy();
 
-    const raw = Buffer.from(entry.content, 'base64');
-    const gz = Buffer.from(entry.gzipContent, 'base64');
+    const raw = Buffer.from(entry.content, "base64");
+    const gz = Buffer.from(entry.gzipContent, "base64");
     expect(zlib.gunzipSync(gz).equals(raw)).toBe(true);
     expect(Buffer.compare(res1.body, gz)).toBe(0);
 
     // Hit path
     const res2 = mockRes();
     await serveStaticFile({
-      req: { url: '/demo/big.js', headers: { 'accept-encoding': 'gzip' } },
+      req: { url: "/demo/big.js", headers: { "accept-encoding": "gzip" } },
       res: res2,
       filePath,
       cacheConfig: app.config.cache,
@@ -104,16 +106,16 @@ describe('static pre-gzip cache', () => {
       headers: {},
       app,
     });
-    expect(res2.headers['Content-Encoding']).toBe('gzip');
+    expect(res2.headers["Content-Encoding"]).toBe("gzip");
     expect(Buffer.compare(res2.body, gz)).toBe(0);
   });
 
-  test('server no_cache_regex skips cache read/write', async () => {
+  test("server no_cache_regex skips cache read/write", async () => {
     const app = {
       config: {
         cache: {
           client: { enabled: false, no_cache_regex: [] },
-          server: { enabled: true, no_cache_regex: ['\\/nocache\\/'] },
+          server: { enabled: true, no_cache_regex: ["\\/nocache\\/"] },
         },
       },
     };
@@ -123,7 +125,7 @@ describe('static pre-gzip cache', () => {
     const res = mockRes();
 
     await serveStaticFile({
-      req: { url: '/demo/nocache/big.js', headers: {} },
+      req: { url: "/demo/nocache/big.js", headers: {} },
       res,
       filePath,
       cacheConfig: app.config.cache,
