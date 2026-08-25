@@ -117,6 +117,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 - **`module_override`** (if granted): request-scoped redirect of require specifiers (protected/other bare names, relative or box-root paths) to an in-box script. **Only this permission** is required to install/apply redirects; restricted/forbidden/`engine/*` cannot be overridden. Target stays in-box; nested wrapper `require` uses normal jailing (override map not re-applied). Does not special-case app folder names.
 - **`box.local_modules`**: optional project-relative sandboxed require roots (default `[]`). Loaded with the same gbox jailing as app box scripts (not host `require`). Platform `modules/` wins over local roots for the same bare name. Not shipped inside `.gin` packages. When `cache.server` is enabled, instances are cached **per app** (shared file paths must not leak mutable exports across apps).
 - **`cache.server` script instances**: in-process reuse of sandboxed `module.exports` only—not a shared Redis script cache, and not reuse of request/`$g` context. Invalidated on `reloadApp` / process restart / `no_cache_regex`.
+- **Process guards:** HTTP `try/catch` only covers the **awaited handler promise**. Detached async failures are logged (`[unhandledRejection]`) and the process continues. Sync **`uncaughtException`** is logged, the master attempts graceful shutdown (queue/websockets/workers/dev servers), then **exits** — availability is preferred over running with a possibly corrupt isolate. Prefer `queue` / explicit `await` for background work.
 
 **Still shared across all apps on the instance:**
 
@@ -200,6 +201,37 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 ## 10. Operator checklist
 
+### How not to take down the node (availability)
+
+Gingee runs **multiple apps in one Node process** by default. An app cannot be assumed unable to affect siblings’ **availability**. Use this checklist to reduce accidental full-node outages under the **cooperative** model.
+
+**Application authors**
+
+1. **Do not** use tight sync loops (`while (true) {}`) or unbounded sync CPU work in box scripts — request timeouts only help code that **yields**.
+2. **Await** (or `.catch`) promises whose failure matters; fire-and-forget async is logged on rejection but will not fail that HTTP response after it already sent **200**.
+3. Put email, messaging, AI, PDF, and other slow/heavy side effects on the **`queue`** (or scheduler → `target.type: "queue"`), not on the request thread.
+4. Respect `$g.request.signal` / timeouts for long work; cancel outbound calls when aborted.
+5. Avoid retaining unbounded in-memory caches in sandboxed module instances when `cache.server` is enabled — shared heap.
+
+**Operators**
+
+1. Set **`limits`** (`request_timeout_ms`, concurrency, outbound timeouts, body size). Do not disable timeouts without a reason.
+2. For known-heavy apps (PDF, charts, large AI), enable **`isolation.mode: "process"`** (or list them under `isolation.apps` / groups) and set **`isolation.worker_limits.max_old_space_mb`** so a worker OOM does not need to take the whole master heap first.
+3. Prefer **Redis** queue/cache when running more than one node; keep queue concurrency bounded.
+4. Keep **`privileged_apps`** and `platform` grants minimal — a privileged app can disrupt the control plane.
+5. **Untrusted** or hostile tenants: **one process/container per trust domain** with OS CPU/memory/network quotas — do not co-locate them with sensitive apps on a shared Gingee process (see §2 and §10 “Required if any app is untrusted”).
+6. Watch logs for `[unhandledRejection]` (continue) and `[uncaughtException]` (process will exit after drain) — treat the latter as a hard incident and restart via your supervisor (PM2/systemd/K8s).
+
+**What the engine already does**
+
+| Event | Behavior |
+| :---- | :------- |
+| Awaited handler throw / reject | HTTP **500** (if headers not sent) |
+| Detached `unhandledRejection` | Logged; process **stays up** |
+| Sync `uncaughtException` | Logged; graceful shutdown; **`exit(1)`** |
+| Over concurrency | **503** |
+| Isolation worker crash (when enabled) | Worker may restart; master can continue |
+
 ### Recommended for production (cooperative multi-app)
 
 1. Run Gingee as a **non-root** OS user with write access only to intended dirs (`web/`, `settings/`, `logs/`, `backups/`, `temp/`).
@@ -236,6 +268,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 4. Do not store long-lived secrets in client-visible responses.
 5. Respect `$g.request.signal` / timeouts for long work; offload heavy work with `require('queue')` or scheduler `target.type: "queue"`.
 6. Never assume another app’s BOX or server `settings/` is readable.
+7. Read **§10 How not to take down the node** — avoid sync CPU spin and unbounded memory; do not treat the sandbox as an availability boundary.
 
 ---
 
@@ -248,7 +281,8 @@ Gingee does **not** currently claim:
 - Built-in WAF or global end-user SSO (Glade admin has **CSRF + Origin** checks; app authors still own their own CSRF)
 - Perfect SSRF immunity in every edge case (baseline `egress` + **connect-time DNS pin** is on by default; orchestrator network policy still required for hostile tenants)
 - Multi-tenant billing isolation or noisy-neighbor SLAs
-- Guaranteed preemption of malicious infinite loops in the **master** process
+- Guaranteed preemption of malicious infinite loops in the **master** process (see §10 — use isolation / separate processes)
+- Keeping the process alive after sync **`uncaughtException`** (Gingee logs, drains, and **exits** — supervisors should restart)
 - Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)
 
 These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
