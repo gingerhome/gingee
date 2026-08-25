@@ -42,8 +42,24 @@ const inflight = new Map();
 const workerLog = {
   info: (msg) => send({ type: "log", level: "info", message: String(msg) }),
   warn: (msg) => send({ type: "log", level: "warn", message: String(msg) }),
-  error: (msg) => send({ type: "log", level: "error", message: String(msg) }),
+  error: (msg, meta) => {
+    const extra =
+      meta && typeof meta === "object"
+        ? ` ${JSON.stringify(meta)}`
+        : meta != null
+          ? ` ${String(meta)}`
+          : "";
+    send({
+      type: "log",
+      level: "error",
+      message: `${String(msg)}${extra}`,
+    });
+  },
 };
+
+// Same as master: unhandledRejection → log+continue; uncaughtException → log+exit(1).
+const { registerProcessGuards } = require("../process_guards.js");
+registerProcessGuards(workerLog);
 
 function send(msg) {
   if (typeof process.send === "function") {

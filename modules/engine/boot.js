@@ -26,6 +26,7 @@ const { initializeApps } = require("./app_registry.js");
 const workerManager = require("./isolation/worker_manager.js");
 const websocketHub = require("./websocket_hub.js");
 const queueService = require("./queue_service.js");
+const { registerProcessGuards } = require("./process_guards.js");
 
 /**
  * Boot the Gingee control plane and start listening.
@@ -150,6 +151,11 @@ async function startServer(options) {
       }
     });
   };
+
+  // Process guards:
+  // - unhandledRejection: log and keep listening (detached async must not kill all apps).
+  // - uncaughtException: log, graceful shutdown, exit(1) — do not fake health after sync fatal.
+  registerProcessGuards(logger, { onFatalShutdown: shutdown });
 
   process.on("exit", shutdown);
   process.on("SIGINT", () => process.exit());
