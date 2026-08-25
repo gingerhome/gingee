@@ -100,6 +100,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 - **`dashboard`**: Provides functionality to create and manage a dashboard layout with multiple charts.
 - **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
 - **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
+- **`messaging`**: Outbound messaging / SMS / MMS / WhatsApp (Twilio / mock / console adapters); app or server config, with optional per-send config override and Content Templates
 - **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
 - **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, `readJSON` / `writeJSON`, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
 - **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.
@@ -181,6 +182,8 @@ gingee-cli --version
 This should print the installed version number of the CLI.
 
 ## Platform Specific Requirements
+
+Gingee and `gingee-cli` require **Node.js ≥ 20.18.1** (Node 20 LTS or newer).
 
 ### **Windows**
 
@@ -519,6 +522,8 @@ Commands for running Gingee as a native background service. These commands must 
 
 The `gingee.json` file is the master configuration file for the entire Gingee server instance. It resides in the root of your project and controls server behavior, caching policies, logging, and security settings that apply to all applications running on the platform.
 
+**Runtime:** Gingee requires **Node.js ≥ 20.18.1** (`package.json` → `engines.node`).
+
 Here is a comprehensive breakdown of all available properties.
 
 ```json
@@ -731,6 +736,19 @@ Or without a URL:
 - **`api_key`** (string, optional): SendGrid API key when using `"sendgrid"`.
 - **`from`** / **`from_name`** (string, optional): Default sender identity.
 - **Runtime override:** App scripts may call `email.sendWithConfig(config, message)` to override server + app config for a single send.
+
+### messaging
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the outbound `messaging` module (SMS, MMS, WhatsApp). Each app may override this with `app.json` → `messaging`. Single config object. Apps need the `messaging` permission to call `require('messaging')`.
+- **`type`** (string): Provider id — `"mock"` / `"console"` (log only) or `"twilio"`.
+- **`account_sid`** (string, optional): Twilio Account SID when using `"twilio"`.
+- **`auth_token`** (string, optional): Twilio Auth Token (or `api_key` + `api_secret`).
+- **`from`** (string, optional): Default SMS/MMS sender phone number (e.g. `"+15551234567"`).
+- **`whatsapp_from`** (string, optional): Default WhatsApp sender (E.164) when messages use `channel: "whatsapp"`.
+- **`messaging_service_sid`** (string, optional): Default Twilio Messaging Service SID.
+- **Message API:** `channel` (`sms` \| `whatsapp`), optional `contentSid` / `contentVariables` for Twilio Content Templates. See [App Structure](./app-structure.md) → Messaging.
+- **Runtime override:** App scripts may call `messaging.sendWithConfig(config, message)` to override server + app config for a single send.
 
 ### ai
 
@@ -1999,6 +2017,33 @@ Single outbound email configuration for the app (no named profiles). App config 
 }
 ```
 
+### Messaging (`messaging` object, optional)
+
+Single outbound messaging configuration for the app (SMS, MMS, WhatsApp via Twilio). App config overrides optional server defaults in `gingee.json` → `messaging`. Requires the `messaging` permission.
+
+- **`type`** (string, required when using messaging): Provider id — `twilio` or `mock` / `console` (dev: logs only, no network).
+- **`account_sid`** (string): Twilio Account SID when `type` is `twilio`.
+- **`auth_token`** (string): Twilio Auth Token (or `api_key` + `api_secret`).
+- **`from`** (string, optional): Default SMS/MMS sender phone number (e.g. `"+15551234567"`).
+- **`whatsapp_from`** (string, optional): Default WhatsApp sender (E.164). Used when a message sets `channel: "whatsapp"`; the Twilio adapter prefixes `whatsapp:` automatically.
+- **`messaging_service_sid`** (string, optional): Default Twilio Messaging Service SID (may own SMS and/or WhatsApp senders).
+
+**Message fields** (on `messaging.send` / `sendWithConfig`): `to`, `body` / `text`, optional `mediaUrl`, optional `channel` (`"sms"` default, or `"whatsapp"`; `"mms"` is treated as SMS addressing), optional Twilio Content Template `contentSid` + `contentVariables` (object). At least one of `body`, `mediaUrl`, or `contentSid` is required. WhatsApp freeform body/media is limited to the 24h session window unless you use an approved Content Template.
+
+**Runtime override:** from a server script you can call `messaging.sendWithConfig(config, message)` so a one-off send uses config that overrides both `gingee.json` and `app.json` for that transaction only.
+
+**Example `app.json`:**
+
+```json
+"messaging": {
+  "type": "twilio",
+  "account_sid": "env:TWILIO_ACCOUNT_SID",
+  "auth_token": "env:TWILIO_AUTH_TOKEN",
+  "from": "+15551234567",
+  "whatsapp_from": "+14155238886"
+}
+```
+
 ### Script Execution Configuration
 
 - **`startup_scripts`** (array, optional)
@@ -3240,6 +3285,7 @@ This is the definitive list of all permission keys available in Gingee.
 | **cache**      | Allows the app to use the caching service for storing and retrieving data.                                                                                                                                                                                                                      | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data.                                                       |
 | **db**         | Allows the app to connect to and query the database(s) configured for it in `app.json`.                                                                                                                                                                                                         | **High.** Grants access to the application's primary data store.                                                                                                |
 | **email**      | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`.                                                                                               | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally.       |
+| **messaging**  | Allows the app to send outbound messages (SMS/MMS/WhatsApp) via `require('messaging')` (configured provider such as Twilio, or the `mock` / `console` logger). Supports per-call config override with `messaging.sendWithConfig`.                                                                  | **High.** The app can send SMS/MMS/WhatsApp using server- or app-configured credentials (or runtime keys). Can incur cost and deliver messages externally.       |
 | **ai**         | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned).                                                                                                             | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications.             |
 | **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. Multi-node room delivery needs operator `websockets.fanout.driver: "redis"`.                                                                                    | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. Grant only when needed.                          |
 | **queue**      | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`.                                                                                                                                                                                        | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. Operators manage live jobs + DLQ in Glade. |
@@ -3434,6 +3480,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 - **`module_override`** (if granted): request-scoped redirect of require specifiers (protected/other bare names, relative or box-root paths) to an in-box script. **Only this permission** is required to install/apply redirects; restricted/forbidden/`engine/*` cannot be overridden. Target stays in-box; nested wrapper `require` uses normal jailing (override map not re-applied). Does not special-case app folder names.
 - **`box.local_modules`**: optional project-relative sandboxed require roots (default `[]`). Loaded with the same gbox jailing as app box scripts (not host `require`). Platform `modules/` wins over local roots for the same bare name. Not shipped inside `.gin` packages. When `cache.server` is enabled, instances are cached **per app** (shared file paths must not leak mutable exports across apps).
 - **`cache.server` script instances**: in-process reuse of sandboxed `module.exports` only—not a shared Redis script cache, and not reuse of request/`$g` context. Invalidated on `reloadApp` / process restart / `no_cache_regex`.
+- **Process guards:** HTTP `try/catch` only covers the **awaited handler promise**. Detached async failures are logged (`[unhandledRejection]`) and the process continues. Sync **`uncaughtException`** is logged, the master attempts graceful shutdown (queue/websockets/workers/dev servers), then **exits** — availability is preferred over running with a possibly corrupt isolate. Prefer `queue` / explicit `await` for background work.
 
 **Still shared across all apps on the instance:**
 
@@ -3517,6 +3564,37 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 
 ## 10. Operator checklist
 
+### How not to take down the node (availability)
+
+Gingee runs **multiple apps in one Node process** by default. An app cannot be assumed unable to affect siblings’ **availability**. Use this checklist to reduce accidental full-node outages under the **cooperative** model.
+
+**Application authors**
+
+1. **Do not** use tight sync loops (`while (true) {}`) or unbounded sync CPU work in box scripts — request timeouts only help code that **yields**.
+2. **Await** (or `.catch`) promises whose failure matters; fire-and-forget async is logged on rejection but will not fail that HTTP response after it already sent **200**.
+3. Put email, messaging, AI, PDF, and other slow/heavy side effects on the **`queue`** (or scheduler → `target.type: "queue"`), not on the request thread.
+4. Respect `$g.request.signal` / timeouts for long work; cancel outbound calls when aborted.
+5. Avoid retaining unbounded in-memory caches in sandboxed module instances when `cache.server` is enabled — shared heap.
+
+**Operators**
+
+1. Set **`limits`** (`request_timeout_ms`, concurrency, outbound timeouts, body size). Do not disable timeouts without a reason.
+2. For known-heavy apps (PDF, charts, large AI), enable **`isolation.mode: "process"`** (or list them under `isolation.apps` / groups) and set **`isolation.worker_limits.max_old_space_mb`** so a worker OOM does not need to take the whole master heap first.
+3. Prefer **Redis** queue/cache when running more than one node; keep queue concurrency bounded.
+4. Keep **`privileged_apps`** and `platform` grants minimal — a privileged app can disrupt the control plane.
+5. **Untrusted** or hostile tenants: **one process/container per trust domain** with OS CPU/memory/network quotas — do not co-locate them with sensitive apps on a shared Gingee process (see §2 and §10 “Required if any app is untrusted”).
+6. Watch logs for `[unhandledRejection]` (continue) and `[uncaughtException]` (process will exit after drain) — treat the latter as a hard incident and restart via your supervisor (PM2/systemd/K8s).
+
+**What the engine already does**
+
+| Event | Behavior |
+| :---- | :------- |
+| Awaited handler throw / reject | HTTP **500** (if headers not sent) |
+| Detached `unhandledRejection` | Logged; process **stays up** |
+| Sync `uncaughtException` | Logged; graceful shutdown; **`exit(1)`** |
+| Over concurrency | **503** |
+| Isolation worker crash (when enabled) | Worker may restart; master can continue |
+
 ### Recommended for production (cooperative multi-app)
 
 1. Run Gingee as a **non-root** OS user with write access only to intended dirs (`web/`, `settings/`, `logs/`, `backups/`, `temp/`).
@@ -3553,6 +3631,7 @@ App scripts run in a **Node `vm` context** with a custom `require` (not a separa
 4. Do not store long-lived secrets in client-visible responses.
 5. Respect `$g.request.signal` / timeouts for long work; offload heavy work with `require('queue')` or scheduler `target.type: "queue"`.
 6. Never assume another app’s BOX or server `settings/` is readable.
+7. Read **§10 How not to take down the node** — avoid sync CPU spin and unbounded memory; do not treat the sandbox as an availability boundary.
 
 ---
 
@@ -3565,7 +3644,8 @@ Gingee does **not** currently claim:
 - Built-in WAF or global end-user SSO (Glade admin has **CSRF + Origin** checks; app authors still own their own CSRF)
 - Perfect SSRF immunity in every edge case (baseline `egress` + **connect-time DNS pin** is on by default; orchestrator network policy still required for hostile tenants)
 - Multi-tenant billing isolation or noisy-neighbor SLAs
-- Guaranteed preemption of malicious infinite loops in the **master** process
+- Guaranteed preemption of malicious infinite loops in the **master** process (see §10 — use isolation / separate processes)
+- Keeping the process alive after sync **`uncaughtException`** (Gingee logs, drains, and **exits** — supervisors should restart)
 - Full **cgroups v2** / Windows **Job Objects** managed inside Gingee (orchestrator still required for hard multi-tenant quotas)
 
 These may appear on the roadmap (cluster, OpenTelemetry, vault/KMS, deeper OS quotas); until shipped and documented, treat them as **absent**.
@@ -3935,6 +4015,7 @@ These are the core architectural features that define the Gingee development exp
 
 - **Secure Sandbox Execution**
   Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app. Bare `$g` in box code is request-local (ALS); keep `gingee(async ($g) => …)` on entries.
+  **Errors:** the HTTP request path catches failures of the **handler promise** (`await script()` / `await gingee(...)`) and returns **500** when headers are not yet sent. **Detached** async work that is not awaited is **not** part of that promise: an unhandled rejection is logged (`[unhandledRejection]`) and the **process keeps running**. Sync **`uncaughtException`** is logged (`[uncaughtException]`, optional ALS app name), the engine attempts **graceful shutdown**, then **`process.exit(1)`** — do not assume the process is healthy after a sync fatal. Prefer `await`, `.catch`, or the **`queue`** module for background side effects. See [Threat Model](./threat-model.md) → *How not to take down the node*.
 - **Response compression**
   With `gingee.json` → `content_encoding.enabled`, static files may be served from a **pre-gzipped** server-cache entry, and `$g.response.send` gzip when the raw body is at least `content_encoding.size_threshold` bytes (default **1024**) and the client sends `Accept-Encoding: gzip`.
 
@@ -3968,6 +4049,9 @@ These are the core architectural features that define the Gingee development exp
 - **Transactional Email (`email` Module)**
   Send mail through a provider adapter (SendGrid in v1, plus a `console` logger for local dev). Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `email.send(message)` or `email.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `email` permission.
 
+- **Outbound Messaging (`messaging` Module)**
+  Send SMS/MMS/WhatsApp through a provider adapter (Twilio in v1, plus `mock` and `console` loggers for local dev). Set `channel: 'whatsapp'` for WhatsApp (optional `whatsapp_from` in config); use `contentSid` / `contentVariables` for Twilio Content Templates. Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `messaging.send(message)` or `messaging.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `messaging` permission. Sample app: **`ginbon`** (`/ginbon/` — contacts, templates, compose with SMS/MMS/WhatsApp, history).
+
 - **Generative AI (`ai` Module)**
   Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
 
@@ -3993,10 +4077,10 @@ These are the core architectural features that define the Gingee development exp
   Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants, app lifecycle (install, upgrade, reload, delete, rollback), scheduler Run now, queue DLQ retry/discard, and log list/read metadata. Complements application request logs.
 
 * **Optional feature packages:**
-  Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
+  Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, Twilio, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake twilio`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, mock messaging, and mock AI remain available without optionals.
 
 * **Process isolation (opt-in):**
-  With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, **request-timeout cancel** (IPC + AbortSignal; optional worker kill), and worker-side re-init of `ai` / `email` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
+  With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, **request-timeout cancel** (IPC + AbortSignal; optional worker kill), and worker-side re-init of `ai` / `email` / `messaging` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
 
 * **WebSockets (opt-in per app):**
   Bidirectional real-time connections on the same public HTTP(S) port (`ws` library). Declare `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, then use `require('websockets')` for rooms/broadcast. Multi-tenant apps should use `tenantRoom(tenantId, name)`. Connections terminate on the **master** (not isolation workers). **Multi-node:** set `websockets.fanout.driver: "redis"` and sibling `websockets.redis` so `toRoom` / `toApp` reach sockets on every master. Prefer SSE for one-shot AI token streams. Sample app: **`ginchat`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets`.
@@ -4029,6 +4113,8 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
   The unified database interface. Provides a consistent API (`query`, `execute`, `transaction`) for interacting with any configured database.
 - **`email`**
   Transactional email via provider adapters (`sendgrid`, `console`). Config from `gingee.json` / `app.json`, plus `sendWithConfig` for per-transaction overrides. Permission-protected.
+- **`messaging`**
+  Outbound SMS/MMS/WhatsApp via provider adapters (`mock`, `console`, `twilio`). Same single-config + `send` / `sendWithConfig` pattern as `email`; WhatsApp via `channel` + optional Content Templates. Permission-protected. Sample: **`web/ginbon/`**.
 - **`ai`**
   Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 - **`fs`**
@@ -4191,6 +4277,18 @@ It provides a simple and secure way to manipulate images, including resizing, ro
 Install without <code>--omit=optional</code>, or <code>npm install sharp</code>.
 <b>NOTE:</b> path with leading slash indicates path from scope root, path without leading slash indicates path relative to the executing script
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
+</dd>
+<dt><a href="#module_messaging">messaging</a></dt>
+<dd><p>Outbound messaging (SMS, MMS, WhatsApp, etc.) for Gingee apps using a provider adapter pattern (similar to <code>db</code>, <code>cache</code>, <code>email</code>, and <code>ai</code>).</p>
+<p><b>Configuration (single config, no named profiles):</b></p>
+<ul>
+<li>Optional server defaults: <code>gingee.json</code> → <code>messaging</code></li>
+<li>Optional app config: <code>app.json</code> → <code>messaging</code> (overrides server for that app)</li>
+<li>Runtime override: <a href="#module_messaging.sendWithConfig">sendWithConfig</a> merges on top for one send only</li>
+<li>Twilio WhatsApp: set message <code>channel: &#39;whatsapp&#39;</code> (optional config <code>whatsapp_from</code>); use <code>contentSid</code> / <code>contentVariables</code> for approved templates</li>
+</ul>
+<p><b>Providers (v1):</b> <code>mock</code> / <code>console</code> (log only), <code>twilio</code> (Twilio Programmable Messaging — SMS/MMS/WhatsApp)</p>
+<p><b>IMPORTANT:</b> Requires explicit permission to use the module (<code>messaging</code>). See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_pdf">pdf</a></dt>
 <dd><p>This module provides functionality to create PDF documents using pdfmake.
@@ -4358,9 +4456,7 @@ Provides methods for creating and verifying JSON Web Tokens (JWTs).
 <a name="module_auth.jwt.create"></a>
 
 #### jwt.create(payload, [expiresIn], [options]) ⇒ <code>string</code>
-Creates a JSON Web Token (JWT) with the given payload and expiration.
-Secret resolution: <code>options.secret</code> → <code>app.json</code> <code>jwt_secret</code> / <code>jwt.secret</code> →
-<code>gingee.json</code> <code>jwt.secret</code>. Optional <code>iss</code> from options / app / server is set when configured.
+Creates a JSON Web Token (JWT) with the given payload and expiration.Secret resolution: <code>options.secret</code> → <code>app.json</code> <code>jwt_secret</code> / <code>jwt.secret</code> →<code>gingee.json</code> <code>jwt.secret</code>. Optional <code>iss</code> from options / app / server is set when configured.
 
 **Kind**: static method of [<code>jwt</code>](#module_auth.jwt)  
 **Returns**: <code>string</code> - The JWT string.  
@@ -4390,12 +4486,7 @@ Verifies a JWT and returns its payload if valid (signature + exp; iss when confi
 
 **Example**  
 ```js
-const payload = auth.jwt.verify(token);
-if (payload) {
-    console.log("Token is valid:", payload);
-} else {
-    console.log("Token is invalid or expired.");
-}
+const payload = auth.jwt.verify(token);if (payload) {    console.log("Token is valid:", payload);} else {    console.log("Token is invalid or expired.");}
 ```
 <a name="module_cache"></a>
 
@@ -5468,12 +5559,7 @@ const headers = form.getHeaders();
 <a name="module_fs"></a>
 
 ## fs
-A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.
-<b>NOTE:</b> A path with a leading <code>/</code> is relative to the scope root (<code>box/</code> or <code>web/</code>).
-A path without a leading slash is relative to the <b>currently executing</b> gbox script directory
-(aligned with <code>require('./…')</code>). Module-override fs wrappers keep the caller's base so
-transparent facades resolve paths as the request/entry script intended.
-<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
+A secure file system module for Gingee that provides secure sandboxed synchronous and asynchronous file operations.<b>NOTE:</b> A path with a leading <code>/</code> is relative to the scope root (<code>box/</code> or <code>web/</code>).A path without a leading slash is relative to the <b>currently executing</b> gbox script directory(aligned with <code>require('./…')</code>). Module-override fs wrappers keep the caller's base sotransparent facades resolve paths as the request/entry script intended.<b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [fs](#module_fs)
@@ -5519,17 +5605,13 @@ transparent facades resolve paths as the request/entry script intended.
 <a name="module_fs.BOX"></a>
 
 ### fs.BOX
-Constant for the BOX scope.
-This constant can be used to specify the BOX scope when working with file system operations.
-It represents the application box directory, typically used for sandboxed data and server scripts that should not be accessible from the web.
+Constant for the BOX scope.This constant can be used to specify the BOX scope when working with file system operations.It represents the application box directory, typically used for sandboxed data and server scripts that should not be accessible from the web.
 
 **Kind**: static constant of [<code>fs</code>](#module_fs)  
 <a name="module_fs.WEB"></a>
 
 ### fs.WEB
-Constant for the WEB scope.
-This constant can be used to specify the WEB scope when working with file system operations.
-It represents the web directory, typically used for web assets.
+Constant for the WEB scope.This constant can be used to specify the WEB scope when working with file system operations.It represents the web directory, typically used for web assets.
 
 **Kind**: static constant of [<code>fs</code>](#module_fs)  
 <a name="module_fs.readFileSync"></a>
@@ -5552,8 +5634,7 @@ Synchronously reads the entire contents of a file.
 
 **Example**  
 ```js
-const content = fs.readFileSync(fs.BOX, 'data/myfile.txt', 'utf8');
-console.log(content); // Outputs the content of myfile.txt
+const content = fs.readFileSync(fs.BOX, 'data/myfile.txt', 'utf8');console.log(content); // Outputs the content of myfile.txt
 ```
 <a name="module_fs.readJSONSync"></a>
 
@@ -5575,8 +5656,7 @@ Synchronously reads a JSON file and parses it.
 
 **Example**  
 ```js
-const data = fs.readJSONSync(fs.BOX, 'data/myfile.json');
-console.log(data); // Outputs the parsed JSON object
+const data = fs.readJSONSync(fs.BOX, 'data/myfile.json');console.log(data); // Outputs the parsed JSON object
 ```
 <a name="module_fs.writeFileSync"></a>
 
@@ -5659,8 +5739,7 @@ Synchronously checks if a file exists.
 
 **Example**  
 ```js
-const exists = fs.existsSync(fs.BOX, 'data/myfile.txt');
-console.log(exists); // Outputs true if myfile.txt exists, false otherwise
+const exists = fs.existsSync(fs.BOX, 'data/myfile.txt');console.log(exists); // Outputs true if myfile.txt exists, false otherwise
 ```
 <a name="module_fs.deleteFileSync"></a>
 
@@ -5833,9 +5912,7 @@ Asynchronously reads the entire contents of a file.
 
 **Example**  
 ```js
-fs.readFile(fs.BOX, 'data/file.txt', 'utf8').then(contents => {
-  console.log(contents);
-});
+fs.readFile(fs.BOX, 'data/file.txt', 'utf8').then(contents => {  console.log(contents);});
 ```
 <a name="module_fs.writeFile"></a>
 
@@ -5858,9 +5935,7 @@ Asynchronously writes data to a file, replacing the file if it already exists.
 
 **Example**  
 ```js
-fs.writeFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {
-  console.log('File written successfully');
-});
+fs.writeFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {  console.log('File written successfully');});
 ```
 <a name="module_fs.readJSON"></a>
 
@@ -5882,8 +5957,7 @@ Asynchronously reads a JSON file and parses it.
 
 **Example**  
 ```js
-const data = await fs.readJSON(fs.BOX, 'data/myfile.json');
-console.log(data); // Outputs the parsed JSON object
+const data = await fs.readJSON(fs.BOX, 'data/myfile.json');console.log(data); // Outputs the parsed JSON object
 ```
 <a name="module_fs.writeJSON"></a>
 
@@ -5929,9 +6003,7 @@ Asynchronously appends data to a file, creating directories as needed.
 
 **Example**  
 ```js
-fs.appendFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {
-  console.log('File appended successfully');
-});
+fs.appendFile(fs.BOX, 'data/file.txt', 'Hello, world!', 'utf8').then(() => {  console.log('File appended successfully');});
 ```
 <a name="module_fs.exists"></a>
 
@@ -5952,9 +6024,7 @@ Asynchronously checks if a file exists.
 
 **Example**  
 ```js
-fs.exists(fs.BOX, 'data/file.txt').then(exists => {
-  console.log(exists);
-});
+fs.exists(fs.BOX, 'data/file.txt').then(exists => {  console.log(exists);});
 ```
 <a name="module_fs.deleteFile"></a>
 
@@ -5975,9 +6045,7 @@ Asynchronously deletes a file.
 
 **Example**  
 ```js
-fs.deleteFile(fs.BOX, 'data/file.txt').then(() => {
-  console.log('File deleted successfully');
-});
+fs.deleteFile(fs.BOX, 'data/file.txt').then(() => {  console.log('File deleted successfully');});
 ```
 <a name="module_fs.moveFile"></a>
 
@@ -6001,9 +6069,7 @@ Asynchronously moves a file from one location to another within the same scope.
 
 **Example**  
 ```js
-fs.moveFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/newfile.txt').then(newPath => {
-  console.log('File moved to:', newPath);
-});
+fs.moveFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/newfile.txt').then(newPath => {  console.log('File moved to:', newPath);});
 ```
 <a name="module_fs.copyFile"></a>
 
@@ -6026,9 +6092,7 @@ Asynchronously copies a file from one location to another within the same scope.
 
 **Example**  
 ```js
-fs.copyFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/copy.txt').then(() => {
-  console.log('File copied successfully');
-});
+fs.copyFile(fs.BOX, 'data/file.txt', fs.BOX, 'data/copy.txt').then(() => {  console.log('File copied successfully');});
 ```
 <a name="module_fs.mkdir"></a>
 
@@ -6049,9 +6113,7 @@ Asynchronously creates a directory and its parent directories if they do not exi
 
 **Example**  
 ```js
-fs.mkdir(fs.BOX, 'data/newdir').then(() => {
-  console.log('Directory created successfully');
-});
+fs.mkdir(fs.BOX, 'data/newdir').then(() => {  console.log('Directory created successfully');});
 ```
 <a name="module_fs.rmdir"></a>
 
@@ -6073,9 +6135,7 @@ Asynchronously removes a directory.
 
 **Example**  
 ```js
-fs.rmdir(fs.BOX, 'data/oldDir', { recursive: true }).then(() => {
-  console.log('Directory removed successfully');
-});
+fs.rmdir(fs.BOX, 'data/oldDir', { recursive: true }).then(() => {  console.log('Directory removed successfully');});
 ```
 <a name="module_fs.moveDir"></a>
 
@@ -6098,9 +6158,7 @@ Asynchronously moves a directory from one location to another within the same sc
 
 **Example**  
 ```js
-fs.moveDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(newPath => {
-  console.log('Directory moved to:', newPath);
-});
+fs.moveDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(newPath => {  console.log('Directory moved to:', newPath);});
 ```
 <a name="module_fs.copyDir"></a>
 
@@ -6123,9 +6181,7 @@ Asynchronously copies a directory from one location to another within the same s
 
 **Example**  
 ```js
-fs.copyDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(() => {
-  console.log('Directory copied successfully');
-});
+fs.copyDir(fs.BOX, 'data/oldDir', fs.BOX, 'data/newDir').then(() => {  console.log('Directory copied successfully');});
 ```
 <a name="module_fs.readdirSync"></a>
 
@@ -6181,8 +6237,7 @@ const dirs = fs.listDirsSync(fs.BOX, 'data');
 <a name="module_fs.walkSync"></a>
 
 ### fs.walkSync(scope, dirPath, [options]) ⇒ <code>Array.&lt;string&gt;</code>
-Synchronously walks a directory tree and returns relative paths (forward slashes).
-Symlink directories are not descended into (v1).
+Synchronously walks a directory tree and returns relative paths (forward slashes).Symlink directories are not descended into (v1).
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
 **Returns**: <code>Array.&lt;string&gt;</code> - Relative paths from dirPath  
@@ -6270,8 +6325,7 @@ const dirs = await fs.listDirs(fs.BOX, 'data');
 <a name="module_fs.walk"></a>
 
 ### fs.walk(scope, dirPath, [options]) ⇒ <code>Promise.&lt;Array.&lt;string&gt;&gt;</code>
-Asynchronously walks a directory tree and returns relative paths (forward slashes).
-Symlink directories are not descended into (v1).
+Asynchronously walks a directory tree and returns relative paths (forward slashes).Symlink directories are not descended into (v1).
 
 **Kind**: static method of [<code>fs</code>](#module_fs)  
 
@@ -6868,6 +6922,97 @@ const processor = image.load(fs.BOX, '/images/gingee.png');
 processor.resize({ width: 200, height: 200 });
 await processor.toFile(fs.WEB, '/output/processed_image.webp');
 ```
+<a name="module_messaging"></a>
+
+## messaging
+Outbound messaging (SMS, MMS, WhatsApp, etc.) for Gingee apps using a provider adapter pattern (similar to `db`, `cache`, `email`, and `ai`).
+
+<b>Configuration (single config, no named profiles):</b>
+- Optional server defaults: `gingee.json` → `messaging`
+- Optional app config: `app.json` → `messaging` (overrides server for that app)
+- Runtime override: [sendWithConfig](#module_messaging.sendWithConfig) merges on top for one send only
+- Twilio WhatsApp: set message `channel: 'whatsapp'` (optional config `whatsapp_from`); use `contentSid` / `contentVariables` for approved templates
+
+<b>Providers (v1):</b> `mock` / `console` (log only), `twilio` (Twilio Programmable Messaging — SMS/MMS/WhatsApp)
+
+<b>IMPORTANT:</b> Requires explicit permission to use the module (`messaging`). See docs/permissions-guide for more details.
+
+
+* [messaging](#module_messaging)
+    * _static_
+        * [.send(message)](#module_messaging.send) ⇒ <code>Promise.&lt;object&gt;</code>
+        * [.sendWithConfig(configOverride, message)](#module_messaging.sendWithConfig) ⇒ <code>Promise.&lt;object&gt;</code>
+    * _inner_
+        * [~serverMessagingConfig](#module_messaging..serverMessagingConfig) : <code>object</code> \| <code>null</code>
+        * [~messagingInstances](#module_messaging..messagingInstances) : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+
+<a name="module_messaging.send"></a>
+
+### messaging.send(message) ⇒ <code>Promise.&lt;object&gt;</code>
+Sends a message using the app's resolved config (app.json overrides gingee.json).
+
+**Kind**: static method of [<code>messaging</code>](#module_messaging)  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status, etc.  
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| message | <code>object</code> |  | Outbound message. |
+| message.to | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  | Recipient phone number(s) (e.g. '+1234567890'). |
+| [message.body] | <code>string</code> |  | Text body of the message (can also use message.text). |
+| [message.text] | <code>string</code> |  | Plain text body alias. |
+| [message.channel] | <code>string</code> | <code>&quot;&#x27;sms&#x27;&quot;</code> | `'sms'` (default; also `'mms'`) or `'whatsapp'`. |
+| [message.from] | <code>string</code> |  | Override default sender number for this message only. |
+| [message.messagingServiceSid] | <code>string</code> |  | Twilio Messaging Service SID override. |
+| [message.mediaUrl] | <code>string</code> \| <code>Array.&lt;string&gt;</code> |  | URL(s) for MMS / WhatsApp media attachments. |
+| [message.contentSid] | <code>string</code> |  | Twilio Content Template SID (WhatsApp / rich templates). |
+| [message.contentVariables] | <code>object</code> \| <code>string</code> |  | Template variables object (or JSON string). |
+| [message.statusCallback] | <code>string</code> |  | Webhook callback URL for delivery status updates. |
+
+**Example**  
+```js
+const messaging = require('messaging');
+await messaging.send({
+  to: '+1234567890',
+  body: 'Your verification code is 123456.'
+});
+// WhatsApp freeform (within 24h session) or Content Template:
+await messaging.send({
+  channel: 'whatsapp',
+  to: '+1234567890',
+  contentSid: 'HXxxxxxxxx',
+  contentVariables: { '1': 'Ada' }
+});
+```
+<a name="module_messaging.sendWithConfig"></a>
+
+### messaging.sendWithConfig(configOverride, message) ⇒ <code>Promise.&lt;object&gt;</code>
+Sends a single message using a runtime config that overrides both server and app.json
+settings for this transaction only. Does not persist or change the app's default adapter.
+
+**Kind**: static method of [<code>messaging</code>](#module_messaging)  
+**Returns**: <code>Promise.&lt;object&gt;</code> - Result with messageId, provider, status, etc.  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| configOverride | <code>object</code> | Partial or full messaging config (type, account_sid, auth_token, from, etc.). |
+| message | <code>object</code> | Same shape as [send](#module_messaging.send). |
+
+**Example**  
+```js
+const messaging = require('messaging');
+await messaging.sendWithConfig(
+  { type: 'twilio', account_sid: 'ACxxx', auth_token: 'auth_xxx', from: '+19876543210' },
+  { to: '+1234567890', body: 'One-off notification' }
+);
+```
+<a name="module_messaging..serverMessagingConfig"></a>
+
+### messaging~serverMessagingConfig : <code>object</code> \| <code>null</code>
+**Kind**: inner property of [<code>messaging</code>](#module_messaging)  
+<a name="module_messaging..messagingInstances"></a>
+
+### messaging~messagingInstances : <code>Map.&lt;string, {adapter: object, config: object}&gt;</code>
+**Kind**: inner constant of [<code>messaging</code>](#module_messaging)  
 <a name="module_pdf"></a>
 
 ## pdf
