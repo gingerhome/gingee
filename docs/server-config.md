@@ -2,6 +2,8 @@
 
 The `gingee.json` file is the master configuration file for the entire Gingee server instance. It resides in the root of your project and controls server behavior, caching policies, logging, and security settings that apply to all applications running on the platform.
 
+**Runtime:** Gingee requires **Node.js ≥ 20.18.1** (`package.json` → `engines.node`).
+
 Here is a comprehensive breakdown of all available properties.
 
 ```json
@@ -214,6 +216,19 @@ Or without a URL:
 - **`api_key`** (string, optional): SendGrid API key when using `"sendgrid"`.
 - **`from`** / **`from_name`** (string, optional): Default sender identity.
 - **Runtime override:** App scripts may call `email.sendWithConfig(config, message)` to override server + app config for a single send.
+
+### messaging
+
+- **Type:** `object` (optional)
+- **Description:** Optional **server-wide default** for the outbound `messaging` module (SMS, MMS, WhatsApp). Each app may override this with `app.json` → `messaging`. Single config object. Apps need the `messaging` permission to call `require('messaging')`.
+- **`type`** (string): Provider id — `"mock"` / `"console"` (log only) or `"twilio"`.
+- **`account_sid`** (string, optional): Twilio Account SID when using `"twilio"`.
+- **`auth_token`** (string, optional): Twilio Auth Token (or `api_key` + `api_secret`).
+- **`from`** (string, optional): Default SMS/MMS sender phone number (e.g. `"+15551234567"`).
+- **`whatsapp_from`** (string, optional): Default WhatsApp sender (E.164) when messages use `channel: "whatsapp"`.
+- **`messaging_service_sid`** (string, optional): Default Twilio Messaging Service SID.
+- **Message API:** `channel` (`sms` \| `whatsapp`), optional `contentSid` / `contentVariables` for Twilio Content Templates. See [App Structure](./app-structure.md) → Messaging.
+- **Runtime override:** App scripts may call `messaging.sendWithConfig(config, message)` to override server + app config for a single send.
 
 ### ai
 
@@ -678,6 +693,7 @@ Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth 
 | Charts / canvas barcodes / dashboard  | `chartjs-node-canvas`, `canvas`     |
 | PDF                                   | `pdfmake`                           |
 | SendGrid email                        | `@sendgrid/mail`                    |
+| Twilio messaging                      | `twilio` (^6.x)                         |
 | Gemini AI                             | `@google/generative-ai`             |
 
 **Install behavior (npm):**

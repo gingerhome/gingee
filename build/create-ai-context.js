@@ -58,6 +58,7 @@ async function createContextFile() {
       "modules/html.js",
       "modules/httpclient.js",
       "modules/image.js",
+      "modules/messaging.js",
       "modules/pdf.js",
       "modules/platform.js",
       "modules/qrcode.js",

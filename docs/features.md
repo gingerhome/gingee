@@ -41,6 +41,9 @@ These are the core architectural features that define the Gingee development exp
 - **Transactional Email (`email` Module)**
   Send mail through a provider adapter (SendGrid in v1, plus a `console` logger for local dev). Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `email.send(message)` or `email.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `email` permission.
 
+- **Outbound Messaging (`messaging` Module)**
+  Send SMS/MMS/WhatsApp through a provider adapter (Twilio in v1, plus `mock` and `console` loggers for local dev). Set `channel: 'whatsapp'` for WhatsApp (optional `whatsapp_from` in config); use `contentSid` / `contentVariables` for Twilio Content Templates. Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `messaging.send(message)` or `messaging.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `messaging` permission. Sample app: **`ginbon`** (`/ginbon/` — contacts, templates, compose with SMS/MMS/WhatsApp, history).
+
 - **Generative AI (`ai` Module)**
   Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
 
@@ -66,10 +69,10 @@ These are the core architectural features that define the Gingee development exp
   Append-only JSONL log (`audit.path`, default `logs/audit.jsonl`) for permission grants, app lifecycle (install, upgrade, reload, delete, rollback), scheduler Run now, queue DLQ retry/discard, and log list/read metadata. Complements application request logs.
 
 * **Optional feature packages:**
-  Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, and mock AI remain available without optionals.
+  Heavy or specialized npm packages ship as **`optionalDependencies`**: **`sharp`** (image), non-SQLite SQL drivers (`pg`, `mysql2`, `mssql`, `oracledb`), chart/canvas, `pdfmake`, SendGrid, Twilio, and Gemini SDK. A normal `npm install` still tries to install them, but a failed native build **does not fail the whole install**. For a **slimmer** tree use `npm install --omit=optional`, then add only what you need (`npm install sharp pg pdfmake twilio`, etc.). Missing packages surface as `FEATURE_NOT_INSTALLED` when an app actually uses that feature. SQLite, console email, mock messaging, and mock AI remain available without optionals.
 
 * **Process isolation (opt-in):**
-  With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, **request-timeout cancel** (IPC + AbortSignal; optional worker kill), and worker-side re-init of `ai` / `email` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
+  With `isolation.mode: "process"`, selected apps run server scripts in a **child process** (IPC). Public HTTP ports stay on the master. Privileged apps (e.g. Glade) stay in-process. Supports **buffered** and **SSE** responses (including AI streams), **solo workers** (`isolation.apps` / `app.json`) or **isolation groups** (shared worker—group membership alone is enough; no duplicate `apps` list required), **auto-restart** with backoff after unexpected crash, **request-timeout cancel** (IPC + AbortSignal; optional worker kill), and worker-side re-init of `ai` / `email` / `messaging` from `app.json`. See [Server Config](./server-config.md) → `isolation`.
 
 * **WebSockets (opt-in per app):**
   Bidirectional real-time connections on the same public HTTP(S) port (`ws` library). Declare `app.json` → `websockets` (handler + optional auth), grant the **`websockets`** permission, then use `require('websockets')` for rooms/broadcast. Multi-tenant apps should use `tenantRoom(tenantId, name)`. Connections terminate on the **master** (not isolation workers). **Multi-node:** set `websockets.fanout.driver: "redis"` and sibling `websockets.redis` so `toRoom` / `toApp` reach sockets on every master. Prefer SSE for one-shot AI token streams. Sample app: **`ginchat`** (`/ginchat/`). See [Server Config](./server-config.md) → `websockets`.
@@ -102,6 +105,8 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
   The unified database interface. Provides a consistent API (`query`, `execute`, `transaction`) for interacting with any configured database.
 - **`email`**
   Transactional email via provider adapters (`sendgrid`, `console`). Config from `gingee.json` / `app.json`, plus `sendWithConfig` for per-transaction overrides. Permission-protected.
+- **`messaging`**
+  Outbound SMS/MMS/WhatsApp via provider adapters (`mock`, `console`, `twilio`). Same single-config + `send` / `sendWithConfig` pattern as `email`; WhatsApp via `channel` + optional Content Templates. Permission-protected. Sample: **`web/ginbon/`**.
 - **`ai`**
   Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 - **`fs`**

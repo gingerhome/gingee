@@ -91,6 +91,7 @@ Gingee provides a rich standard library of "app modules" to handle common tasks 
 - **`dashboard`**: Provides functionality to create and manage a dashboard layout with multiple charts.
 - **`db`**: Provides a unified interface for database operations, allowing dynamic loading of different database adapters
 - **`email`**: Transactional email (SendGrid / console adapters); app or server config, with optional per-send config override
+- **`messaging`**: Outbound messaging / SMS / MMS / WhatsApp (Twilio / mock / console adapters); app or server config, with optional per-send config override and Content Templates
 - **`encode`**: Provides various encoding and decoding utilities for strings, including Base64, URI, hexadecimal, HTML, and Base58.
 - **`fs`**: Provides secure, sandboxed synchronous and asynchronous file operations (read/write, `readJSON` / `writeJSON`, directories, listing via `readdir` / `listFiles` / `listDirs` / `walk`, and `stat`).
 - **`html`**: Provides functions for parsing and manipulating HTML from string, file and url sources.

@@ -25,6 +25,8 @@ This should print the installed version number of the CLI.
 
 ## Platform Specific Requirements
 
+Gingee and `gingee-cli` require **Node.js ≥ 20.18.1** (Node 20 LTS or newer).
+
 ### **Windows**
 
 For most Windows users, no additional setup is required. The standard Node.js installer from [nodejs.org](https://nodejs.org/) includes everything you need.

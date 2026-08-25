@@ -27,6 +27,7 @@ const { createGRequire, runInGBox } = require("../../gbox.js");
 const { FakeIncomingMessage, FakeServerResponse } = require("./fake_http.js");
 const ai = require("../../ai.js");
 const email = require("../../email.js");
+const messaging = require("../../messaging.js");
 
 /** @type {object|null} */
 let workerState = null;
@@ -390,7 +391,7 @@ process.on("message", async (msg) => {
 
       const globalConfig = msg.globalConfig || {};
 
-      // Master already ran ai/email init; this child process has empty in-memory maps.
+      // Master already ran ai/email/messaging init; this child process has empty in-memory maps.
       // Re-init from server defaults + each app's app.json snapshot (includes resolved secrets).
       try {
         ai.initServer(globalConfig.ai || null, workerLog);
@@ -401,6 +402,11 @@ process.on("message", async (msg) => {
         email.initServer(globalConfig.email || null, workerLog);
       } catch (e) {
         workerLog.error(`[worker] email.initServer failed: ${e.message}`);
+      }
+      try {
+        messaging.initServer(globalConfig.messaging || null, workerLog);
+      } catch (e) {
+        workerLog.error(`[worker] messaging.initServer failed: ${e.message}`);
       }
 
       for (const entry of list) {
@@ -430,6 +436,13 @@ process.on("message", async (msg) => {
         } catch (e) {
           workerLog.error(
             `[worker] email.initApp('${name}') failed: ${e.message}`,
+          );
+        }
+        try {
+          messaging.initApp(app, workerLog);
+        } catch (e) {
+          workerLog.error(
+            `[worker] messaging.initApp('${name}') failed: ${e.message}`,
           );
         }
       }

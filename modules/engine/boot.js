@@ -7,6 +7,7 @@
 const fs = require("fs");
 const { als } = require("../gingee.js");
 const email = require("../email.js");
+const messaging = require("../messaging.js");
 const ai = require("../ai.js");
 const scheduler = require("../scheduler.js");
 const limits = require("../limits.js");
@@ -51,6 +52,9 @@ async function startServer(options) {
 
   // Server-level email defaults (optional); per-app email is initialized in initializeApps
   email.initServer(config.email, logger);
+
+  // Server-level messaging defaults (optional); per-app messaging is initialized in initializeApps
+  messaging.initServer(config.messaging, logger);
 
   // Server-level AI defaults (optional); per-app AI is initialized in initializeApps
   ai.initServer(config.ai, logger);

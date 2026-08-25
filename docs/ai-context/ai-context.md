@@ -1195,6 +1195,7 @@ Gingee keeps a **core** set of required dependencies (engine, SQLite, zip, auth 
 | Charts / canvas barcodes / dashboard  | `chartjs-node-canvas`, `canvas`     |
 | PDF                                   | `pdfmake`                           |
 | SendGrid email                        | `@sendgrid/mail`                    |
+| Twilio messaging                      | `twilio` (^6.x)                         |
 | Gemini AI                             | `@google/generative-ai`             |
 
 **Install behavior (npm):**

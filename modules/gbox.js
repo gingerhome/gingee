@@ -12,6 +12,7 @@ const PROTECTED_MODULES = [
   "email",
   "fs",
   "httpclient",
+  "messaging",
   "platform",
   "pdf",
   "zip",

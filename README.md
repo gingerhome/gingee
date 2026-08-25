@@ -14,6 +14,8 @@ Gingee is a secure, batteries-included Node.js application server designed to dr
 
 ## **🚀 Quick Start**
 
+**Requires Node.js ≥ 20.18.1** (Node 20 LTS or newer).
+
 Get a new, fully configured Gingee server running in under a minute. See [video](https://www.youtube.com/watch?v=Ob85kM234hU)
 
 ```bash

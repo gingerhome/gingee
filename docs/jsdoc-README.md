@@ -14,6 +14,8 @@ The objective of the project is to validate the feasibility of GenAI in platform
 
 Gingee is a secure, batteries-included Node.js application server designed to dramatically accelerate web app development. Co-authored by a human architect and a GenAI partner, it provides a full featured platform that allows developers to focus on business logic instead of boilerplate. It achieves this through a secure sandbox, a powerful module ecosystem, and a comprehensive application lifecycle management system.
 
+**Requires Node.js ≥ 20.18.1** (Node 20 LTS or newer).
+
 ## **🚀 Quick Start**
 
 Get a new, fully configured Gingee server running in under a minute. See [video](https://www.youtube.com/watch?v=Ob85kM234hU)

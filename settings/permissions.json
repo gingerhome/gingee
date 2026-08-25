@@ -16,6 +16,7 @@
       "zip",
       "image",
       "email",
+      "messaging",
       "ai",
       "scheduler",
       "queue"
@@ -23,5 +24,12 @@
   },
   "perftest": {
     "granted": []
+  },
+  "ginbon": {
+    "granted": [
+      "db",
+      "messaging",
+      "fs"
+    ]
   }
 }

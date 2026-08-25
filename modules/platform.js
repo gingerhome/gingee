@@ -11,6 +11,7 @@ const { als, getContext } = require("./gingee.js");
 const db = require("./db.js");
 const email = require("./email.js");
 const ai = require("./ai.js");
+const messaging = require("./messaging.js");
 const scheduler = require("./scheduler.js");
 const secrets = require("./secrets.js");
 const audit = require("./audit.js");
@@ -35,6 +36,8 @@ const ALL_PERMISSIONS = {
   db: "Allows the app to connect to and query the database(s) you configure for it.",
   email:
     "Allows the app to send transactional email via the configured provider (e.g. SendGrid) or a runtime config override.",
+  messaging:
+    "Allows the app to send outbound SMS/MMS via the messaging module (e.g. Twilio, mock, or console).",
   ai: "Allows the app to call generative AI providers (chat, multimodal, document parsing, content safety) via the ai module.",
   scheduler:
     "Allows the app to register CRON schedules declared in app.json (script or URL targets). URL targets also need httpclient.",
@@ -661,6 +664,7 @@ async function registerNewApp(appName, permissionsArray) {
 
     await db.reinitApp(appName, app, logger);
     await email.reinitApp(appName, app, logger);
+    await messaging.reinitApp(appName, app, logger);
     await ai.reinitApp(appName, app, logger);
 
     const startupOk = await als.run({ app, logger, globalConfig }, async () =>
@@ -770,9 +774,10 @@ async function reloadApp(appName) {
       gdev.startDevServer(app);
     }
 
-    // Re-initialize the DB, email, and AI for this app
+    // Re-initialize the DB, email, messaging, and AI for this app
     await db.reinitApp(appName, app, logger);
     await email.reinitApp(appName, app, logger);
+    await messaging.reinitApp(appName, app, logger);
     await ai.reinitApp(appName, app, logger);
 
     // Run startup scripts for this app — failure aborts the reload
@@ -870,6 +875,9 @@ async function deleteApp(appName, options = {}) {
 
     logger.info(`Shutting down email for app '${appName}' before deletion.`);
     await email.shutdownApp(appName, logger);
+
+    logger.info(`Shutting down messaging for app '${appName}' before deletion.`);
+    await messaging.shutdownApp(appName, logger);
 
     logger.info(`Shutting down AI for app '${appName}' before deletion.`);
     await ai.shutdownApp(appName, logger);

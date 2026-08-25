@@ -8,7 +8,7 @@ module.exports = {
   forceExit: true,
   testTimeout: 30000, // 30 seconds timeout for tests
   testMatch: ["**/test/**/*.test.js"],
-  // archiver@8 and http-proxy-middleware@4 are ESM-only; map to CJS mocks for Jest.
+  // archiver@8 is ESM-only; http-proxy-middleware is mocked for Jest isolation (3.x is CJS).
   moduleNameMapper: {
     "^archiver$": "<rootDir>/test/mocks/archiver.js",
     "^http-proxy-middleware$": "<rootDir>/test/mocks/http-proxy-middleware.js",

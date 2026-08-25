@@ -364,6 +364,33 @@ Single outbound email configuration for the app (no named profiles). App config 
 }
 ```
 
+### Messaging (`messaging` object, optional)
+
+Single outbound messaging configuration for the app (SMS, MMS, WhatsApp via Twilio). App config overrides optional server defaults in `gingee.json` → `messaging`. Requires the `messaging` permission.
+
+- **`type`** (string, required when using messaging): Provider id — `twilio` or `mock` / `console` (dev: logs only, no network).
+- **`account_sid`** (string): Twilio Account SID when `type` is `twilio`.
+- **`auth_token`** (string): Twilio Auth Token (or `api_key` + `api_secret`).
+- **`from`** (string, optional): Default SMS/MMS sender phone number (e.g. `"+15551234567"`).
+- **`whatsapp_from`** (string, optional): Default WhatsApp sender (E.164). Used when a message sets `channel: "whatsapp"`; the Twilio adapter prefixes `whatsapp:` automatically.
+- **`messaging_service_sid`** (string, optional): Default Twilio Messaging Service SID (may own SMS and/or WhatsApp senders).
+
+**Message fields** (on `messaging.send` / `sendWithConfig`): `to`, `body` / `text`, optional `mediaUrl`, optional `channel` (`"sms"` default, or `"whatsapp"`; `"mms"` is treated as SMS addressing), optional Twilio Content Template `contentSid` + `contentVariables` (object). At least one of `body`, `mediaUrl`, or `contentSid` is required. WhatsApp freeform body/media is limited to the 24h session window unless you use an approved Content Template.
+
+**Runtime override:** from a server script you can call `messaging.sendWithConfig(config, message)` so a one-off send uses config that overrides both `gingee.json` and `app.json` for that transaction only.
+
+**Example `app.json`:**
+
+```json
+"messaging": {
+  "type": "twilio",
+  "account_sid": "env:TWILIO_ACCOUNT_SID",
+  "auth_token": "env:TWILIO_AUTH_TOKEN",
+  "from": "+15551234567",
+  "whatsapp_from": "+14155238886"
+}
+```
+
 ### Script Execution Configuration
 
 - **`startup_scripts`** (array, optional)

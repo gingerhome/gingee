@@ -17,6 +17,7 @@ const {
 } = require("../gapp_start.js");
 const db = require("../db.js");
 const email = require("../email.js");
+const messaging = require("../messaging.js");
 const ai = require("../ai.js");
 const scheduler = require("../scheduler.js");
 const secrets = require("../secrets.js");
@@ -168,6 +169,14 @@ async function initializeOneApp(appName, webPath, config, logger) {
   } catch (err) {
     logger.error(
       `Failed to initialize email for app '${appName}': ${err.message}`,
+    );
+  }
+
+  try {
+    messaging.initApp(app, dedicatedLogger);
+  } catch (err) {
+    logger.error(
+      `Failed to initialize messaging for app '${appName}': ${err.message}`,
     );
   }
 
