@@ -210,7 +210,7 @@ async function runHttpScript(msg) {
     allowedBuiltinModules: allowedBuiltinModules || [],
     privilegedApps: privilegedApps || [],
     useCache: msg.useCache !== false,
-    logger: workerLog,
+    logger: (app && app.logger) || workerLog,
     globalConfig,
     // Per-app: server floor + app.json allow_dynamic_code
     allowDynamicCode: resolveAllowDynamicCodeForApp(
@@ -244,7 +244,7 @@ async function runHttpScript(msg) {
     app,
     allApps,
     appNames: Object.keys(allApps),
-    logger: workerLog,
+    logger: (app && app.logger) || workerLog,
     routeParams: msg.routeParams || {},
     scriptPath,
     scriptFolder: path.dirname(scriptPath),
@@ -425,14 +425,50 @@ process.on("message", async (msg) => {
         workerLog.error(`[worker] messaging.initServer failed: ${e.message}`);
       }
 
+      // Bridge so createAppLogger ForwardingTransport can IPC to the master,
+      // while DailyRotateFile still writes box/logs/app-*.log on this worker.
+      const appLoggerMod = require("../../logger.js");
+      try {
+        const winstonBridge = {
+          log(info) {
+            const level = (info && info.level) || "info";
+            const message = (info && info.message) || "";
+            if (typeof workerLog[level] === "function") {
+              workerLog[level](message);
+            } else {
+              workerLog.info(message);
+            }
+          },
+          info: (m) => workerLog.info(m),
+          warn: (m) => workerLog.warn(m),
+          error: (m) => workerLog.error(m),
+          debug: (m) => workerLog.info(m),
+        };
+        appLoggerMod.init(winstonBridge);
+      } catch (e) {
+        workerLog.warn(`[worker] appLogger.init failed: ${e.message}`);
+      }
+
       for (const entry of list) {
         const name = entry.appName;
+        let appFileLogger = workerLog;
+        try {
+          appFileLogger = appLoggerMod.createAppLogger(
+            name,
+            entry.appBoxPath,
+            (entry.appConfig && entry.appConfig.logging) || { level: "info" },
+          );
+        } catch (e) {
+          workerLog.warn(
+            `[worker] createAppLogger('${name}') failed: ${e.message}`,
+          );
+        }
         const app = {
           name,
           config: entry.appConfig || {},
           appWebPath: entry.appWebPath,
           appBoxPath: entry.appBoxPath,
-          logger: workerLog,
+          logger: appFileLogger,
           grantedPermissions: entry.grantedPermissions || [],
           in_maintenance: false,
         };

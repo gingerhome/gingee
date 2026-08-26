@@ -45,6 +45,7 @@ module.exports = async function () {
 - **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it. Keep the `async ($g) => …` parameter for compatibility.
 - **`$g`**: The request context object. It is passed into your `gingee` handler **and** is available as bare `$g` / `globalThis.$g` inside that handler (and in `require`d box modules it calls). The bare binding is **live and request-local** (ALS-backed Proxy)—safe under module instance cache if you write `const local_$g = $g`. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` on module scope.
   - **`$g.locals`**: A fresh plain object every request (also schedule/queue contexts). Put request-scoped scratch here (`$g.locals.foo = 1`). The live Proxy does not allow assigning arbitrary fields onto `$g` itself. Do not close over `$g.locals` at module top level.
+- **Logging:** Prefer **`$g.log`** (Winston app logger → `box/logs/app-*.log` JSON). Sandbox **`console.log/info/warn/error/debug`** are also forwarded to that same app logger (not the host Node console). Do not print secrets.
 
 Let's modify the script to take a query parameter, and call a helper that uses bare `$g`:
 

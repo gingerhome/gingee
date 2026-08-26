@@ -3,6 +3,9 @@ const path = require("path");
 const vm = require("vm");
 const sucrase = require("sucrase");
 const { isPathInside } = require("./internal_utils.js");
+const {
+  createSandboxConsole,
+} = require(path.join(__dirname, "engine", "sandbox_console.js"));
 
 // List of app modules that require a permission check
 const PROTECTED_MODULES = [
@@ -998,7 +1001,12 @@ function runInGBox(scriptPath, gBoxConfig) {
     const gbox = {
       module: { exports: {} },
       gingee: gingee.gingee,
-      console: gBoxConfig.console || console,
+      console:
+        gBoxConfig.console ||
+        (typeof createSandboxConsole === "function"
+          ? createSandboxConsole(gBoxConfig.logger)
+          : null) ||
+        console,
       // Pass the list down to create the safe require function.
       require: createGRequire(absScriptPath, gBoxConfig),
     };
