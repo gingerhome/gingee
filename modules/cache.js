@@ -2,10 +2,18 @@
 // It acts as a facade over the main cache_service.
 const cacheService = require("./cache_service.js");
 const { getContext } = require("./gingee.js");
+const {
+  SCOPES,
+  resolvePrefixes,
+  invalidateStaticPrefixes,
+  invalidateScriptPrefixesLocal,
+} = require("./engine/app_cache_invalidate.js");
 
 /**
  * @module cache
  * @description Provides a secure interface for caching data within the Gingee application context.
+ * Also exposes {@link module:cache.invalidateSysCache} to drop engine static/transpile/instance
+ * caches for path prefixes under the calling app (after runtime file replaces).
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
 
@@ -95,9 +103,76 @@ async function clear() {
   return cacheService.clear(prefix);
 }
 
+/**
+ * @function invalidateSysCache
+ * @memberof module:cache
+ * @description Drops engine caches for path prefixes under this app only — static
+ * file cache entries (`static:…`) and/or box transpile + sandboxed module instance
+ * caches. Does **not** run `platform.reloadApp` (no maintenance mode, no db/email
+ * reinit). Path rules match `fs` (leading `/` = app WEB/BOX root; else relative to
+ * the calling script). Empty options are a no-op. Script-cache clears fan out to
+ * isolation workers.
+ * @param {object} [options]
+ * @param {string[]} [options.static] - Prefixes under app web (fs.WEB rules).
+ * @param {string[]} [options.scripts] - Prefixes under app box (fs.BOX rules).
+ * @returns {Promise<{ static: number, scripts: { transpile: number, instance: number } }>}
+ * @example
+ * const cache = require('cache');
+ * await cache.invalidateSysCache({
+ *   static: ['/assets/build'],
+ *   scripts: ['/lib', './generated'],
+ * });
+ */
+async function invalidateSysCache(options) {
+  const { app, appName, logger } = getContext();
+  if (!app || !appName) {
+    throw new Error("cache.invalidateSysCache requires an app context.");
+  }
+
+  const opts = options && typeof options === "object" ? options : {};
+  const staticRaw = opts.static;
+  const scriptsRaw = opts.scripts;
+
+  const staticPrefixes = resolvePrefixes(
+    SCOPES.WEB,
+    Array.isArray(staticRaw) ? staticRaw : [],
+    app,
+  );
+  const scriptPrefixes = resolvePrefixes(
+    SCOPES.BOX,
+    Array.isArray(scriptsRaw) ? scriptsRaw : [],
+    app,
+  );
+
+  let staticCount = 0;
+  if (staticPrefixes.length > 0) {
+    staticCount = await invalidateStaticPrefixes(staticPrefixes);
+  }
+
+  let scriptCounts = { transpile: 0, instance: 0 };
+  if (scriptPrefixes.length > 0) {
+    scriptCounts = invalidateScriptPrefixesLocal(appName, scriptPrefixes);
+    try {
+      const workerManager = require("./engine/isolation/worker_manager.js");
+      if (typeof workerManager.broadcastCacheInvalidate === "function") {
+        workerManager.broadcastCacheInvalidate(appName, scriptPrefixes);
+      }
+    } catch (e) {
+      if (logger && logger.warn) {
+        logger.warn(
+          `[cache] invalidateSysCache worker fan-out skipped: ${e.message}`,
+        );
+      }
+    }
+  }
+
+  return { static: staticCount, scripts: scriptCounts };
+}
+
 module.exports = {
   get,
   set,
   del,
   clear,
+  invalidateSysCache,
 };

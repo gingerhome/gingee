@@ -596,4 +596,104 @@ describe("scheduler.js", () => {
       scheduler._setCoordinatorForTests(null);
     });
   });
+
+  describe("rebind", () => {
+    const secrets = require("../../modules/secrets");
+
+    beforeEach(() => {
+      secrets.initServer({ required: false }, tmpRoot, logger);
+    });
+
+    test("rebind() refreshes all jobs from disk app.json", async () => {
+      scheduler.initServer({ enabled: true, timezone: "UTC" }, logger, {});
+      fs.writeFileSync(
+        path.join(appBoxPath, "jobs", "a.js"),
+        "module.exports = async function(){}",
+      );
+      fs.writeFileSync(
+        path.join(appBoxPath, "app.json"),
+        JSON.stringify({
+          name: "Sched App",
+          schedules: [
+            {
+              name: "one",
+              cron: "0 1 * * *",
+              target: { type: "script", path: "jobs/a.js" },
+            },
+            {
+              name: "two",
+              cron: "0 2 * * *",
+              target: { type: "script", path: "jobs/a.js" },
+            },
+          ],
+        }),
+      );
+      const app = makeApp({
+        config: { schedules: [] },
+      });
+      await als.run({ app, appName: app.name, logger }, async () => {
+        const res = await scheduler.rebind();
+        expect(res.rebound.sort()).toEqual(["one", "two"]);
+      });
+      expect(scheduler.listJobs().map((j) => j.name).sort()).toEqual([
+        "one",
+        "two",
+      ]);
+      expect(app.config.schedules).toHaveLength(2);
+      scheduler.unregisterApp(app.name);
+    });
+
+    test("rebind(['one']) only rebinds named job; unknown throws", async () => {
+      scheduler.initServer({ enabled: true, timezone: "UTC" }, logger, {});
+      fs.writeFileSync(
+        path.join(appBoxPath, "jobs", "a.js"),
+        "module.exports = async function(){}",
+      );
+      fs.writeFileSync(
+        path.join(appBoxPath, "app.json"),
+        JSON.stringify({
+          schedules: [
+            {
+              name: "one",
+              cron: "0 1 * * *",
+              target: { type: "script", path: "jobs/a.js" },
+            },
+            {
+              name: "two",
+              cron: "0 2 * * *",
+              target: { type: "script", path: "jobs/a.js" },
+            },
+          ],
+        }),
+      );
+      const app = makeApp();
+      await scheduler.registerApp({
+        ...app,
+        config: {
+          schedules: [
+            {
+              name: "one",
+              cron: "0 1 * * *",
+              target: { type: "script", path: "jobs/a.js" },
+            },
+            {
+              name: "two",
+              cron: "0 2 * * *",
+              target: { type: "script", path: "jobs/a.js" },
+            },
+          ],
+        },
+      });
+      await als.run({ app, appName: app.name, logger }, async () => {
+        await expect(scheduler.rebind(["missing"])).rejects.toThrow(/not found/);
+        const res = await scheduler.rebind(["one"]);
+        expect(res.rebound).toEqual(["one"]);
+      });
+      expect(scheduler.listJobs().map((j) => j.name).sort()).toEqual([
+        "one",
+        "two",
+      ]);
+      scheduler.unregisterApp(app.name);
+    });
+  });
 });

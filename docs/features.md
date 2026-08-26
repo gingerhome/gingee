@@ -44,6 +44,8 @@ These are the core architectural features that define the Gingee development exp
 
 - **Outbound Messaging (`messaging` Module)**
   Send SMS/MMS/WhatsApp through a provider adapter (Twilio in v1, plus `mock` and `console` loggers for local dev). Set `channel: 'whatsapp'` for WhatsApp (optional `whatsapp_from` in config); use `contentSid` / `contentVariables` for Twilio Content Templates. Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `messaging.send(message)` or `messaging.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `messaging` permission. Sample app: **`ginbon`** (`/ginbon/` — contacts, templates, compose with SMS/MMS/WhatsApp, history).
+- **Engine cache invalidate (`cache.invalidateSysCache`)**
+  Non-privileged apps with the **`cache`** permission can drop static / transpile / instance caches for path prefixes under their own web/box (after unzip/codegen) without `platform.reloadApp`. Script clears fan out to isolation workers. Schedule-only refresh: `require('scheduler').rebind(names?)` with the **`scheduler`** permission.
 
 - **Generative AI (`ai` Module)**
   Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.

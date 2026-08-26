@@ -923,6 +923,38 @@ function getWorkerStats() {
   return out;
 }
 
+/**
+ * Fan-out script cache invalidation to all live workers that host appName
+ * (or all workers if we cannot tell — safer to send to every ready worker
+ * that lists the app).
+ * @param {string} appName
+ * @param {string[]} scriptAbsPrefixes
+ */
+function broadcastCacheInvalidate(appName, scriptAbsPrefixes) {
+  if (!appName || !Array.isArray(scriptAbsPrefixes) || scriptAbsPrefixes.length === 0) {
+    return;
+  }
+  const msg = {
+    type: "cache_invalidate",
+    appName,
+    scripts: scriptAbsPrefixes,
+  };
+  for (const [, handle] of workers) {
+    if (!handle || !handle.child || !handle.ready) continue;
+    const names = handle.appNames || [];
+    if (names.length && !names.includes(appName)) continue;
+    try {
+      handle.child.send(msg);
+    } catch (e) {
+      if (serverLogger) {
+        serverLogger.warn(
+          `[isolation] cache_invalidate send failed (${handle.workerKey}): ${e.message}`,
+        );
+      }
+    }
+  }
+}
+
 module.exports = {
   init,
   setAppsRegistry,
@@ -934,6 +966,7 @@ module.exports = {
   cancelWorkerRequest,
   shutdownAll,
   getWorkerStats,
+  broadcastCacheInvalidate,
   readRequestBody,
   rememberApp,
   /** test helpers */

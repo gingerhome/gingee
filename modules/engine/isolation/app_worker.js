@@ -488,6 +488,22 @@ process.on("message", async (msg) => {
       return;
     }
 
+    if (msg.type === "cache_invalidate") {
+      try {
+        const { clearScriptCachesByPrefixes } = require("../../gbox.js");
+        const counts = clearScriptCachesByPrefixes(
+          msg.appName,
+          msg.scripts || [],
+        );
+        workerLog.info(
+          `[worker] cache_invalidate app=${msg.appName} transpile=${counts.transpile} instance=${counts.instance}`,
+        );
+      } catch (e) {
+        workerLog.error(`[worker] cache_invalidate failed: ${e.message}`);
+      }
+      return;
+    }
+
     if (msg.type === "cancel_request" && msg.requestId) {
       workerLog.info(
         `[worker] cancel_request ${msg.requestId}${msg.reason ? `: ${msg.reason}` : ""}`,

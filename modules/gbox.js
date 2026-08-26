@@ -19,8 +19,9 @@ const PROTECTED_MODULES = [
   "image",
   "websockets",
   "queue",
-  // Note: 'scheduler' is engine-internal (restricted). Apps declare jobs in app.json;
-  // they do not require('scheduler') in v1. The "scheduler" permission gates registration.
+  // Apps may require('scheduler') with the scheduler permission; public API is rebind().
+  // Jobs are still declared in app.json; registration is engine-driven.
+  "scheduler",
 ];
 
 // A whitelist of globally-allowed, safe UTILITY modules (both built-in and third-party).
@@ -62,7 +63,6 @@ const restrictedGlobalModules = [
   "cache_service",
   "internal_utils",
   "platform",
-  "scheduler",
   "limits",
   "egress",
   "secrets",
@@ -112,6 +112,50 @@ function clearInstanceCache(appName) {
       instanceCache.delete(key);
     }
   }
+}
+
+/**
+ * Drop transpile + instance cache entries whose script paths lie under any of
+ * the absolute prefixes (for one app). Used by cache.invalidateSysCache.
+ *
+ * @param {string} appName
+ * @param {string[]} absPrefixes
+ * @returns {{ transpile: number, instance: number }}
+ */
+function clearScriptCachesByPrefixes(appName, absPrefixes) {
+  const prefixes = (Array.isArray(absPrefixes) ? absPrefixes : [])
+    .filter((p) => typeof p === "string" && p.length > 0)
+    .map((p) => path.resolve(p));
+  let transpile = 0;
+  let instance = 0;
+  if (!appName || prefixes.length === 0) {
+    return { transpile, instance };
+  }
+
+  for (const key of [...transpileCache.keys()]) {
+    for (const prefix of prefixes) {
+      if (isPathInside(key, prefix) || path.resolve(key) === prefix) {
+        transpileCache.delete(key);
+        transpile += 1;
+        break;
+      }
+    }
+  }
+
+  const appPrefix = `${appName}\0`;
+  for (const key of [...instanceCache.keys()]) {
+    if (!key.startsWith(appPrefix)) continue;
+    const scriptPath = key.slice(appPrefix.length);
+    for (const prefix of prefixes) {
+      if (isPathInside(scriptPath, prefix) || path.resolve(scriptPath) === prefix) {
+        instanceCache.delete(key);
+        instance += 1;
+        break;
+      }
+    }
+  }
+
+  return { transpile, instance };
 }
 
 /**
@@ -661,6 +705,10 @@ function createGRequire(callingScriptPath, gBoxConfig) {
           resolveFsBindDir(callingScriptPath, gBoxConfig),
         );
       }
+      // Sandbox may only call scheduler.rebind — not engine register/unregister/runNow.
+      if (moduleName === "scheduler" || normalized === "scheduler") {
+        return { rebind: mod.rebind };
+      }
       return mod;
     }
     if (normalized !== moduleName) {
@@ -672,6 +720,9 @@ function createGRequire(callingScriptPath, gBoxConfig) {
             mod,
             resolveFsBindDir(callingScriptPath, gBoxConfig),
           );
+        }
+        if (normalized === "scheduler") {
+          return { rebind: mod.rebind };
         }
         return mod;
       }
@@ -1024,6 +1075,7 @@ module.exports = {
   transpileCache,
   instanceCache,
   clearInstanceCache,
+  clearScriptCachesByPrefixes,
   createGRequire,
   runInGBox,
   FORBIDDEN_BUILTINS,

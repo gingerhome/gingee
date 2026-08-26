@@ -31,12 +31,14 @@ const engineRoot = path.resolve(__dirname, "..");
  * `cron` expression, and a `target` of type <code>script</code>, <code>url</code>, or
  * <code>queue</code>.
  *
- * <b>Permissions:</b> App must be granted <code>scheduler</code> to register any jobs.
- * URL targets also require <code>httpclient</code>; queue targets also require <code>queue</code>.
+ * <b>Permissions:</b> App must be granted <code>scheduler</code> to register any jobs
+ * and to <code>require('scheduler')</code>. URL targets also require <code>httpclient</code>;
+ * queue targets also require <code>queue</code>.
+ *
+ * <b>App API:</b> {@link module:scheduler.rebind} — refresh this app's CRON registrations
+ * from disk <code>app.json</code> without a full <code>platform.reloadApp</code>.
  *
  * <b>Defaults:</b> overlap = skip, misfire = skip, timezone from job or server default (UTC).
- *
- * This module is engine-internal (not for sandboxed app <code>require</code> in v1).
  */
 
 /** @type {{ enabled: boolean, timezone: string, coordination: object }} */
@@ -837,6 +839,28 @@ function unregisterApp(appName) {
 }
 
 /**
+ * Stop a single named job for an app (if registered).
+ * @param {string} appName
+ * @param {string} jobName
+ * @returns {boolean} true if a job was stopped
+ * @private
+ */
+function unregisterJob(appName, jobName) {
+  const appMap = appJobs.get(appName);
+  if (!appMap) return false;
+  const runtime = appMap.get(jobName);
+  if (!runtime) return false;
+  try {
+    if (runtime.cronJob) runtime.cronJob.stop();
+  } catch (_) {
+    /* ignore */
+  }
+  appMap.delete(jobName);
+  if (appMap.size === 0) appJobs.delete(appName);
+  return true;
+}
+
+/**
  * Re-read app schedules after reload.
  * @param {string} appName
  * @param {object} app
@@ -844,6 +868,188 @@ function unregisterApp(appName) {
 async function reinitApp(appName, app) {
   unregisterApp(appName);
   if (app) await registerApp(app);
+}
+
+/**
+ * Load schedules array from the calling app's box app.json (secrets-resolved).
+ * @param {object} app
+ * @returns {Array}
+ * @private
+ */
+function loadSchedulesFromDisk(app) {
+  const secrets = require("./secrets.js");
+  const { loadJsonFile } = require("./internal_utils.js");
+  const appConfigPath = path.join(app.appBoxPath, "app.json");
+  if (!fs.existsSync(appConfigPath)) {
+    throw new Error(
+      `scheduler.rebind: app.json not found for app '${app.name}'.`,
+    );
+  }
+  const fresh = secrets.resolveDeep(loadJsonFile(appConfigPath));
+  return Array.isArray(fresh.schedules) ? fresh.schedules : [];
+}
+
+/**
+ * Register one schedule def for an app (shared with registerApp loop).
+ * @private
+ */
+async function registerOneSchedule(app, raw, seen) {
+  const perms = granted(app);
+  const result = normalizeSchedule(raw, app.name);
+  if (!result.ok) {
+    log().error(`[scheduler] App '${app.name}': ${result.error}`);
+    return false;
+  }
+  const job = result.job;
+  if (seen.has(job.name)) {
+    log().error(
+      `[scheduler] App '${app.name}': duplicate schedule name '${job.name}' — skipping.`,
+    );
+    return false;
+  }
+  seen.add(job.name);
+
+  if (!job.enabled) {
+    log().info(
+      `[scheduler] App '${app.name}' job '${job.name}' is disabled — not registered.`,
+    );
+    return false;
+  }
+
+  if (job.target.type === "queue" && !perms.includes("queue")) {
+    log().error(
+      `[scheduler] App '${app.name}' job '${job.name}' is a queue target but "queue" is not granted — skipping.`,
+    );
+    return false;
+  }
+
+  if (job.target.type === "url" && !perms.includes("httpclient")) {
+    log().error(
+      `[scheduler] App '${app.name}' job '${job.name}' is a URL target but "httpclient" is not granted — skipping.`,
+    );
+    return false;
+  }
+
+  if (job.target.type === "url") {
+    const eg = await egress.assertUrlAllowed(job.target.url);
+    if (!eg.ok) {
+      log().error(
+        `[scheduler] App '${app.name}' job '${job.name}' URL blocked by egress (${eg.reason}): ${eg.message}`,
+      );
+      return false;
+    }
+  }
+
+  try {
+    startCronWithApp(app, job);
+    return true;
+  } catch (e) {
+    log().error(
+      `[scheduler] Failed to start job '${job.name}' for app '${app.name}': ${e.message}`,
+    );
+    return false;
+  }
+}
+
+/**
+ * @function rebind
+ * @memberof module:scheduler
+ * @description Refresh CRON registrations for the **calling app** from disk
+ * <code>app.json</code> → <code>schedules</code>. Does not reinit db/email or
+ * enter maintenance. Omit <code>scheduleNames</code> or pass <code>[]</code> to
+ * rebind all jobs; otherwise only the named jobs (unknown names throw).
+ * No-op for registration when server <code>scheduler.enabled</code> is false
+ * (same as {@link module:scheduler.registerApp}), but still refreshes
+ * <code>app.config.schedules</code> from disk.
+ * @param {string[]} [scheduleNames] - Job names to rebind; empty/omit = all.
+ * @returns {Promise<{ rebound: string[] }>}
+ */
+async function rebind(scheduleNames) {
+  const store = als.getStore() || {};
+  const app = store.app;
+  const appName = store.appName || (app && app.name);
+  if (!app || !appName) {
+    throw new Error("scheduler.rebind requires an app context.");
+  }
+  const perms = granted(app);
+  if (!perms.includes("scheduler")) {
+    throw new Error(
+      `Security Error: The app '${appName}' has not been granted permission to access the 'scheduler' module.`,
+    );
+  }
+
+  if (
+    scheduleNames !== undefined &&
+    scheduleNames !== null &&
+    !Array.isArray(scheduleNames)
+  ) {
+    throw new Error("scheduler.rebind: scheduleNames must be an array when provided.");
+  }
+
+  const schedules = loadSchedulesFromDisk(app);
+  app.config = app.config || {};
+  app.config.schedules = schedules;
+
+  const reboundAll =
+    scheduleNames === undefined ||
+    scheduleNames === null ||
+    scheduleNames.length === 0;
+
+  const byName = new Map();
+  for (const raw of schedules) {
+    if (!raw || typeof raw !== "object") continue;
+    const n = raw.name != null ? String(raw.name) : "";
+    if (n) byName.set(n, raw);
+  }
+
+  if (!reboundAll) {
+    for (const name of scheduleNames) {
+      const n = String(name);
+      if (!byName.has(n)) {
+        throw new Error(
+          `scheduler.rebind: schedule '${n}' not found in app.json for '${appName}'.`,
+        );
+      }
+    }
+  }
+
+  const rebound = [];
+
+  if (!serverConfig.enabled) {
+    log().info(
+      `[scheduler] rebind for '${appName}': updated app.config.schedules from disk; server scheduler.enabled is false — not registering CRON.`,
+    );
+    return {
+      rebound: reboundAll ? [...byName.keys()] : scheduleNames.map(String),
+    };
+  }
+
+  if (reboundAll) {
+    unregisterApp(appName);
+    const seen = new Set();
+    for (const raw of schedules) {
+      const ok = await registerOneSchedule(app, raw, seen);
+      if (ok) {
+        const n = raw && raw.name != null ? String(raw.name) : null;
+        if (n) rebound.push(n);
+      }
+    }
+  } else {
+    const seen = new Set();
+    for (const name of scheduleNames) {
+      const n = String(name);
+      unregisterJob(appName, n);
+      const raw = byName.get(n);
+      const ok = await registerOneSchedule(app, raw, seen);
+      if (ok) rebound.push(n);
+      else if (raw && raw.enabled === false) {
+        /* disabled — still "rebound" as config applied */
+        rebound.push(n);
+      }
+    }
+  }
+
+  return { rebound };
 }
 
 /**
@@ -1031,6 +1237,7 @@ module.exports = {
   registerApp,
   unregisterApp,
   reinitApp,
+  rebind,
   shutdown,
   listJobs,
   getAdminStatus,
@@ -1044,4 +1251,5 @@ module.exports = {
   }),
   _runJob: runJob,
   _setCoordinatorForTests,
+  _unregisterJob: unregisterJob,
 };

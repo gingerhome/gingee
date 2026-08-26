@@ -218,6 +218,28 @@ Or Docker/K8s file mounts:
 
 Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
 
+### Runtime file replace → engine cache invalidate
+
+If a script unzips or regenerates files under **this app’s** `web/` or `box/` and the next request must see new bytes while `cache.server` (static / transpile / instance) is on, call:
+
+```javascript
+const cache = require("cache"); // permission: cache
+await cache.invalidateSysCache({
+  static: ["/assets/build"], // leading / = app web root (fs.WEB)
+  scripts: ["/lib", "./generated"], // box root or relative to this script
+});
+```
+
+Empty options are a no-op. Paths use the same rules as `fs` (and fan out script-cache clears to isolation workers). This does **not** re-read `app.json`, reinit db/email, or enter maintenance — use `platform.reloadApp` (privileged) for a full reload.
+
+### Refresh schedules without full reload
+
+```javascript
+const scheduler = require("scheduler"); // permission: scheduler
+await scheduler.rebind(); // all jobs from disk app.json
+await scheduler.rebind(["nightly"]); // one name; unknown names throw
+```
+
 ### Background jobs (`queue`, optional)
 
 For work that should not block an HTTP response (emails, reports, slow AI):

@@ -40,7 +40,7 @@ const ALL_PERMISSIONS = {
     "Allows the app to send outbound SMS/MMS via the messaging module (e.g. Twilio, mock, or console).",
   ai: "Allows the app to call generative AI providers (chat, multimodal, document parsing, content safety) via the ai module.",
   scheduler:
-    "Allows the app to register CRON schedules declared in app.json (script or URL targets). URL targets also need httpclient.",
+    "Allows the app to register CRON schedules declared in app.json and to require('scheduler').rebind(). URL targets also need httpclient.",
   fs: "Grants full read/write access within the app's own secure directories (`box` and `web`).",
   httpclient:
     "Permits the app to make outbound network requests to any external API or website.",
