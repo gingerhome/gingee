@@ -5,8 +5,7 @@ const { getContext } = require("./gingee.js");
 const {
   SCOPES,
   resolvePrefixes,
-  invalidateStaticPrefixes,
-  invalidateScriptPrefixesLocal,
+  applyInvalidateOnMaster,
 } = require("./engine/app_cache_invalidate.js");
 
 /**
@@ -16,6 +15,11 @@ const {
  * caches for path prefixes under the calling app (after runtime file replaces).
  * <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
  */
+
+/** @type {Map<string, { resolve: Function, reject: Function, timer: NodeJS.Timeout }>} */
+const pendingWorkerInvalidate = new Map();
+
+const WORKER_INVALIDATE_ACK_MS = 15000;
 
 /**
  * Constructs a secure, namespaced cache key for the current app.
@@ -104,14 +108,78 @@ async function clear() {
 }
 
 /**
+ * True when running inside an isolation app_worker process.
+ * @private
+ */
+function isIsolationWorker() {
+  return (
+    process.env.GINGEE_WORKER === "1" && typeof process.send === "function"
+  );
+}
+
+/**
+ * Forward resolved invalidate to the master; wait for ack.
+ * @private
+ */
+function forwardInvalidateToMaster(appName, staticPrefixes, scriptPrefixes) {
+  const requestId = `cinv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingWorkerInvalidate.delete(requestId);
+      reject(
+        new Error(
+          "cache.invalidateSysCache: timed out waiting for master ack",
+        ),
+      );
+    }, WORKER_INVALIDATE_ACK_MS);
+    pendingWorkerInvalidate.set(requestId, { resolve, reject, timer });
+    try {
+      process.send({
+        type: "cache_invalidate_from_worker",
+        requestId,
+        appName,
+        static: staticPrefixes,
+        scripts: scriptPrefixes,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      pendingWorkerInvalidate.delete(requestId);
+      reject(e);
+    }
+  });
+}
+
+/**
+ * @private Called from app_worker when master replies.
+ * @param {object} msg
+ * @returns {boolean}
+ */
+function _handleWorkerInvalidateAck(msg) {
+  if (!msg || !msg.requestId) return false;
+  const pending = pendingWorkerInvalidate.get(msg.requestId);
+  if (!pending) return false;
+  clearTimeout(pending.timer);
+  pendingWorkerInvalidate.delete(msg.requestId);
+  if (msg.error) {
+    pending.reject(new Error(String(msg.error)));
+  } else {
+    pending.resolve(
+      msg.result || { static: 0, scripts: { transpile: 0, instance: 0 } },
+    );
+  }
+  return true;
+}
+
+/**
  * @function invalidateSysCache
  * @memberof module:cache
  * @description Drops engine caches for path prefixes under this app only — static
  * file cache entries (`static:…`) and/or box transpile + sandboxed module instance
  * caches. Does **not** run `platform.reloadApp` (no maintenance mode, no db/email
  * reinit). Path rules match `fs` (leading `/` = app WEB/BOX root; else relative to
- * the calling script). Empty options are a no-op. Script-cache clears fan out to
- * isolation workers.
+ * the calling script). Empty options are a no-op. When called from an isolation
+ * worker, prefixes are resolved locally then forwarded to the master (static clear
+ * + fan-out to all workers).
  * @param {object} [options]
  * @param {string[]} [options.static] - Prefixes under app web (fs.WEB rules).
  * @param {string[]} [options.scripts] - Prefixes under app box (fs.BOX rules).
@@ -124,49 +192,32 @@ async function clear() {
  * });
  */
 async function invalidateSysCache(options) {
-  const { app, appName, logger } = getContext();
+  const { app, appName } = getContext();
   if (!app || !appName) {
     throw new Error("cache.invalidateSysCache requires an app context.");
   }
 
   const opts = options && typeof options === "object" ? options : {};
-  const staticRaw = opts.static;
-  const scriptsRaw = opts.scripts;
-
   const staticPrefixes = resolvePrefixes(
     SCOPES.WEB,
-    Array.isArray(staticRaw) ? staticRaw : [],
+    Array.isArray(opts.static) ? opts.static : [],
     app,
   );
   const scriptPrefixes = resolvePrefixes(
     SCOPES.BOX,
-    Array.isArray(scriptsRaw) ? scriptsRaw : [],
+    Array.isArray(opts.scripts) ? opts.scripts : [],
     app,
   );
 
-  let staticCount = 0;
-  if (staticPrefixes.length > 0) {
-    staticCount = await invalidateStaticPrefixes(staticPrefixes);
+  if (staticPrefixes.length === 0 && scriptPrefixes.length === 0) {
+    return { static: 0, scripts: { transpile: 0, instance: 0 } };
   }
 
-  let scriptCounts = { transpile: 0, instance: 0 };
-  if (scriptPrefixes.length > 0) {
-    scriptCounts = invalidateScriptPrefixesLocal(appName, scriptPrefixes);
-    try {
-      const workerManager = require("./engine/isolation/worker_manager.js");
-      if (typeof workerManager.broadcastCacheInvalidate === "function") {
-        workerManager.broadcastCacheInvalidate(appName, scriptPrefixes);
-      }
-    } catch (e) {
-      if (logger && logger.warn) {
-        logger.warn(
-          `[cache] invalidateSysCache worker fan-out skipped: ${e.message}`,
-        );
-      }
-    }
+  if (isIsolationWorker()) {
+    return forwardInvalidateToMaster(appName, staticPrefixes, scriptPrefixes);
   }
 
-  return { static: staticCount, scripts: scriptCounts };
+  return applyInvalidateOnMaster(appName, staticPrefixes, scriptPrefixes);
 }
 
 module.exports = {
@@ -175,4 +226,5 @@ module.exports = {
   del,
   clear,
   invalidateSysCache,
+  _handleWorkerInvalidateAck,
 };

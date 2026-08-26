@@ -488,6 +488,17 @@ process.on("message", async (msg) => {
       return;
     }
 
+    if (msg.type === "cache_invalidate_ack") {
+      try {
+        require("../../cache.js")._handleWorkerInvalidateAck(msg);
+      } catch (e) {
+        workerLog.error(
+          `[worker] cache_invalidate_ack handle failed: ${e.message}`,
+        );
+      }
+      return;
+    }
+
     if (msg.type === "cache_invalidate") {
       try {
         const { clearScriptCachesByPrefixes } = require("../../gbox.js");

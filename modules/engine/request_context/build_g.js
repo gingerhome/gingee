@@ -65,6 +65,9 @@ function initializeGContext(store) {
   store.$g.request = null;
   store.$g.response = null;
   store.$g.schedule = null;
+  // Fresh per request/schedule/queue — writable scratch for apps (not shared across
+  // instance-cached module.exports). Live Proxy $g stays read-only; mutate $g.locals.*.
+  store.$g.locals = Object.create(null);
 
   // Box-relative path of the script being executed (main handler path is set on the ALS store
   // before default_include + main script run). Used by app middleware for path-based policy.

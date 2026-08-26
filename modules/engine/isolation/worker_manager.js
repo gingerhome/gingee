@@ -339,6 +339,46 @@ function onWorkerMessage(handle, msg) {
     return;
   }
 
+  // Isolated app called cache.invalidateSysCache — apply on master + fan-out, then ack.
+  if (msg.type === "cache_invalidate_from_worker" && msg.requestId) {
+    const {
+      applyInvalidateOnMaster,
+    } = require("../app_cache_invalidate.js");
+    Promise.resolve()
+      .then(() =>
+        applyInvalidateOnMaster(
+          msg.appName,
+          msg.static || [],
+          msg.scripts || [],
+        ),
+      )
+      .then((result) => {
+        try {
+          handle.child.send({
+            type: "cache_invalidate_ack",
+            requestId: msg.requestId,
+            result,
+          });
+        } catch (e) {
+          log().warn(
+            `[isolation] cache_invalidate_ack send failed: ${e.message}`,
+          );
+        }
+      })
+      .catch((err) => {
+        try {
+          handle.child.send({
+            type: "cache_invalidate_ack",
+            requestId: msg.requestId,
+            error: err.message || String(err),
+          });
+        } catch (_) {
+          /* ignore */
+        }
+      });
+    return;
+  }
+
   // Streaming frames (ignore after master cancel/timeout — M4)
   if (msg.type === "stream_start" && msg.requestId) {
     if (isRequestCancelled(handle, msg.requestId)) return;

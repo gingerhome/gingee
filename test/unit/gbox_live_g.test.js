@@ -198,4 +198,66 @@ describe('gbox live $g', () => {
       }),
     ).toThrow(/not initialized yet|only available/i);
   });
+
+  test('$g.locals is request-scoped and does not leak across requests with instance cache', async () => {
+    const { initializeGContext } = require('../../modules/engine/request_context/build_g');
+    fs.writeFileSync(
+      path.join(appBoxPath, 'lib', 'locals_mod.js'),
+      [
+        'module.exports = {',
+        '  set(v) { $g.locals.flag = v; },',
+        '  get() { return $g.locals.flag; },',
+        '};',
+        '',
+      ].join('\n'),
+    );
+    fs.writeFileSync(
+      path.join(appBoxPath, 'entry.js'),
+      [
+        'module.exports = async function () {',
+        '  await gingee(async ($g) => {',
+        '    const m = require("./lib/locals_mod.js");',
+        '    if ($g.locals.flag !== undefined) {',
+        '      $g.response.send({ leak: true, flag: $g.locals.flag });',
+        '      return;',
+        '    }',
+        '    m.set("from-req");',
+        '    $g.response.send({ leak: false, flag: m.get(), viaCb: $g.locals.flag });',
+        '  });',
+        '};',
+        '',
+      ].join('\n'),
+    );
+
+    const cfg = makeConfig({ useCache: true });
+    await runAls(cfg, async (store) => {
+      initializeGContext(store);
+      expect(store.$g.locals).toEqual({});
+      const handler = runInGBox(path.join(appBoxPath, 'entry.js'), cfg);
+      await handler();
+      const raw = Buffer.isBuffer(store._chunks[0])
+        ? store._chunks[0].toString('utf8')
+        : String(store._chunks[0]);
+      expect(JSON.parse(raw)).toEqual({
+        leak: false,
+        flag: 'from-req',
+        viaCb: 'from-req',
+      });
+    });
+
+    await runAls(cfg, async (store) => {
+      initializeGContext(store);
+      expect(store.$g.locals.flag).toBeUndefined();
+      const handler = runInGBox(path.join(appBoxPath, 'entry.js'), cfg);
+      await handler();
+      const raw = Buffer.isBuffer(store._chunks[0])
+        ? store._chunks[0].toString('utf8')
+        : String(store._chunks[0]);
+      expect(JSON.parse(raw)).toEqual({
+        leak: false,
+        flag: 'from-req',
+        viaCb: 'from-req',
+      });
+    });
+  });
 });

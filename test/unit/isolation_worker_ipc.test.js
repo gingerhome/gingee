@@ -92,6 +92,62 @@ describe("isolation worker IPC", () => {
     }
   });
 
+  test("invalidateSysCache from worker clears master static cache via IPC", async () => {
+    const cacheService = require("../../modules/cache_service");
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    await cacheService.init({ provider: "memory", ttl: 60 }, logger);
+
+    const app = writeApp(tmpRoot, "invapp", {
+      "bust.js": `
+module.exports = async function() {
+  await gingee(async ($g) => {
+    const cache = require('cache');
+    const result = await cache.invalidateSysCache({ static: ['/pub'] });
+    $g.response.send({ ok: true, result }, 200, 'application/json');
+  });
+};
+`,
+    });
+    app.grantedPermissions = ["cache"];
+    const staticAbs = path.join(app.appWebPath, "pub", "x.txt");
+    fs.mkdirSync(path.dirname(staticAbs), { recursive: true });
+    fs.writeFileSync(staticAbs, "old-bytes");
+    await cacheService.set(
+      `static:${staticAbs}`,
+      { body: "old-bytes", encoding: "utf8" },
+      60,
+    );
+    expect(await cacheService.get(`static:${staticAbs}`)).toBeTruthy();
+
+    const cfg = baseConfig({ apps: ["invapp"] });
+    workerManager.init(cfg, logger, path.join(tmpRoot, "web"));
+    workerManager.setAppsRegistry({ invapp: app });
+    await workerManager.startWorker(app, cfg);
+
+    const { res, chunks } = mockRes();
+    await workerManager.executeOnWorker({
+      app,
+      config: cfg,
+      req: {
+        method: "GET",
+        url: "/invapp/bust",
+        headers: { host: "localhost" },
+      },
+      res,
+      scriptPath: path.join(app.appBoxPath, "bust.js"),
+      routeParams: {},
+      maxBodySize: "1mb",
+      useCache: false,
+      logger,
+    });
+
+    expect(res.end).toHaveBeenCalled();
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    expect(body.ok).toBe(true);
+    expect(body.result.static).toBeGreaterThanOrEqual(1);
+    expect(await cacheService.get(`static:${staticAbs}`)).toBeNull();
+  }, 30000);
+
   test("worker runs script and returns JSON body", async () => {
     const app = writeApp(tmpRoot, "demo", {
       "hello.js": `

@@ -73,7 +73,7 @@ module.exports = async function () {
 
 The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`). For progressive output (for example AI token streaming), `$g.response` also supports `startStream`, `write` / `writeSSE`, and `endStream` — see the [Server Script Guide](./server-script.md).
 
-**Bare `$g` in required modules:** Inside `gingee(...)`, box scripts may use bare `$g` (and `globalThis.$g`) without passing it through `require`d helpers. It is a **live, request-local** binding (ALS-backed Proxy)—safe under module instance cache even if you write `const local_$g = $g`. Still use `await gingee(async ($g) => { ... })` on entry scripts for compatibility. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` across requests.
+**Bare `$g` in required modules:** Inside `gingee(...)`, box scripts may use bare `$g` (and `globalThis.$g`) without passing it through `require`d helpers. It is a **live, request-local** binding (ALS-backed Proxy)—safe under module instance cache even if you write `const local_$g = $g`. Still use `await gingee(async ($g) => { ... })` on entry scripts for compatibility. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` across requests. For request-scoped scratch data, use **`$g.locals`** (a new empty object every request)—do not invent a second ALS.
 
 ## 5. Security model (short)
 

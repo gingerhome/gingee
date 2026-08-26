@@ -104,4 +104,44 @@ describe('fs list / walk / stat', () => {
       expect(() => fsModule.statSync(fsModule.BOX, '/data/missing.txt')).toThrow();
     });
   });
+
+  test('walk WEB /sample/nested returns paths relative to that folder only', async () => {
+    const webPath = path.join(tmpRoot, 'web');
+    nodeFs.mkdirSync(path.join(webPath, 'sample', 'nested', 'sub'), {
+      recursive: true,
+    });
+    nodeFs.writeFileSync(
+      path.join(webPath, 'sample', 'nested', 'a.txt'),
+      'a',
+    );
+    nodeFs.writeFileSync(
+      path.join(webPath, 'sample', 'nested', 'sub', 'b.txt'),
+      'b',
+    );
+    store.app.appWebPath = webPath;
+
+    await als.run(store, async () => {
+      const walked = (await fsModule.walk(fsModule.WEB, '/sample/nested')).sort();
+      expect(walked).toEqual(['a.txt', 'sub/b.txt']);
+
+      expect(fsModule.walkSync(fsModule.WEB, '/sample/nested').sort()).toEqual([
+        'a.txt',
+        'sub/b.txt',
+      ]);
+
+      expect(
+        (await fsModule.listFiles(fsModule.WEB, '/sample/nested')).sort(),
+      ).toEqual(['a.txt']);
+      expect(await fsModule.listDirs(fsModule.WEB, '/sample/nested')).toEqual([
+        'sub',
+      ]);
+      expect(
+        (await fsModule.readdir(fsModule.WEB, '/sample/nested')).sort(),
+      ).toEqual(['a.txt', 'sub']);
+
+      const st = await fsModule.stat(fsModule.WEB, '/sample/nested/a.txt');
+      expect(st.isFile).toBe(true);
+      expect(st.size).toBe(1);
+    });
+  });
 });

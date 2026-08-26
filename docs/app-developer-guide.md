@@ -44,6 +44,7 @@ module.exports = async function () {
 - **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
 - **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it. Keep the `async ($g) => …` parameter for compatibility.
 - **`$g`**: The request context object. It is passed into your `gingee` handler **and** is available as bare `$g` / `globalThis.$g` inside that handler (and in `require`d box modules it calls). The bare binding is **live and request-local** (ALS-backed Proxy)—safe under module instance cache if you write `const local_$g = $g`. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` on module scope.
+  - **`$g.locals`**: A fresh plain object every request (also schedule/queue contexts). Put request-scoped scratch here (`$g.locals.foo = 1`). The live Proxy does not allow assigning arbitrary fields onto `$g` itself. Do not close over `$g.locals` at module top level.
 
 Let's modify the script to take a query parameter, and call a helper that uses bare `$g`:
 
@@ -230,7 +231,7 @@ await cache.invalidateSysCache({
 });
 ```
 
-Empty options are a no-op. Paths use the same rules as `fs` (and fan out script-cache clears to isolation workers). This does **not** re-read `app.json`, reinit db/email, or enter maintenance — use `platform.reloadApp` (privileged) for a full reload.
+Empty options are a no-op. Paths use the same rules as `fs`. Script-cache clears run on the master and fan out to isolation workers. When the calling script itself runs in an isolation worker, invalidate is **forwarded to the master** (static cache lives there) then broadcast. This does **not** re-read `app.json`, reinit db/email/messaging/ai, or enter maintenance — use `platform.reloadApp` (privileged) for a full reload.
 
 ### Refresh schedules without full reload
 
@@ -425,11 +426,12 @@ Without a leading `/`, `fs` paths are relative to the **currently executing** gb
 const names = await fs.readdir(fs.BOX, "/data"); // all entries
 const files = await fs.listFiles(fs.BOX, "/data"); // files only
 const dirs = await fs.listDirs(fs.BOX, "/data"); // directories only
-const tree = await fs.walk(fs.BOX, "/data", { includeDirs: true, maxDepth: 3 });
+// walk returns paths relative to the walked folder (forward slashes), e.g. a.txt, sub/b.txt
+const tree = await fs.walk(fs.WEB, "/sample/nested");
 const info = await fs.stat(fs.BOX, "/data/last-run.json"); // size, mtimeMs, isFile, …
 ```
 
-Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`.
+`readdir` / `listFiles` / `listDirs` return **entry names** in that directory. `walk` / `walkSync` return paths **relative to the walk root** (not prefixed again with that root, and not empty when the folder has files). Absolute jailed paths (`/…` under WEB or BOX) are supported for all of these. Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`.
 
 **JSON helpers:** `readJSON` / `writeJSON` and `readJSONSync` / `writeJSONSync` (pretty-print with 2-space indent). See sample **`web/tests/`** (`fileio`, `folderio`, `fs-caller-relative`).
 

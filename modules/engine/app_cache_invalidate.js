@@ -59,9 +59,42 @@ function invalidateScriptPrefixesLocal(appName, absPrefixes) {
   return clearScriptCachesByPrefixes(appName, absPrefixes);
 }
 
+/**
+ * Master-side apply: static provider clear + local script caches + broadcast to workers.
+ * Prefixes must already be absolute jailed paths.
+ * @param {string} appName
+ * @param {string[]} staticAbsPrefixes
+ * @param {string[]} scriptAbsPrefixes
+ * @returns {Promise<{ static: number, scripts: { transpile: number, instance: number } }>}
+ */
+async function applyInvalidateOnMaster(
+  appName,
+  staticAbsPrefixes,
+  scriptAbsPrefixes,
+) {
+  let staticCount = 0;
+  if (staticAbsPrefixes && staticAbsPrefixes.length > 0) {
+    staticCount = await invalidateStaticPrefixes(staticAbsPrefixes);
+  }
+  let scriptCounts = { transpile: 0, instance: 0 };
+  if (scriptAbsPrefixes && scriptAbsPrefixes.length > 0) {
+    scriptCounts = invalidateScriptPrefixesLocal(appName, scriptAbsPrefixes);
+    try {
+      const workerManager = require("./isolation/worker_manager.js");
+      if (typeof workerManager.broadcastCacheInvalidate === "function") {
+        workerManager.broadcastCacheInvalidate(appName, scriptAbsPrefixes);
+      }
+    } catch (_) {
+      /* master without isolation */
+    }
+  }
+  return { static: staticCount, scripts: scriptCounts };
+}
+
 module.exports = {
   SCOPES,
   resolvePrefixes,
   invalidateStaticPrefixes,
   invalidateScriptPrefixesLocal,
+  applyInvalidateOnMaster,
 };
