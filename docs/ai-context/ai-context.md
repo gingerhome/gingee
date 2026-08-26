@@ -82,7 +82,7 @@ module.exports = async function () {
 
 The `$g` object is your secure gateway to everything you need for a request, including the parsed request (`$g.request`), a response builder (`$g.response`), the logger (`$g.log`), and your app's configuration (`$g.app`). For progressive output (for example AI token streaming), `$g.response` also supports `startStream`, `write` / `writeSSE`, and `endStream` — see the [Server Script Guide](./server-script.md).
 
-**Bare `$g` in required modules:** Inside `gingee(...)`, box scripts may use bare `$g` (and `globalThis.$g`) without passing it through `require`d helpers. It is a **live, request-local** binding (ALS-backed Proxy)—safe under module instance cache even if you write `const local_$g = $g`. Still use `await gingee(async ($g) => { ... })` on entry scripts for compatibility. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` across requests.
+**Bare `$g` in required modules:** Inside `gingee(...)`, box scripts may use bare `$g` (and `globalThis.$g`) without passing it through `require`d helpers. It is a **live, request-local** binding (ALS-backed Proxy)—safe under module instance cache even if you write `const local_$g = $g`. Still use `await gingee(async ($g) => { ... })` on entry scripts for compatibility. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` across requests. For request-scoped scratch data, use **`$g.locals`** (a new empty object every request)—do not invent a second ALS.
 
 ## 5. Security model (short)
 
@@ -2076,7 +2076,7 @@ Single outbound messaging configuration for the app (SMS, MMS, WhatsApp via Twil
 
 - **`cache`** (object, optional)
   - Defines the caching **strategy** for this specific application.
-  - **`cache.client`**: Controls browser caching (`Cache-Control` header).
+  - **`cache.client`**: Controls browser caching. When enabled (and the URL is not matched by `client.no_cache_regex`), static responses send `Cache-Control: public, max-age=31536000` plus **ETag** (weak, size+mtime) and **Last-Modified**. Browsers revalidate with `If-None-Match` / `If-Modified-Since`; the server returns **304** when unchanged. After replacing files on disk, call `cache.invalidateSysCache` and/or rely on mtime/size change so validators update. Matched `no_cache_regex` still yields `Cache-Control: no-store` (no long-lived validators).
   - **`cache.server`**: When `enabled` is true, Gingee caches **static files** (via the configured cache provider, including a **pre-gzipped** copy when `content_encoding` is on) and, for box scripts, an **in-process** transpile + **sandboxed module instance** cache (Node `require.cache` semantics inside gbox). Instance reuse skips re-running `vm` for unchanged box / `local_modules` files across requests; the exported HTTP handler is still **invoked** every request. This is **not** Redis for script instances. Use `no_cache_regex` (matched against `req.url`; patterns are **precompiled** at app load and refreshed on `reloadApp`) or disable server cache for paths that must pick up file edits immediately. `reloadApp` also clears that app’s static cache (including pre-gzip entries) and instance cache. Prefer bare `$g` at use time inside `gingee(...)` (live request-local Proxy); do not use `$g` at module top level or stash `$g.response` across requests.
 
 ---
@@ -2609,6 +2609,8 @@ module.exports = async function () {
 - **`module.exports`**: Each script is a standard Node.js module that exports a single `async` function.
 - **`await gingee(handler)`**: This globally available function is the heart of the system. It wraps your logic, providing security and automatically handling complex tasks like parsing the request body. You should always `await` it. Keep the `async ($g) => …` parameter for compatibility.
 - **`$g`**: The request context object. It is passed into your `gingee` handler **and** is available as bare `$g` / `globalThis.$g` inside that handler (and in `require`d box modules it calls). The bare binding is **live and request-local** (ALS-backed Proxy)—safe under module instance cache if you write `const local_$g = $g`. Do not use `$g` at module top level, and do not stash nested objects like `$g.response` on module scope.
+  - **`$g.locals`**: A fresh plain object every request (also schedule/queue contexts). Put request-scoped scratch here (`$g.locals.foo = 1`). The live Proxy does not allow assigning arbitrary fields onto `$g` itself. Do not close over `$g.locals` at module top level.
+- **Logging:** Prefer **`$g.log`** (Winston app logger → `box/logs/app-*.log` JSON). Sandbox **`console.log/info/warn/error/debug`** are also forwarded to that same app logger (not the host Node console). Do not print secrets.
 
 Let's modify the script to take a query parameter, and call a helper that uses bare `$g`:
 
@@ -2782,6 +2784,28 @@ Or Docker/K8s file mounts:
 (with the file under `secrets.file_roots` from `gingee.json`).
 
 Sandbox scripts **cannot** read `process.env` (host isolation). The engine resolves refs into your app’s config in memory only. See [Server Config](./server-config.md) → `secrets` and the [Threat Model](./threat-model.md).
+
+### Runtime file replace → engine cache invalidate
+
+If a script unzips or regenerates files under **this app’s** `web/` or `box/` and the next request must see new bytes while `cache.server` (static / transpile / instance) is on, call:
+
+```javascript
+const cache = require("cache"); // permission: cache
+await cache.invalidateSysCache({
+  static: ["/assets/build"], // leading / = app web root (fs.WEB)
+  scripts: ["/lib", "./generated"], // box root or relative to this script
+});
+```
+
+Empty options are a no-op. Paths use the same rules as `fs`. Script-cache clears run on the master and fan out to isolation workers. When the calling script itself runs in an isolation worker, invalidate is **forwarded to the master** (static cache lives there) then broadcast. This does **not** re-read `app.json`, reinit db/email/messaging/ai, or enter maintenance — use `platform.reloadApp` (privileged) for a full reload.
+
+### Refresh schedules without full reload
+
+```javascript
+const scheduler = require("scheduler"); // permission: scheduler
+await scheduler.rebind(); // all jobs from disk app.json
+await scheduler.rebind(["nightly"]); // one name; unknown names throw
+```
 
 ### Background jobs (`queue`, optional)
 
@@ -2968,11 +2992,12 @@ Without a leading `/`, `fs` paths are relative to the **currently executing** gb
 const names = await fs.readdir(fs.BOX, "/data"); // all entries
 const files = await fs.listFiles(fs.BOX, "/data"); // files only
 const dirs = await fs.listDirs(fs.BOX, "/data"); // directories only
-const tree = await fs.walk(fs.BOX, "/data", { includeDirs: true, maxDepth: 3 });
+// walk returns paths relative to the walked folder (forward slashes), e.g. a.txt, sub/b.txt
+const tree = await fs.walk(fs.WEB, "/sample/nested");
 const info = await fs.stat(fs.BOX, "/data/last-run.json"); // size, mtimeMs, isFile, …
 ```
 
-Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`.
+`readdir` / `listFiles` / `listDirs` return **entry names** in that directory. `walk` / `walkSync` return paths **relative to the walk root** (not prefixed again with that root, and not empty when the folder has files). Absolute jailed paths (`/…` under WEB or BOX) are supported for all of these. Sync variants: `readdirSync`, `listFilesSync`, `listDirsSync`, `walkSync`, `statSync`.
 
 **JSON helpers:** `readJSON` / `writeJSON` and `readJSONSync` / `writeJSONSync` (pretty-print with 2-space indent). See sample **`web/tests/`** (`fileio`, `folderio`, `fs-caller-relative`).
 
@@ -3282,14 +3307,14 @@ This is the definitive list of all permission keys available in Gingee.
 | Permission Key | Description                                                                                                                                                                                                                                                                                     | Security Implication                                                                                                                                            |
 | :------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **platform**   | **PRIVILEGED.** Allows the app to use the `platform` module to manage the lifecycle (install, delete, upgrade, etc.) of other applications on the server.                                                                                                                                       | **Critical.** This is the highest level of privilege. Only grant this to a fully trusted administration application like `glade`.                               |
-| **cache**      | Allows the app to use the caching service for storing and retrieving data.                                                                                                                                                                                                                      | **High.** Grants access to the centralized cache service. Cache access is isolated for app specific data.                                                       |
+| **cache**      | Allows the app to use the caching service for storing and retrieving data, and to call `cache.invalidateSysCache` to drop engine static/transpile/instance caches for path prefixes under this app (after runtime file replaces; from isolation workers the call is forwarded to the master). | **High.** Grants access to the centralized cache service and engine cache invalidation for this app’s WEB/BOX prefixes.                                         |
 | **db**         | Allows the app to connect to and query the database(s) configured for it in `app.json`.                                                                                                                                                                                                         | **High.** Grants access to the application's primary data store.                                                                                                |
 | **email**      | Allows the app to send transactional email via `require('email')` (configured provider such as SendGrid, or the `console` logger). Supports per-call config override with `email.sendWithConfig`.                                                                                               | **High.** The app can send outbound email using server- or app-configured credentials (or a runtime key). Can incur cost and deliver messages externally.       |
 | **messaging**  | Allows the app to send outbound messages (SMS/MMS/WhatsApp) via `require('messaging')` (configured provider such as Twilio, or the `mock` / `console` logger). Supports per-call config override with `messaging.sendWithConfig`.                                                                  | **High.** The app can send SMS/MMS/WhatsApp using server- or app-configured credentials (or runtime keys). Can incur cost and deliver messages externally.       |
 | **ai**         | Allows the app to use generative AI via `require('ai')` (chat, streaming, multimodal, document parsing, content moderation). Providers include `mock` and `gemini` (`xai` planned).                                                                                                             | **High.** The app can send prompts, files, and images to external AI providers (unless using `mock`), with token/cost and data-egress implications.             |
 | **websockets** | Allows the app to accept WebSocket connections (`app.json` → `websockets`) and use `require('websockets')` for rooms/broadcast. Multi-node room delivery needs operator `websockets.fanout.driver: "redis"`.                                                                                    | **High.** Long-lived connections share the master event loop; apps can push to all of their connected clients. Grant only when needed.                          |
 | **queue**      | Allows the app to enqueue background jobs via `require('queue')` and execute handlers under `box/jobs/`.                                                                                                                                                                                        | **High.** Deferred privileged work (email, AI, heavy processing) with retries; with Redis, work can run on any node. Operators manage live jobs + DLQ in Glade. |
-| **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules` (script under `box/`, outbound URL, or **queue** job name). Jobs only fire when this node has `scheduler.enabled: true` in `gingee.json` (optional multi-node Redis coordination; Glade **Run now** can force a run). | **High.** The app can wake itself on a timer to run privileged sandbox code, enqueue queue jobs, or (with `httpclient`) call external URLs unattended.          |
+| **scheduler**  | Allows the app to register CRON jobs declared in `app.json` → `schedules`, and to `require('scheduler').rebind(names?)` to refresh this app’s jobs from disk without `platform.reloadApp`. Jobs only fire when `scheduler.enabled: true`.                                                     | **High.** The app can wake itself on a timer and rebind its own schedules. Sandbox API is **`rebind` only** (not cross-app unregister).                         |
 | **httpclient** | Permits the app to make outbound HTTP/HTTPS requests via `require('httpclient')` (`get` / `post` / `put` / `patch` / `delete`). Also required for scheduler **URL** targets. Subject to server **egress** policy (default blocks private/loopback/metadata SSRF targets).                         | **High.** The app can call allowed network destinations; without egress policy this would include internal hosts.                                               |
 | **fs**         | Grants sandboxed read/write, directory, listing (`readdir` / `listFiles` / `listDirs` / `walk`), and `stat` access within the app's own directories (`box` and `web`).                                                                                                                          | **Medium.** Access is jailed to the app's own directory, preventing access to other apps or system files.                                                       |
 | **module_override** | Allows `$g.overrideModule(specifier, boxRelativePath)` so that, for the rest of the request, matching `require(specifier)` loads an app box script instead. Specifiers: protected bare names (`fs`, …), other bare names (`crypto`, `url`, …), relative (`./x`) or box-root paths. **Only this permission** is required to install/apply overrides. See **Module overrides** below. | **High.** Changes what `require()` means for that request. Restricted/forbidden names cannot be overridden. Wrappers still run under normal gbox jailing. Grant only to trusted apps. |
@@ -3310,7 +3335,7 @@ This is the definitive list of all permission keys available in Gingee.
 | Relative path | `./helper`, `../shared/x` | Matched after resolving against the **calling** script, then as a box-relative key. Prefer map keys like `sandboxed/helper` (box-relative, no leading `./`). |
 | Box-root path | `lib/util` (no `./`) | Matched as path under `box/`. |
 
-**Never overridable:** restricted modules (`platform`, `gingee`, `scheduler`, …), `engine/*`, and forbidden host builtins (`child_process`, `node:fs`, …).
+**Never overridable:** restricted modules (`platform`, `gingee`, …), `engine/*`, and forbidden host builtins (`child_process`, `node:fs`, …). (`scheduler` is protected — apps with the permission may `require('scheduler')` for `rebind` only.)
 
 ### API
 
@@ -4014,10 +4039,10 @@ Gingee is a comprehensive application server designed to accelerate development 
 These are the core architectural features that define the Gingee development experience.
 
 - **Secure Sandbox Execution**
-  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app. Bare `$g` in box code is request-local (ALS); keep `gingee(async ($g) => …)` on entries.
+  Every server script runs in a secure, isolated environment. This prevents common vulnerabilities like path traversal and protects the main server process from errors or crashes in application code. When `app.json` → `cache.server.enabled` is true, Gingee reuses sandboxed **module instances** (box scripts and `box.local_modules`) across requests—still invoking the exported handler each time—while preserving the same permission and path jail rules. Disable server cache or use `no_cache_regex` for live-edit paths; `reloadApp` drops the instance cache for that app. Bare `$g` in box code is request-local (ALS); keep `gingee(async ($g) => …)` on entries. Use **`$g.locals`** for writable per-request scratch (not assignments onto `$g` itself).
   **Errors:** the HTTP request path catches failures of the **handler promise** (`await script()` / `await gingee(...)`) and returns **500** when headers are not yet sent. **Detached** async work that is not awaited is **not** part of that promise: an unhandled rejection is logged (`[unhandledRejection]`) and the **process keeps running**. Sync **`uncaughtException`** is logged (`[uncaughtException]`, optional ALS app name), the engine attempts **graceful shutdown**, then **`process.exit(1)`** — do not assume the process is healthy after a sync fatal. Prefer `await`, `.catch`, or the **`queue`** module for background side effects. See [Threat Model](./threat-model.md) → *How not to take down the node*.
 - **Response compression**
-  With `gingee.json` → `content_encoding.enabled`, static files may be served from a **pre-gzipped** server-cache entry, and `$g.response.send` gzip when the raw body is at least `content_encoding.size_threshold` bytes (default **1024**) and the client sends `Accept-Encoding: gzip`.
+  With `gingee.json` → `content_encoding.enabled`, static files may be served from a **pre-gzipped** server-cache entry, and `$g.response.send` gzip when the raw body is at least `content_encoding.size_threshold` bytes (default **1024**) and the client sends `Accept-Encoding: gzip`. When `cache.client` is enabled, static responses include **ETag** / **Last-Modified** and support **304** revalidation (alongside long `max-age`); `no_cache_regex` still forces `no-store`.
 
 - **Whitelist-Based Permissions System**
   A secure-by-default model where applications must be explicitly granted privileges by an administrator to access sensitive modules like the filesystem (`fs`), database (`db`), outbound HTTP client (`httpclient`), transactional email (`email`), or generative AI (`ai`). Isolation is **cooperative multi-app** (shared process)—see the [Threat Model](./threat-model.md).
@@ -4051,6 +4076,8 @@ These are the core architectural features that define the Gingee development exp
 
 - **Outbound Messaging (`messaging` Module)**
   Send SMS/MMS/WhatsApp through a provider adapter (Twilio in v1, plus `mock` and `console` loggers for local dev). Set `channel: 'whatsapp'` for WhatsApp (optional `whatsapp_from` in config); use `contentSid` / `contentVariables` for Twilio Content Templates. Config is a single object in `app.json` (optional defaults in `gingee.json`). Apps call `messaging.send(message)` or `messaging.sendWithConfig(runtimeConfig, message)` for a one-transaction override. Requires the `messaging` permission. Sample app: **`ginbon`** (`/ginbon/` — contacts, templates, compose with SMS/MMS/WhatsApp, history).
+- **Engine cache invalidate (`cache.invalidateSysCache`)**
+  Non-privileged apps with the **`cache`** permission can drop static / transpile / instance caches for path prefixes under their own web/box (after unzip/codegen) without `platform.reloadApp`. From an isolation worker the call is forwarded to the master (static cache + fan-out to all workers). Does not reinit messaging/email/ai. Schedule-only refresh: `require('scheduler').rebind(names?)` with the **`scheduler`** permission.
 
 - **Generative AI (`ai` Module)**
   Chat, streaming completions (`chatStream`), multimodal image/file parts, document parsing/OCR, and content moderation behind a provider adapter (`mock`, `gemini`; `xai` planned). Single hybrid config (`gingee.json` / `app.json`) with optional per-call `{ config }` override. Streaming apps use `$g.response.startStream` / `writeSSE` / `endStream`. Requires the `ai` permission.
@@ -4103,7 +4130,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 ### Core & System
 
 - **`gingee`**
-  The core middleware and context provider. Entry scripts use `await gingee(async ($g) => { … })`. Inside that handler, bare `$g` / `globalThis.$g` is also available to `require`d box modules (live, request-local Proxy). Handles automatic request body parsing.
+  The core middleware and context provider. Entry scripts use `await gingee(async ($g) => { … })`. Inside that handler, bare `$g` / `globalThis.$g` is also available to `require`d box modules (live, request-local Proxy). **`$g.locals`** is a fresh writable object every request for app scratch state. Sandbox **`console.*`** maps to the app Winston logger (`box/logs`); prefer **`$g.log`**. Handles automatic request body parsing.
 - **`cache`**
   A secure, multi-tenant facade module for application data caching. It provides a simple API (`get`, `set`, `del`, `clear`) and automatically namespaces all keys to ensure data isolation between apps.
 
@@ -4118,7 +4145,7 @@ Gingee comes "batteries-included" with a rich standard library of modules. These
 - **`ai`**
   Generative AI (chat, streaming `chatStream`, multimodal parts, document parse/OCR, content moderation). Providers: `mock`, `gemini` (v1); `xai` (Grok) planned P1. Permission-protected; per-call config override supported.
 - **`fs`**
-  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks. Includes read/write helpers, **`readJSON` / `writeJSON`** (sync and async), directory listing (`readdir`, `listFiles`, `listDirs`), recursive `walk` (`includeDirs` / `maxDepth`), and `stat`. Relative paths (no leading `/`) resolve to the executing gbox script directory; leading `/` is scope-root.
+  A secure, virtualized filesystem wrapper. Jails all file and folder operations to an app's private `box` or public `web` scope, preventing path traversal attacks. Includes read/write helpers, **`readJSON` / `writeJSON`** (sync and async), directory listing (`readdir`, `listFiles`, `listDirs`), recursive `walk` (`includeDirs` / `maxDepth`; results relative to the walked folder), and `stat`. Relative paths (no leading `/`) resolve to the executing gbox script directory; leading `/` is scope-root.
 - **`httpclient`**
   A powerful wrapper for making external HTTP(S) requests: **`get`**, **`post`**, **`put`**, **`patch`**, and **`delete`**. Body-bearing methods share `postType` content types (JSON, form, text, XML, multipart). It handles redirects, HTTPS, egress/SSRF policy, outbound timeouts, and intelligently processes response bodies into strings or buffers.
 - **`formdata`**
@@ -4191,6 +4218,8 @@ via provider adapters — similar to <code>db</code> / <code>email</code>.</p>
 </dd>
 <dt><a href="#module_cache">cache</a></dt>
 <dd><p>Provides a secure interface for caching data within the Gingee application context.
+Also exposes <a href="#module_cache.invalidateSysCache">invalidateSysCache</a> to drop engine static/transpile/instance
+caches for path prefixes under the calling app (after runtime file replaces).
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.</p>
 </dd>
 <dt><a href="#module_chart">chart</a></dt>
@@ -4492,14 +4521,20 @@ const payload = auth.jwt.verify(token);if (payload) {    console.log("Token is
 
 ## cache
 Provides a secure interface for caching data within the Gingee application context.
+Also exposes [invalidateSysCache](#module_cache.invalidateSysCache) to drop engine static/transpile/instance
+caches for path prefixes under the calling app (after runtime file replaces).
 <b>IMPORTANT:</b> Requires explicit permission to use the module. See docs/permissions-guide for more details.
 
 
 * [cache](#module_cache)
-    * [.get(key)](#module_cache.get) ⇒ <code>Promise.&lt;any&gt;</code>
-    * [.set(key, value, [ttl])](#module_cache.set) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.del(key)](#module_cache.del) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.clear()](#module_cache.clear) ⇒ <code>Promise.&lt;void&gt;</code>
+    * _static_
+        * [.get(key)](#module_cache.get) ⇒ <code>Promise.&lt;any&gt;</code>
+        * [.set(key, value, [ttl])](#module_cache.set) ⇒ <code>Promise.&lt;void&gt;</code>
+        * [.del(key)](#module_cache.del) ⇒ <code>Promise.&lt;void&gt;</code>
+        * [.clear()](#module_cache.clear) ⇒ <code>Promise.&lt;void&gt;</code>
+        * [.invalidateSysCache([options])](#module_cache.invalidateSysCache) ⇒ <code>Promise.&lt;{static: number, scripts: {transpile: number, instance: number}}&gt;</code>
+    * _inner_
+        * [~pendingWorkerInvalidate](#module_cache..pendingWorkerInvalidate) : <code>Map.&lt;string, {resolve: function(), reject: function(), timer: NodeJS.Timeout}&gt;</code>
 
 <a name="module_cache.get"></a>
 
@@ -4587,6 +4622,37 @@ const cache = require('cache');
 await cache.clear();
 console.log("All cache cleared.");
 ```
+<a name="module_cache.invalidateSysCache"></a>
+
+### cache.invalidateSysCache([options]) ⇒ <code>Promise.&lt;{static: number, scripts: {transpile: number, instance: number}}&gt;</code>
+Drops engine caches for path prefixes under this app only — static
+file cache entries (`static:…`) and/or box transpile + sandboxed module instance
+caches. Does **not** run `platform.reloadApp` (no maintenance mode, no db/email
+reinit). Path rules match `fs` (leading `/` = app WEB/BOX root; else relative to
+the calling script). Empty options are a no-op. When called from an isolation
+worker, prefixes are resolved locally then forwarded to the master (static clear
++ fan-out to all workers).
+
+**Kind**: static method of [<code>cache</code>](#module_cache)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| [options] | <code>object</code> |  |
+| [options.static] | <code>Array.&lt;string&gt;</code> | Prefixes under app web (fs.WEB rules). |
+| [options.scripts] | <code>Array.&lt;string&gt;</code> | Prefixes under app box (fs.BOX rules). |
+
+**Example**  
+```js
+const cache = require('cache');
+await cache.invalidateSysCache({
+  static: ['/assets/build'],
+  scripts: ['/lib', './generated'],
+});
+```
+<a name="module_cache..pendingWorkerInvalidate"></a>
+
+### cache~pendingWorkerInvalidate : <code>Map.&lt;string, {resolve: function(), reject: function(), timer: NodeJS.Timeout}&gt;</code>
+**Kind**: inner constant of [<code>cache</code>](#module_cache)  
 <a name="module_chart"></a>
 
 ## chart
